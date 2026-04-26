@@ -29,7 +29,7 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .status-label{font-size:11px;color:var(--text2);}
 
-  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;width:100%;}
   .ctrl-group{display:flex;align-items:center;gap:5px;}
   .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
   .pills{display:flex;gap:3px;}
@@ -318,6 +318,8 @@ const showLoading = () => document.getElementById('tbody').innerHTML=
 const showError   = m => document.getElementById('tbody').innerHTML=
   `<tr class="error-row"><td colspan="6">⚠ ${m}</td></tr>`;
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function startScan() {
   const btn = document.getElementById('btn-scan');
   btn.disabled=true; btn.textContent='⏳ Skanowanie...';
@@ -375,7 +377,7 @@ async function startScan() {
     }));
     const markets = [...perpMarkets, ...hip3Markets];
 
-    const results=[], BATCH=8, total=markets.length;
+    const results=[], BATCH=4, total=markets.length;
     for (let i=0; i<total; i+=BATCH) {
       const batch = await Promise.allSettled(markets.slice(i,i+BATCH).map(async m=>{
         const msMap={'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000};
@@ -395,13 +397,14 @@ async function startScan() {
       batch.forEach(b=>{if(b.status==='fulfilled'&&b.value)results.push(b.value);});
       setProgress(35+Math.round((i/total)*60));
       setStatus(`RSI: ${Math.min(i+BATCH,total)} / ${total}`);
+      await sleep(300);
     }
 
     allData=results;
     setProgress(100);
     setStatus('Gotowe — '+allData.length+' rynków');
     document.getElementById('dot').style.background='#4caf7d';
-    document.getElementById('footer-right').textContent='Ostatnia aktualizacja: '+new Date().toLocaleTimeString('pl');
+    const frEl=document.getElementById('footer-right'); if(frEl) frEl.textContent='Ostatnia aktualizacja: '+new Date().toLocaleTimeString('pl');
     const ts = new Date().toLocaleTimeString('pl');
     
     
