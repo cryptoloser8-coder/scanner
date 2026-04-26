@@ -66,7 +66,7 @@
   #search:focus{border-color:rgba(255,255,255,.3);}
   #search::placeholder{color:var(--text3);}
 
-  .table-wrap{border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+  .table-wrap{border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:flex;flex-direction:column;}
   table{width:100%;border-collapse:collapse;table-layout:fixed;}
   thead th{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);text-align:left;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
   thead th:hover{color:var(--text2);}
@@ -118,14 +118,14 @@
   .error-row td{text-align:center;padding:28px;color:var(--red);font-size:12px;}
   .col-coin{width:22%;}.col-price{width:13%;}.col-chg{width:9%;}.col-vol{width:17%;}.col-rsi{width:23%;}.col-sig{width:16%;}
   #progress{position:fixed;top:0;left:0;height:2px;background:var(--blue);transition:width .3s;z-index:1000;}
-  .sticky-bar{position:sticky;top:0;z-index:99;background:rgba(15,15,15,.97);border-bottom:1px solid var(--border);padding:10px 20px;margin:0 -20px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;backdrop-filter:blur(8px);}
-  .sticky-bar .s-left{display:flex;align-items:center;gap:10px;}
-  .sticky-bar .s-right{display:flex;align-items:center;gap:12px;}
-  .version{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg3);border:1px solid var(--border2);color:var(--text3);}
-  .last-update{font-size:11px;color:var(--text2);}
+  .version{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg3);border:1px solid var(--border2);color:var(--text3);vertical-align:middle;}
   .vol-custom{font-size:11px;padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:90px;outline:none;transition:border-color .15s;}
   .vol-custom:focus{border-color:rgba(255,255,255,.3);}
   .vol-custom::placeholder{color:var(--text3);}
+  .table-scroll{overflow-y:auto;max-height:calc(100vh - 420px);min-height:200px;}
+  .table-scroll::-webkit-scrollbar{width:5px;}
+  .table-scroll::-webkit-scrollbar-track{background:var(--bg2);}
+  .table-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 </style>
 </head>
 <body>
@@ -142,18 +142,7 @@
   </div>
 </div>
 
-<!-- Sticky bar — zawsze widoczny przy scrollowaniu -->
-<div class="sticky-bar">
-  <div class="s-left">
-    <span class="status-dot" id="dot2"></span>
-    <span style="font-size:12px;font-weight:600;">RSI Scanner</span>
-    <span class="version">v1.2</span>
-    <button class="btn-scan" id="btn-scan2" onclick="startScan()" style="margin-left:8px;">▶ Skanuj</button>
-  </div>
-  <div class="s-right">
-    <span class="last-update" id="sticky-update">Ostatnia aktualizacja: —</span>
-    <span id="sticky-stats" style="font-size:11px;color:var(--text2);"></span>
-  </div>
+  <div class="s-right"></div>
 </div>
 
 <div class="controls">
@@ -184,7 +173,10 @@
       <button class="pill" data-val="300">5 min</button>
     </div>
   </div>
-  <button class="btn-scan" id="btn-scan" onclick="startScan()">▶ Skanuj</button>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <span id="footer-right" style="font-size:11px;color:var(--text3);">—</span>
+    <button class="btn-scan" id="btn-scan" onclick="startScan()">▶ Skanuj</button>
+  </div>
 </div>
 
 <div class="stats">
@@ -224,9 +216,7 @@
   </div>
 </div>
 
-<div class="table-wrap">
-  <table>
-    <thead>
+<div class="table-wrap"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead>
       <tr>
         <th class="col-coin" data-col="sym">Symbol <span class="sort-icon" id="si-sym">↕</span></th>
         <th class="col-price right" data-col="price">Cena (USD) <span class="sort-icon" id="si-price">↕</span></th>
@@ -235,16 +225,12 @@
         <th class="col-rsi" data-col="rsi">RSI(14) <span class="sort-icon" id="si-rsi">↕</span></th>
         <th class="col-sig right">Sygnał</th>
       </tr>
-    </thead>
-    <tbody id="tbody">
+    </thead></table><div class="table-scroll"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><tbody id="tbody">
       <tr class="loading-row"><td colspan="6"><span class="spinner"></span>Kliknij "▶ Skanuj" aby pobrać dane</td></tr>
-    </tbody>
-  </table>
-</div>
+    </tbody></table></div></div>
 
 <div class="footer">
   <span id="footer-left">— rynków załadowanych</span>
-  <span id="footer-right">Ostatnia aktualizacja: —</span>
 </div>
 
 <script>
@@ -335,9 +321,9 @@ const showError   = m => document.getElementById('tbody').innerHTML=
 async function startScan() {
   const btn = document.getElementById('btn-scan');
   btn.disabled=true; btn.textContent='⏳ Skanowanie...';
-  const btn2=document.getElementById('btn-scan2'); if(btn2){btn2.disabled=true; btn2.textContent='⏳';}
+
   document.getElementById('dot').style.background='#ffc107';
-  document.getElementById('dot2').style.background='#ffc107';
+  
   setStatus('Łączenie...'); setProgress(5); showLoading();
 
   try {
@@ -417,8 +403,8 @@ async function startScan() {
     document.getElementById('dot').style.background='#4caf7d';
     document.getElementById('footer-right').textContent='Ostatnia aktualizacja: '+new Date().toLocaleTimeString('pl');
     const ts = new Date().toLocaleTimeString('pl');
-    document.getElementById('sticky-update').textContent='Ostatnia aktualizacja: '+ts;
-    document.getElementById('dot2').style.background='#4caf7d';
+    
+    
     updateStats(); renderTable();
     setTimeout(()=>setProgress(0),800);
 
@@ -426,11 +412,10 @@ async function startScan() {
     console.error(err);
     showError(err.message);
     document.getElementById('dot').style.background='#e05252';
-    document.getElementById('dot2').style.background='#e05252';
+    
     setStatus('Błąd'); setProgress(0);
   }
   btn.disabled=false; btn.textContent='▶ Skanuj';
-const btn2b=document.getElementById('btn-scan2'); if(btn2b){btn2b.disabled=false; btn2b.textContent='▶ Skanuj';}
 }
 
 function updateStats() {
