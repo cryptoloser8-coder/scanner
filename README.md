@@ -1,6 +1,6 @@
-==================================================
+
   RSI SCANNER — HYPERLIQUID
-==================================================
+
 
 https://cryptoloser8-coder.github.io/rsi-scanner/
 
