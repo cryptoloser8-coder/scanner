@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>RSI Scanner — Hyperliquid</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--green-bg:rgba(76,175,125,.12);
+    --red:#e05252;--red-bg:rgba(224,82,82,.12);
+    --blue:#5b9cf6;--blue-bg:rgba(91,156,246,.1);
+    --amber:#ffc107;--amber-bg:rgba(255,193,7,.1);
+    --purple:#ce93d8;--purple-bg:rgba(156,39,176,.12);
+    --radius:8px;--radius-lg:12px;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;transition:background .3s;}
+  .status-dot.live{background:var(--green);animation:pulse 2s infinite;}
+  .status-dot.loading{background:var(--amber);animation:pulse .6s infinite;}
+  .status-dot.error{background:var(--red);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .status-label{font-size:11px;color:var(--text2);}
+  .version{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg3);border:1px solid var(--border2);color:var(--text3);vertical-align:middle;}
+
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;width:100%;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;transition:all .15s;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  .vol-custom{font-size:11px;padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:90px;outline:none;transition:border-color .15s;}
+  .vol-custom:focus{border-color:rgba(255,255,255,.3);}
+  .vol-custom::placeholder{color:var(--text3);}
+  .btn-connect{font-size:12px;font-weight:500;padding:5px 14px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:var(--text);cursor:pointer;transition:all .15s;}
+  .btn-connect:hover{background:rgba(255,255,255,.14);}
+  .btn-connect:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-disconnect{font-size:12px;font-weight:500;padding:5px 14px;border-radius:var(--radius);border:1px solid rgba(224,82,82,.3);background:rgba(224,82,82,.08);color:var(--red);cursor:pointer;transition:all .15s;display:none;}
+  .btn-disconnect:hover{background:rgba(224,82,82,.15);}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
+  .stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;}
+  .stat-label{font-size:10px;color:var(--text2);margin-bottom:4px;}
+  .stat-val{font-size:22px;font-weight:600;}
+  .stat-val.g{color:var(--green);}
+  .stat-val.r{color:var(--red);}
+
+  .filter-section{margin-bottom:10px;display:flex;flex-direction:column;gap:5px;}
+  .filter-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .filter-row-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;min-width:60px;}
+  .fbtn{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;}
+  .fbtn:hover{color:var(--text);border-color:rgba(255,255,255,.25);}
+  .fbtn.fa{background:rgba(255,255,255,.07);color:var(--text);border-color:rgba(255,255,255,.2);}
+  .fbtn.fos{background:var(--green-bg);color:var(--green);border-color:rgba(76,175,125,.3);}
+  .fbtn.fob{background:var(--red-bg);color:var(--red);border-color:rgba(224,82,82,.3);}
+  .fbtn.fnear{background:rgba(255,255,255,.05);color:var(--text2);border-color:rgba(255,255,255,.18);}
+  .fbtn.fcrypto{background:var(--blue-bg);color:var(--blue);border-color:rgba(91,156,246,.3);}
+  .fbtn.fcomm{background:var(--amber-bg);color:var(--amber);border-color:rgba(255,193,7,.3);}
+  .fbtn.fequity{background:var(--purple-bg);color:var(--purple);border-color:rgba(156,39,176,.3);}
+  .search-wrap{margin-left:auto;position:relative;}
+  .search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);opacity:.35;}
+  #search{font-size:11px;padding:4px 8px 4px 26px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:150px;outline:none;}
+  #search:focus{border-color:rgba(255,255,255,.3);}
+  #search::placeholder{color:var(--text3);}
+
+  .table-wrap{border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:flex;flex-direction:column;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  thead th{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);text-align:left;padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
+  thead th:hover{color:var(--text2);}
+  thead th.sorted{color:var(--text2);}
+  thead th.right{text-align:right;}
+  .sort-icon{margin-left:3px;font-size:8px;opacity:.3;}
+  .sort-icon.on{opacity:.8;}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,.025);}
+  td{padding:8px 12px;vertical-align:middle;}
+  td.right{text-align:right;}
+  .coin-cell{display:flex;align-items:center;gap:8px;}
+  .coin-icon{width:26px;height:26px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:600;color:var(--text2);flex-shrink:0;}
+  .coin-sym{font-weight:600;font-size:12px;}
+  .cat{font-size:8px;font-weight:600;padding:2px 5px;border-radius:3px;letter-spacing:.05em;text-transform:uppercase;display:inline-block;margin-top:2px;}
+  .cat-crypto{background:var(--blue-bg);color:var(--blue);}
+  .cat-commodity{background:var(--amber-bg);color:var(--amber);}
+  .cat-equity{background:var(--purple-bg);color:var(--purple);}
+  .price{font-family:'SF Mono','Fira Mono',monospace;font-size:11px;}
+  .chg{font-family:'SF Mono','Fira Mono',monospace;font-size:11px;font-weight:500;}
+  .chg.pos{color:var(--green);}
+  .chg.neg{color:var(--red);}
+  .na{color:var(--text3);font-size:11px;}
+  .vol-wrap{display:flex;align-items:center;gap:5px;justify-content:flex-end;}
+  .vol-bar{width:40px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;flex-shrink:0;}
+  .vol-fill{height:100%;border-radius:2px;background:#3a6fa8;}
+  .vol-val{font-family:'SF Mono','Fira Mono',monospace;font-size:10px;color:var(--text2);min-width:48px;text-align:right;}
+  .rsi-wrap{display:flex;align-items:center;gap:7px;}
+  .rsi-track{flex:1;height:4px;border-radius:2px;background:var(--bg3);position:relative;}
+  .rsi-track::before,.rsi-track::after{content:'';position:absolute;top:-2px;width:1px;height:8px;background:var(--border2);}
+  .rsi-track::before{left:30%;}
+  .rsi-track::after{left:70%;}
+  .rsi-fill{height:100%;border-radius:2px;position:absolute;top:0;left:0;}
+  .rsi-num{font-family:'SF Mono','Fira Mono',monospace;font-size:11px;font-weight:600;min-width:32px;text-align:right;}
+  .rsi-num.os{color:var(--green);}
+  .rsi-num.ob{color:var(--red);}
+  .rsi-num.n{color:var(--text2);}
+  .sig{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+  .sig.os{background:var(--green-bg);color:var(--green);}
+  .sig.ob{background:var(--red-bg);color:var(--red);}
+  .sig.n{background:var(--bg3);color:var(--text3);}
+  .sig.near-os{background:rgba(76,175,125,.06);color:rgba(76,175,125,.7);}
+  .sig.near-ob{background:rgba(224,82,82,.06);color:rgba(224,82,82,.7);}
+  .footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--text3);}
+  .loading-row td{text-align:center;padding:40px;color:var(--text2);font-size:12px;}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--text2);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:7px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .error-row td{text-align:center;padding:28px;color:var(--red);font-size:12px;}
+  .col-coin{width:20%;}.col-price{width:12%;}.col-chg{width:9%;}.col-vol{width:14%;}.col-rsi{width:20%;}.col-adx{width:12%;}.col-sig{width:13%;}
+  #progress{position:fixed;top:0;left:0;height:2px;background:var(--blue);transition:width .3s;z-index:1000;}
+  .table-scroll{overflow-y:auto;max-height:calc(100vh - 400px);min-height:200px;}
+  .table-scroll::-webkit-scrollbar{width:5px;}
+  .table-scroll::-webkit-scrollbar-track{background:var(--bg2);}
+  .table-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+  .flash-green{animation:flashG .6s ease-out;}
+  .flash-red{animation:flashR .6s ease-out;}
+  @keyframes flashG{0%{background:rgba(76,175,125,.25);}100%{background:transparent;}}
+  @keyframes flashR{0%{background:rgba(224,82,82,.25);}100%{background:transparent;}}
+</style>
+</head>
+<body>
+<div id="progress" style="width:0%"></div>
+
+<div class="header">
+  <div>
+    <h1>RSI Scanner — Hyperliquid <span class="version">v2.2.0</span></h1>
+    <p>RSI(14) Wildera &nbsp;·&nbsp; Oversold &lt;30 / Overbought &gt;70 &nbsp;·&nbsp; Live WebSocket</p>
+  </div>
+  <div style="text-align:right">
+    <span class="status-dot" id="dot"></span>
+    <span class="status-label" id="status-label">Rozłączony</span>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Timeframe</span>
+    <div class="pills" id="tf-pills">
+      <button class="pill" data-val="15m">15m</button>
+      <button class="pill" data-val="1h">1h</button>
+      <button class="pill active" data-val="4h">4h</button>
+      <button class="pill" data-val="1d">1d</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">RSI okres</span>
+    <div class="pills" id="rsi-pills">
+      <button class="pill" data-val="7">7</button>
+      <button class="pill active" data-val="14">14</button>
+      <button class="pill" data-val="21">21</button>
+    </div>
+  </div>
+
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+    <span id="last-update" style="font-size:11px;color:var(--text3);">—</span>
+    <button class="btn-connect" id="btn-connect" onclick="connect()">▶ Połącz</button>
+    <button class="btn-disconnect" id="btn-disconnect" onclick="disconnect()">■ Rozłącz</button>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Rynków załadowanych</div><div class="stat-val" id="s-all">—</div></div>
+  <div class="stat"><div class="stat-label">Oversold (&lt;30)</div><div class="stat-val g" id="s-os">—</div></div>
+  <div class="stat"><div class="stat-label">Overbought (&gt;70)</div><div class="stat-val r" id="s-ob">—</div></div>
+  <div class="stat"><div class="stat-label">Neutralnych</div><div class="stat-val" id="s-neu">—</div></div>
+</div>
+
+<div class="filter-section">
+  <div class="filter-row">
+    <span class="filter-row-label">Sygnał</span>
+    <button class="fbtn fa" data-f="all">Wszystkie</button>
+    <button class="fbtn" data-f="os">Oversold &lt;30</button>
+    <button class="fbtn" data-f="ob">Overbought &gt;70</button>
+    <button class="fbtn" data-f="near">Blisko progu (±5)</button>
+  </div>
+  <div class="filter-row">
+    <span class="filter-row-label">Kategoria</span>
+    <button class="fbtn fa" data-c="all">Wszystkie</button>
+    <button class="fbtn" data-c="crypto">Crypto</button>
+    <button class="fbtn" data-c="commodity">Commodities</button>
+    <button class="fbtn" data-c="equity">Equities</button>
+  </div>
+  <div class="filter-row">
+    <span class="filter-row-label">Min. Vol</span>
+    <button class="fbtn fa" data-v="0">Wszystkie</button>
+    <button class="fbtn" data-v="100000">$100K</button>
+    <button class="fbtn" data-v="500000">$500K</button>
+    <button class="fbtn" data-v="1000000">$1M</button>
+    <button class="fbtn" data-v="5000000">$5M</button>
+    <input class="vol-custom" id="vol-custom" type="text" placeholder="np. 250000">
+  </div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px;">
+  <div class="search-wrap">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input id="search" placeholder="Szukaj symbolu..." oninput="renderTable()" style="width:180px;">
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+    <thead>
+      <tr>
+        <th class="col-coin" data-col="sym">Symbol <span class="sort-icon" id="si-sym">↕</span></th>
+        <th class="col-price right" data-col="price">Cena (USD) <span class="sort-icon" id="si-price">↕</span></th>
+        <th class="col-chg" data-col="chg" style="text-align:center;">24h % <span class="sort-icon" id="si-chg">↕</span></th>
+        <th class="col-vol right" data-col="vol">Vol 24h <span class="sort-icon" id="si-vol">↕</span></th>
+        <th class="col-rsi" data-col="rsi">RSI(14) <span class="sort-icon" id="si-rsi">↕</span></th>
+        <th class="col-adx right" data-col="adx">ADX <span class="sort-icon" id="si-adx">↕</span></th>
+        <th class="col-sig right">Sygnał</th>
+      </tr>
+    </thead>
+  </table>
+  <div class="table-scroll">
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <tbody id="tbody">
+        <tr class="loading-row"><td colspan="6">Kliknij "▶ Połącz" aby załadować dane</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  <span id="footer-left">— rynków</span>
+  <span id="footer-right" style="color:var(--text3);font-size:10px;"></span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const HL_WS  = 'wss://api.hyperliquid.xyz/ws';
+const HL_API = 'https://api.hyperliquid.xyz/info';
+
+const COMMODITY_SYMS = new Set(['GOLD','XAU','SILVER','XAG','OIL','CL','BRENTOIL','USOIL','NATGAS','WTI','PAXG','XAUT','COPPER','WHEAT','CORN']);
+const EQUITY_SYMS    = new Set(['SPX','SP500','XYZ100','NVDA','TSLA','AAPL','AMZN','MSFT','GOOGL','META','NFLX','AMD','SPY','QQQ','COIN','MSTR']);
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let ws = null;
+let allData    = {};   // sym → {sym, dispSym, category, price, chg, vol, candles:[], rsi}
+let sortCol    = 'vol', sortDir = -1;
+let activeFilter = 'all', activeCat = 'all', minVol = 0;
+let tf         = '4h', rsiPeriod = 14;
+let markets    = [];   // [{sym, dispSym, category, dex}]
+let subsCount  = 0, totalMarkets = 0;
+let renderTimer = null;
+
+// ═══════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════
+function guessCategory(sym) {
+  const base   = sym.split(':').pop().toUpperCase();
+  const prefix = sym.includes(':') ? sym.split(':')[0].toLowerCase() : '';
+  if (COMMODITY_SYMS.has(base)) return 'commodity';
+  if (EQUITY_SYMS.has(base))    return 'equity';
+  if (['cash','flx','para','km'].includes(prefix)) return 'equity';
+  if (prefix === 'xyz') return 'equity';
+  return 'crypto';
+}
+
+function calcRSI(candles, period) {
+  if (!candles || candles.length < period + 1) return null;
+  const c = candles.map(x => parseFloat(x.c ?? x[4] ?? x));
+  let ag = 0, al = 0;
+  for (let i = 1; i <= period; i++) { const d = c[i]-c[i-1]; d>0?ag+=d:al-=d; }
+  ag /= period; al /= period;
+  for (let i = period+1; i < c.length; i++) {
+    const d = c[i]-c[i-1];
+    ag = (ag*(period-1)+Math.max(d,0))/period;
+    al = (al*(period-1)+Math.max(-d,0))/period;
+  }
+  if (al === 0) return 100;
+  return 100 - 100/(1 + ag/al);
+}
+
+// ADX — Average Directional Index (Wilder)
+function calcADX(candles, period=14) {
+  if (!candles || candles.length < period * 2) return null;
+  const highs  = candles.map(c => parseFloat(c.h ?? c[2] ?? 0));
+  const lows   = candles.map(c => parseFloat(c.l ?? c[3] ?? 0));
+  const closes = candles.map(c => parseFloat(c.c ?? c[4] ?? 0));
+
+  const trArr=[], plusDM=[], minusDM=[];
+  for (let i=1; i<highs.length; i++) {
+    const tr = Math.max(
+      highs[i]-lows[i],
+      Math.abs(highs[i]-closes[i-1]),
+      Math.abs(lows[i]-closes[i-1])
+    );
+    const up   = highs[i]-highs[i-1];
+    const down = lows[i-1]-lows[i];
+    trArr.push(tr);
+    plusDM.push(up>down && up>0 ? up : 0);
+    minusDM.push(down>up && down>0 ? down : 0);
+  }
+
+  // Wilder smoothing
+  let atr=trArr.slice(0,period).reduce((a,b)=>a+b,0);
+  let pDM=plusDM.slice(0,period).reduce((a,b)=>a+b,0);
+  let mDM=minusDM.slice(0,period).reduce((a,b)=>a+b,0);
+
+  const dxArr=[];
+  for (let i=period; i<trArr.length; i++) {
+    atr = atr - atr/period + trArr[i];
+    pDM = pDM - pDM/period + plusDM[i];
+    mDM = mDM - mDM/period + minusDM[i];
+    const pDI = atr ? (pDM/atr)*100 : 0;
+    const mDI = atr ? (mDM/atr)*100 : 0;
+    const dx  = (pDI+mDI) ? Math.abs(pDI-mDI)/(pDI+mDI)*100 : 0;
+    dxArr.push({dx, pDI, mDI});
+  }
+
+  if (dxArr.length < period) return null;
+  let adx = dxArr.slice(0,period).reduce((a,b)=>a+b.dx,0)/period;
+  for (let i=period; i<dxArr.length; i++) adx = (adx*(period-1)+dxArr[i].dx)/period;
+
+  const last = dxArr[dxArr.length-1];
+  return { adx: Math.round(adx*10)/10, pDI: Math.round(last.pDI*10)/10, mDI: Math.round(last.mDI*10)/10 };
+}
+
+function fmtPrice(p) {
+  if (!p||isNaN(p)||p===0) return null;
+  if (p>=10000) return '$'+p.toLocaleString('en',{maximumFractionDigits:0});
+  if (p>=100)   return '$'+p.toFixed(2);
+  if (p>=1)     return '$'+p.toFixed(3);
+  if (p>=0.01)  return '$'+p.toFixed(4);
+  return '$'+p.toFixed(6);
+}
+function fmtVol(v) {
+  if (!v||isNaN(v)||v===0) return null;
+  if (v>=1e9) return '$'+(v/1e9).toFixed(2)+'B';
+  if (v>=1e6) return '$'+(v/1e6).toFixed(1)+'M';
+  if (v>=1e3) return '$'+(v/1e3).toFixed(0)+'K';
+  return '$'+v.toFixed(0);
+}
+function rsiColor(r) {
+  if (r<30) return '#4caf7d'; if (r>70) return '#e05252';
+  if (r<40) return '#7ec89a'; if (r>60) return '#e88080';
+  return '#5b9cf6';
+}
+function signalInfo(r) {
+  if (r===null)  return {cls:'n',label:'—'};
+  if (r<30)      return {cls:'os',label:'Oversold'};
+  if (r>70)      return {cls:'ob',label:'Overbought'};
+  if (r<35)      return {cls:'near-os',label:'Blisko OS'};
+  if (r>65)      return {cls:'near-ob',label:'Blisko OB'};
+  return         {cls:'n',label:'Neutralny'};
+}
+const setDot = (state) => {
+  const d = document.getElementById('dot');
+  d.className = 'status-dot ' + state;
+};
+const setStatus = m => document.getElementById('status-label').textContent = m;
+const setProgress = p => document.getElementById('progress').style.width = p+'%';
+
+// ═══════════════════════════════════════════════════
+// REST — initial market list + historical candles
+// ═══════════════════════════════════════════════════
+async function fetchREST(body) {
+  const r = await fetch(HL_API, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+}
+
+async function loadMarkets() {
+  // 1. Perp markets
+  const [meta, ctx] = await Promise.all([
+    fetchREST({type:'meta'}),
+    fetchREST({type:'metaAndAssetCtxs'})
+  ]);
+  const universe = meta?.universe || [];
+  const ctxUni   = ctx?.[0]?.universe || [];
+  const ctxList  = ctx?.[1] || [];
+
+  // Init allData with prices
+  universe.forEach((a, i) => {
+    const c = ctxList[i] || {};
+    const mk = parseFloat(c.markPx||0), pv = parseFloat(c.prevDayPx||0);
+    allData[a.name] = {
+      sym: a.name, dispSym: a.name,
+      category: guessCategory(a.name),
+      dex: null,
+      price: mk, chg: pv&&mk?(mk-pv)/pv*100:0,
+      vol: parseFloat(c.dayNtlVlm||0),
+      candles: [], rsi: null
+    };
+  });
+
+  markets = universe.map(a => ({sym:a.name, dispSym:a.name, category:guessCategory(a.name), dex:null}));
+
+  // 2. HIP-3 dexes (sequential to avoid 429)
+  try {
+    const dexRes = await fetchREST({type:'perpDexs'});
+    const dexes  = Array.isArray(dexRes) ? dexRes.filter(d=>d?.name) : [];
+    for (const dex of dexes) {
+      try {
+        const [dm, dc] = await Promise.all([
+          fetchREST({type:'meta', dex:dex.name}),
+          fetchREST({type:'metaAndAssetCtxs', dex:dex.name})
+        ]);
+        const du    = dm?.universe || [];
+        const dcUni = dc?.[0]?.universe || [];
+        const dcCtx = dc?.[1] || [];
+        dcUni.forEach((a,i) => {
+          const c = dcCtx[i]||{};
+          const mk=parseFloat(c.markPx||0), pv=parseFloat(c.prevDayPx||0);
+          const key = dex.name+':'+a.name;
+          allData[key] = {
+            sym:key, dispSym:a.name, category:guessCategory(key),
+            dex:dex.name, price:mk, chg:pv&&mk?(mk-pv)/pv*100:0,
+            vol:parseFloat(c.dayNtlVlm||0), candles:[], rsi:null
+          };
+        });
+        du.forEach(a => markets.push({
+          sym:dex.name+':'+a.name, dispSym:a.name,
+          category:guessCategory(dex.name+':'+a.name), dex:dex.name
+        }));
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  return markets;
+}
+
+// Fetch historical candles via REST (one-time at start)
+async function fetchHistoricalCandles(m) {
+  const msMap = {'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000};
+  const ms = msMap[tf]||14400000, now = Date.now();
+  const body = {
+    type:'candleSnapshot',
+    req:{
+      coin: m.dex ? m.sym.split(':').slice(1).join(':') : m.sym,
+      interval: tf,
+      startTime: now - ms*60,
+      endTime: now
+    }
+  };
+  if (m.dex) body.req.dex = m.dex;
+  try {
+    const res = await fetchREST(body);
+    return Array.isArray(res) ? res : [];
+  } catch(e) { return []; }
+}
+
+// ═══════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════
+function connect() {
+  if (ws) disconnect();
+
+  // Reset state
+  allData  = {};
+  markets  = [];
+  subsCount = 0;
+  document.getElementById('tbody').innerHTML =
+    '<tr class="loading-row"><td colspan="6"><span class="spinner"></span>Łączenie...</td></tr>';
+
+  document.getElementById('btn-connect').disabled = true;
+  setDot('loading');
+  setStatus('Łączenie...');
+  setProgress(5);
+
+  ws = new WebSocket(HL_WS);
+
+  ws.onopen = async () => {
+    setStatus('Ładowanie rynków...');
+    setProgress(10);
+
+    try {
+      // Load market list + prices via REST
+      await loadMarkets();
+      totalMarkets = markets.length;
+      setProgress(25);
+      setStatus(`Pobieranie świec (0/${totalMarkets})...`);
+
+      // Fetch historical candles in small batches to avoid 429
+      const BATCH = 5;
+      for (let i = 0; i < markets.length; i += BATCH) {
+        const slice = markets.slice(i, i+BATCH);
+        const results = await Promise.all(slice.map(m => fetchHistoricalCandles(m)));
+        slice.forEach((m, j) => {
+          if (allData[m.sym]) {
+            allData[m.sym].candles = results[j];
+            allData[m.sym].rsi = calcRSI(results[j], rsiPeriod);
+          allData[m.sym].adx = calcADX(results[j]);
+          }
+        });
+        const pct = 25 + Math.round((i/totalMarkets)*55);
+        setProgress(pct);
+        setStatus(`Świece: ${Math.min(i+BATCH, totalMarkets)}/${totalMarkets}`);
+        if (i + BATCH < markets.length) await new Promise(r => setTimeout(r, 400));
+      }
+
+      setProgress(85);
+      setStatus('Subskrypcja live...');
+
+      // Subscribe to candle updates for all markets via WS
+      // HL WS limit: 1000 subscriptions, we send in batches
+      subsCount = 0;
+      for (const m of markets) {
+        if (ws.readyState !== WebSocket.OPEN) break;
+        const coin = m.dex ? m.sym.split(':').slice(1).join(':') : m.sym;
+        const sub = {method:'subscribe', subscription:{type:'candle', coin, interval:tf}};
+        if (m.dex) sub.subscription.dex = m.dex;
+        ws.send(JSON.stringify(sub));
+        subsCount++;
+        // Small delay to avoid overwhelming WS with 200+ subscriptions at once
+        if (subsCount % 50 === 0) await new Promise(r => setTimeout(r, 100));
+      }
+
+      // Also subscribe to allMids for real-time price updates
+      ws.send(JSON.stringify({method:'subscribe', subscription:{type:'allMids'}}));
+
+      setProgress(100);
+      setTimeout(() => setProgress(0), 600);
+      setDot('live');
+      setStatus('Live — ' + totalMarkets + ' rynków');
+      document.getElementById('btn-connect').style.display = 'none';
+      document.getElementById('btn-disconnect').style.display = 'inline-block';
+      document.getElementById('last-update').textContent = 'Połączono: '+new Date().toLocaleTimeString('pl');
+
+      updateStats();
+      renderTable();
+
+    } catch(err) {
+      console.error(err);
+      setDot('error');
+      setStatus('Błąd: '+err.message);
+      setProgress(0);
+      document.getElementById('btn-connect').disabled = false;
+    }
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (!msg.data) return;
+
+      // Candle update
+      if (msg.channel === 'candle') {
+        const candle = msg.data;
+        const coin   = candle.s; // symbol from server
+        // Find matching market
+        const m = markets.find(x => {
+          const c = x.dex ? x.sym.split(':').slice(1).join(':') : x.sym;
+          return c === coin && (!x.dex || x.dex === (msg.data.dex||''));
+        });
+        if (!m || !allData[m.sym]) return;
+
+        const d = allData[m.sym];
+        // Update or append candle
+        const arr = d.candles;
+        const last = arr[arr.length-1];
+        if (last && last.t === candle.t) {
+          arr[arr.length-1] = candle; // update current candle
+        } else {
+          arr.push(candle);
+          if (arr.length > 100) arr.shift(); // keep buffer size
+        }
+        const newRsi = calcRSI(arr, rsiPeriod);
+        d.adx = calcADX(arr);
+        const oldRsi = d.rsi;
+        d.rsi   = newRsi;
+        d.price = parseFloat(candle.c);
+
+        // Flash row if RSI crossed threshold
+        if (oldRsi !== null && newRsi !== null) {
+          if ((oldRsi >= 30 && newRsi < 30) || (oldRsi <= 70 && newRsi > 70)) {
+            flashRow(m.sym, newRsi < 30 ? 'green' : 'red');
+          }
+        }
+
+        // Debounce render
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(() => {
+          updateStats();
+          renderTable();
+          document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pl');
+        }, 500);
+      }
+
+      // allMids price update
+      if (msg.channel === 'allMids') {
+        const mids = msg.data.mids || {};
+        Object.entries(mids).forEach(([sym, px]) => {
+          if (allData[sym]) allData[sym].price = parseFloat(px);
+        });
+      }
+
+    } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    setDot('error');
+    setStatus('Rozłączono');
+    document.getElementById('btn-connect').disabled  = false;
+    document.getElementById('btn-connect').style.display = 'inline-block';
+    document.getElementById('btn-disconnect').style.display = 'none';
+  };
+
+  ws.onerror = () => {
+    setDot('error');
+    setStatus('Błąd połączenia WebSocket');
+    document.getElementById('btn-connect').disabled = false;
+  };
+}
+
+function disconnect() {
+  if (ws) {
+    // Null out callbacks BEFORE closing so onclose doesn't fire and reset UI
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    ws.onopen = null;
+    ws.close();
+    ws = null;
+  }
+  setDot('');
+  setStatus('Rozłączony');
+  document.getElementById('btn-connect').disabled  = false;
+  document.getElementById('btn-connect').style.display = 'inline-block';
+  document.getElementById('btn-disconnect').style.display = 'none';
+}
+
+function flashRow(sym, color) {
+  const rows = document.querySelectorAll('#tbody tr');
+  rows.forEach(row => {
+    if (row.dataset.sym === sym) {
+      row.classList.remove('flash-green','flash-red');
+      void row.offsetWidth;
+      row.classList.add(color === 'green' ? 'flash-green' : 'flash-red');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+function updateStats() {
+  const vals = Object.values(allData).filter(d => d.rsi !== null);
+  const os = vals.filter(d=>d.rsi<30).length;
+  const ob = vals.filter(d=>d.rsi>70).length;
+  document.getElementById('s-all').textContent = vals.length;
+  document.getElementById('s-os').textContent  = os;
+  document.getElementById('s-ob').textContent  = ob;
+  document.getElementById('s-neu').textContent = vals.length-os-ob;
+}
+
+function getFiltered() {
+  const q = (document.getElementById('search').value||'').trim().toLowerCase();
+  return Object.values(allData).filter(d => {
+    if (d.rsi === null) return false;
+    if (q && !d.sym.toLowerCase().includes(q) && !d.dispSym.toLowerCase().includes(q)) return false;
+    if (minVol > 0 && d.vol < minVol) return false;
+    if (activeCat !== 'all' && d.category !== activeCat) return false;
+    if (activeFilter === 'os')   return d.rsi < 30;
+    if (activeFilter === 'ob')   return d.rsi > 70;
+    if (activeFilter === 'near') return (d.rsi>=25&&d.rsi<35)||(d.rsi>65&&d.rsi<=75);
+    return true;
+  });
+}
+
+function renderTable() {
+  const rows = [...getFiltered()].sort((a,b) => {
+    if (sortCol==='sym') return sortDir*a.sym.localeCompare(b.sym);
+    if (sortCol==='adx') {
+      const av = a.adx?.adx||0, bv = b.adx?.adx||0;
+      return sortDir*(bv-av);
+    }
+    return sortDir*((b[sortCol]||0)-(a[sortCol]||0));
+  });
+  const maxVol = Math.max(...Object.values(allData).map(d=>d.vol), 1);
+
+  ['sym','price','chg','vol','rsi','adx'].forEach(c => {
+    const el = document.getElementById('si-'+c); if(!el) return;
+    el.classList.toggle('on', c===sortCol);
+    el.textContent = c===sortCol ? (sortDir===-1?'↓':'↑') : '↕';
+  });
+  document.querySelectorAll('thead th[data-col]').forEach(th =>
+    th.classList.toggle('sorted', th.dataset.col===sortCol));
+
+  if (!rows.length) {
+    document.getElementById('tbody').innerHTML =
+      `<tr class="loading-row"><td colspan="6">Brak wyników</td></tr>`;
+    document.getElementById('footer-left').textContent = '0 rynków';
+    return;
+  }
+
+  const catLbl = {crypto:'Crypto',commodity:'Commodity',equity:'Equity'};
+  document.getElementById('tbody').innerHTML = rows.map(d => {
+    const sig    = signalInfo(d.rsi);
+    const rsiPct = Math.min(Math.max(d.rsi,0),100);
+    const rsiCls = d.rsi<30?'os':d.rsi>70?'ob':'n';
+    const ps = fmtPrice(d.price), vs = fmtVol(d.vol);
+    const chgStr = d.price?(d.chg>=0?'+':'')+d.chg.toFixed(2)+'%':null;
+    const sym4 = d.dispSym.length>5 ? d.dispSym.slice(0,4) : d.dispSym;
+    return `<tr data-sym="${d.sym}">
+      <td><div class="coin-cell">
+        <div class="coin-icon">${sym4}</div>
+        <div><div class="coin-sym">${d.dispSym}</div><span class="cat cat-${d.category}">${catLbl[d.category]||'Crypto'}</span></div>
+      </div></td>
+      <td class="right">${ps?`<span class="price">${ps}</span>`:'<span class="na">—</span>'}</td>
+      <td style="text-align:center;">${chgStr?`<span class="chg ${d.chg>=0?'pos':'neg'}">${chgStr}</span>`:'<span class="na">—</span>'}</td>
+      <td class="right">${vs?`<span class="vol-val" style="font-family:'SF Mono','Fira Mono',monospace;font-size:11px;color:var(--text2);">${vs}</span>`:'<span class="na">—</span>'}</td>
+      <td><div class="rsi-wrap"><div class="rsi-track"><div class="rsi-fill" style="width:${rsiPct}%;background:${rsiColor(d.rsi)}"></div></div><span class="rsi-num ${rsiCls}">${d.rsi.toFixed(1)}</span></div></td>
+      <td class="right">${d.adx ? `<span style="font-family:'SF Mono','Fira Mono',monospace;font-size:11px;font-weight:600;color:${d.adx.adx>=25?'#f0f0f0':'var(--text3)'};">${d.adx.adx.toFixed(1)}</span><span style="font-size:9px;color:${d.adx.pDI>d.adx.mDI?'var(--green)':'var(--red)'};" title="DI+ ${d.adx.pDI} / DI- ${d.adx.mDI}"> ${d.adx.pDI>d.adx.mDI?'▲':'▼'}</span>` : '<span class="na">—</span>'}</td>
+      <td class="right"><span class="sig ${sig.cls}">${sig.label}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('footer-left').textContent = rows.length+' / '+Object.values(allData).filter(d=>d.rsi!==null).length+' rynków';
+}
+
+// ═══════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════
+document.getElementById('tf-pills').addEventListener('click', e => {
+  const p = e.target.closest('.pill'); if(!p) return;
+  if (p.classList.contains('active')) return; // already selected
+  document.querySelectorAll('#tf-pills .pill').forEach(x=>x.classList.remove('active'));
+  p.classList.add('active'); tf = p.dataset.val;
+  // Always reconnect when timeframe changes (even if not connected yet)
+  const wasConnected = ws && ws.readyState === WebSocket.OPEN;
+  if (wasConnected || Object.keys(allData).length > 0) {
+    connect();
+  }
+});
+
+document.getElementById('rsi-pills').addEventListener('click', e => {
+  const p = e.target.closest('.pill'); if(!p) return;
+  document.querySelectorAll('#rsi-pills .pill').forEach(x=>x.classList.remove('active'));
+  p.classList.add('active'); rsiPeriod = parseInt(p.dataset.val);
+  // Recalculate RSI with new period
+  Object.values(allData).forEach(d => { d.rsi = calcRSI(d.candles, rsiPeriod); });
+  updateStats(); renderTable();
+});
+
+document.querySelectorAll('[data-v]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    minVol = parseInt(btn.dataset.v);
+    document.querySelectorAll('[data-v]').forEach(b => {
+      b.className = 'fbtn';
+      if (b.dataset.v === btn.dataset.v) b.classList.add('fa');
+    });
+    document.getElementById('vol-custom').value = '';
+    renderTable();
+  });
+});
+
+document.getElementById('vol-custom').addEventListener('input', function() {
+  const val = parseInt(this.value.replace(/[^0-9]/g,''));
+  if (!isNaN(val) && val > 0) {
+    minVol = val;
+    document.querySelectorAll('#vol-pills .pill').forEach(x=>x.classList.remove('active'));
+  } else if (this.value === '') {
+    minVol = 0;
+    document.querySelectorAll('#vol-pills .pill').forEach(x=>x.classList.remove('active'));
+    document.querySelector('[data-v="0"]').classList.add('fa');
+  }
+  renderTable();
+});
+
+document.querySelectorAll('thead th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=-1; }
+    renderTable();
+  });
+});
+
+document.querySelectorAll('[data-f]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeFilter = btn.dataset.f;
+    document.querySelectorAll('[data-f]').forEach(b => {
+      b.className = 'fbtn';
+      if (b.dataset.f===activeFilter) b.classList.add({all:'fa',os:'fos',ob:'fob',near:'fnear'}[activeFilter]||'fa');
+    });
+    renderTable();
+  });
+});
+
+document.querySelectorAll('[data-c]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeCat = btn.dataset.c;
+    document.querySelectorAll('[data-c]').forEach(b => {
+      b.className = 'fbtn';
+      if (b.dataset.c===activeCat) b.classList.add({all:'fa',crypto:'fcrypto',commodity:'fcomm',equity:'fequity'}[activeCat]||'fa');
+    });
+    renderTable();
+  });
+});
+</script>
+</body>
+</html>
