@@ -2,8 +2,7 @@
   RSI SCANNER — HYPERLIQUID
 
 
-https://cryptoloser8-coder.github.io/rsi-scanner/
-
+https://cryptoloser8-coder.github.io/scanner/
 PO POLSKU
 ----------
 1. Otwórz link w przeglądarce (Chrome / Edge)
