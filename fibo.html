@@ -15,8 +15,10 @@
     --amber:#ffc107;--amber-bg:rgba(255,193,7,.1);
     --purple:#ce93d8;--purple-bg:rgba(156,39,176,.12);
     --radius:8px;--radius-lg:12px;
+    --sidebar-width:520px;
   }
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;transition:padding-right .25s ease;}
+  body.sidebar-open{padding-right:calc(var(--sidebar-width) + 24px);}
 
   .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
   .header-left{display:flex;align-items:center;gap:14px;}
@@ -93,9 +95,11 @@
   thead th.center{text-align:center;}
   .sort-icon{margin-left:3px;font-size:8px;opacity:.3;}
   .sort-icon.on{opacity:.8;}
-  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;cursor:default;}
   tbody tr:last-child{border-bottom:none;}
   tbody tr:hover{background:rgba(255,255,255,.025);}
+  tbody tr.active-row{background:rgba(91,156,246,.06);}
+  tbody tr.active-row:hover{background:rgba(91,156,246,.1);}
   td{padding:8px 12px;vertical-align:middle;}
   td.right{text-align:right;}
   td.center{text-align:center;}
@@ -141,6 +145,10 @@
 
   .age-cell{font-family:'SF Mono','Fira Mono',monospace;font-size:10px;color:var(--text3);}
 
+  .chart-btn{background:transparent;border:1px solid var(--border2);color:var(--text2);width:24px;height:24px;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;padding:0;line-height:1;}
+  .chart-btn:hover{background:var(--bg3);color:var(--text);border-color:rgba(255,255,255,.3);}
+  .chart-btn.active{background:var(--blue-bg);color:var(--blue);border-color:rgba(91,156,246,.4);}
+
   .footer{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--text3);}
   .table-scroll{overflow-y:auto;max-height:calc(100vh - 460px);min-height:200px;}
   .table-scroll::-webkit-scrollbar{width:5px;}
@@ -157,6 +165,51 @@
   .flash-red{animation:flashR .9s ease-out;}
   @keyframes flashG{0%{background:rgba(76,175,125,.3);}100%{background:transparent;}}
   @keyframes flashR{0%{background:rgba(224,82,82,.3);}100%{background:transparent;}}
+
+  /* ─────────── SIDEBAR ─────────── */
+  .sidebar{
+    position:fixed;top:0;right:0;width:var(--sidebar-width);height:100vh;
+    background:var(--bg2);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;
+    transform:translateX(100%);transition:transform .25s ease;
+    z-index:500;
+  }
+  .sidebar.open{transform:translateX(0);}
+
+  .sb-header{
+    padding:16px 18px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .sb-title{display:flex;align-items:center;gap:10px;}
+  .sb-sym{font-size:18px;font-weight:600;}
+  .sb-tf{font-size:10px;color:var(--text2);background:var(--bg3);padding:2px 7px;border-radius:4px;font-weight:600;}
+  .sb-close{
+    width:28px;height:28px;border-radius:6px;border:1px solid var(--border2);
+    background:transparent;color:var(--text2);cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;transition:all .15s;
+  }
+  .sb-close:hover{background:var(--bg3);color:var(--text);}
+
+  .sb-meta{
+    padding:12px 18px;border-bottom:1px solid var(--border);
+    display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
+  }
+  .sb-meta-item{display:flex;flex-direction:column;gap:2px;}
+  .sb-meta-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;}
+  .sb-meta-val{font-size:13px;font-weight:600;font-family:'SF Mono','Fira Mono',monospace;}
+  .sb-meta-val.long{color:var(--green);}
+  .sb-meta-val.short{color:var(--red);}
+
+  .sb-chart-wrap{flex:1;padding:12px 14px;display:flex;flex-direction:column;min-height:0;}
+  .sb-chart{width:100%;height:100%;display:block;background:var(--bg);border-radius:6px;border:1px solid var(--border);}
+
+  .sb-legend{
+    padding:10px 18px;border-top:1px solid var(--border);font-size:10px;color:var(--text2);
+    display:flex;flex-wrap:wrap;gap:12px;
+  }
+  .sb-legend-item{display:flex;align-items:center;gap:5px;}
+  .sb-legend-dot{width:10px;height:2px;border-radius:1px;}
+  .sb-legend-zone{width:10px;height:8px;border-radius:2px;background:rgba(91,156,246,.3);border:1px solid rgba(91,156,246,.5);}
 </style>
 </head>
 <body>
@@ -166,7 +219,7 @@
   <div class="header-left">
     <a href="index.html" class="menu-link">← Menu</a>
     <div>
-      <h1>Fibo Scanner — Hyperliquid <span class="version">v1.0</span></h1>
+      <h1>Fibo Scanner — Hyperliquid <span class="version">v1.1</span></h1>
       <p>Wykrywa cenę zbliżającą się do strefy retracementu Fibonacci 0.75 &nbsp;·&nbsp; ZigZag swingi &nbsp;·&nbsp; Live WebSocket</p>
     </div>
   </div>
@@ -262,6 +315,7 @@
 <div class="table-wrap">
   <table>
     <colgroup>
+      <col style="width:50px">
       <col style="width:200px">
       <col style="width:110px">
       <col style="width:75px">
@@ -274,6 +328,7 @@
     </colgroup>
     <thead>
       <tr>
+        <th></th>
         <th data-col="sym">Symbol <span class="sort-icon" id="si-sym">↕</span></th>
         <th class="right" data-col="price">Cena <span class="sort-icon" id="si-price">↕</span></th>
         <th class="center" data-col="chg">24h % <span class="sort-icon" id="si-chg">↕</span></th>
@@ -289,6 +344,7 @@
   <div class="table-scroll">
     <table>
       <colgroup>
+        <col style="width:50px">
         <col style="width:200px">
         <col style="width:110px">
         <col style="width:75px">
@@ -300,7 +356,7 @@
         <col style="width:115px">
       </colgroup>
       <tbody id="tbody">
-        <tr class="loading-row"><td colspan="9">Kliknij "▶ Połącz" aby załadować dane z Hyperliquid</td></tr>
+        <tr class="loading-row"><td colspan="10">Kliknij "▶ Połącz" aby załadować dane z Hyperliquid</td></tr>
       </tbody>
     </table>
   </div>
@@ -313,6 +369,27 @@
   </span>
 </div>
 
+<!-- ─────────── SIDEBAR (mini-wykres) ─────────── -->
+<div class="sidebar" id="sidebar">
+  <div class="sb-header">
+    <div class="sb-title">
+      <span class="sb-sym" id="sb-sym">—</span>
+      <span class="sb-tf" id="sb-tf">4h</span>
+    </div>
+    <button class="sb-close" id="sb-close">✕</button>
+  </div>
+  <div class="sb-meta" id="sb-meta"></div>
+  <div class="sb-chart-wrap">
+    <svg class="sb-chart" id="sb-chart" preserveAspectRatio="none"></svg>
+  </div>
+  <div class="sb-legend">
+    <div class="sb-legend-item"><div class="sb-legend-zone"></div>Strefa Fibo 0.705–0.786</div>
+    <div class="sb-legend-item"><div class="sb-legend-dot" style="background:#5b9cf6;height:1px;border-top:1px dashed #5b9cf6;"></div>Linia 0.75</div>
+    <div class="sb-legend-item"><div class="sb-legend-dot" style="background:#ffc107;"></div>Cena obecna</div>
+    <div class="sb-legend-item"><div class="sb-legend-dot" style="background:#888;"></div>ZigZag</div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════
 // CONFIG
@@ -320,22 +397,10 @@
 const HL_WS  = 'wss://api.hyperliquid.xyz/ws';
 const HL_API = 'https://api.hyperliquid.xyz/info';
 
-// Adaptive ZigZag swing thresholds — % move required to confirm a swing
-// Wyższy próg = mniej, ale silniejsze swingi
-const SWING_THRESHOLDS = {
-  '15m': 0.012, // 1.2%
-  '1h':  0.025, // 2.5%
-  '4h':  0.04,  // 4.0%
-  '1d':  0.06,  // 6.0%
-};
-
-// Strefa Fibo
-const FIB_TARGET    = 0.75;
-const FIB_ZONE_NEAR = 0.705; // płytszy brzeg strefy
-const FIB_ZONE_FAR  = 0.786; // głębszy brzeg strefy
-
-// Maksymalny wiek swingu w świecach (po tym uznajemy strefę za przeterminowaną)
+const SWING_THRESHOLDS = { '15m': 0.012, '1h': 0.025, '4h': 0.04, '1d': 0.06 };
+const FIB_TARGET = 0.75, FIB_ZONE_NEAR = 0.705, FIB_ZONE_FAR = 0.786;
 const MAX_SWING_AGE = 80;
+const CHART_CANDLES = 80; // ile świec pokazać na mini-wykresie
 
 const COMMODITY_SYMS = new Set([
   'GOLD','XAU','SILVER','XAG','OIL','CL','BRENTOIL','USOIL','NATGAS','WTI','PAXG','XAUT',
@@ -370,14 +435,11 @@ let marketsByCoin = new Map();
 let renderTimer = null;
 let isLoading = false;
 let cacheHits = 0, cacheMisses = 0;
+let openChartSym = null; // który symbol ma otwarty mini-wykres
 
 const STATUS_LABELS = {
-  'zone':    'W strefie',
-  'near':    'Blisko',
-  'watch':   'Obserwuj',
-  'deep':    'Głęboka',
-  'far':     'Daleko',
-  'no-data': '—'
+  'zone':'W strefie','near':'Blisko','watch':'Obserwuj',
+  'deep':'Głęboka','far':'Daleko','no-data':'—'
 };
 
 // ═══════════════════════════════════════════════════
@@ -422,8 +484,6 @@ const setProgress = p => document.getElementById('progress').style.width = p+'%'
 // ═══════════════════════════════════════════════════
 // FIBONACCI MATH
 // ═══════════════════════════════════════════════════
-
-// ZigZag — wykrywa potwierdzone swingi (high/low) bazując na minimalnym % ruchu
 function findSwings(candles, threshold) {
   if (!candles || candles.length < 5) return [];
   const swings = [];
@@ -435,12 +495,10 @@ function findSwings(candles, threshold) {
     const h = parseFloat(candles[i].h);
     const l = parseFloat(candles[i].l);
     if (!isFinite(h) || !isFinite(l)) continue;
-
     if (h > extHi) { extHi = h; extHiIdx = i; }
     if (l < extLo) { extLo = l; extLoIdx = i; }
 
     if (dir === null) {
-      // Pierwsze potwierdzenie — wybiera kierunek
       if (extHi > 0 && (extHi - l) / extHi >= threshold) {
         swings.push({type:'H', idx:extHiIdx, price:extHi, t:candles[extHiIdx].t});
         dir = 'down'; extLo = l; extLoIdx = i;
@@ -449,13 +507,11 @@ function findSwings(candles, threshold) {
         dir = 'up'; extHi = h; extHiIdx = i;
       }
     } else if (dir === 'up') {
-      // Trend wzrostowy — czekamy na korektę w dół, żeby potwierdzić HIGH
       if (extHi > 0 && (extHi - l) / extHi >= threshold) {
         swings.push({type:'H', idx:extHiIdx, price:extHi, t:candles[extHiIdx].t});
         dir = 'down'; extLo = l; extLoIdx = i;
       }
     } else {
-      // Trend spadkowy — czekamy na odbicie w górę, żeby potwierdzić LOW
       if (extLo > 0 && (h - extLo) / extLo >= threshold) {
         swings.push({type:'L', idx:extLoIdx, price:extLo, t:candles[extLoIdx].t});
         dir = 'up'; extHi = h; extHiIdx = i;
@@ -465,22 +521,16 @@ function findSwings(candles, threshold) {
   return swings;
 }
 
-// Liczy poziom 0.75 i wszystkie metryki setupu na bazie ostatniej pary swingów
 function calcFibo(candles, threshold, currentPrice) {
   const swings = findSwings(candles, threshold);
   if (swings.length < 2) return null;
-
   const last = swings[swings.length - 1];
   const prev = swings[swings.length - 2];
   const high = last.type === 'H' ? last : prev;
   const low  = last.type === 'L' ? last : prev;
   const range = high.price - low.price;
   if (range <= 0 || low.price <= 0) return null;
-
   const impulsePct = (range / low.price) * 100;
-
-  // Ostatni swing = HIGH → ruch był w górę → czekamy na pullback do 0.75 → LONG
-  // Ostatni swing = LOW  → ruch był w dół → czekamy na odbicie do 0.75 → SHORT
   const direction = last.type === 'H' ? 'long' : 'short';
 
   let fib075, zoneNear, zoneFar;
@@ -494,7 +544,6 @@ function calcFibo(candles, threshold, currentPrice) {
     zoneFar  = low.price  + FIB_ZONE_FAR  * range;
   }
 
-  // distancePct: % ruchu jaki zostal do osiagniecia 0.75 (dodatnie = przed strefa)
   let distancePct;
   if (direction === 'long') {
     distancePct = ((currentPrice - fib075) / currentPrice) * 100;
@@ -505,11 +554,9 @@ function calcFibo(candles, threshold, currentPrice) {
   const inZone = direction === 'long'
     ? (currentPrice <= zoneNear && currentPrice >= zoneFar)
     : (currentPrice >= zoneNear && currentPrice <= zoneFar);
-
   const pastZone = direction === 'long'
     ? (currentPrice < zoneFar && currentPrice >= low.price)
     : (currentPrice > zoneFar && currentPrice <= high.price);
-
   const invalid = direction === 'long'
     ? currentPrice < low.price
     : currentPrice > high.price;
@@ -518,16 +565,16 @@ function calcFibo(candles, threshold, currentPrice) {
 
   return {
     direction, swingHigh: high.price, swingLow: low.price,
+    swingHighIdx: high.idx, swingLowIdx: low.idx,
     impulsePct, fib075, zoneNear, zoneFar,
     distancePct, distAbs: Math.abs(distancePct),
     inZone, pastZone, invalid, ageBars
   };
 }
 
-// Klasyfikacja statusu UI na bazie obliczonego Fibo
 function fiboStatus(fib, alertThreshold) {
   if (!fib) return 'no-data';
-  if (fib.invalid) return 'no-data'; // ukrywamy unieważnione
+  if (fib.invalid) return 'no-data';
   if (fib.inZone) return 'zone';
   if (fib.pastZone) return 'deep';
   if (fib.distancePct > 0) {
@@ -542,7 +589,6 @@ function recalcFibo(d) {
   d.fib = calcFibo(d.candles, threshold, d.price);
 }
 
-// Lekka aktualizacja po każdym ticku ceny (mid) — swingi się nie zmieniają
 function updateDistanceOnly(d) {
   if (!d.fib) return;
   if (d.fib.direction === 'long') {
@@ -657,11 +703,10 @@ async function loadMarkets() {
 }
 
 // ═══════════════════════════════════════════════════
-// CACHE (osobny od RSI: prefiks hlf_)
+// CACHE
 // ═══════════════════════════════════════════════════
 const CACHE_PREFIX = 'hlf_';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-
 function cacheKey(sym, interval) { return CACHE_PREFIX + interval + '_' + sym; }
 
 function cacheLoad(sym, interval) {
@@ -677,13 +722,13 @@ function cacheLoad(sym, interval) {
 
 function cacheSave(sym, interval, candles) {
   try {
-    const minimal = candles.slice(-250).map(c => ({t: c.t, h: c.h, l: c.l, c: c.c}));
+    const minimal = candles.slice(-250).map(c => ({t: c.t, h: c.h, l: c.l, c: c.c, o: c.o}));
     localStorage.setItem(cacheKey(sym, interval), JSON.stringify({ts: Date.now(), candles: minimal}));
   } catch(e) {
     if (e.name === 'QuotaExceededError') {
       cacheClearOld();
       try {
-        const minimal = candles.slice(-250).map(c => ({t: c.t, h: c.h, l: c.l, c: c.c}));
+        const minimal = candles.slice(-250).map(c => ({t: c.t, h: c.h, l: c.l, c: c.c, o: c.o}));
         localStorage.setItem(cacheKey(sym, interval), JSON.stringify({ts: Date.now(), candles: minimal}));
       } catch(e2) {}
     }
@@ -730,7 +775,6 @@ async function fetchHistoricalCandles(m) {
   const ms = msMap[tf] || 14400000;
   const now = Date.now();
   const fullStart = now - ms * 200;
-
   const cached = cacheLoad(m.sym, tf);
   let existing = [];
   let startTime = fullStart;
@@ -738,18 +782,15 @@ async function fetchHistoricalCandles(m) {
     const lastT = cached.candles[cached.candles.length - 1].t;
     if (lastT > fullStart) { existing = cached.candles; startTime = lastT; }
   }
-
   const body = {
     type: 'candleSnapshot',
     req: { coin: m.dex ? m.dispSym : m.sym, interval: tf, startTime, endTime: now }
   };
   if (m.dex) body.req.dex = m.dex;
   const fresh = await safeREST(body);
-
   if (!Array.isArray(fresh) || fresh.length === 0) {
     return existing.length > 0 ? existing : [];
   }
-
   const freshStart = fresh[0].t;
   const merged = [...existing.filter(c => c.t < freshStart), ...fresh];
   const trimmed = merged.slice(-250);
@@ -765,8 +806,9 @@ async function connect() {
 
   allData = {}; markets = []; isLoading = true;
   cacheHits = 0; cacheMisses = 0;
+  closeSidebar();
   document.getElementById('tbody').innerHTML =
-    '<tr class="loading-row"><td colspan="9"><span class="spinner"></span>Ładowanie danych...</td></tr>';
+    '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Ładowanie danych...</td></tr>';
   document.getElementById('btn-connect').disabled = true;
   setDot('loading'); setStatus('Ładowanie rynków...'); setProgress(5);
 
@@ -796,8 +838,7 @@ async function connect() {
     setProgress(25);
 
     if (needsFetch.length > 0) {
-      const BATCH = 5;
-      const DELAY = 600;
+      const BATCH = 5; const DELAY = 600;
       for (let i = 0; i < needsFetch.length; i += BATCH) {
         const slice = needsFetch.slice(i, i + BATCH);
         await Promise.all(slice.map(async m => {
@@ -880,11 +921,10 @@ async function connect() {
         const oldStatus = d.fib ? fiboStatus(d.fib, alertThresholdPct) : 'no-data';
         recalcFibo(d);
         const newStatus = d.fib ? fiboStatus(d.fib, alertThresholdPct) : 'no-data';
-
-        // Flash gdy cena weszła w strefę
         if (oldStatus !== 'zone' && newStatus === 'zone') {
           flashRow(m.sym, d.fib.direction === 'long' ? 'green' : 'red');
         }
+        if (openChartSym === m.sym) renderChart(d);
 
         clearTimeout(renderTimer);
         renderTimer = setTimeout(() => {
@@ -901,6 +941,10 @@ async function connect() {
             if (allData[sym].fib) updateDistanceOnly(allData[sym]);
           }
         });
+        // Live update na otwartym wykresie
+        if (openChartSym && allData[openChartSym]) {
+          updatePriceLineOnly(allData[openChartSym]);
+        }
       }
     } catch(e) {}
   };
@@ -941,7 +985,236 @@ function flashRow(sym, color) {
 }
 
 // ═══════════════════════════════════════════════════
-// RENDER
+// SIDEBAR + MINI-WYKRES
+// ═══════════════════════════════════════════════════
+function openSidebar(sym) {
+  if (openChartSym === sym) {
+    closeSidebar();
+    return;
+  }
+  openChartSym = sym;
+  document.getElementById('sidebar').classList.add('open');
+  document.body.classList.add('sidebar-open');
+  const d = allData[sym];
+  if (!d) return;
+  document.getElementById('sb-sym').textContent = d.dispSym;
+  document.getElementById('sb-tf').textContent = tf.toUpperCase();
+  renderChart(d);
+  // Update aktywnego buttona w tabeli
+  document.querySelectorAll('.chart-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sym === sym);
+  });
+  document.querySelectorAll('#tbody tr').forEach(r => {
+    r.classList.toggle('active-row', r.dataset.sym === sym);
+  });
+}
+
+function closeSidebar() {
+  openChartSym = null;
+  document.getElementById('sidebar').classList.remove('open');
+  document.body.classList.remove('sidebar-open');
+  document.querySelectorAll('.chart-btn.active').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#tbody tr.active-row').forEach(r => r.classList.remove('active-row'));
+}
+
+document.getElementById('sb-close').addEventListener('click', closeSidebar);
+
+// Zamykanie ESC
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && openChartSym) closeSidebar();
+});
+
+// Renderuje cały mini-wykres SVG
+function renderChart(d) {
+  const svg = document.getElementById('sb-chart');
+  if (!d || !d.candles || d.candles.length === 0 || !d.fib) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="12">Brak danych</text>';
+    return;
+  }
+  // Bierzemy ostatnie N świec, ale na pewno z swing high/low w środku
+  const allCandles = d.candles;
+  const fib = d.fib;
+  // Start od indeksu zapewniającego widoczność obu swingów + min CHART_CANDLES świec
+  const earliestSwingIdx = Math.min(fib.swingHighIdx, fib.swingLowIdx);
+  const startIdx = Math.max(0, Math.min(earliestSwingIdx - 5, allCandles.length - CHART_CANDLES));
+  const candles = allCandles.slice(startIdx);
+  const offset = startIdx;
+
+  // Wymiary
+  const rect = svg.getBoundingClientRect();
+  const W = rect.width || 480;
+  const H = rect.height || 360;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  // Padding
+  const PAD_T = 12, PAD_B = 24, PAD_L = 8, PAD_R = 80;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+
+  // Skala cenowa — uwzględnij high/low świec + strefę Fibo + cenę obecną
+  let minP = Infinity, maxP = -Infinity;
+  candles.forEach(c => {
+    const h = parseFloat(c.h), l = parseFloat(c.l);
+    if (isFinite(h) && h > maxP) maxP = h;
+    if (isFinite(l) && l < minP) minP = l;
+  });
+  // Rozszerz zakres żeby strefa Fibo i cena obecna byly widoczne
+  [fib.fib075, fib.zoneNear, fib.zoneFar, fib.swingHigh, fib.swingLow, d.price].forEach(p => {
+    if (isFinite(p)) {
+      if (p > maxP) maxP = p;
+      if (p < minP) minP = p;
+    }
+  });
+  const range = maxP - minP;
+  if (range <= 0) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#888" font-size="12">Niepoprawne dane</text>'; return; }
+  // Niewielki margines góra/dół
+  const padPrice = range * 0.05;
+  const yMin = minP - padPrice;
+  const yMax = maxP + padPrice;
+  const yRange = yMax - yMin;
+
+  // Mappery
+  const xOf = i => PAD_L + (i / Math.max(candles.length - 1, 1)) * innerW;
+  const yOf = p => PAD_T + (1 - (p - yMin) / yRange) * innerH;
+
+  // Szerokość świecy
+  const candleW = Math.max(2, innerW / candles.length * 0.7);
+
+  // Generuj SVG
+  let parts = [];
+
+  // Tło strefy Fibo (między zoneNear a zoneFar)
+  const yNear = yOf(fib.zoneNear);
+  const yFar  = yOf(fib.zoneFar);
+  const yZoneTop    = Math.min(yNear, yFar);
+  const yZoneBottom = Math.max(yNear, yFar);
+  parts.push(`<rect x="${PAD_L}" y="${yZoneTop}" width="${innerW + PAD_R - 8}" height="${yZoneBottom - yZoneTop}" fill="rgba(91,156,246,0.12)" />`);
+  parts.push(`<line x1="${PAD_L}" y1="${yZoneTop}" x2="${W - 8}" y2="${yZoneTop}" stroke="rgba(91,156,246,0.4)" stroke-width="1" stroke-dasharray="2,2" />`);
+  parts.push(`<line x1="${PAD_L}" y1="${yZoneBottom}" x2="${W - 8}" y2="${yZoneBottom}" stroke="rgba(91,156,246,0.4)" stroke-width="1" stroke-dasharray="2,2" />`);
+
+  // Świece
+  candles.forEach((c, i) => {
+    const o = parseFloat(c.o ?? c.c);
+    const cl = parseFloat(c.c);
+    const h = parseFloat(c.h);
+    const l = parseFloat(c.l);
+    if (!isFinite(o) || !isFinite(cl) || !isFinite(h) || !isFinite(l)) return;
+    const x = xOf(i);
+    const isUp = cl >= o;
+    const color = isUp ? '#4caf7d' : '#e05252';
+    // Knot
+    parts.push(`<line x1="${x}" y1="${yOf(h)}" x2="${x}" y2="${yOf(l)}" stroke="${color}" stroke-width="1" />`);
+    // Korpus
+    const yO = yOf(o), yC = yOf(cl);
+    const yTop = Math.min(yO, yC), bH = Math.max(1, Math.abs(yO - yC));
+    parts.push(`<rect x="${x - candleW/2}" y="${yTop}" width="${candleW}" height="${bH}" fill="${color}" />`);
+  });
+
+  // ZigZag — linia łącząca swing high i swing low (w lokalnym układzie współrzędnych)
+  const swingHighX = xOf(fib.swingHighIdx - offset);
+  const swingHighY = yOf(fib.swingHigh);
+  const swingLowX  = xOf(fib.swingLowIdx - offset);
+  const swingLowY  = yOf(fib.swingLow);
+  parts.push(`<line x1="${swingLowX}" y1="${swingLowY}" x2="${swingHighX}" y2="${swingHighY}" stroke="#888" stroke-width="1.5" stroke-dasharray="4,3" />`);
+  // Markery swingów
+  parts.push(`<circle cx="${swingHighX}" cy="${swingHighY}" r="4" fill="#e05252" stroke="#0f0f0f" stroke-width="1.5" />`);
+  parts.push(`<circle cx="${swingLowX}" cy="${swingLowY}" r="4" fill="#4caf7d" stroke="#0f0f0f" stroke-width="1.5" />`);
+
+  // Linia 0.75
+  const y075 = yOf(fib.fib075);
+  parts.push(`<line x1="${PAD_L}" y1="${y075}" x2="${W - 8}" y2="${y075}" stroke="#5b9cf6" stroke-width="1.2" stroke-dasharray="6,3" />`);
+
+  // Linia ceny obecnej
+  const yPrice = yOf(d.price);
+  parts.push(`<line x1="${PAD_L}" y1="${yPrice}" x2="${W - 8}" y2="${yPrice}" stroke="#ffc107" stroke-width="1" id="price-line" />`);
+
+  // Etykiety po prawej stronie (na osi cenowej)
+  const labelX = W - 76;
+  const labelStyle = 'font-family:SF Mono,monospace;font-size:9px;font-weight:600;';
+  // Cena obecna
+  parts.push(`<rect x="${labelX - 2}" y="${yPrice - 7}" width="74" height="14" fill="#ffc107" rx="2" />`);
+  parts.push(`<text x="${labelX + 2}" y="${yPrice + 3}" fill="#0f0f0f" style="${labelStyle}" id="price-label">${fmtPrice(d.price)}</text>`);
+  // 0.75
+  parts.push(`<rect x="${labelX - 2}" y="${y075 - 7}" width="74" height="14" fill="#5b9cf6" rx="2" />`);
+  parts.push(`<text x="${labelX + 2}" y="${y075 + 3}" fill="#0f0f0f" style="${labelStyle}">0.75 ${fmtPrice(fib.fib075)}</text>`);
+  // Swing high
+  if (Math.abs(swingHighY - y075) > 14 && Math.abs(swingHighY - yPrice) > 14) {
+    parts.push(`<text x="${labelX + 2}" y="${swingHighY + 3}" fill="#e05252" style="${labelStyle}">SH ${fmtPrice(fib.swingHigh)}</text>`);
+  }
+  // Swing low
+  if (Math.abs(swingLowY - y075) > 14 && Math.abs(swingLowY - yPrice) > 14) {
+    parts.push(`<text x="${labelX + 2}" y="${swingLowY + 3}" fill="#4caf7d" style="${labelStyle}">SL ${fmtPrice(fib.swingLow)}</text>`);
+  }
+
+  svg.innerHTML = parts.join('');
+
+  // Update meta panel
+  renderMeta(d);
+}
+
+// Lekka aktualizacja tylko linii ceny (dla allMids ticks - bez przerysowywania całego SVG)
+function updatePriceLineOnly(d) {
+  if (!d || !d.fib) return;
+  const svg = document.getElementById('sb-chart');
+  const priceLine = svg.querySelector('#price-line');
+  const priceLabel = svg.querySelector('#price-label');
+  if (!priceLine || !priceLabel) return;
+  // Przeliczenie y dla nowej ceny — używamy tych samych granic co ostatni render
+  // Najprostsze: pełny re-render co X ms (mniej elegancko ale niezawodne)
+  // Tu robimy lightweight: aktualizujemy tylko etykietę cenową
+  priceLabel.textContent = fmtPrice(d.price);
+  // Update meta panel z aktualnym dystansem
+  const distEl = document.getElementById('sb-dist-val');
+  if (distEl && d.fib) {
+    const sign = d.fib.distancePct > 0 ? '+' : '';
+    distEl.textContent = sign + d.fib.distancePct.toFixed(2) + '%';
+  }
+}
+
+// Panel z metrykami nad wykresem
+function renderMeta(d) {
+  if (!d || !d.fib) return;
+  const f = d.fib;
+  const status = fiboStatus(f, alertThresholdPct);
+  const distSign = f.distancePct > 0 ? '+' : '';
+  const distStr = distSign + f.distancePct.toFixed(2) + '%';
+  document.getElementById('sb-meta').innerHTML = `
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Kierunek</div>
+      <div class="sb-meta-val ${f.direction}">${f.direction === 'long' ? '↑ Long' : '↓ Short'}</div>
+    </div>
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Impuls</div>
+      <div class="sb-meta-val">${f.impulsePct.toFixed(1)}%</div>
+    </div>
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Cena obecna</div>
+      <div class="sb-meta-val">${fmtPrice(d.price)}</div>
+    </div>
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Cel 0.75</div>
+      <div class="sb-meta-val">${fmtPrice(f.fib075)}</div>
+    </div>
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Dystans</div>
+      <div class="sb-meta-val" id="sb-dist-val">${distStr}</div>
+    </div>
+    <div class="sb-meta-item">
+      <div class="sb-meta-label">Status</div>
+      <div class="sb-meta-val"><span class="status ${status}">${STATUS_LABELS[status]||'—'}</span></div>
+    </div>
+  `;
+}
+
+// Re-render wykresu przy zmianie wymiarów okna (np. zmiana rozmiaru przeglądarki)
+window.addEventListener('resize', () => {
+  if (openChartSym && allData[openChartSym]) {
+    setTimeout(() => renderChart(allData[openChartSym]), 100);
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// RENDER TABELI
 // ═══════════════════════════════════════════════════
 function updateStats() {
   const vals = Object.values(allData);
@@ -1002,7 +1275,7 @@ function renderTable() {
 
   if (!rows.length) {
     document.getElementById('tbody').innerHTML =
-      `<tr class="loading-row"><td colspan="9">Brak setupów. Spróbuj zmniejszyć "Min. impuls" lub zwiększyć "Próg alertu".</td></tr>`;
+      `<tr class="loading-row"><td colspan="10">Brak setupów. Spróbuj zmniejszyć "Min. impuls" lub zwiększyć "Próg alertu".</td></tr>`;
     document.getElementById('footer-left').textContent = '0 setupów';
     return;
   }
@@ -1016,22 +1289,17 @@ function renderTable() {
     const chg = (d.chg!==null && d.chg!==undefined && isFinite(d.chg)) ? d.chg : null;
     const chgStr = (d.price>0 && chg!==null) ? (chg>=0?'+':'')+chg.toFixed(2)+'%' : null;
     const sym4 = d.dispSym.length > 4 ? d.dispSym.slice(0, 3) : d.dispSym;
-
-    const distFraction = (status === 'zone' || status === 'deep') ? 1
-                       : Math.max(0, 1 - f.distAbs / 3);
+    const distFraction = (status === 'zone' || status === 'deep') ? 1 : Math.max(0, 1 - f.distAbs / 3);
     const barWidth = Math.round(distFraction * 100);
-    const barColor = status === 'zone' ? 'var(--green)'
-                   : status === 'near' ? 'var(--amber)'
-                   : status === 'deep' ? 'var(--blue)'
-                   : status === 'watch' ? 'var(--text2)'
-                   : 'var(--text3)';
+    const barColor = status === 'zone' ? 'var(--green)' : status === 'near' ? 'var(--amber)' : status === 'deep' ? 'var(--blue)' : status === 'watch' ? 'var(--text2)' : 'var(--text3)';
     const distSign = f.distancePct > 0 ? '+' : '';
     const distStr = f.distAbs < 0.05 ? '0.00%' : distSign + f.distancePct.toFixed(2) + '%';
-
     const dirArrow = f.direction === 'long' ? '↑' : '↓';
     const dirLabel = f.direction === 'long' ? 'Long' : 'Short';
+    const isActive = openChartSym === d.sym;
 
-    return `<tr data-sym="${d.sym}">
+    return `<tr data-sym="${d.sym}" class="${isActive ? 'active-row' : ''}">
+      <td class="center"><button class="chart-btn ${isActive ? 'active' : ''}" data-sym="${d.sym}" title="Pokaż mini-wykres">📊</button></td>
       <td><div class="coin-cell">
         <div class="coin-icon">${sym4}</div>
         <div><div class="coin-sym">${d.dispSym}</div><span class="cat cat-${d.category}">${catLbl[d.category]||'Crypto'}</span></div>
@@ -1053,6 +1321,14 @@ function renderTable() {
     </tr>`;
   }).join('');
   document.getElementById('footer-left').textContent = rows.length+' setupów / '+Object.values(allData).length+' rynków';
+
+  // Bind klikalności na ikony 📊 (event delegation by byłoby lepsze, ale dla prostoty bezpośrednio)
+  document.querySelectorAll('.chart-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openSidebar(btn.dataset.sym);
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -1087,9 +1363,7 @@ document.querySelectorAll('[data-c]').forEach(btn => {
     activeCat = btn.dataset.c;
     document.querySelectorAll('[data-c]').forEach(b => {
       b.className = 'fbtn';
-      if (b.dataset.c===activeCat) {
-        b.classList.add({all:'fa',crypto:'fcrypto',commodity:'fcomm',equity:'fequity'}[activeCat]||'fa');
-      }
+      if (b.dataset.c===activeCat) b.classList.add({all:'fa',crypto:'fcrypto',commodity:'fcomm',equity:'fequity'}[activeCat]||'fa');
     });
     renderTable();
   });
@@ -1134,9 +1408,7 @@ document.querySelectorAll('[data-f]').forEach(btn => {
     activeStatus = btn.dataset.f;
     document.querySelectorAll('[data-f]').forEach(b => {
       b.className = 'fbtn';
-      if (b.dataset.f===activeStatus) {
-        b.classList.add({all:'fa',zone:'fzone',near:'fnear',watch:'fwatch',deep:'fa'}[activeStatus]||'fa');
-      }
+      if (b.dataset.f===activeStatus) b.classList.add({all:'fa',zone:'fzone',near:'fnear',watch:'fwatch',deep:'fa'}[activeStatus]||'fa');
     });
     renderTable();
   });
@@ -1147,9 +1419,7 @@ document.querySelectorAll('[data-d]').forEach(btn => {
     activeDir = btn.dataset.d;
     document.querySelectorAll('[data-d]').forEach(b => {
       b.className = 'fbtn';
-      if (b.dataset.d===activeDir) {
-        b.classList.add({all:'fa',long:'flong',short:'fshort'}[activeDir]||'fa');
-      }
+      if (b.dataset.d===activeDir) b.classList.add({all:'fa',long:'flong',short:'fshort'}[activeDir]||'fa');
     });
     renderTable();
   });
