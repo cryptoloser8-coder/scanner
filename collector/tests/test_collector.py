@@ -488,6 +488,18 @@ def test_liquidations_backfill_and_run(tmp_path):
         len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) + 1
 
 
+def test_liquidation_daily_trimmed_to_oi_start(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    cz = FakeCoinalyze()
+    cz.btc_daily_from = NOW - NOW % D - 200 * D          # OI history (BTC/ETH) starts later than liquidations
+    store, _, _ = main.run(d, _liq_cfg(), now=NOW, backfill=True, coinalyze=cz, tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    oi0 = min(store.series["1d"]["oi_total"])
+    assert oi0 == cz.btc_daily_from
+    assert min(store.series["1d"]["liq_total_long"]) == oi0 and min(store.series["1d"]["fund_btc"]) >= oi0
+    assert min(store.series["1d"]["px_btc"]) < oi0       # price keeps its full history
+
+
 def test_liquidations_first_run_after_upgrade_downloads_history(tmp_path):
     d = str(tmp_path)
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
