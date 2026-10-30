@@ -104,7 +104,7 @@
     <a href="index.html" class="menu-link">← Menu</a>
     <div>
       <h1>Likwidacje i funding</h1>
-      <p>Likwidacje long/short i funding z perpów (Coinalyze, z Hyperliquid) &nbsp;·&nbsp; BTC, ETH + największe alty</p>
+      <p>Likwidacje long/short (Binance, Bybit, OKX) i funding (także Hyperliquid) z Coinalyze &nbsp;·&nbsp; BTC, ETH + największe alty</p>
     </div>
   </div>
   <div style="text-align:right">
@@ -162,7 +162,9 @@
   <div class="hint">
     Słupki w górę (czerwone) = zlikwidowane longi, w dół (zielone) = zlikwidowane shorty, suma w USD na świecę.
     Świece 4H i 1W są sumowane z danych 1H/1D; funding na nich to średnia.
-    Dane 1H sięgają ok. 2 miesiące wstecz i rosną z każdym uruchomieniem bota; 1D od 2022.
+    <span id="range-info"></span><br>
+    Kwoty to dolne oszacowanie: giełdy publikują tylko część likwidacji (np. Binance najwyżej jedną na sekundę na rynek),
+    a Hyperliquid nie ma likwidacji w Coinalyze. Pokazują, kiedy były duże kaskady i w którą stronę, ale nie są sumą „całego rynku”.
   </div>
 </div>
 
@@ -214,7 +216,7 @@ const store = {
 };
 let META = null, CAT = {}, TIPS = {};
 const DATA = {'1h': null, '1d': null};
-let S = Object.assign({asset: 'total', iv: '4h', range: 30, px: true, fund: true}, store.get('view', {}), parseHash());
+let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true}, store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = {};
@@ -540,9 +542,10 @@ function renderExchanges() {
   rows.sort((a, b) => (b.d30 || 0) - (a.d30 || 0));
   const max = Math.max(...rows.map(r => (r.d30 || 0) / T30));
   document.getElementById('ex-table').innerHTML = `<table><tr><th>Giełda</th><th>24h</th><th>udział 24h</th><th>7D</th><th>30D</th><th>udział 30D</th></tr>` +
-    rows.map(r => `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td>${usd(r.d1)}</td><td>${r.d1 != null ? (r.d1 / T1 * 100).toFixed(1) + '%' : '—'}</td><td>${usd(r.d7)}</td><td>${usd(r.d30)}</td>` +
+    rows.map(r => !r.d30 && !r.d7 ? `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td colspan="5" style="color:var(--text3)">brak danych o likwidacjach w Coinalyze</td></tr>` :
+      `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td>${usd(r.d1)}</td><td>${r.d1 != null ? (r.d1 / T1 * 100).toFixed(1) + '%' : '—'}</td><td>${usd(r.d7)}</td><td>${usd(r.d30)}</td>` +
       `<td><span class="share" style="width:${((r.d30 || 0) / T30 / (max || 1) * 50).toFixed(0)}px"></span>${((r.d30 || 0) / T30 * 100).toFixed(1)}%</td></tr>`).join('') +
-    `</table><div class="hint">Giełdy bez danych o likwidacjach w Coinalyze pokażą $0. Hyperliquid liczony tak samo jak giełdy scentralizowane.</div>`;
+    `</table><div class="hint">Udział wśród giełd, które publikują likwidacje. Funding z Hyperliquid jest liczony normalnie.</div>`;
 }
 function renderTop() {
   const g = S.asset, dL = pts('1d', `liq_${g}_long`), dS = pts('1d', `liq_${g}_short`);
@@ -553,7 +556,7 @@ function renderTop() {
     .sort((a, b) => b.sum - a.sum).slice(0, 10);
   document.getElementById('top-table').innerHTML = rows.length ? `<table><tr><th>Dzień (UTC)</th><th>Razem</th><th>Long</th><th>Short</th><th>% long</th></tr>` +
     rows.map(r => `<tr class="click" data-t="${r.t}" title="Pokaż na wykresie"><td>${dateFmt(r.t)}</td><td>${usd(r.sum)}</td><td class="neg">${usd(r.l)}</td><td class="pos">${usd(r.s)}</td><td>${(r.l / (r.sum || 1) * 100).toFixed(0)}%</td></tr>`).join('') +
-    '</table><div class="hint">Kliknij wiersz, żeby przybliżyć wykres. Starsze dni mogą obejmować mniej giełd (np. Hyperliquid jest w Coinalyze od niedawna).</div>'
+    '</table><div class="hint">Kliknij wiersz, żeby przybliżyć wykres. Kwoty są zaniżone (patrz opis pod wykresem), najmocniej w dniach największych kaskad, więc porównania między dniami są przybliżone.</div>'
     : '<div class="hint">Brak danych 1D.</div>';
 }
 document.getElementById('top-table').addEventListener('click', e => {
@@ -575,6 +578,10 @@ function refresh(resetRange = false) {
   persist();
   renderAssetPills();
   syncControls();
+  const h1 = pts('1h', 'liq_total_long'), d1 = pts('1d', 'liq_total_long');
+  document.getElementById('range-info').textContent =
+    (h1.length ? `Dane 1H/4H od ${dateFmt(h1[0][0])} (Coinalyze trzyma tylko ok. 2 miesiące świec godzinowych; od teraz historia rośnie z każdym uruchomieniem bota). ` : '') +
+    (d1.length ? `Dane 1D/1W od ${dateFmt(d1[0][0])}.` : '');
   drawChart(resetRange);
   renderTop();
 }
