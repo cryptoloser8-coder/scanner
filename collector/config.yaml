@@ -7,7 +7,8 @@
 coinalyze:
   # Giełdy, z których sumujemy open interest (perpetuale).
   # Nazwy porównywane z listą /exchanges w Coinalyze (bez rozróżniania wielkości liter).
-  exchanges: [Binance, Bybit, OKX, Bitget, Hyperliquid, Deribit, BitMEX]
+  # (Bitget nie ma w Coinalyze. BitMEX jest, ale na razie nie trafia do listy rynków — do sprawdzenia.)
+  exchanges: [Binance, Bybit, OKX, Hyperliquid, Deribit, BitMEX]
   # Ile największych (wg OI) coinów liczymy. 0 = wszystkie.
   # Ogon poza top 200 to zwykle ~1–2% całego OI, a mocno skraca czas pobierania
   # (limit API: 40 zapytań/min, każdy rynek = 1 zapytanie).
@@ -39,7 +40,9 @@ watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI]
 
 # ─────────────────────────────────────────────────────────────
 #  LIKWIDACJE I FUNDING (zakładka liq.html)
-#  Te same giełdy co OI (z Hyperliquid). Każdy rynek = 1 zapytanie
+#  Te same giełdy co OI. Likwidacje Coinalyze ma tylko z Binance, Bybit i OKX
+#  (Hyperliquid i Deribit: brak), funding — ze wszystkich, także z Hyperliquid.
+#  Każdy rynek = 1 zapytanie
 #  na likwidacje + 1 na funding, więc liczymy tylko największe coiny.
 #  Pierwsze uruchomienie po wgraniu samo pobierze historię (dłuższe o ~40 min).
 # ─────────────────────────────────────────────────────────────

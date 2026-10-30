@@ -293,6 +293,16 @@ def collect_liq(client, store, cfg, now, backfill=False):
             store.put("1d", sid, pts, replace_from=0)
         if first:
             log.info("Likwidacje 1d: pełne dane od %s", _iso(first))
+    # Coinalyze liquidation history before the OI history start (09.2022) covers only a fraction
+    # of the market (median ~$1–6M/day vs $100M+ later) → keep daily data from the OI start on
+    oi_d = store.series["1d"].get("oi_total") or {}
+    if oi_d:
+        cut = min(oi_d)
+        for sid in list(store.series["1d"]):
+            if sid.startswith(("liq_", "fund_")):
+                s_ = store.series["1d"][sid]
+                for t in [t for t in s_ if t < cut]:
+                    del s_[t]
     # recent days from the hourly data (sums for liquidations, close for funding/price)
     h_first = min(store.series["1h"].get("liq_total_long") or {now_h: 0})
     first_full_day = h_first if h_first % DAY == 0 else floor(h_first, DAY) + DAY

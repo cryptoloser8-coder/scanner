@@ -94,12 +94,13 @@ def liq_catalog(watchlist, top, exchanges):
     for g, (nm, what) in who.items():
         cat[f"liq_{g}_long"] = dict(
             name=f"Likwidacje {nm} long", group="liq", color="#e05252", base=f"liq_{g}", side="long",
-            desc=f"Zlikwidowane pozycje LONG {what}, suma z wybranych giełd (z Hyperliquid), w USD na świecę. "
+            desc=f"Zlikwidowane pozycje LONG {what}, suma z Binance, Bybit i OKX, w USD na świecę. "
+                 "Dolne oszacowanie: giełdy publikują tylko część likwidacji, a Hyperliquid nie ma ich w Coinalyze. "
                  "Duże likwidacje longów = kaskada w dół, często wypłukanie lewara blisko lokalnych dołków.")
         cat[f"liq_{g}_short"] = dict(
             name=f"Likwidacje {nm} short", group="liq", color="#4caf7d", base=f"liq_{g}", side="short",
-            desc=f"Zlikwidowane pozycje SHORT {what}, suma z wybranych giełd (z Hyperliquid), w USD na świecę. "
-                 "Duże likwidacje shortów = short squeeze, gwałtowny ruch w górę.")
+            desc=f"Zlikwidowane pozycje SHORT {what}, suma z Binance, Bybit i OKX, w USD na świecę. "
+                 "Dolne oszacowanie (jak wyżej). Duże likwidacje shortów = short squeeze, gwałtowny ruch w górę.")
     for i, sym in enumerate(watchlist):
         s = sym.lower()
         for side, col, word in (("long", "#e05252", "LONG"), ("short", "#4caf7d", "SHORT")):
