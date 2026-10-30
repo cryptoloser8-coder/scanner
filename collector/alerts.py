@@ -210,7 +210,7 @@ def check_sums(store, catalog, rules, state, now):
     return msgs
 
 
-REPORT_IDS = ["total", "total2", "total3", "btc_d", "usdt_d", "others_d", "ethbtc", "stable_mcap",
+REPORT_IDS = ["total", "total2", "total3", "btc_d", "eth_d", "stable_d", "alts_d", "others_d", "ethbtc", "stable_mcap",
               "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_others_vs_btc", "lev_others"]
 
 

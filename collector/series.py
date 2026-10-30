@@ -39,6 +39,14 @@ CATALOG = {
                   desc="Dominacja ETH: udział kapitalizacji ETH w TOTAL, w % (CRYPTOCAP:ETH.D)."),
     "usdt_d": dict(name="USDT.D", group="pct", color="#26a69a",
                    desc="Dominacja USDT: udział stablecoina USDT w TOTAL, w %. Rośnie, gdy kapitał ucieka do gotówki (CRYPTOCAP:USDT.D)."),
+    "stable_d": dict(name="Stablecoiny.D", group="pct", color="#26a69a",
+                     desc="Dominacja WSZYSTKICH stablecoinów: (TOTAL − TOTALES) / TOTAL, w %. Szersze niż USDT.D (obejmuje USDC i resztę). "
+                          "Rośnie, gdy kapitał ucieka do gotówki lub gdy rynek spada; spada w hossie. "
+                          "BTC.D + ETH.D + Stablecoiny.D + Alty.D = 100%."),
+    "alts_d": dict(name="Alty.D", group="pct", color="#ffe082",
+                   desc="Dominacja altów bez BTC, ETH i stablecoinów: TOTAL3ES / TOTAL, w %. "
+                        "To cała „reszta” rynku (XRP, BNB, SOL i wszystkie mniejsze). "
+                        "BTC.D + ETH.D + Stablecoiny.D + Alty.D = 100%. OTHERS.D (poza top 10) to jej część."),
     "others_d": dict(name="OTHERS.D", group="pct", color="#80cbc4",
                      desc="Dominacja OTHERS: udział coinów spoza top 10 w TOTAL, w % (CRYPTOCAP:OTHERS.D). "
                           "Rośnie w fazie „altseason”, gdy kapitał przelewa się w małe alty."),
@@ -230,6 +238,8 @@ def derived(series):
     combine("oi_others_vs_btc", lambda o, b: o / b, "oi_others", "oi_btc")
     combine("lev_btc", lambda oi, t1, t2: oi / (t1 - t2) * 100, "oi_btc", "total", "total2")
     combine("stable_mcap", lambda t, tes: t - tes, "total", "totales")
+    combine("stable_d", lambda t, tes: (t - tes) / t * 100, "total", "totales")
+    combine("alts_d", lambda t3es, t: t3es / t * 100, "total3es", "total")
     # leverage vs market cap WITHOUT stablecoins (no perps on stables); fall back if ES missing
     if s.get("stable_mcap"):
         combine("lev_alts", lambda oi, t2, st: oi / (t2 - st) * 100, "oi_alts", "total2", "stable_mcap")
