@@ -24,7 +24,7 @@ class FakeCoinalyze:
         self.calls_made = 0
         self.markets = []
         for base, oi in self.BASES.items():
-            for ex, code in (("Binance", "A"), ("Bybit", "6"), ("Kraken", "K")):
+            for ex, code in (("Binance", "A"), ("Bybit", "6"), ("Kraken", "K"), ("Hyperliquid", "H")):
                 b = "1000PEPE" if base == "PEPE" and code == "A" else base
                 self.markets.append({"symbol": f"{b}USDT_PERP.{code}", "exchange": code,
                                      "base_asset": b, "is_perpetual": True, "_oi": oi / 3})
@@ -34,7 +34,7 @@ class FakeCoinalyze:
 
     def exchanges(self):
         return [{"name": "Binance", "code": "A"}, {"name": "Bybit", "code": "6"},
-                {"name": "Kraken", "code": "K"}]
+                {"name": "Kraken", "code": "K"}, {"name": "Hyperliquid", "code": "H"}]
 
     def future_markets(self):
         return self.markets
@@ -60,6 +60,35 @@ class FakeCoinalyze:
             if step == D and self.btc_daily_from and not s.startswith("SOL"):
                 out[s] = {t: v for t, v in out[s].items() if t >= self.btc_daily_from}
         return out
+
+
+    # ── liquidations / funding / price ──
+    def _hist(self, symbols, interval, frm, to, fn):
+        self.calls_made += len(symbols)
+        step = H if interval == "1hour" else D
+        out = {}
+        for s in symbols:
+            if s in self.missing:
+                continue  # failed batch → symbol absent
+            t0 = frm - frm % step
+            out[s] = {t: fn(s, t) for t in range(t0, int(to) + 1, step) if fn(s, t) is not None}
+        return out
+
+    def liquidation_history(self, symbols, interval, frm, to, progress=None):
+        def fn(s, t):
+            k = t // (H if interval == "1hour" else D)
+            if k % 3 == 0:
+                return None  # no liquidations in this candle → Coinalyze omits it
+            scale = 1.0 if interval == "1hour" else 24.0
+            return (1e6 * scale, 5e5 * scale)
+        return self._hist(symbols, interval, frm, to, fn)
+
+    def funding_history(self, symbols, interval, frm, to, progress=None):
+        # percent per funding interval: 0.01%/8h on CEXes, 0.00125%/1h on Hyperliquid (both ≈ 10.95%/yr)
+        return self._hist(symbols, interval, frm, to, lambda s, t: 0.00125 if s.endswith(".H") else 0.01)
+
+    def price_history(self, symbols, interval, frm, to, progress=None):
+        return self._hist(symbols, interval, frm, to, lambda s, t: 100000.0 if s.startswith("BTC") else 4000.0)
 
 
 class FakeTV:
@@ -396,3 +425,165 @@ def test_tradingview_protocol():
     assert any("~h~1" in s for s in ws.sent)  # heartbeat echoed
     assert any("create_series" in s for s in ws.sent)
     assert split_frames(_f("a") + _f("bc")) == ["a", "bc"]
+
+
+# ── liquidations ─────────────────────────────────────────────
+def _liq_cfg(**kw):
+    c = _cfg(**kw)
+    c["coinalyze"]["exchanges"] = ["binance", "BYBIT", "Hyperliquid"]
+    c["liquidations"] = {"enabled": True, "top_alts": 1, "funding_interval_hours": {"default": 8, "Hyperliquid": 1},
+                         "funding_unit": "auto",
+                         "price_symbols": {"px_btc": "BTCUSDT_PERP.A", "px_eth": "ETHUSDT_PERP.A"}}
+    return c
+
+
+def test_liquidations_backfill_and_run(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    cfg = _liq_cfg()
+    store, msgs, res = main.run(d, cfg, now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(),
+                                telegram=tg, cg_fetch=CG)
+    assert res == {"Coinalyze": None, "Likwidacje": None, "TradingView": None}
+    h, dd = store.series["1h"], store.series["1d"]
+    # top_alts=1 → OTHERS = SOL (+ watchlist SOL; PEPE not in OI universe) ; 3 exchanges per coin
+    t = NOW - NOW % H
+    k = [x for x in range(t - 5 * H, t + 1, H) if (x // H) % 3 != 0][0]
+    z = [x for x in range(t - 5 * H, t + 1, H) if (x // H) % 3 == 0][0]
+    assert h["liq_btc_long"][k] == 3e6 and h["liq_btc_short"][k] == 1.5e6
+    assert h["liq_btc_long"][z] == 0                       # omitted candle = no liquidations, stored as 0
+    assert h["liq_others_long"][k] == 3e6 and h["liq_sol_long"][k] == 3e6
+    assert h["liq_total_long"][k] == 9e6
+    assert h["liq_ex_hyperliquid"][k] == 3 * 1.5e6         # BTC, ETH, SOL on Hyperliquid
+    # funding: hourly Hyperliquid and 8h CEX normalise to the same annual rate
+    assert abs(h["fund_btc"][t] - 10.95) < 1e-6 and abs(h["fund_others"][t] - 10.95) < 1e-6
+    assert h["px_btc"][t] == 100000 and h["px_eth"][t] == 4000
+    # daily: Coinalyze daily history + sums from hourly for fully covered days
+    assert len(dd["liq_btc_long"]) > 300
+    day = t - t % D - D
+    exp = sum(v for x, v in h["liq_btc_long"].items() if day <= x < day + D)
+    assert dd["liq_btc_long"][day] == exp
+    assert abs(dd["fund_btc"][day] - 10.95) < 1e-6
+    # separate files, main 1h.json untouched by liquidation series
+    files = sorted(os.listdir(d))
+    assert files == ["1d.json", "1h.json", "liq_1d.json", "liq_1h.json", "meta.json", "state.json"]
+    main_1h = json.load(open(os.path.join(d, "1h.json")))["series"]
+    liq_1h = json.load(open(os.path.join(d, "liq_1h.json")))["series"]
+    assert "oi_total" in main_1h and not any(s.startswith(("liq_", "fund_", "px_")) for s in main_1h)
+    assert "liq_total_long" in liq_1h and "oi_total" not in liq_1h
+    meta = json.load(open(os.path.join(d, "meta.json")))
+    assert meta["catalog"]["liq_btc_long"]["group"] == "liq" and meta["catalog"]["fund_btc"]["group"] == "fund"
+    li = meta["info"]["liquidations"]
+    assert li["funding_unit"] == "percent" and li["exchanges"]["Hyperliquid"]["with_liq"] == 3
+    assert li["others"] == ["SOL"]
+    assert li["configured_without_markets"] == [] and "Kraken" in li["coinalyze_exchanges"]
+
+    # regular run: small window, no re-download of history
+    cz = FakeCoinalyze()
+    store2, _, res2 = main.run(d, cfg, now=NOW + 2 * H, coinalyze=cz, tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert res2["Likwidacje"] is None
+    n_markets = len(store2.state["universe"]["symbols"])
+    assert cz.calls_made <= n_markets * 3 + 2               # OI + liquidations + funding + 2 prices
+    assert max(store2.series["1h"]["liq_total_long"]) == NOW + 2 * H - (NOW + 2 * H) % H
+    assert len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) or \
+        len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) + 1
+
+
+def test_liquidations_first_run_after_upgrade_downloads_history(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert not os.path.exists(os.path.join(d, "liq_1h.json"))
+    store, _, res = main.run(d, _liq_cfg(), now=NOW + 2 * H, coinalyze=FakeCoinalyze(), tv=FakeTV(),
+                             telegram=tg, cg_fetch=CG)
+    assert res["Likwidacje"] is None
+    assert len(store.series["1h"]["liq_total_long"]) > 1000
+    assert len(store.series["1d"]["liq_total_long"]) > 300
+    assert store.state["liq_version"] == 1
+
+
+def test_liquidations_failed_batch_is_refetched_next_run(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    main.run(d, _liq_cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+
+    class Flaky(FakeCoinalyze):
+        def liquidation_history(self, symbols, interval, frm, to, progress=None):
+            self.failed_batches = 1
+            return {}
+    complete = Store_(d).state["liq_complete_until"]
+    main.run(d, _liq_cfg(), now=NOW + 10 * H, coinalyze=Flaky(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert Store_(d).state["liq_complete_until"] == complete     # not advanced
+    store, _, _ = main.run(d, _liq_cfg(), now=NOW + 12 * H, coinalyze=FakeCoinalyze(), tv=FakeTV(),
+                           telegram=tg, cg_fetch=CG)
+    h = store.series["1h"]["liq_btc_long"]
+    gap = [x for x in range(complete + H, NOW + 10 * H, H) if (x // H) % 3 != 0]
+    assert all(h[x] > 0 for x in gap)                              # hours lost in the failed run are back
+
+
+def Store_(d):
+    from store import Store
+    return Store(d)
+
+
+def test_funding_unit_detection_and_weights():
+    import liquidations as L
+    names = {"A": "Binance", "H": "Hyperliquid"}
+    lcfg = {"funding_interval_hours": {"default": 8, "Hyperliquid": 1}}
+    sb = {"BTCUSDT_PERP.A": "BTC", "BTC.H": "BTC"}
+    fh = {"BTCUSDT_PERP.A": {t * H: 0.0001 for t in range(30)}, "BTC.H": {t * H: 0.0000125 for t in range(30)}}
+    assert L.detect_unit(fh, sb, names, lcfg) == "fraction"
+    assert abs(L.annualize(0.0001, "BTCUSDT_PERP.A", names, lcfg, "fraction") - 10.95) < 1e-9
+    # weighting: big market dominates
+    groups = {"btc": set(sb)}
+    fh2 = {"BTCUSDT_PERP.A": {0: 0.01}, "BTC.H": {0: 0.01}}       # 10.95%/yr and 87.6%/yr
+    w = L.oi_weights(None, {"BTCUSDT_PERP.A": [0, 9e9], "BTC.H": [0, 1e9]}, H, 6)
+    out = L.aggregate_funding(fh2, w, groups, [0], H, names, lcfg, "percent")
+    assert abs(out["fund_btc"][0] - (10.95 * 0.9 + 87.6 * 0.1)) < 1e-6
+    # glitch values are dropped
+    assert L.annualize(50.0, "BTCUSDT_PERP.A", names, lcfg, "percent") is None
+
+
+def test_liq_universe_top_and_min_oi():
+    import liquidations as L
+    uni = {"symbols": {"BTC.A": "BTC", "ETH.A": "ETH", "SOL.A": "SOL", "SOL.X": "SOL", "DOGE.A": "DOGE",
+                       "PEPE.A": "PEPE"},
+           "assets": [["BTC", 1], ["ETH", 1], ["SOL", 1], ["DOGE", 1], ["PEPE", 1]]}
+    st = {"last_oi": {"BTC.A": [0, 5e9], "ETH.A": [0, 3e9], "SOL.A": [0, 1e9], "SOL.X": [0, 1e5],
+                      "DOGE.A": [0, 5e8], "PEPE.A": [0, 2e8]}}
+    sb, others, cov = L.liq_universe(uni, st, {"top_alts": 1, "min_market_oi_usd": 1e6}, ["PEPE"])
+    assert others == {"SOL", "PEPE"}
+    assert set(sb) == {"BTC.A", "ETH.A", "SOL.A", "PEPE.A"}       # SOL.X too small, DOGE outside top 1
+    assert 0.9 < cov < 1
+
+
+def test_liq_sum_alerts_and_report(tmp_path):
+    from store import Store
+    st_ = Store(str(tmp_path))
+    t = NOW - NOW % H
+    st_.put("1h", "liq_btc_long", {t - k * H: 3e8 for k in range(6)})
+    st_.put("1h", "liq_btc_short", {t - k * H: 1e8 for k in range(6)})
+    cat = S.catalog_with_watchlist(["SOL"], {"top": 30, "exchanges": ["Binance", "Hyperliquid"]})
+    assert "liq_ex_hyperliquid" in cat and "fund_sol" in cat
+    state = {}
+    rules = [{"series": "liq_btc", "window_hours": 4, "usd": 1.5e9, "cooldown_hours": 12, "label": "kaskada"}]
+    m = alerts.check_sums(st_, cat, rules, state, NOW)
+    assert len(m) == 1 and "$1.60B" in m[0] and "long $1.20B" in m[0] and "kaskada" in m[0]
+    assert alerts.check_sums(st_, cat, rules, state, NOW + H) == []          # cooldown
+    assert alerts.check_sums(st_, cat, [dict(rules[0], usd=2e9)], {}, NOW) == []
+    assert alerts.check_sums(st_, cat, [{"series": "nope", "usd": 1}], {}, NOW) == []
+    st_.put("1h", "fund_btc", {t: 25.0})
+    rep = alerts.daily_report(st_, cat, [], liquidations=True)
+    assert "Likwidacje BTC" in rep and "Funding BTC" in rep and "+25.0%/r" in rep
+    assert "Likwidacje" not in alerts.daily_report(st_, cat, [])
+
+
+def test_store_bundles_roundtrip(tmp_path):
+    from store import Store
+    s = Store(str(tmp_path))
+    s.put("1h", "oi_btc", {0: 1.0})
+    s.put("1h", "liq_btc_long", {0: 2.0})
+    s.put("1d", "fund_btc", {0: 3.0})
+    s.save(NOW, {})
+    s2 = Store(str(tmp_path))
+    assert s2.series["1h"]["oi_btc"] == {0: 1.0} and s2.series["1h"]["liq_btc_long"] == {0: 2.0}
+    assert s2.series["1d"]["fund_btc"] == {0: 3.0}
