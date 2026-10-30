@@ -15,7 +15,11 @@ HOUR = 3600
 def fmt_value(v, group):
     if v is None:
         return "—"
-    if group in ("oi", "mcap"):
+    if group == "fund":
+        return f"{v:+.1f}%/r"
+    if group == "price":
+        return f"${v:,.0f}" if abs(v) >= 100 else f"${v:,.2f}"
+    if group in ("oi", "mcap", "liq"):
         a = abs(v)
         if a >= 1e12:
             return f"${v / 1e12:.3f}T"
@@ -152,11 +156,63 @@ def check_changes(store, catalog, rules, state, now):
     return msgs
 
 
+def window_sum(store, sid, hours):
+    """Sum of the last `hours` hourly candles of a series → (sum, last_t) or (None, None)."""
+    s = store.series["1h"].get(sid) or {}
+    if not s:
+        return None, None
+    t_last = max(s)
+    return sum(v for t, v in s.items() if t > t_last - hours * HOUR), t_last
+
+
+def liq_parts(store, catalog, sid, hours):
+    """liq_btc → long + short; liq_btc_long / liq_ex_x → itself. → (total, long, short, name)."""
+    if f"{sid}_long" in catalog:
+        lo, _ = window_sum(store, f"{sid}_long", hours)
+        sh, _ = window_sum(store, f"{sid}_short", hours)
+        if lo is None or sh is None:
+            return None
+        return lo + sh, lo, sh, catalog[f"{sid}_long"]["name"].rsplit(" ", 1)[0]
+    if sid in catalog:
+        v, _ = window_sum(store, sid, hours)
+        return None if v is None else (v, None, None, catalog[sid]["name"])
+    return None
+
+
+def check_sums(store, catalog, rules, state, now):
+    """Alert when the sum of a liquidation series over the window ≥ usd (with cooldown).
+
+    rule: {series: liq_btc | liq_total | liq_btc_long | liq_ex_hyperliquid…, window_hours, usd, cooldown_hours}
+    """
+    msgs = []
+    st = state.setdefault("sums", {})
+    for r in rules or []:
+        sid = r.get("series")
+        win = float(r.get("window_hours", 4))
+        usd = float(r.get("usd") or 0)
+        if not sid or usd <= 0:
+            continue
+        parts = liq_parts(store, catalog, sid, win)
+        if not parts:
+            log.warning("Alert sumy pominięty (nieznana seria lub brak danych): %s", r)
+            continue
+        total, lo, sh, name = parts
+        key = f"{sid}:{win:g}h:{usd:g}"
+        cooldown = float(r.get("cooldown_hours", 12)) * HOUR
+        if total >= usd and now - st.get(key, 0) >= cooldown:
+            split = f"\nlong {fmt_value(lo, 'liq')} · short {fmt_value(sh, 'liq')}" if lo is not None else ""
+            label = f"\n{html.escape(r['label'])}" if r.get("label") else ""
+            msgs.append(f"💥 <b>{html.escape(name)}</b>: {fmt_value(total, 'liq')} w {win:g}h "
+                        f"(próg {fmt_value(usd, 'liq')}){split}{label}")
+            st[key] = now
+    return msgs
+
+
 REPORT_IDS = ["total", "total2", "total3", "btc_d", "usdt_d", "stable_mcap",
               "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_others_vs_btc", "lev_others"]
 
 
-def daily_report(store, catalog, levels, page_url=""):
+def daily_report(store, catalog, levels, page_url="", liquidations=False):
     lines = ["📊 <b>Dzienny raport OI & TOTAL</b>", ""]
     for sid in REPORT_IDS:
         meta = catalog.get(sid)
@@ -168,6 +224,19 @@ def daily_report(store, catalog, levels, page_url=""):
         d7 = store.value_at(sid, t - 7 * 86400, "1d", tolerance=2 * 86400)
         lines.append(f"<b>{html.escape(meta['name'])}</b> {fmt_value(v, meta['group'])}  "
                      f"1D {fmt_change(v, d1)} · 7D {fmt_change(v, d7)}")
+    if liquidations:
+        liq = []
+        for g in ("btc", "eth", "others", "total"):
+            p = liq_parts(store, catalog, f"liq_{g}", 24)
+            if p:
+                liq.append(f"<b>{html.escape(p[3])}</b> {fmt_value(p[0], 'liq')}  "
+                           f"(long {fmt_value(p[1], 'liq')} · short {fmt_value(p[2], 'liq')})")
+        for g in ("btc", "eth", "others"):
+            meta, latest = catalog.get(f"fund_{g}"), store.latest(f"fund_{g}")
+            if meta and latest:
+                liq.append(f"<b>{html.escape(meta['name'])}</b> {fmt_value(latest[1], 'fund')}")
+        if liq:
+            lines += ["", "<b>Likwidacje 24h i funding:</b>"] + liq
     near = []
     for lv in levels or []:
         sid = lv.get("series")

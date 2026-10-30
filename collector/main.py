@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 import coingecko  # noqa: E402
+import liquidations as L  # noqa: E402
 import series as S  # noqa: E402
 from coinalyze import Coinalyze, build_universe  # noqa: E402
 from store import Store  # noqa: E402
@@ -40,7 +41,26 @@ def load_config(path):
     cfg.setdefault("telegram", {})
     cfg["levels"] = cfg.get("levels") or []
     cfg["changes"] = cfg.get("changes") or []
+    cfg["liq_alerts"] = cfg.get("liq_alerts") or []
+    if cfg.get("liquidations") is not None:
+        lq = cfg["liquidations"]
+        lq.setdefault("enabled", True)
+        lq.setdefault("top_alts", 30)
+        lq.setdefault("funding_interval_hours", {"default": 8, "Hyperliquid": 1})
+        lq.setdefault("price_symbols", {"px_btc": "BTCUSDT_PERP.A", "px_eth": "ETHUSDT_PERP.A"})
     return cfg
+
+
+def liq_enabled(cfg):
+    return bool((cfg.get("liquidations") or {}).get("enabled"))
+
+
+def build_catalog(cfg):
+    watch = [w.upper() for w in cfg["watchlist"]]
+    liq = None
+    if liq_enabled(cfg):
+        liq = {"top": int(cfg["liquidations"].get("top_alts", 30)), "exchanges": cfg["coinalyze"]["exchanges"]}
+    return S.catalog_with_watchlist(watch, liq)
 
 
 def floor(t, step):
@@ -191,11 +211,12 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
-    catalog = S.catalog_with_watchlist([w.upper() for w in cfg["watchlist"]])
+    catalog = build_catalog(cfg)
     tg = telegram or alerts.Telegram(enabled=cfg["telegram"].get("enabled", True))
     page_url = os.environ.get("PAGE_URL", "")
     results, info = {}, {}
 
+    client = None
     try:
         client = coinalyze or Coinalyze(os.environ.get("COINALYZE_API_KEY", ""))
         info["coinalyze"] = collect_oi(client, store, cfg, now, backfill, cg_fetch)
@@ -203,6 +224,16 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     except Exception as e:  # noqa: BLE001
         log.exception("Coinalyze")
         results["Coinalyze"] = str(e)
+
+    if liq_enabled(cfg):
+        try:
+            if client is None:
+                raise RuntimeError("brak klienta Coinalyze")
+            info["liquidations"] = L.collect_liq(client, store, cfg, now, backfill)
+            results["Likwidacje"] = None
+        except Exception as e:  # noqa: BLE001
+            log.exception("Likwidacje")
+            results["Likwidacje"] = str(e)
 
     try:
         tv_err = collect_tv(tv or TradingView(), store, cfg, now, backfill)
@@ -221,15 +252,22 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         n1h = len(store.series["1h"].get("oi_total", {}))
         n1d = len(store.series["1d"].get("oi_total", {}))
         t1d = len(store.series["1d"].get("total", {}))
-        msgs.append(f"✅ Backfill zakończony: OI {n1d} dni + {n1h} godzin, TOTAL {t1d} dni.")
+        extra = ""
+        if liq_enabled(cfg):
+            extra = f" Likwidacje {len(store.series['1d'].get('liq_total_long', {}))} dni."
+        msgs.append(f"✅ Backfill zakończony: OI {n1d} dni + {n1h} godzin, TOTAL {t1d} dni.{extra}")
         # arm level state silently so the first regular run doesn't fire stale crosses
         alerts.check_levels(store, catalog, cfg["levels"], st)
+        alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
     else:
         msgs += alerts.check_levels(store, catalog, cfg["levels"], st, page_url)
         msgs += alerts.check_changes(store, catalog, cfg["changes"], st, now)
+        msgs += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
         if cfg["telegram"].get("enabled", True) and alerts.due_daily_report(
                 st, now, cfg["telegram"].get("daily_report_hour_utc", 7)):
-            msgs.append(alerts.daily_report(store, catalog, cfg["levels"], page_url))
+            msgs.append(alerts.daily_report(
+                store, catalog, cfg["levels"], page_url,
+                liquidations=liq_enabled(cfg) and cfg["telegram"].get("report_liquidations", False)))
     for m in msgs:
         tg.send(m)
 
@@ -247,6 +285,13 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         # tracked assets with current OI in $M at universe refresh — to audit what's counted
         "universe_assets": (st.get("universe") or {}).get("assets", []),
     }
+    if liq_enabled(cfg):
+        lq = cfg["liquidations"]
+        meta["liquidations"] = {
+            "top_alts": int(lq.get("top_alts", 30)),
+            "liq_alerts": cfg.get("liq_alerts") or [],
+            "updated_until": st.get("liq_complete_until"),
+        }
     store.save(now, meta)
     log.info("Gotowe. Wiadomości: %d. %s", len(msgs), info)
     return store, msgs, results

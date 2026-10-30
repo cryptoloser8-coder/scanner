@@ -8,8 +8,8 @@ Bot co 2 godziny (GitHub Actions):
 5. wysyła na **Telegram** alerty o poziomach, dzienny raport i informacje o awariach źródeł.
 
 ```
-main  ── oi.html, collector/ (kod + config.yaml), .github/workflows/oi-monitor.yml
-data  ── 1h.json, 1d.json, meta.json, state.json   (nadpisywane przy każdym uruchomieniu)
+main  ── oi.html, liq.html, collector/ (kod + config.yaml), .github/workflows/oi-monitor.yml
+data  ── 1h.json, 1d.json, liq_1h.json, liq_1d.json, meta.json, state.json   (nadpisywane przy każdym uruchomieniu)
 ```
 
 ## Konfiguracja (jednorazowo)
@@ -66,6 +66,21 @@ changes:
 Jeden poziom daje alert raz przy wejściu w strefę `near_pct` i raz przy przebiciu (w górę lub w dół). Kolejny alert przyjdzie dopiero, gdy wartość oddali się od poziomu na 1,5 × `near_pct`. Poziomy widać też na wykresie jako przerywane linie (tryb *Wartości*, przycisk *Poziomy*).
 
 Inne ustawienia w `config.yaml`: lista giełd, liczba coinów (`max_assets`), watchlista coinów z osobnym wykresem OI, godzina dziennego raportu.
+
+## Likwidacje i funding: zakładka `liq.html`
+To samo uruchomienie bota pobiera z Coinalyze dla BTC, ETH, top 30 altów (wg OI) i watchlisty:
+- **likwidacje long/short** w USD (świece 1h, dzienne sumy), osobno BTC / ETH / OTHERS / TOTAL, coiny z watchlisty i każda giełda (Hyperliquid też),
+- **funding** ważony open interest, przeliczony na % rocznie (Hyperliquid rozlicza co 1 h, reszta zwykle co 8 h — ustawienie `funding_interval_hours`),
+- **cenę** BTC i ETH (perp Binance) do tła wykresu.
+
+Pierwsze uruchomienie po wgraniu samo pobiera historię (dzienna od ok. 2022, godzinowa ~2 miesiące), więc trwa ok. godzinę dłużej. Backfill nie jest potrzebny. Potem każde uruchomienie to ok. +12 min.
+
+Ustawienia: sekcja `liquidations:` w `config.yaml`. Alerty (domyślnie wyłączone):
+- `liq_alerts:` — suma likwidacji w oknie (np. `liq_total` > $1B w 4h),
+- progi fundingu — zwykłe `levels:` na seriach `fund_btc`, `fund_eth`, `fund_others` (wartości w % rocznie),
+- `telegram.report_liquidations: true` — likwidacje 24h i funding w porannym raporcie.
+
+Diagnostyka (po każdym uruchomieniu) jest w `meta.json` → `info.liquidations`: liczba rynków na giełdę, ile ma dane o likwidacjach, surowy funding BTC per giełda, wykryta jednostka fundingu, giełdy z configu bez rynków.
 
 ## Uwagi
 - **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.

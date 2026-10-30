@@ -117,24 +117,50 @@ class Coinalyze:
                     out[row["symbol"]] = float(row["value"])
         return out
 
-    def oi_history(self, symbols, interval, frm, to, progress=None):
-        """OI history in USD → {symbol: {t: close}}."""
+    def history(self, path, symbols, interval, frm, to, fields, usd=False, progress=None):
+        """Generic history endpoint → {symbol: {t: value or (values…)}}.
+
+        fields: one field name (e.g. "c") → value; a tuple of names → tuple of values.
+        """
+        single = isinstance(fields, str)
+        names = (fields,) if single else tuple(fields)
+        params = {"interval": interval, "from": int(frm), "to": int(to)}
+        if usd:
+            params["convert_to_usd"] = "true"
         out = {}
         batches = list(_chunks(symbols, self.batch))
         for i, batch in enumerate(batches):
-            data = self._batch_get("/open-interest-history", {
-                "interval": interval, "from": int(frm), "to": int(to), "convert_to_usd": "true",
-            }, batch)
+            data = self._batch_get(path, params, batch)
             for row in data or []:
                 hist = {}
                 for p in row.get("history") or []:
-                    c = p.get("c")
-                    if c is not None:
-                        hist[int(p["t"])] = float(c)
+                    vals = [p.get(n) for n in names]
+                    if any(v is None for v in vals):
+                        continue
+                    vals = tuple(float(v) for v in vals)
+                    hist[int(p["t"])] = vals[0] if single else vals
                 out[row["symbol"]] = hist
             if progress and (i % 10 == 0 or i == len(batches) - 1):
                 progress(i + 1, len(batches))
         return out
+
+    def oi_history(self, symbols, interval, frm, to, progress=None):
+        """OI history in USD → {symbol: {t: close}}."""
+        return self.history("/open-interest-history", symbols, interval, frm, to, "c",
+                            usd=True, progress=progress)
+
+    def liquidation_history(self, symbols, interval, frm, to, progress=None):
+        """Liquidations in USD → {symbol: {t: (longs, shorts)}}."""
+        return self.history("/liquidation-history", symbols, interval, frm, to, ("l", "s"),
+                            usd=True, progress=progress)
+
+    def funding_history(self, symbols, interval, frm, to, progress=None):
+        """Funding rate (raw Coinalyze units, per exchange funding interval) → {symbol: {t: close}}."""
+        return self.history("/funding-rate-history", symbols, interval, frm, to, "c", progress=progress)
+
+    def price_history(self, symbols, interval, frm, to, progress=None):
+        """Close price → {symbol: {t: close}}."""
+        return self.history("/ohlcv-history", symbols, interval, frm, to, "c", progress=progress)
 
 
 def _chunks(seq, n):

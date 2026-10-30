@@ -34,7 +34,27 @@ coinalyze:
   include_assets: []
 
 # Coiny, których OI ma być dostępne osobno na wykresach (oprócz BTC i ETH).
+# Te same coiny mają osobne likwidacje i funding w zakładce Likwidacje.
 watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI]
+
+# ─────────────────────────────────────────────────────────────
+#  LIKWIDACJE I FUNDING (zakładka liq.html)
+#  Te same giełdy co OI (z Hyperliquid). Każdy rynek = 1 zapytanie
+#  na likwidacje + 1 na funding, więc liczymy tylko największe coiny.
+#  Pierwsze uruchomienie po wgraniu samo pobierze historię (dłuższe o ~40 min).
+# ─────────────────────────────────────────────────────────────
+liquidations:
+  enabled: true
+  # BTC + ETH + tyle największych (wg OI) altów; watchlista jest dodawana zawsze.
+  top_alts: 30
+  # Pomijaj rynki z OI poniżej tej kwoty (USD) — prawie nie mają likwidacji, a kosztują zapytanie.
+  min_market_oi_usd: 1.0e6
+  # Co ile godzin giełda rozlicza funding (do przeliczenia na % rocznie). Hyperliquid co godzinę.
+  funding_interval_hours: {default: 8, Hyperliquid: 1}
+  # Jednostka fundingu w Coinalyze: auto | percent (0.01 = 0,01%) | fraction (0.0001 = 0,01%)
+  funding_unit: auto
+  # Cena na wykresie (symbole Coinalyze; .A = Binance)
+  price_symbols: {px_btc: BTCUSDT_PERP.A, px_eth: ETHUSDT_PERP.A}
 
 tradingview:
   # Serie CRYPTOCAP z TradingView (te same wartości co na wykresach TV).
@@ -54,6 +74,8 @@ telegram:
   daily_report_hour_utc: 7
   # Jak często przypominać o awarii źródła danych (godziny).
   health_reminder_hours: 12
+  # Dopisz do raportu dziennego likwidacje z 24h i funding (true/false).
+  report_liquidations: false
 
 # ─────────────────────────────────────────────────────────────
 #  POZIOMY — alerty o zbliżaniu się i przebiciu
@@ -87,3 +109,23 @@ changes: []
 #    window_hours: 24
 #    pct: 10
 #    cooldown_hours: 12
+
+# ─────────────────────────────────────────────────────────────
+#  LIKWIDACJE — alert, gdy suma likwidacji w oknie przekroczy próg (USD)
+#
+#  series: liq_total, liq_btc, liq_eth, liq_others (long + short razem),
+#          albo osobno np. liq_btc_long / liq_others_short,
+#          coin z watchlisty: liq_sol, giełda: liq_ex_hyperliquid
+#  Progi fundingu ustawiasz jak zwykłe poziomy (sekcja levels),
+#  np. series: fund_others, level: 40, near_pct: 10   (% rocznie)
+# ─────────────────────────────────────────────────────────────
+liq_alerts: []
+#  - series: liq_total
+#    window_hours: 4
+#    usd: 1.0e9
+#    cooldown_hours: 12
+#    label: "Kaskada likwidacji"
+#  - series: liq_others_long
+#    window_hours: 24
+#    usd: 5.0e8
+#    cooldown_hours: 24

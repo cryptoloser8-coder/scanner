@@ -1,15 +1,26 @@
 """JSON storage on the `data` branch.
 
 Files:
-  1h.json / 1d.json  {"updated": ts, "series": {id: [[t, v], ...]}}  — read by oi.html
-  meta.json          catalogue, levels, health — read by oi.html
-  state.json         collector internals (universe, gap-fill values, alert state)
+  1h.json / 1d.json          {"updated": ts, "series": {id: [[t, v], ...]}}  — read by oi.html
+  liq_1h.json / liq_1d.json  same format, liquidations / funding / price  — read by liq.html
+  meta.json                  catalogue, levels, health — read by every tab
+  state.json                 collector internals (universe, gap-fill values, alert state)
 """
 import json
 import os
 import tempfile
 
 RESOLUTIONS = ("1h", "1d")
+# file prefix per series-id prefix (anything else goes to the main 1h/1d files)
+BUNDLES = {"liq_": "liq_", "fund_": "liq_", "px_": "liq_"}
+FILE_PREFIXES = ("", "liq_")
+
+
+def bundle_of(sid):
+    for p, f in BUNDLES.items():
+        if sid.startswith(p):
+            return f
+    return ""
 
 
 def _round(v):
@@ -38,8 +49,12 @@ class Store:
         self.dir = data_dir
         self.series = {}
         for res in RESOLUTIONS:
-            raw = _read(os.path.join(data_dir, f"{res}.json"), {}).get("series", {})
-            self.series[res] = {sid: {int(t): v for t, v in pts} for sid, pts in raw.items()}
+            self.series[res] = {}
+            for fp in FILE_PREFIXES:
+                raw = _read(os.path.join(data_dir, f"{fp}{res}.json"), {}).get("series", {})
+                for sid, pts in raw.items():
+                    if bundle_of(sid) == fp:
+                        self.series[res][sid] = {int(t): v for t, v in pts}
         self.state = _read(os.path.join(data_dir, "state.json"), {})
 
     def get(self, res, sid):
@@ -79,8 +94,11 @@ class Store:
 
     def save(self, now, meta):
         for res in RESOLUTIONS:
-            out = {sid: sorted([t, v] for t, v in pts.items())
-                   for sid, pts in sorted(self.series[res].items()) if pts}
-            _write(os.path.join(self.dir, f"{res}.json"), {"updated": now, "series": out})
+            for fp in FILE_PREFIXES:
+                out = {sid: sorted([t, v] for t, v in pts.items())
+                       for sid, pts in sorted(self.series[res].items()) if pts and bundle_of(sid) == fp}
+                if fp and not out and not os.path.exists(os.path.join(self.dir, f"{fp}{res}.json")):
+                    continue  # don't create empty extra files
+                _write(os.path.join(self.dir, f"{fp}{res}.json"), {"updated": now, "series": out})
         _write(os.path.join(self.dir, "meta.json"), meta)
         _write(os.path.join(self.dir, "state.json"), self.state)

@@ -56,16 +56,90 @@ def watch_id(sym):
     return f"oi_{sym.lower()}"
 
 
-def catalog_with_watchlist(watchlist):
+PALETTE = ["#5b9cf6", "#e05252", "#ffd54f", "#ba68c8", "#4dd0e1", "#aed581",
+           "#ff8a65", "#90a4ae", "#f06292", "#9575cd"]
+
+
+def catalog_with_watchlist(watchlist, liq=None):
+    """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series."""
     cat = dict(CATALOG)
-    palette = ["#5b9cf6", "#e05252", "#ffd54f", "#ba68c8", "#4dd0e1", "#aed581",
-               "#ff8a65", "#90a4ae", "#f06292", "#9575cd"]
     for i, sym in enumerate(watchlist):
         sid = watch_id(sym)
         if sid not in cat:
-            cat[sid] = dict(name=f"OI {sym.upper()}", group="oi", color=palette[i % len(palette)],
+            cat[sid] = dict(name=f"OI {sym.upper()}", group="oi", color=PALETTE[i % len(PALETTE)],
                             desc=f"Open interest perpetuali {sym.upper()} zsumowany z wybranych giełd, w USD.")
+    if liq:
+        cat.update(liq_catalog(watchlist, liq.get("top", 30), liq.get("exchanges", [])))
     return cat
+
+
+# ── liquidations / funding / price (zakładka liq.html) ───────
+LIQ_GROUPS = ("btc", "eth", "others", "total")
+FUND_GROUPS = ("btc", "eth", "others")
+# wstępne progi kolorów fundingu (% rocznie) — do skalibrowania na naszych danych (etap 3)
+FUND_ZONES = {"yellow": 20, "red": 40}
+
+
+def ex_id(name):
+    return "liq_ex_" + "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def liq_catalog(watchlist, top, exchanges):
+    others = f"top {top} altów bez BTC i ETH" + (" + watchlista" if watchlist else "")
+    who = {"btc": ("BTC", "perpetuali BTC"), "eth": ("ETH", "perpetuali ETH"),
+           "others": ("OTHERS", f"altów ({others})"),
+           "total": ("TOTAL", f"BTC, ETH i {others}")}
+    colors = {"btc": "#f7931a", "eth": "#8c9eff", "others": "#ce93d8", "total": "#9e9e9e"}
+    cat = {}
+    for g, (nm, what) in who.items():
+        cat[f"liq_{g}_long"] = dict(
+            name=f"Likwidacje {nm} long", group="liq", color="#e05252", base=f"liq_{g}", side="long",
+            desc=f"Zlikwidowane pozycje LONG {what}, suma z wybranych giełd (z Hyperliquid), w USD na świecę. "
+                 "Duże likwidacje longów = kaskada w dół, często wypłukanie lewara blisko lokalnych dołków.")
+        cat[f"liq_{g}_short"] = dict(
+            name=f"Likwidacje {nm} short", group="liq", color="#4caf7d", base=f"liq_{g}", side="short",
+            desc=f"Zlikwidowane pozycje SHORT {what}, suma z wybranych giełd (z Hyperliquid), w USD na świecę. "
+                 "Duże likwidacje shortów = short squeeze, gwałtowny ruch w górę.")
+    for i, sym in enumerate(watchlist):
+        s = sym.lower()
+        for side, col, word in (("long", "#e05252", "LONG"), ("short", "#4caf7d", "SHORT")):
+            cat[f"liq_{s}_{side}"] = dict(
+                name=f"Likwidacje {sym.upper()} {side}", group="liq", color=col, base=f"liq_{s}", side=side,
+                desc=f"Zlikwidowane pozycje {word} na perpach {sym.upper()}, suma z wybranych giełd, w USD.")
+    fund_what = {"btc": "BTC", "eth": "ETH", "others": f"altów ({others})"}
+    for g in FUND_GROUPS:
+        cat[f"fund_{g}"] = dict(
+            name=f"Funding {who[g][0]}", group="fund", color=colors[g], zones=FUND_ZONES,
+            desc=f"Funding {fund_what[g]} ważony open interest, przeliczony na % rocznie "
+                 "(stawka × liczba okresów w roku; Binance/Bybit/OKX zwykle co 8 h, Hyperliquid co 1 h; "
+                 "alty, którym giełda skróciła okres do 4 h, mogą wychodzić zaniżone). "
+                 "Neutralnie ok. 11% rocznie (0,01% na 8 h). Dodatni = longi płacą shortom; "
+                 "utrzymujący się wysoki = przegrzanie longów, ujemny = przewaga shortów (często blisko dołków). "
+                 f"Kolory: żółty od {FUND_ZONES['yellow']}%, czerwony od {FUND_ZONES['red']}% (progi wstępne).")
+    for i, sym in enumerate(watchlist):
+        cat[f"fund_{sym.lower()}"] = dict(
+            name=f"Funding {sym.upper()}", group="fund", color=PALETTE[i % len(PALETTE)], zones=FUND_ZONES,
+            desc=f"Funding perpetuali {sym.upper()} ważony open interest, % rocznie.")
+    for i, name in enumerate(exchanges):
+        cat[ex_id(name)] = dict(
+            name=f"Likwidacje {name}", group="liq", color=PALETTE[i % len(PALETTE)], exchange=name,
+            desc=f"Suma likwidacji (long + short) na {name} dla wszystkich śledzonych coinów, w USD. "
+                 "Do porównania udziału giełd.")
+    cat["px_btc"] = dict(name="Cena BTC", group="price", color="#f7931a",
+                         desc="Cena BTC (zamknięcie świecy perpa BTCUSDT na Binance, przez Coinalyze).")
+    cat["px_eth"] = dict(name="Cena ETH", group="price", color="#8c9eff",
+                         desc="Cena ETH (zamknięcie świecy perpa ETHUSDT na Binance, przez Coinalyze).")
+    return cat
+
+
+def daily_sum_from_hourly(hourly, day_from):
+    """Day value = sum of the hourly values of that UTC day. {t_day: v}."""
+    out = {}
+    for t, v in hourly.items():
+        d = t - t % DAY
+        if d >= day_from:
+            out[d] = out.get(d, 0.0) + v
+    return out
 
 
 def aggregate(hist, sym_base, timestamps, last_known=None, ffill_steps=6, step=HOUR):
