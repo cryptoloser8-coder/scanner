@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Likwidacje i funding</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--green-bg:rgba(76,175,125,.12);
+    --red:#e05252;--red-bg:rgba(224,82,82,.12);
+    --blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--purple:#ce93d8;
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);transition:all .15s;}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);}
+  .status-dot.stale{background:var(--amber);}
+  .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+  .banner code{font-family:var(--mono);font-size:11px;}
+
+  .section-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 7px;}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:8px;}
+  .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px 8px;cursor:pointer;transition:border-color .15s,background .15s;position:relative;user-select:none;min-width:0;}
+  .tile:hover{background:var(--bg3);border-color:var(--border2);}
+  .tile.on{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .tile-head{display:flex;align-items:center;gap:6px;}
+  .swatch{width:8px;height:8px;border-radius:2px;flex-shrink:0;background:var(--c);}
+  .tile-name{font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .info{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);color:var(--text3);font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:help;font-style:italic;font-family:Georgia,serif;}
+  .info:hover{color:var(--text);border-color:var(--text2);}
+  .tile-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
+  .tile-val small{font-size:10px;color:var(--text3);font-weight:400;margin-left:4px;}
+  .tile-chg{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text3);flex-wrap:wrap;}
+  .pos{color:var(--green);} .neg{color:var(--red);} .warn{color:var(--amber);}
+  .z-green{color:var(--green);} .z-yellow{color:var(--amber);} .z-red{color:var(--red);}
+  .ls-bar{display:flex;height:4px;border-radius:2px;overflow:hidden;margin:5px 0 3px;background:var(--bg3);}
+  .ls-bar .l{background:var(--red);} .ls-bar .s{background:var(--green);}
+  .spark{display:block;width:100%;height:30px;margin-top:4px;}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:18px;min-width:0;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;transition:all .15s;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .pill:disabled{opacity:.35;cursor:not-allowed;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  .chart-wrap{position:relative;height:min(62vh,620px);min-height:360px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;}
+  .lg-name{color:var(--text2);}
+  .lg-val{font-family:var(--mono);color:var(--text);}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid2 .panel{margin-top:12px;}
+  .panel h2{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .panel h2 span.sub{font-weight:400;color:var(--text3);font-size:10px;}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500;text-align:right;padding:4px 6px;border-bottom:1px solid var(--border);}
+  th:first-child,td:first-child{text-align:left;}
+  td{font-family:var(--mono);text-align:right;padding:5px 6px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tr.click{cursor:pointer;} tr.click:hover td{background:var(--bg3);}
+  .share{display:inline-block;height:6px;border-radius:3px;background:var(--blue);vertical-align:middle;margin-right:6px;opacity:.7;}
+  .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
+  .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
+
+  #tip{position:fixed;z-index:50;max-width:320px;background:#262626;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px;line-height:1.5;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s;}
+  #tip.show{opacity:1;}
+  #tip b{display:block;margin-bottom:3px;font-size:12px;}
+  #tip .tid{display:block;margin-top:5px;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  @media (max-width:760px){ .grid2{grid-template-columns:1fr;} }
+  @media (max-width:640px){
+    body{padding:14px;}
+    .tiles{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Likwidacje i funding</h1>
+      <p>Likwidacje long/short i funding z perpów (Coinalyze, z Hyperliquid) &nbsp;·&nbsp; BTC, ETH + największe alty</p>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <span class="status-dot" id="dot"></span>
+    <span class="status-label" id="status">Ładowanie…</span>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div id="tiles"></div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Aktywo</span>
+      <div class="pills" id="asset-pills"></div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Świeca</span>
+      <div class="pills" id="iv-pills">
+        <button class="pill" data-val="1h">1H</button>
+        <button class="pill" data-val="4h">4H</button>
+        <button class="pill" data-val="1d">1D</button>
+        <button class="pill" data-val="1w">1W</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Zakres</span>
+      <div class="pills" id="range-pills">
+        <button class="pill" data-val="7">1T</button>
+        <button class="pill" data-val="30">1M</button>
+        <button class="pill" data-val="90">3M</button>
+        <button class="pill" data-val="180">6M</button>
+        <button class="pill" data-val="365">1R</button>
+        <button class="pill" data-val="1095">3L</button>
+        <button class="pill" data-val="0">ALL</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group">
+      <div class="pills">
+        <button class="pill" id="px-btn" title="Cena na lewej osi (BTC; dla ETH cena ETH)">Cena</button>
+        <button class="pill" id="fund-btn" title="Panel fundingu (% rocznie) pod wykresem">Funding</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-wrap">
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty" id="empty">Brak danych dla wybranego aktywa</div>
+  </div>
+  <div class="hint">
+    Słupki w górę (czerwone) = zlikwidowane longi, w dół (zielone) = zlikwidowane shorty, suma w USD na świecę.
+    Świece 4H i 1W są sumowane z danych 1H/1D; funding na nich to średnia.
+    Dane 1H sięgają ok. 2 miesiące wstecz i rosną z każdym uruchomieniem bota; 1D od 2022.
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>Udział giełd w likwidacjach <span class="sub">long + short, wszystkie śledzone coiny</span></h2>
+    <div id="ex-table"></div>
+  </div>
+  <div class="panel">
+    <h2>Największe dni likwidacji <span class="sub" id="top-sub"></span></h2>
+    <div id="top-table"></div>
+  </div>
+</div>
+
+<div class="footer">
+  Dane: <a href="https://coinalyze.net" target="_blank" rel="noopener">Coinalyze</a> (likwidacje, funding, cena) &nbsp;·&nbsp;
+  Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a><br>
+  <span id="foot-info"></span>
+</div>
+
+<div id="tip"></div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+
+// ── data source ─────────────────────────────────────────────
+const qs = new URLSearchParams(location.search);
+const DATA_BASE = (() => {
+  if (qs.get('data')) return qs.get('data').replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/data/`;
+  }
+  return 'data/';
+})();
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(name) {
+  const r = await fetch(`${DATA_BASE}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── state ───────────────────────────────────────────────────
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('liqmon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('liqmon.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+let META = null, CAT = {}, TIPS = {};
+const DATA = {'1h': null, '1d': null};
+let S = Object.assign({asset: 'total', iv: '4h', range: 30, px: true, fund: true}, store.get('view', {}), parseHash());
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const o = {};
+  if (h.get('a')) o.asset = h.get('a');
+  if (h.get('i')) o.iv = h.get('i');
+  if (h.get('z')) o.range = +h.get('z');
+  if (h.get('p')) o.px = h.get('p') === '1';
+  if (h.get('f')) o.fund = h.get('f') === '1';
+  return o;
+}
+function persist() {
+  store.set('view', S);
+  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, f: S.fund ? 1 : 0}));
+}
+
+// ── formatting ──────────────────────────────────────────────
+function usd(v) {
+  if (v == null || isNaN(v)) return '—';
+  const a = Math.abs(v);
+  if (a >= 1e12) return '$' + (a / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return '$' + (a / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return '$' + (a / 1e6).toFixed(1) + 'M';
+  if (a >= 1e3) return '$' + (a / 1e3).toFixed(0) + 'K';
+  return '$' + a.toFixed(0);
+}
+const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toFixed(2));
+const fundFmt = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const dateFmt = t => new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'});
+function ago(ts) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+  if (m < 60) return `${m} min temu`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h} h temu` : `${Math.round(h / 24)} dni temu`;
+}
+function zone(v, z) {
+  if (v == null || !z) return '';
+  return v >= z.red ? 'z-red' : v >= z.yellow ? 'z-yellow' : 'z-green';
+}
+
+// ── tooltip ─────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+function showTip(el) {
+  const c = TIPS[el.dataset.tip] || CAT[el.dataset.tip];
+  if (!c) return;
+  tip.innerHTML = `<b>${esc(c.name)}</b>${esc(c.desc)}<span class="tid">id: ${esc(el.dataset.tip)}</span>`;
+  const r = el.getBoundingClientRect();
+  tip.classList.add('show');
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(Math.max(8, r.left), innerWidth - w - 8) + 'px';
+  let y = r.bottom + 6; if (y + h > innerHeight - 8) y = r.top - h - 6;
+  tip.style.top = y + 'px';
+}
+document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+document.addEventListener('mouseout', e => { if (e.target.closest('[data-tip]')) tip.classList.remove('show'); });
+document.addEventListener('click', e => {
+  const i = e.target.closest('.info');
+  if (i) { e.stopPropagation(); showTip(i); setTimeout(() => tip.classList.remove('show'), 4000); }
+}, true);
+
+// ── series helpers ──────────────────────────────────────────
+const pts = (res, sid) => (DATA[res] && DATA[res].series[sid]) || [];
+function sumSince(arr, t0) { let s = 0; for (let i = arr.length - 1; i >= 0 && arr[i][0] > t0; i--) s += arr[i][1]; return s; }
+function avgSince(arr, t0) { let s = 0, n = 0; for (let i = arr.length - 1; i >= 0 && arr[i][0] > t0; i--) { s += arr[i][1]; n++; } return n ? s / n : null; }
+const lastT = arr => arr.length ? arr[arr.length - 1][0] : null;
+function bucket(t, iv) {
+  if (iv === '4h') return t - t % 14400;
+  if (iv === '1w') return t - (((t - 345600) % 604800) + 604800) % 604800;   // weeks start on Monday (UTC)
+  return t;
+}
+function agg(arr, iv, how) {
+  if (iv === '1h' || iv === '1d') return arr;
+  const m = new Map();
+  for (const [t, v] of arr) {
+    const b = bucket(t, iv), e = m.get(b);
+    if (!e) m.set(b, {s: v, n: 1, l: v}); else { e.s += v; e.n++; e.l = v; }
+  }
+  return [...m].map(([b, e]) => [b, how === 'sum' ? e.s : how === 'avg' ? e.s / e.n : e.l]);
+}
+const resOf = iv => (iv === '1h' || iv === '4h') ? '1h' : '1d';
+const has1h = () => pts('1h', 'liq_total_long').length > 0;
+const IV = () => (S.iv === '1h' || S.iv === '4h') && !has1h() ? '1d' : S.iv;   // effective candle
+
+function assets() {
+  const watch = (META.watchlist || []).map(s => s.toLowerCase()).filter(s => CAT[`liq_${s}_long`]);
+  return [['total', 'TOTAL'], ['btc', 'BTC'], ['eth', 'ETH'], ['others', 'OTHERS'], ...watch.map(s => [s, s.toUpperCase()])]
+    .filter(([g]) => pts('1d', `liq_${g}_long`).length || pts('1h', `liq_${g}_long`).length);
+}
+function fundIds(g) {
+  if (g === 'total') return ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]);
+  return CAT['fund_' + g] ? ['fund_' + g] : [];
+}
+const pxId = g => g === 'eth' ? 'px_eth' : 'px_btc';
+
+// ── tiles ───────────────────────────────────────────────────
+function bars(arr, color) {
+  const a = arr.slice(-60);
+  if (a.length < 2) return '<svg class="spark"></svg>';
+  const mx = Math.max(...a.map(p => p[1])) || 1, W = 160, H = 30, bw = W / a.length;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">` +
+    a.map((p, i) => { const h = Math.max(.5, p[1] / mx * (H - 2)); return `<rect x="${(i * bw).toFixed(2)}" y="${(H - h).toFixed(2)}" width="${Math.max(bw - .6, .4).toFixed(2)}" height="${h.toFixed(2)}" fill="${color}" opacity=".55"/>`; }).join('') + '</svg>';
+}
+function line(arr, color) {
+  const a = arr.slice(-90);
+  if (a.length < 2) return '<svg class="spark"></svg>';
+  const vals = a.map(p => p[1]), mn = Math.min(0, ...vals), mx = Math.max(...vals), span = (mx - mn) || 1, W = 160, H = 30;
+  const p = a.map((q, i) => `${(i / (a.length - 1) * W).toFixed(1)},${(H - 2 - (q[1] - mn) / span * (H - 4)).toFixed(1)}`);
+  const z = (H - 2 - (0 - mn) / span * (H - 4)).toFixed(1);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <line x1="0" x2="${W}" y1="${z}" y2="${z}" stroke="rgba(255,255,255,.15)" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+    <polyline points="${p.join(' ')}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function liqTile(g, label) {
+  const L = pts('1h', `liq_${g}_long`), Sh = pts('1h', `liq_${g}_short`);
+  const dL = pts('1d', `liq_${g}_long`), dS = pts('1d', `liq_${g}_short`);
+  const t = lastT(L) || lastT(dL);
+  if (t == null) return '';
+  const hourly = L.length > 0;
+  const l24 = hourly ? sumSince(L, t - 86400) : (dL.length ? dL[dL.length - 1][1] : 0);
+  const s24 = hourly ? sumSince(Sh, t - 86400) : (dS.length ? dS[dS.length - 1][1] : 0);
+  const tot = l24 + s24, lp = tot ? l24 / tot * 100 : 50;
+  const d7 = hourly ? sumSince(L, t - 7 * 86400) + sumSince(Sh, t - 7 * 86400) : null;
+  // average full day over the 30 days before today
+  const today = t - t % 86400;
+  const daily = dL.map(([dt, v], i) => [dt, v + (dS[i] ? dS[i][1] : 0)]);
+  const prev = daily.filter(([dt]) => dt < today && dt >= today - 30 * 86400);
+  const avg = prev.length ? prev.reduce((s, p) => s + p[1], 0) / prev.length : null;
+  const ratio = avg ? tot / avg : null;
+  const c = CAT[`liq_${g}_long`];
+  const col = {btc: '#f7931a', eth: '#8c9eff', others: '#ce93d8', total: '#9e9e9e'}[g] || '#5b9cf6';
+  return `<div class="tile ${S.asset === g ? 'on' : ''}" data-asset="${g}" style="--c:${col}">
+    <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="liq_${g}">${esc(label)}</span><span class="info" data-tip="liq_${g}">i</span></div>
+    <div class="tile-val">${usd(tot)}${ratio != null ? `<small class="${ratio >= 3 ? 'neg' : ratio >= 1.5 ? 'warn' : ''}" title="24h względem średniej dziennej z 30 dni">×${ratio.toFixed(1)} śr.</small>` : ''}</div>
+    <div class="ls-bar" title="Udział longów: ${lp.toFixed(0)}%"><div class="l" style="width:${lp}%"></div><div class="s" style="width:${100 - lp}%"></div></div>
+    <div class="tile-chg"><span class="neg">L ${usd(l24)}</span><span class="pos">S ${usd(s24)}</span>${d7 != null ? `<span>7D ${usd(d7)}</span>` : ''}</div>
+    ${bars(daily, col)}
+  </div>`;
+}
+function fundTile(id) {
+  const c = CAT[id], h = pts('1h', id), d = pts('1d', id);
+  const last = h.length ? h[h.length - 1] : d[d.length - 1];
+  if (!last) return '';
+  const a7 = h.length ? avgSince(h, last[0] - 7 * 86400) : avgSince(d, last[0] - 7 * 86400);
+  const a30 = avgSince(d, last[0] - 30 * 86400);
+  const g = id.slice(5);
+  return `<div class="tile" data-asset="${g}" style="--c:${c.color}">
+    <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
+    <div class="tile-val ${zone(last[1], c.zones)}">${fundFmt(last[1])}<small>rocznie</small></div>
+    <div class="tile-chg"><span class="${zone(a7, c.zones)}">śr. 7D ${fundFmt(a7)}</span><span class="${zone(a30, c.zones)}">30D ${fundFmt(a30)}</span></div>
+    ${line(d, c.color)}
+  </div>`;
+}
+function renderTiles() {
+  const as = assets();
+  const main = as.filter(([g]) => ['total', 'btc', 'eth', 'others'].includes(g));
+  const watch = as.filter(([g]) => !['total', 'btc', 'eth', 'others'].includes(g));
+  let html = '';
+  const lt = main.map(([g, l]) => liqTile(g, l)).join('');
+  if (lt) html += `<div class="section-label">Likwidacje 24h</div><div class="tiles">${lt}</div>`;
+  const ft = ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]).map(fundTile).join('');
+  if (ft) html += `<div class="section-label">Funding (ważony OI, % rocznie)</div><div class="tiles">${ft}</div>`;
+  const wt = watch.map(([g, l]) => liqTile(g, l)).join('');
+  if (wt) html += `<div class="section-label">Watchlista: likwidacje 24h</div><div class="tiles">${wt}</div>`;
+  document.getElementById('tiles').innerHTML = html;
+}
+document.getElementById('tiles').addEventListener('click', e => {
+  const t = e.target.closest('.tile');
+  if (t && !e.target.closest('.info') && t.dataset.asset) { S.asset = t.dataset.asset; refresh(true); }
+});
+
+// ── controls ────────────────────────────────────────────────
+function renderAssetPills() {
+  document.getElementById('asset-pills').innerHTML = assets().map(([g, l]) =>
+    `<button class="pill ${S.asset === g ? 'active' : ''}" data-val="${g}">${esc(l)}</button>`).join('');
+}
+document.getElementById('asset-pills').addEventListener('click', e => {
+  const b = e.target.closest('.pill'); if (b) { S.asset = b.dataset.val; refresh(true); }
+});
+function bindPills(id, key, conv = x => x) {
+  document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('.pill');
+    if (!b || b.disabled) return;
+    S[key] = conv(b.dataset.val);
+    refresh(true);
+  });
+}
+bindPills('iv-pills', 'iv');
+bindPills('range-pills', 'range', Number);
+document.getElementById('px-btn').addEventListener('click', () => { S.px = !S.px; refresh(); });
+document.getElementById('fund-btn').addEventListener('click', () => { S.fund = !S.fund; refresh(); });
+function syncControls() {
+  for (const [id, key] of [['iv-pills', 'iv'], ['range-pills', 'range']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(key === 'iv' ? IV() : S[key]) === b.dataset.val));
+  document.getElementById('px-btn').classList.toggle('active', S.px);
+  document.getElementById('fund-btn').classList.toggle('active', S.fund);
+  document.querySelectorAll('#iv-pills [data-val="1h"], #iv-pills [data-val="4h"]').forEach(b => b.disabled = !has1h());
+  document.querySelectorAll('.tile[data-asset]').forEach(t => t.classList.toggle('on', t.dataset.asset === S.asset && t.querySelector('[data-tip^="liq_"]')));
+}
+
+// ── chart ───────────────────────────────────────────────────
+let chart = null, mounted = [], lastCrosshair = null;
+function makeChart() {
+  chart = LWC.createChart(document.getElementById('chart'), {
+    autoSize: true,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11,
+      panes: {separatorColor: 'rgba(255,255,255,.1)', separatorHoverColor: 'rgba(255,255,255,.2)'}},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL'},
+  });
+  chart.subscribeCrosshairMove(updateLegend);
+}
+function drawChart(resetRange) {
+  if (!chart) makeChart();
+  const prevRange = chart.timeScale().getVisibleRange();
+  for (const m of mounted) chart.removeSeries(m.series);
+  mounted = [];
+  while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+
+  const iv = IV(), res = resOf(iv), g = S.asset;
+  const L = agg(pts(res, `liq_${g}_long`), iv, 'sum');
+  const Sh = agg(pts(res, `liq_${g}_short`), iv, 'sum');
+  document.getElementById('empty').style.display = L.length ? 'none' : 'flex';
+  const usdFmt = {type: 'custom', minMove: 1, formatter: v => usd(v)};
+  if (L.length) {
+    const sl = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(224,82,82,.85)', priceScaleId: 'right', priceFormat: usdFmt,
+      lastValueVisible: false, priceLineVisible: false}, 0);
+    sl.setData(L.map(([t, v]) => ({time: t, value: v})));
+    const ss = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(76,175,125,.85)', priceScaleId: 'right', priceFormat: usdFmt,
+      lastValueVisible: false, priceLineVisible: false}, 0);
+    ss.setData(Sh.map(([t, v]) => ({time: t, value: -v})));
+    mounted.push({kind: 'long', series: sl, name: 'Long', fmt: usd, color: '#e05252'},
+      {kind: 'short', series: ss, name: 'Short', fmt: v => usd(Math.abs(v)), color: '#4caf7d'});
+  }
+  let leftUsed = false;
+  if (S.px && L.length) {
+    const id = pxId(g), arr = agg(pts(res, id), iv, 'last');
+    if (arr.length) {
+      const sp = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left',
+        priceFormat: {type: 'custom', minMove: .01, formatter: price}, lastValueVisible: true, priceLineVisible: false}, 0);
+      sp.setData(arr.map(([t, v]) => ({time: t, value: v})));
+      mounted.push({kind: 'px', series: sp, name: CAT[id].name, fmt: price, color: CAT[id].color});
+      leftUsed = true;
+    }
+  }
+  if (S.fund && L.length) {
+    const fids = fundIds(g).filter(id => pts(res, id).length);
+    fids.forEach((id, i) => {
+      const c = CAT[id];
+      const sf = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: 'right',
+        priceFormat: {type: 'custom', minMove: .01, formatter: v => v.toFixed(1) + '%'}, lastValueVisible: true, priceLineVisible: false}, 1);
+      sf.setData(agg(pts(res, id), iv, 'avg').map(([t, v]) => ({time: t, value: v})));
+      if (i === 0) {
+        sf.createPriceLine({price: 0, color: 'rgba(255,255,255,.25)', lineWidth: 1, lineStyle: LWC.LineStyle.Dotted, axisLabelVisible: false, title: ''});
+        if (c.zones) {
+          sf.createPriceLine({price: c.zones.yellow, color: 'rgba(255,193,7,.45)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+          sf.createPriceLine({price: c.zones.red, color: 'rgba(224,82,82,.5)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+        }
+      }
+      mounted.push({kind: 'fund', series: sf, name: c.name, fmt: fundFmt, color: c.color});
+    });
+  }
+  chart.panes().forEach(p => {
+    p.priceScale('left').applyOptions({visible: leftUsed, scaleMargins: {top: .1, bottom: .1}});
+    p.priceScale('right').applyOptions({visible: true, scaleMargins: {top: .1, bottom: .1}});
+  });
+  // fixed proportions (setHeight depends on the previous layout and can squash the main pane)
+  const panes = chart.panes();
+  if (panes.length > 1) { panes[0].setStretchFactor(0.72); panes[1].setStretchFactor(0.28); }
+  else if (panes.length) panes[0].setStretchFactor(1);
+
+  if (L.length) {
+    const end = L[L.length - 1][0], start = L[0][0];
+    if (resetRange || !prevRange) {
+      if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(start, end - S.range * 86400), to: end});
+      else chart.timeScale().fitContent();
+    } else chart.timeScale().setVisibleRange(prevRange);
+  }
+  updateLegend();
+  requestAnimationFrame(() => requestAnimationFrame(placeLegend));   // axis width is known after layout
+}
+function updateLegend(param) {
+  lastCrosshair = param && param.time ? param : null;
+  const rows = [];
+  let L = null, Sv = null;
+  for (const m of mounted) {
+    let v = null;
+    if (lastCrosshair) { const d = param.seriesData.get(m.series); v = d && d.value; }
+    else { const data = m.series.data(); v = data.length ? data[data.length - 1].value : null; }
+    if (m.kind === 'long') L = v; if (m.kind === 'short') Sv = v == null ? null : Math.abs(v);
+    rows.push(`<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${m.fmt(v)}</span></div>`);
+  }
+  if (L != null && Sv != null && L + Sv > 0)
+    rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).toFixed(0)}%</span></div>`);
+  const iv = IV();
+  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toISOString().slice(0, iv === '1d' || iv === '1w' ? 10 : 16).replace('T', ' ') + ' UTC'
+    : 'ostatnia świeca';
+  rows.unshift(`<div class="lg-row"><span class="lg-name">${tl} · świeca ${iv.toUpperCase()}</span></div>`);
+  const lg = document.getElementById('legend');
+  lg.innerHTML = rows.join('');
+  placeLegend();
+}
+function placeLegend() {
+  let lw = 0; try { lw = chart.priceScale('left').width(); } catch (e) {}
+  document.getElementById('legend').style.left = (lw + 8) + 'px';
+}
+
+// ── tables ──────────────────────────────────────────────────
+function renderExchanges() {
+  const ex = Object.entries(CAT).filter(([id, c]) => c.exchange && (pts('1d', id).length || pts('1h', id).length));
+  if (!ex.length) { document.getElementById('ex-table').innerHTML = '<div class="hint">Brak danych.</div>'; return; }
+  const t = Math.max(...ex.map(([id]) => lastT(pts('1h', id)) || lastT(pts('1d', id)) || 0));
+  const rows = ex.map(([id, c]) => {
+    const h = pts('1h', id), d = pts('1d', id);
+    return {id, name: c.exchange, d1: h.length ? sumSince(h, t - 86400) : null, d7: h.length ? sumSince(h, t - 7 * 86400) : null,
+      d30: d.length ? sumSince(d, (t - t % 86400) - 30 * 86400) : null};
+  });
+  const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
+  const T30 = sum('d30') || 1, T1 = sum('d1') || 1;
+  rows.sort((a, b) => (b.d30 || 0) - (a.d30 || 0));
+  const max = Math.max(...rows.map(r => (r.d30 || 0) / T30));
+  document.getElementById('ex-table').innerHTML = `<table><tr><th>Giełda</th><th>24h</th><th>udział 24h</th><th>7D</th><th>30D</th><th>udział 30D</th></tr>` +
+    rows.map(r => `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td>${usd(r.d1)}</td><td>${r.d1 != null ? (r.d1 / T1 * 100).toFixed(1) + '%' : '—'}</td><td>${usd(r.d7)}</td><td>${usd(r.d30)}</td>` +
+      `<td><span class="share" style="width:${((r.d30 || 0) / T30 / (max || 1) * 50).toFixed(0)}px"></span>${((r.d30 || 0) / T30 * 100).toFixed(1)}%</td></tr>`).join('') +
+    `</table><div class="hint">Giełdy bez danych o likwidacjach w Coinalyze pokażą $0. Hyperliquid liczony tak samo jak giełdy scentralizowane.</div>`;
+}
+function renderTop() {
+  const g = S.asset, dL = pts('1d', `liq_${g}_long`), dS = pts('1d', `liq_${g}_short`);
+  const label = (assets().find(([x]) => x === g) || [, g.toUpperCase()])[1];
+  document.getElementById('top-sub').textContent = `${label}, long + short, dane 1D`;
+  const sMap = new Map(dS);
+  const rows = dL.map(([t, l]) => ({t, l, s: sMap.get(t) || 0})).map(r => Object.assign(r, {sum: r.l + r.s}))
+    .sort((a, b) => b.sum - a.sum).slice(0, 10);
+  document.getElementById('top-table').innerHTML = rows.length ? `<table><tr><th>Dzień (UTC)</th><th>Razem</th><th>Long</th><th>Short</th><th>% long</th></tr>` +
+    rows.map(r => `<tr class="click" data-t="${r.t}" title="Pokaż na wykresie"><td>${dateFmt(r.t)}</td><td>${usd(r.sum)}</td><td class="neg">${usd(r.l)}</td><td class="pos">${usd(r.s)}</td><td>${(r.l / (r.sum || 1) * 100).toFixed(0)}%</td></tr>`).join('') +
+    '</table><div class="hint">Kliknij wiersz, żeby przybliżyć wykres. Starsze dni mogą obejmować mniej giełd (np. Hyperliquid jest w Coinalyze od niedawna).</div>'
+    : '<div class="hint">Brak danych 1D.</div>';
+}
+document.getElementById('top-table').addEventListener('click', e => {
+  const r = e.target.closest('tr[data-t]');
+  if (!r || !chart) return;
+  const t = +r.dataset.t;
+  if (IV() === '1h' || IV() === '4h') {
+    const h = pts('1h', 'liq_total_long');
+    if (!h.length || h[0][0] > t) { S.iv = '1d'; refresh(); }
+  }
+  const span = IV() === '1w' ? 120 : IV() === '1d' ? 45 : 4;
+  chart.timeScale().setVisibleRange({from: t - span * 86400, to: t + span * 86400});
+});
+
+// ── refresh / boot ──────────────────────────────────────────
+function refresh(resetRange = false) {
+  if (!assets().some(([g]) => g === S.asset)) S.asset = 'total';
+  if (!['1h', '4h', '1d', '1w'].includes(S.iv)) S.iv = '4h';
+  persist();
+  renderAssetPills();
+  syncControls();
+  drawChart(resetRange);
+  renderTop();
+}
+function setStatus(kind, text) {
+  document.getElementById('dot').className = 'status-dot ' + kind;
+  document.getElementById('status').textContent = text;
+}
+function setUpdated() {
+  const age = Date.now() / 1000 - META.updated;
+  setStatus(age < 5 * 3600 ? 'live' : 'stale', 'Aktualizacja: ' + ago(META.updated));
+  const b = document.getElementById('banner');
+  const err = (META.health || {})['Likwidacje'];
+  if (err && err !== 'ok') {
+    b.className = 'banner warn';
+    b.innerHTML = '⚠️ Ostatnie pobranie likwidacji miało problem: ' + esc(err).slice(0, 300);
+  } else if (age > 12 * 3600) {
+    b.className = 'banner warn';
+    b.textContent = `⚠️ Dane nie były aktualizowane od ${ago(META.updated)}. Sprawdź zakładkę Actions w repozytorium.`;
+  }
+  const li = (META.info || {}).liquidations;
+  const lq = META.liquidations || {};
+  const exs = li && li.exchanges ? Object.keys(li.exchanges) : (META.exchanges || []);
+  document.getElementById('foot-info').textContent = li ?
+    `Giełdy: ${exs.join(', ')} · ${li.markets} rynków perp, ${li.assets} coinów (pokrycie OI ${li.oi_coverage != null ? (li.oi_coverage * 100).toFixed(1) + '%' : '?'})` +
+    (li.others && li.others.length ? ` · OTHERS: ${li.others.join(', ')}` : '') : '';
+}
+function buildTips() {
+  for (const g of ['btc', 'eth', 'others', 'total', ...(META.watchlist || []).map(s => s.toLowerCase())]) {
+    const c = CAT[`liq_${g}_long`];
+    if (!c) continue;
+    TIPS[`liq_${g}`] = {name: c.name.replace(/ long$/, ''),
+      desc: c.desc.replace(/^Zlikwidowane pozycje LONG/, 'Zlikwidowane pozycje (long + short)').replace(/ Duże likwidacje longów.*$/, '') +
+        ' Pasek: udział longów (czerwony) i shortów (zielony). „×N śr.” = 24h względem średniej dziennej z ostatnich 30 dni.'};
+  }
+}
+async function boot() {
+  try {
+    META = await getJSON('meta.json');
+  } catch (e) {
+    setStatus('error', 'Brak danych');
+    const b = document.getElementById('banner');
+    b.className = 'banner err';
+    b.innerHTML = `Nie udało się wczytać danych (${esc(e.message)}).`;
+    return;
+  }
+  CAT = META.catalog || {};
+  buildTips();
+  setUpdated();
+  const [d1, h1] = await Promise.allSettled([getJSON('liq_1d.json'), getJSON('liq_1h.json')]);
+  DATA['1h'] = h1.status === 'fulfilled' ? h1.value : null;
+  try {
+    if (d1.status !== 'fulfilled') throw d1.reason;
+    DATA['1d'] = d1.value;
+  } catch (e) {
+    setStatus('stale', 'Brak danych likwidacji');
+    const b = document.getElementById('banner');
+    b.className = 'banner warn';
+    b.innerHTML = `Brak danych o likwidacjach (${esc(e.message)}). Pojawią się po pierwszym uruchomieniu bota z nową wersją ` +
+      `(to uruchomienie pobiera historię i trwa ok. 1 h). Można je wywołać ręcznie: <b>Actions → OI Monitor → Run workflow</b> → <code>run</code>.`;
+    document.getElementById('empty').textContent = 'Brak danych o likwidacjach';
+    return;
+  }
+  renderTiles();
+  renderExchanges();
+  refresh(true);
+}
+if (!LWC) setStatus('error', 'Błąd ładowania biblioteki wykresów'); else boot();
+</script>
+</body>
+</html>
