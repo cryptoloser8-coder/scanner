@@ -42,7 +42,7 @@ class FakeCoinalyze:
         m = next(m for m in self.markets if m["symbol"] == sym)
         return m["_oi"] * (1 + 0.1 * math.sin(t / 50000))
 
-    def open_interest(self, symbols):
+    def open_interest(self, symbols, progress=None):
         self.calls_made += len(symbols)
         return {s: self._oi(s, NOW) for s in symbols}
 
@@ -122,6 +122,40 @@ def test_rate_limiter_waits():
     rl.acquire(20)
     rl.acquire(20)  # must wait ~60s
     assert slept and 59 < sum(slept) < 61
+
+
+def test_two_batches_per_minute_and_skip_failed_batch():
+    import coinalyze as C
+
+    class Resp:
+        def __init__(self, code, data=None):
+            self.status_code, self._d, self.headers, self.text = code, data, {}, ""
+
+        def json(self):
+            return self._d
+
+    class Sess:
+        def __init__(self):
+            self.n = 0
+
+        def get(self, url, params=None, headers=None, timeout=None):
+            self.n += 1
+            syms = params["symbols"].split(",")
+            if syms[0] == "BAD":
+                return Resp(400)
+            return Resp(200, [{"symbol": s, "value": 1.0, "update": 0} for s in syms])
+
+    t = [0.0]
+
+    def sleep(s):
+        t[0] += s
+    cl = C.Coinalyze("k", session=Sess(), sleep=sleep)
+    cl.limiter.clock = lambda: t[0]
+    assert cl.batch == 19
+    out = cl.open_interest([f"S{i}" for i in range(38)])
+    assert len(out) == 38 and t[0] == 0          # 2 batches, no waiting
+    out = cl.open_interest(["BAD"] + [f"X{i}" for i in range(18)] + ["OK1"])
+    assert "OK1" in out and cl.failed_batches == 1
 
 
 def test_aggregate_ffill_bridges_gaps():
