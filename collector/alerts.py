@@ -152,7 +152,7 @@ def check_changes(store, catalog, rules, state, now):
     return msgs
 
 
-REPORT_IDS = ["total", "total2", "total3", "btc_d", "usdt_d",
+REPORT_IDS = ["total", "total2", "total3", "btc_d", "usdt_d", "stable_mcap",
               "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_alts_vs_btc", "lev_others"]
 
 

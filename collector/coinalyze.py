@@ -181,12 +181,21 @@ def select_markets(exchanges, markets, wanted_exchanges):
     return out
 
 
-def build_universe(client, cfg, log_fn=log.info):
-    """Pick markets to track. With max_assets > 0 we rank assets by current OI."""
+def build_universe(client, cfg, log_fn=log.info, is_crypto=None):
+    """Pick markets to track. With max_assets > 0 we rank assets by current OI.
+
+    is_crypto(base) → bool filters out TradFi perps (gold, oil, stocks…).
+    """
     exchanges = client.exchanges()
     markets = client.future_markets()
     sym_base = select_markets(exchanges, markets, cfg["exchanges"])
     log_fn(f"Coinalyze: {len(sym_base)} rynków perp na wybranych giełdach")
+    excluded = []
+    if is_crypto:
+        excluded = sorted({b for b in sym_base.values() if not is_crypto(b)})
+        sym_base = {s: b for s, b in sym_base.items() if is_crypto(b)}
+        log_fn(f"Coinalyze: po odfiltrowaniu nie-krypto {len(sym_base)} rynków "
+               f"(wykluczone aktywa: {len(excluded)})")
     max_assets = int(cfg.get("max_assets") or 0)
     ranking = {}
     if max_assets > 0 and sym_base:
@@ -200,4 +209,4 @@ def build_universe(client, cfg, log_fn=log.info):
         sym_base = {s: b for s, b in sym_base.items() if b in keep}
         log_fn(f"Coinalyze: top {max_assets} coinów → {len(sym_base)} rynków, "
                f"pokrycie OI {coverage:.1%}")
-    return {"symbols": sym_base, "ranking": ranking}
+    return {"symbols": sym_base, "ranking": ranking, "excluded": excluded}

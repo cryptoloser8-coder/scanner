@@ -23,6 +23,12 @@ CATALOG = {
                    desc="Kapitalizacja rynku krypto bez BTC (CRYPTOCAP:TOTAL2)."),
     "total3": dict(name="TOTAL3", group="mcap", color="#ffc107",
                    desc="Kapitalizacja rynku krypto bez BTC i ETH (CRYPTOCAP:TOTAL3)."),
+    "totales": dict(name="TOTAL bez stable", group="mcap", color="#bdbdbd",
+                    desc="Kapitalizacja całego rynku krypto bez stablecoinów (CRYPTOCAP:TOTALES)."),
+    "total3es": dict(name="TOTAL3 bez stable", group="mcap", color="#ffe082",
+                     desc="Kapitalizacja bez BTC, ETH i stablecoinów (CRYPTOCAP:TOTAL3ES) — „czyste” alty."),
+    "stable_mcap": dict(name="Stablecoiny", group="mcap", color="#26a69a",
+                        desc="Kapitalizacja stablecoinów (TOTAL − TOTALES). Rośnie = do krypto napływa nowy kapitał (suchy proch na zakupy)."),
     # ── Dominance ──
     "btc_d": dict(name="BTC.D", group="pct", color="#ff9800",
                   desc="Dominacja BTC: udział kapitalizacji BTC w TOTAL, w % (CRYPTOCAP:BTC.D)."),
@@ -33,14 +39,14 @@ CATALOG = {
     "oi_btc_dom": dict(name="OI BTC.D", group="pct", color="#ffb74d",
                        desc="Dominacja BTC w open interest: OI BTC / OI TOTAL, w %. Odpowiednik BTC.D po stronie derywatów. Spadek = lewar przenosi się na alty."),
     # ── Leverage & ratios ──
-    "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#81c784",
+    "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#64b5f6",
                            desc="Ile razy OI altów (bez BTC) jest większe od OI BTC. Powyżej 1 = na altach jest więcej lewara niż na BTC (historycznie sygnał przegrzania altów)."),
     "lev_btc": dict(name="Dźwignia BTC", group="pct", color="#f7931a",
                     desc="OI BTC / kapitalizacja BTC (TOTAL − TOTAL2), w %. Ile otwartych pozycji przypada na kapitalizację BTC."),
     "lev_alts": dict(name="Dźwignia ALTS", group="pct", color="#4caf7d",
-                     desc="OI ALTS / TOTAL2, w %. Wysokie wartości = wzrosty altów napędzane lewarem, ryzyko kaskady likwidacji."),
+                     desc="OI ALTS / kapitalizacja altów bez stablecoinów (TOTAL2 − stablecoiny), w %. Wysokie wartości = wzrosty altów napędzane lewarem, ryzyko kaskady likwidacji."),
     "lev_others": dict(name="Dźwignia OTHERS", group="pct", color="#ce93d8",
-                       desc="OI OTHERS / TOTAL3, w %. Lewar na altach bez ETH względem ich kapitalizacji."),
+                       desc="OI OTHERS / TOTAL3 bez stablecoinów (TOTAL3ES), w %. Lewar na altach bez ETH względem ich kapitalizacji."),
 }
 
 
@@ -135,8 +141,16 @@ def derived(series):
     combine("oi_btc_dom", lambda b, tot: b / tot * 100, "oi_btc", "oi_total")
     combine("oi_alts_vs_btc", lambda a, b: a / b, "oi_alts", "oi_btc")
     combine("lev_btc", lambda oi, t1, t2: oi / (t1 - t2) * 100, "oi_btc", "total", "total2")
-    combine("lev_alts", lambda oi, t2: oi / t2 * 100, "oi_alts", "total2")
-    combine("lev_others", lambda oi, t3: oi / t3 * 100, "oi_others", "total3")
+    combine("stable_mcap", lambda t, tes: t - tes, "total", "totales")
+    # leverage vs market cap WITHOUT stablecoins (no perps on stables); fall back if ES missing
+    if s.get("stable_mcap"):
+        combine("lev_alts", lambda oi, t2, st: oi / (t2 - st) * 100, "oi_alts", "total2", "stable_mcap")
+    else:
+        combine("lev_alts", lambda oi, t2: oi / t2 * 100, "oi_alts", "total2")
+    if s.get("total3es"):
+        combine("lev_others", lambda oi, t3: oi / t3 * 100, "oi_others", "total3es")
+    else:
+        combine("lev_others", lambda oi, t3: oi / t3 * 100, "oi_others", "total3")
     return s
 
 

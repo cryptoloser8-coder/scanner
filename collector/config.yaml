@@ -15,8 +15,21 @@ coinalyze:
   # Co ile godzin odświeżać listę rynków i ranking top coinów
   # (odświeżenie sprawdza OI wszystkich rynków — to najdłuższy krok, ~1h).
   universe_refresh_hours: 72
-  # Od kiedy pobierać historię dzienną przy backfillu.
+  # Od kiedy pobierać historię dzienną przy backfillu
+  # (Coinalyze ma pełne dane mniej więcej od 09.2022 — wcześniejsze dni są obcinane).
   daily_history_start: "2019-01-01"
+
+  # Tylko krypto: giełdy listują też perpy na złoto, ropę, akcje (XAU, CL, GOOGL…).
+  # Liczymy tylko coiny z top N wg kapitalizacji na CoinGecko…
+  crypto_whitelist_top: 1500
+  # …i zawsze wykluczamy te (tokeny złota, indeksy, akcje, które mogłyby trafić na listę):
+  exclude_assets: [XAU, XAG, XPT, XPD, XAUT, PAXG, KAU, KAG, CL, BZ, NG, WTI, BRENT, COPPER,
+                   SPX, SPY, QQQ, NDX, NAS100, US30, US500, DJI, SOXL, TQQQ, SPCX,
+                   AAPL, MSFT, GOOGL, GOOG, AMZN, META, TSLA, NVDA, AMD, INTC, NFLX, COIN,
+                   MSTR, HOOD, PLTR, SNDK, SKHYNIX, SKHY, ORCL, AVGO, MU, TSM, BABA, CRCL,
+                   EUR, JPY, GBP, USDC, USDT, FDUSD, USDE]
+  # Wymuś uwzględnienie coina, którego nie ma na liście CoinGecko (np. świeży listing).
+  include_assets: []
 
 # Coiny, których OI ma być dostępne osobno na wykresach (oprócz BTC i ETH).
 watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI]
@@ -27,6 +40,8 @@ tradingview:
     total: "CRYPTOCAP:TOTAL"
     total2: "CRYPTOCAP:TOTAL2"
     total3: "CRYPTOCAP:TOTAL3"
+    totales: "CRYPTOCAP:TOTALES"     # bez stablecoinów
+    total3es: "CRYPTOCAP:TOTAL3ES"   # bez BTC, ETH i stablecoinów
     btc_d: "CRYPTOCAP:BTC.D"
     eth_d: "CRYPTOCAP:ETH.D"
     usdt_d: "CRYPTOCAP:USDT.D"

@@ -17,6 +17,7 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
+import coingecko  # noqa: E402
 import series as S  # noqa: E402
 from coinalyze import Coinalyze, build_universe  # noqa: E402
 from store import Store  # noqa: E402
@@ -47,7 +48,33 @@ def floor(t, step):
 
 
 # ── Coinalyze OI ─────────────────────────────────────────────
-def collect_oi(client, store, cfg, now, backfill):
+def make_crypto_filter(cfg, st, now, fetch=None):
+    """Keep crypto assets only: CoinGecko top-N symbols + config overrides."""
+    ccfg = cfg["coinalyze"]
+    excl = {a.upper() for a in ccfg.get("exclude_assets") or []}
+    incl = {a.upper() for a in ccfg.get("include_assets") or []}
+    top = int(ccfg.get("crypto_whitelist_top", 1500) or 0)
+    wl = None
+    if top > 0:
+        try:
+            wl = set((fetch or coingecko.crypto_symbols)(top))
+            st["crypto_whitelist"] = {"at": now, "symbols": sorted(wl)}
+        except Exception as e:  # noqa: BLE001
+            cached = (st.get("crypto_whitelist") or {}).get("symbols")
+            log.warning("CoinGecko niedostępne (%s) — %s", e,
+                        "używam zapisanej listy" if cached else "filtruję tylko listą exclude_assets")
+            wl = set(cached) if cached else None
+
+    def is_crypto(base):
+        if base in incl:
+            return True
+        if base in excl:
+            return False
+        return True if wl is None else base in wl
+    return is_crypto
+
+
+def collect_oi(client, store, cfg, now, backfill, cg_fetch=None):
     st = store.state
     ccfg = cfg["coinalyze"]
     watch = [w.upper() for w in cfg["watchlist"]]
@@ -55,8 +82,8 @@ def collect_oi(client, store, cfg, now, backfill):
     uni = st.get("universe")
     refresh_h = float(ccfg.get("universe_refresh_hours", 24))
     if backfill or not uni or now - uni.get("at", 0) >= refresh_h * HOUR:
-        u = build_universe(client, ccfg)
-        uni = {"at": now, "symbols": u["symbols"],
+        u = build_universe(client, ccfg, is_crypto=make_crypto_filter(cfg, st, now, cg_fetch))
+        uni = {"at": now, "symbols": u["symbols"], "excluded": u["excluded"],
                "top": sorted(u["ranking"], key=u["ranking"].get, reverse=True)[:30]}
         st["universe"] = uni
     sym_base = uni["symbols"]
@@ -93,8 +120,16 @@ def collect_oi(client, store, cfg, now, backfill):
                                progress=lambda i, n: log.info("  OI 1d paczka %d/%d", i, n))
         days = list(range(floor(d0, DAY), floor(now, DAY) + 1, DAY))
         pb, _ = S.aggregate(dh, sym_base, days, None, ffill_steps=3, step=DAY)
-        for sid, pts in S.oi_series(pb, days, watch).items():
+        daily = S.oi_series(pb, days, watch)
+        # Coinalyze history starts at different dates per exchange; keep only days
+        # where both BTC and ETH are present (earlier days = a handful of markets)
+        first = min((t for t in days if daily["oi_btc"].get(t, 0) > 0 and daily["oi_eth"].get(t, 0) > 0),
+                    default=None)
+        for sid, pts in daily.items():
+            pts = {t: v for t, v in pts.items() if first is not None and t >= first}
             store.put("1d", sid, pts, replace_from=0)
+        if first:
+            log.info("OI 1d: pełne dane od %s", _iso(first))
     # Daily close from hourly for the days touched by this run
     day_from = floor(start, DAY)
     for sid in hourly:
@@ -133,7 +168,7 @@ def _iso(t):
 
 
 # ── main run ─────────────────────────────────────────────────
-def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None):
+def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None):
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
@@ -144,7 +179,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
 
     try:
         client = coinalyze or Coinalyze(os.environ.get("COINALYZE_API_KEY", ""))
-        info["coinalyze"] = collect_oi(client, store, cfg, now, backfill)
+        info["coinalyze"] = collect_oi(client, store, cfg, now, backfill, cg_fetch)
         results["Coinalyze"] = None
     except Exception as e:  # noqa: BLE001
         log.exception("Coinalyze")
@@ -188,6 +223,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "health": {k: (v or "ok") for k, v in results.items()},
         "info": info,
         "top_oi_assets": (st.get("universe") or {}).get("top", []),
+        "excluded_assets": (st.get("universe") or {}).get("excluded", []),
     }
     store.save(now, meta)
     log.info("Gotowe. Wiadomości: %d. %s", len(msgs), info)

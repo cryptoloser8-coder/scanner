@@ -32,7 +32,7 @@ Trwa to zwykle 1–3 godziny (limit Coinalyze: 40 zapytań/min, a każdy rynek t
 https://cryptoloser8-coder.github.io/scanner/oi.html pokaże dane.
 
 Co pobiera backfill:
-- OI dzienne od 2019 r. (Coinalyze trzyma dane dzienne bez limitu) + OI godzinowe z ostatnich ~2 miesięcy,
+- OI dzienne od ok. 09.2022 (od tej daty Coinalyze ma pełne dane z dużych giełd) + OI godzinowe z ostatnich ~2 miesięcy,
 - TOTAL/TOTAL2/TOTAL3/dominacje: do 5000 świec dziennych i 5000 godzinowych z TradingView.
 
 Później bot co 2 godziny dopisuje nowe dane godzinowe, więc Twoja historia 1H rośnie bez limitu.
@@ -63,7 +63,7 @@ Jeden poziom daje alert raz przy wejściu w strefę `near_pct` i raz przy przebi
 Inne ustawienia w `config.yaml`: lista giełd, liczba coinów (`max_assets`), watchlista coinów z osobnym wykresem OI, godzina dziennego raportu.
 
 ## Uwagi
-- **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach (zwykle ~98–99% całego OI). Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.
+- **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.
 - **TradingView** jest pobierane nieoficjalnym protokołem (tym samym co strona TV), bez logowania. Gdy TV coś zmieni, bot przyśle alert „Źródło TradingView nie działa”, a OI będzie zbierane dalej.
 - Repo jest publiczne, więc dane na gałęzi `data` też są publiczne. Klucze są w Secrets i nie widzi ich nikt.
 - GitHub może wyłączyć zaplanowane workflowy w repo bez aktywności przez 60 dni. Wtedy wyśle e-mail, a workflow włączysz jednym kliknięciem w zakładce Actions.
