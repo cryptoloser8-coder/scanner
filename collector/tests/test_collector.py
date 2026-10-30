@@ -621,3 +621,13 @@ def test_new_tv_series_fetched_in_regular_run(tmp_path):
     assert res["TradingView"] is None
     # a series new to the store gets its full history without a backfill
     assert ("BINANCE:ETHBTC", "1D", 5000) in tv.requests and len(store.series["1d"]["ethbtc"]) > 1000
+
+
+def test_dominance_breakdown_sums_to_100():
+    s = {"total": {0: 3000.0}, "totales": {0: 2700.0}, "total3es": {0: 540.0}}
+    S.derived(s)
+    assert abs(s["stable_d"][0] - 10.0) < 1e-9 and abs(s["alts_d"][0] - 18.0) < 1e-9
+    btc_d, eth_d = 61.0, 11.0                    # BTC + ETH = 2160 of 3000
+    assert abs(btc_d + eth_d + s["stable_d"][0] + s["alts_d"][0] - 100) < 1e-9
+    cat = S.catalog_with_watchlist([])
+    assert cat["stable_d"]["group"] == "pct" and cat["alts_d"]["group"] == "pct"
