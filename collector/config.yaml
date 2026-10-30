@@ -27,7 +27,9 @@ coinalyze:
                    SPX, SPY, QQQ, NDX, NAS100, US30, US500, DJI, SOXL, TQQQ, SPCX,
                    AAPL, MSFT, GOOGL, GOOG, AMZN, META, TSLA, NVDA, AMD, INTC, NFLX, COIN,
                    MSTR, HOOD, PLTR, SNDK, SKHYNIX, SKHY, ORCL, AVGO, MU, TSM, BABA, CRCL,
-                   EUR, JPY, GBP, USDC, USDT, FDUSD, USDE]
+                   EUR, JPY, GBP, USDC, USDT, FDUSD, USDE, EURC,
+                   # perpy pre-IPO na prywatne spółki
+                   ANTHROPIC, OPENAI, SPACEX, XAI, STRIPE, DATABRICKS, ANDURIL]
   # Wymuś uwzględnienie coina, którego nie ma na liście CoinGecko (np. świeży listing).
   include_assets: []
 

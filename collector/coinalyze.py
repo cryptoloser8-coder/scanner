@@ -43,14 +43,14 @@ class RateLimiter:
 
 
 class Coinalyze:
-    def __init__(self, api_key, calls_per_minute=38, session=None, sleep=time.sleep):
+    def __init__(self, api_key, calls_per_minute=36, session=None, sleep=time.sleep):
         if not api_key:
             raise CoinalyzeError("Brak COINALYZE_API_KEY")
         self.api_key = api_key
         self.session = session or requests.Session()
         self.sleep = sleep
         self.limiter = RateLimiter(calls_per_minute, sleep=sleep)
-        # two batches must fit in one rate-limit window (2 × 19 = 38 ≤ 38/min),
+        # two batches must fit in one rate-limit window (2 × 18 = 36/min, margin below 40),
         # otherwise we'd only get one 20-symbol batch per minute
         self.batch = max(1, min(MAX_SYMBOLS_PER_REQUEST, calls_per_minute // 2))
         self.calls_made = 0

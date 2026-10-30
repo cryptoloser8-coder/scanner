@@ -182,10 +182,10 @@ def test_two_batches_per_minute_and_skip_failed_batch():
         t[0] += s
     cl = C.Coinalyze("k", session=Sess(), sleep=sleep)
     cl.limiter.clock = lambda: t[0]
-    assert cl.batch == 19
-    out = cl.open_interest([f"S{i}" for i in range(38)])
-    assert len(out) == 38 and t[0] == 0          # 2 batches, no waiting
-    out = cl.open_interest(["BAD"] + [f"X{i}" for i in range(18)] + ["OK1"])
+    assert cl.batch == 18
+    out = cl.open_interest([f"S{i}" for i in range(36)])
+    assert len(out) == 36 and t[0] == 0          # 2 batches, no waiting
+    out = cl.open_interest(["BAD"] + [f"X{i}" for i in range(17)] + ["OK1"])
     assert "OK1" in out and cl.failed_batches == 1
 
 
@@ -277,6 +277,24 @@ def test_leverage_uses_ex_stable_caps(tmp_path):
     assert abs(h["lev_others"][t] - h["oi_others"][t] / h["total3es"][t] * 100) < 1e-6
     exp = h["oi_alts"][t] / (h["total2"][t] - h["stable_mcap"][t]) * 100
     assert abs(h["lev_alts"][t] - exp) < 1e-6
+
+
+def test_backfill_replaces_old_hourly_and_cleans_leftovers(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    from store import Store
+    st = Store(d)
+    old = min(st.series["1h"]["oi_total"]) - 5 * H
+    st.series["1h"]["oi_total"][old] = 1.0      # stale point older than the backfill window
+    st.save(NOW, json.load(open(os.path.join(d, "meta.json"))))
+    store, _, _ = main.run(d, _cfg(), now=NOW + H, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert old not in store.series["1h"]["oi_total"]
+    first = min(store.series["1h"]["oi_total"])
+    # a universe refresh days later must NOT trim the growing hourly history
+    store, _, _ = main.run(d, _cfg(), now=NOW + 100 * H, coinalyze=FakeCoinalyze(), tv=FakeTV(),
+                           telegram=tg, cg_fetch=CG)
+    assert min(store.series["1h"]["oi_total"]) == first
 
 
 def test_gap_in_run_is_bridged(tmp_path):

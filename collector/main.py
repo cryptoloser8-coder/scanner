@@ -84,6 +84,9 @@ def collect_oi(client, store, cfg, now, backfill, cg_fetch=None):
     watch = [w.upper() for w in cfg["watchlist"]]
 
     uni = st.get("universe")
+    # start of the hourly OI history from the last backfill (one-time migration for older state)
+    if not backfill and "oi_1h_from" not in st and uni:
+        st["oi_1h_from"] = floor(uni.get("at", now), HOUR) - INTRADAY_KEEP_HOURS * HOUR
     refresh_h = float(ccfg.get("universe_refresh_hours", 24))
     if backfill or not uni or now - uni.get("at", 0) >= refresh_h * HOUR:
         u = build_universe(client, ccfg, is_crypto=make_crypto_filter(cfg, st, now, cg_fetch))
@@ -113,7 +116,7 @@ def collect_oi(client, store, cfg, now, backfill, cg_fetch=None):
     per_base, new_last = S.aggregate(hist, sym_base, ts, prev, ffill_steps=6, step=HOUR)
     hourly = S.oi_series(per_base, ts, watch)
     for sid, pts in hourly.items():
-        store.put("1h", sid, pts, replace_from=start)
+        store.put("1h", sid, pts, replace_from=0 if backfill else start)
     st["last_oi"] = {**st.get("last_oi", {}), **new_last}
     # drop symbols no longer tracked
     st["last_oi"] = {k: v for k, v in st["last_oi"].items() if k in sym_base}
@@ -137,6 +140,15 @@ def collect_oi(client, store, cfg, now, backfill, cg_fetch=None):
             store.put("1d", sid, pts, replace_from=0)
         if first:
             log.info("OI 1d: pełne dane od %s", _iso(first))
+    # drop hourly OI points older than the last backfill window (leftovers with stale composition)
+    if backfill:
+        st["oi_1h_from"] = start
+    oldest_ok = st.get("oi_1h_from", 0)
+    for sid in hourly:
+        s_ = store.series["1h"].get(sid) or {}
+        for t in [t for t in s_ if t < oldest_ok]:
+            del s_[t]
+
     # Daily close from hourly for the days touched by this run
     day_from = floor(start, DAY)
     for sid in hourly:
