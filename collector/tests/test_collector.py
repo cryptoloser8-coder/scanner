@@ -17,7 +17,8 @@ H, D = 3600, 86400
 
 
 class FakeCoinalyze:
-    BASES = {"BTC": 30e9, "ETH": 15e9, "SOL": 5e9, "PEPE": 1e9, "DUST": 1e6}
+    BASES = {"BTC": 30e9, "ETH": 15e9, "SOL": 5e9, "PEPE": 1e9, "DUST": 1e6, "XAU": 20e9}
+    btc_daily_from = None  # simulate exchanges' history starting later
 
     def __init__(self):
         self.calls_made = 0
@@ -56,6 +57,8 @@ class FakeCoinalyze:
                 continue
             t0 = frm - frm % step
             out[s] = {t: self._oi(s, t) for t in range(t0, int(to) + 1, step) if t >= frm or step == D}
+            if step == D and self.btc_daily_from and not s.startswith("SOL"):
+                out[s] = {t: v for t, v in out[s].items() if t >= self.btc_daily_from}
         return out
 
 
@@ -71,6 +74,7 @@ class FakeTV:
         step = H if interval == "60" else D
         end = NOW - NOW % step
         base = {"CRYPTOCAP:TOTAL": 3e12, "CRYPTOCAP:TOTAL2": 1.3e12, "CRYPTOCAP:TOTAL3": 0.9e12,
+                "CRYPTOCAP:TOTALES": 2.7e12, "CRYPTOCAP:TOTAL3ES": 0.6e12,
                 "CRYPTOCAP:BTC.D": 57.0}.get(symbol, 5.0)
         return [(end - i * step, base * (1 + 0.05 * math.sin((end - i * step) / 90000)))
                 for i in range(min(n, 3000))][::-1]
@@ -83,9 +87,14 @@ CFG = {
     "tradingview": {"symbols": {"total": "CRYPTOCAP:TOTAL", "total2": "CRYPTOCAP:TOTAL2",
                                 "total3": "CRYPTOCAP:TOTAL3", "btc_d": "CRYPTOCAP:BTC.D"}},
     "telegram": {"enabled": True, "daily_report_hour_utc": 0},
+    "_cg": ["BTC", "ETH", "SOL", "PEPE", "DUST"],
     "levels": [],
     "changes": [],
 }
+
+
+def CG(top):
+    return {"BTC", "ETH", "SOL", "PEPE", "DUST"}
 
 
 def _cfg(**kw):
@@ -174,7 +183,7 @@ def test_backfill_then_run(tmp_path):
     d = str(tmp_path)
     cz, tv = FakeCoinalyze(), FakeTV()
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
-    store, msgs, res = main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=cz, tv=tv, telegram=tg)
+    store, msgs, res = main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=cz, tv=tv, telegram=tg, cg_fetch=CG)
     assert res == {"Coinalyze": None, "TradingView": None}
     # max_assets=3 → BTC, ETH, SOL (DUST and PEPE dropped), Kraken excluded
     uni = store.state["universe"]["symbols"]
@@ -199,7 +208,7 @@ def test_backfill_then_run(tmp_path):
     # regular run 2h later: only a small window is fetched
     cz2 = FakeCoinalyze()
     tv2 = FakeTV()
-    store2, msgs2, res2 = main.run(d, _cfg(), now=NOW + 2 * H, coinalyze=cz2, tv=tv2, telegram=tg)
+    store2, msgs2, res2 = main.run(d, _cfg(), now=NOW + 2 * H, coinalyze=cz2, tv=tv2, telegram=tg, cg_fetch=CG)
     assert res2 == {"Coinalyze": None, "TradingView": None}
     assert cz2.calls_made == len(uni)  # universe reused, one history pass
     assert all(n < 20 for (_, iv, n) in tv2.requests)
@@ -207,13 +216,51 @@ def test_backfill_then_run(tmp_path):
     assert any("Dzienny raport" in m for m in msgs2)
 
 
+def test_tradfi_excluded_and_daily_trimmed(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    cz = FakeCoinalyze()
+    cz.btc_daily_from = NOW - NOW % D - 200 * D
+    store, _, res = main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=cz, tv=FakeTV(),
+                             telegram=tg, cg_fetch=CG)
+    assert res["Coinalyze"] is None
+    assert "XAU" not in set(store.state["universe"]["symbols"].values())
+    assert "XAU" in store.state["universe"]["excluded"]
+    s = store.series["1d"]["oi_total"]
+    assert min(s) == cz.btc_daily_from          # SOL-only days before BTC/ETH data dropped
+    # CoinGecko down + no cache → exclude list still removes XAU
+    cfg = _cfg()
+    cfg["coinalyze"]["exclude_assets"] = ["XAU"]
+
+    def boom(top):
+        raise RuntimeError("cg down")
+    store2, _, _ = main.run(str(tmp_path / "b"), cfg, now=NOW, backfill=True, coinalyze=FakeCoinalyze(),
+                            tv=FakeTV(), telegram=tg, cg_fetch=boom)
+    assert "XAU" not in set(store2.state["universe"]["symbols"].values())
+
+
+def test_leverage_uses_ex_stable_caps(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    cfg = _cfg()
+    cfg["tradingview"]["symbols"].update({"totales": "CRYPTOCAP:TOTALES", "total3es": "CRYPTOCAP:TOTAL3ES"})
+    store, _, _ = main.run(d, cfg, now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(),
+                           telegram=tg, cg_fetch=CG)
+    h = store.series["1h"]
+    t = max(h["lev_others"])
+    assert abs(h["stable_mcap"][t] - (h["total"][t] - h["totales"][t])) < 1e3
+    assert abs(h["lev_others"][t] - h["oi_others"][t] / h["total3es"][t] * 100) < 1e-6
+    exp = h["oi_alts"][t] / (h["total2"][t] - h["stable_mcap"][t]) * 100
+    assert abs(h["lev_alts"][t] - exp) < 1e-6
+
+
 def test_gap_in_run_is_bridged(tmp_path):
     d = str(tmp_path)
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
-    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
     cz = FakeCoinalyze()
     cz.missing = {"BTCUSDT_PERP.A"}  # one market returns nothing this run
-    store, _, _ = main.run(d, _cfg(), now=NOW + H, coinalyze=cz, tv=FakeTV(), telegram=tg)
+    store, _, _ = main.run(d, _cfg(), now=NOW + H, coinalyze=cz, tv=FakeTV(), telegram=tg, cg_fetch=CG)
     s = store.series["1h"]["oi_btc"]
     t = max(s)
     assert s[t] > 0.9 * s[t - H]  # no sudden dip
@@ -222,7 +269,7 @@ def test_gap_in_run_is_bridged(tmp_path):
 def test_level_alerts_near_cross_rearm(tmp_path):
     d = str(tmp_path)
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
-    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
     from store import Store
     store = Store(d)
     cat = S.catalog_with_watchlist([])
@@ -266,7 +313,7 @@ def test_health_alerts(tmp_path):
 def test_tv_failure_is_soft(tmp_path):
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
     store, msgs, res = main.run(str(tmp_path), _cfg(), now=NOW, backfill=True,
-                                coinalyze=FakeCoinalyze(), tv=FakeTV(fail=True), telegram=tg)
+                                coinalyze=FakeCoinalyze(), tv=FakeTV(fail=True), telegram=tg, cg_fetch=CG)
     assert res["Coinalyze"] is None and res["TradingView"]
     assert store.series["1h"]["oi_total"]
     assert any("TradingView" in m for m in msgs)
