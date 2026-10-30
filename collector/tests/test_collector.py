@@ -599,3 +599,25 @@ def test_store_bundles_roundtrip(tmp_path):
     s2 = Store(str(tmp_path))
     assert s2.series["1h"]["oi_btc"] == {0: 1.0} and s2.series["1h"]["liq_btc_long"] == {0: 2.0}
     assert s2.series["1d"]["fund_btc"] == {0: 3.0}
+
+
+def test_every_configured_tv_series_has_catalog_entry():
+    cfg = main.load_config(os.path.join(os.path.dirname(__file__), "..", "config.yaml"))
+    cat = main.build_catalog(cfg)
+    missing = [sid for sid in cfg["tradingview"]["symbols"] if sid not in cat]
+    assert not missing, missing
+    assert cat["ethbtc"]["group"] == "pair" and cat["others_d"]["group"] == "pct"
+    assert alerts.fmt_value(0.034521, "pair") == "0.03452"
+
+
+def test_new_tv_series_fetched_in_regular_run(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    cfg = _cfg()
+    cfg["tradingview"]["symbols"]["ethbtc"] = "BINANCE:ETHBTC"
+    tv = FakeTV()
+    store, _, res = main.run(d, cfg, now=NOW + 2 * H, coinalyze=FakeCoinalyze(), tv=tv, telegram=tg, cg_fetch=CG)
+    assert res["TradingView"] is None
+    # a series new to the store gets its full history without a backfill
+    assert ("BINANCE:ETHBTC", "1D", 5000) in tv.requests and len(store.series["1d"]["ethbtc"]) > 1000
