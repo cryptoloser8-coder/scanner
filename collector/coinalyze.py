@@ -16,6 +16,10 @@ class CoinalyzeError(RuntimeError):
     pass
 
 
+class CoinalyzeAuthError(CoinalyzeError):
+    pass
+
+
 class RateLimiter:
     """Coinalyze counts every symbol in a request as one call (40 calls / minute / key)."""
 
@@ -46,7 +50,11 @@ class Coinalyze:
         self.session = session or requests.Session()
         self.sleep = sleep
         self.limiter = RateLimiter(calls_per_minute, sleep=sleep)
+        # two batches must fit in one rate-limit window (2 × 19 = 38 ≤ 38/min),
+        # otherwise we'd only get one 20-symbol batch per minute
+        self.batch = max(1, min(MAX_SYMBOLS_PER_REQUEST, calls_per_minute // 2))
         self.calls_made = 0
+        self.failed_batches = 0
 
     def _get(self, path, params=None, cost=1):
         params = dict(params or {})
@@ -70,7 +78,7 @@ class Coinalyze:
                 self.sleep(wait + 0.5)
                 continue
             if r.status_code == 401:
-                raise CoinalyzeError("Nieprawidłowy klucz Coinalyze (401)")
+                raise CoinalyzeAuthError("Nieprawidłowy klucz Coinalyze (401)")
             if r.status_code >= 500:
                 log.warning("%s: %s, ponawiam", path, r.status_code)
                 self.sleep(min(2 ** attempt * 3, 60))
@@ -85,13 +93,25 @@ class Coinalyze:
     def future_markets(self):
         return self._get("/future-markets")
 
-    def open_interest(self, symbols):
+    def _batch_get(self, path, params, batch):
+        """One batch; on persistent failure log and skip it instead of aborting the run."""
+        try:
+            return self._get(path, {**params, "symbols": ",".join(batch)}, cost=len(batch))
+        except CoinalyzeAuthError:
+            raise
+        except CoinalyzeError as e:
+            self.failed_batches += 1
+            log.warning("%s: pomijam paczkę %d rynków (%s…): %s", path, len(batch), batch[0], e)
+            return []
+
+    def open_interest(self, symbols, progress=None):
         """Current OI in USD → {symbol: value}."""
         out = {}
-        for batch in _chunks(symbols, MAX_SYMBOLS_PER_REQUEST):
-            data = self._get("/open-interest", {
-                "symbols": ",".join(batch), "convert_to_usd": "true",
-            }, cost=len(batch))
+        batches = list(_chunks(symbols, self.batch))
+        for i, batch in enumerate(batches):
+            data = self._batch_get("/open-interest", {"convert_to_usd": "true"}, batch)
+            if progress and (i % 20 == 0 or i == len(batches) - 1):
+                progress(i + 1, len(batches))
             for row in data or []:
                 if row.get("value") is not None:
                     out[row["symbol"]] = float(row["value"])
@@ -100,12 +120,11 @@ class Coinalyze:
     def oi_history(self, symbols, interval, frm, to, progress=None):
         """OI history in USD → {symbol: {t: close}}."""
         out = {}
-        batches = list(_chunks(symbols, MAX_SYMBOLS_PER_REQUEST))
+        batches = list(_chunks(symbols, self.batch))
         for i, batch in enumerate(batches):
-            data = self._get("/open-interest-history", {
-                "symbols": ",".join(batch), "interval": interval,
-                "from": int(frm), "to": int(to), "convert_to_usd": "true",
-            }, cost=len(batch))
+            data = self._batch_get("/open-interest-history", {
+                "interval": interval, "from": int(frm), "to": int(to), "convert_to_usd": "true",
+            }, batch)
             for row in data or []:
                 hist = {}
                 for p in row.get("history") or []:
@@ -171,7 +190,8 @@ def build_universe(client, cfg, log_fn=log.info):
     max_assets = int(cfg.get("max_assets") or 0)
     ranking = {}
     if max_assets > 0 and sym_base:
-        current = client.open_interest(list(sym_base))
+        current = client.open_interest(
+            list(sym_base), progress=lambda i, n: log_fn(f"  ranking OI paczka {i}/{n}"))
         for sym, v in current.items():
             ranking[sym_base[sym]] = ranking.get(sym_base[sym], 0.0) + v
         top = sorted(ranking, key=ranking.get, reverse=True)[:max_assets]

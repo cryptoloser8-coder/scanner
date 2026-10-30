@@ -99,7 +99,10 @@ def collect_oi(client, store, cfg, now, backfill):
     day_from = floor(start, DAY)
     for sid in hourly:
         store.put("1d", sid, S.daily_from_hourly(store.get("1h", sid), day_from))
-    return {"markets": len(symbols), "calls": client.calls_made}
+    failed = getattr(client, "failed_batches", 0)
+    if failed:
+        log.warning("Coinalyze: %d paczek pominiętych po nieudanych próbach", failed)
+    return {"markets": len(symbols), "calls": client.calls_made, "failed_batches": failed}
 
 
 # ── TradingView CRYPTOCAP ────────────────────────────────────
