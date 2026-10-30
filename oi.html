@@ -210,12 +210,13 @@ async function getJSON(name) {
 
 // ── state ───────────────────────────────────────────────────
 const GROUPS = [
-  ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'],
+  ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
 ];
 const TILE_SECTIONS = [
   ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total']],
-  ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'stable_mcap']],
-  ['Dominacja', ['btc_d', 'eth_d', 'usdt_d', 'oi_btc_dom']],
+  ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap']],
+  ['Dominacja', ['btc_d', 'eth_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
+  ['Pary', ['ethbtc']],
   ['Dźwignia i stosunki', ['oi_others_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
 ];
 const BUILTIN_PRESETS = [
@@ -228,6 +229,8 @@ const BUILTIN_PRESETS = [
   {name: 'Dominacja: BTC.D vs OI BTC.D', series: ['btc_d', 'oi_btc_dom'], mode: 'val'},
   {name: 'OI OTHERS / OI BTC (zrównanie = 1.0) + TOTAL3', series: ['oi_others_vs_btc', 'total3'], mode: 'val'},
   {name: 'OI OTHERS vs OI BTC (wartości)', series: ['oi_btc', 'oi_others'], mode: 'val'},
+  {name: 'Altseason: ETH/BTC + OTHERS.D + BTC.D', series: ['ethbtc', 'others_d', 'btc_d'], mode: 'val'},
+  {name: 'OTHERS vs TOTAL3 (% zmiana)', series: ['others', 'total3'], mode: 'pct'},
 ];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('oimon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -268,6 +271,7 @@ function fmt(v, group) {
   }
   if (group === 'pct') return v.toFixed(2) + '%';
   if (group === 'ratio') return v.toFixed(3) + '×';
+  if (group === 'pair') return Math.abs(v) < 1 ? v.toFixed(5) : v.toPrecision(4);
   return String(v);
 }
 function chg(now, before) {
@@ -452,12 +456,15 @@ function makeChart() {
 }
 let lastCrosshair = null;
 
-function scaleFor(group, usdPresent) {
+function scaleFor(group, usdPresent, groups) {
   if (S.mode !== 'val') return {pane: 0, scale: 'right'};
   const lower = usdPresent ? 1 : 0;
+  // pairs (e.g. ETH/BTC ~0.03) need their own axis: take a free side of the lower pane, else an overlay scale
+  const pair = !groups.has('ratio') ? 'left' : !groups.has('pct') ? 'right' : 'pair';
   return {
     oi: {pane: 0, scale: 'right'}, mcap: {pane: 0, scale: 'left'},
     pct: {pane: lower, scale: 'right'}, ratio: {pane: lower, scale: 'left'},
+    pair: {pane: lower, scale: pair},
   }[group] || {pane: 0, scale: 'right'};
 }
 
@@ -471,10 +478,11 @@ function drawChart(resetRange) {
   const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
   document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
   const usdPresent = ids.some(id => ['oi', 'mcap'].includes(CAT[id].group));
+  const groups = new Set(ids.map(id => CAT[id].group));
   const used = {};
   for (const id of ids) {
     const c = CAT[id];
-    const {pane, scale} = scaleFor(c.group, usdPresent);
+    const {pane, scale} = scaleFor(c.group, usdPresent, groups);
     used[pane + ':' + scale] = true;
     const series = chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
