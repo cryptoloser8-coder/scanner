@@ -1,8 +1,6 @@
 name: OI Monitor
 
 on:
-  schedule:
-    - cron: "23 */2 * * *"   # co 2 godziny (UTC); dane i tak są godzinowe
   workflow_dispatch:
     inputs:
       mode:
