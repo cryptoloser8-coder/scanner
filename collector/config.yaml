@@ -69,6 +69,9 @@ tradingview:
     total3es: "CRYPTOCAP:TOTAL3ES"   # bez BTC, ETH i stablecoinów
     btc_d: "CRYPTOCAP:BTC.D"
     eth_d: "CRYPTOCAP:ETH.D"
+    others: "CRYPTOCAP:OTHERS"       # bez top 10 coinów
+    others_d: "CRYPTOCAP:OTHERS.D"   # dominacja OTHERS
+    ethbtc: "BINANCE:ETHBTC"         # cena ETH w BTC
     usdt_d: "CRYPTOCAP:USDT.D"
 
 telegram:

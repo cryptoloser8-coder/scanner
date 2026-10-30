@@ -2,7 +2,7 @@
 
 Bot co 2 godziny (GitHub Actions):
 1. pobiera **open interest** perpetuali z Coinalyze (wiele giełd) i liczy OI BTC / ETH / ALTS / OTHERS + watchlistę,
-2. pobiera **TOTAL, TOTAL2, TOTAL3, BTC.D, ETH.D, USDT.D** z TradingView (CRYPTOCAP),
+2. pobiera **TOTAL, TOTAL2, TOTAL3, OTHERS, BTC.D, ETH.D, USDT.D, OTHERS.D** (CRYPTOCAP) i **ETH/BTC** (BINANCE:ETHBTC) z TradingView,
 3. liczy wskaźniki pochodne (OI BTC.D, OI ALTS / OI BTC, dźwignia = OI / kapitalizacja),
 4. zapisuje wszystko na gałęzi **`data`** (pliki JSON), które czyta zakładka `oi.html`,
 5. wysyła na **Telegram** alerty o poziomach, dzienny raport i informacje o awariach źródeł.

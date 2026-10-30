@@ -27,6 +27,9 @@ CATALOG = {
                     desc="Kapitalizacja całego rynku krypto bez stablecoinów (CRYPTOCAP:TOTALES)."),
     "total3es": dict(name="TOTAL3 bez stable", group="mcap", color="#ffe082",
                      desc="Kapitalizacja bez BTC, ETH i stablecoinów (CRYPTOCAP:TOTAL3ES) — „czyste” alty."),
+    "others": dict(name="OTHERS (TV)", group="mcap", color="#80cbc4",
+                   desc="Kapitalizacja wszystkich coinów OPRÓCZ top 10 (CRYPTOCAP:OTHERS). Małe i średnie alty — "
+                        "najbardziej spekulacyjna część rynku. Uwaga: to inna grupa niż nasze OI OTHERS (bez BTC i ETH)."),
     "stable_mcap": dict(name="Stablecoiny", group="mcap", color="#26a69a",
                         desc="Kapitalizacja stablecoinów (TOTAL − TOTALES). Rośnie = do krypto napływa nowy kapitał (suchy proch na zakupy)."),
     # ── Dominance ──
@@ -36,8 +39,15 @@ CATALOG = {
                   desc="Dominacja ETH: udział kapitalizacji ETH w TOTAL, w % (CRYPTOCAP:ETH.D)."),
     "usdt_d": dict(name="USDT.D", group="pct", color="#26a69a",
                    desc="Dominacja USDT: udział stablecoina USDT w TOTAL, w %. Rośnie, gdy kapitał ucieka do gotówki (CRYPTOCAP:USDT.D)."),
+    "others_d": dict(name="OTHERS.D", group="pct", color="#80cbc4",
+                     desc="Dominacja OTHERS: udział coinów spoza top 10 w TOTAL, w % (CRYPTOCAP:OTHERS.D). "
+                          "Rośnie w fazie „altseason”, gdy kapitał przelewa się w małe alty."),
     "oi_btc_dom": dict(name="OI BTC.D", group="pct", color="#ffb74d",
                        desc="Dominacja BTC w open interest: OI BTC / OI TOTAL, w %. Odpowiednik BTC.D po stronie derywatów. Spadek = lewar przenosi się na alty."),
+    # ── Pairs ──
+    "ethbtc": dict(name="ETH/BTC", group="pair", color="#9fa8da",
+                   desc="Cena ETH wyrażona w BTC (BINANCE:ETHBTC). Rośnie = ETH silniejszy od BTC; "
+                        "trwały wzrost ETH/BTC zwykle poprzedza i towarzyszy rotacji kapitału w alty."),
     # ── Leverage & ratios ──
     "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#64b5f6",
                            desc="Ile razy OI wszystkich altów (z ETH) jest większe od OI BTC. Uwaga: zawiera ETH, więc zwykle jest > 1. Do sygnału „alty zrównują się z BTC” używaj OI OTHERS / OI BTC."),
