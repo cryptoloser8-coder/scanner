@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────
+#  OI & TOTAL Monitor — konfiguracja
+#  Po zmianie tego pliku (commit na main) kolejne uruchomienie
+#  bota użyje nowych ustawień — nic więcej nie trzeba robić.
+# ─────────────────────────────────────────────────────────────
+
+coinalyze:
+  # Giełdy, z których sumujemy open interest (perpetuale).
+  # Nazwy porównywane z listą /exchanges w Coinalyze (bez rozróżniania wielkości liter).
+  exchanges: [Binance, Bybit, OKX, Bitget, Hyperliquid, Deribit, BitMEX]
+  # Ile największych (wg OI) coinów liczymy. 0 = wszystkie.
+  # Ogon poza top 200 to zwykle ~1–2% całego OI, a mocno skraca czas pobierania
+  # (limit API: 40 zapytań/min, każdy rynek = 1 zapytanie).
+  max_assets: 200
+  # Co ile godzin odświeżać listę rynków i ranking top coinów
+  # (odświeżenie sprawdza OI wszystkich rynków — to najdłuższy krok, ~1h).
+  universe_refresh_hours: 72
+  # Od kiedy pobierać historię dzienną przy backfillu.
+  daily_history_start: "2019-01-01"
+
+# Coiny, których OI ma być dostępne osobno na wykresach (oprócz BTC i ETH).
+watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI]
+
+tradingview:
+  # Serie CRYPTOCAP z TradingView (te same wartości co na wykresach TV).
+  symbols:
+    total: "CRYPTOCAP:TOTAL"
+    total2: "CRYPTOCAP:TOTAL2"
+    total3: "CRYPTOCAP:TOTAL3"
+    btc_d: "CRYPTOCAP:BTC.D"
+    eth_d: "CRYPTOCAP:ETH.D"
+    usdt_d: "CRYPTOCAP:USDT.D"
+
+telegram:
+  enabled: true
+  # Codzienne podsumowanie — pierwsze uruchomienie po tej godzinie (UTC).
+  daily_report_hour_utc: 7
+  # Jak często przypominać o awarii źródła danych (godziny).
+  health_reminder_hours: 12
+
+# ─────────────────────────────────────────────────────────────
+#  POZIOMY — alerty o zbliżaniu się i przebiciu
+#
+#  series:   id serii (lista id: w zakładce, najedź na nazwę serii)
+#            np. total, total2, total3, btc_d, oi_btc, oi_alts, oi_others, lev_others
+#  level:    poziom; dla kapitalizacji/OI w USD (można pisać 1.2e12 albo 1200000000000)
+#            dla dominacji/dźwigni w procentach (np. 58.5)
+#  near_pct: alert, gdy wartość jest bliżej niż X% od poziomu
+#  label:    Twój opis, pojawi się w alercie i na wykresie
+#
+#  Bot wysyła alert raz przy wejściu w strefę i raz przy przebiciu poziomu.
+#  Ponowny alert dopiero po wyjściu ze strefy (1.5 × near_pct).
+# ─────────────────────────────────────────────────────────────
+levels: []
+#  - series: total3
+#    level: 1.0e12
+#    near_pct: 3
+#    label: "TOTAL3 — opór 1T"
+#  - series: btc_d
+#    level: 60
+#    near_pct: 1
+#    label: "BTC.D 60%"
+
+# ─────────────────────────────────────────────────────────────
+#  ZMIANY — alert, gdy seria zmieni się o X% w zadanym oknie
+#  (np. gwałtowny wzrost OI altów). Cooldown chroni przed spamem.
+# ─────────────────────────────────────────────────────────────
+changes: []
+#  - series: oi_others
+#    window_hours: 24
+#    pct: 10
+#    cooldown_hours: 12

@@ -1,0 +1,154 @@
+"""Series catalogue, OI aggregation and derived indicators."""
+
+HOUR = 3600
+DAY = 86400
+
+# group → how the chart treats it: oi/mcap = USD, pct = percent, ratio = multiplier
+CATALOG = {
+    # ── Open interest ──
+    "oi_total": dict(name="OI TOTAL", group="oi", color="#9e9e9e",
+                     desc="Łączny open interest (wartość otwartych pozycji) na perpach wszystkich śledzonych coinów, zsumowany z wybranych giełd, w USD."),
+    "oi_btc": dict(name="OI BTC", group="oi", color="#f7931a",
+                   desc="Open interest wszystkich perpetuali BTC (USDT, USDC i coin-margined) zsumowany z wybranych giełd, w USD."),
+    "oi_eth": dict(name="OI ETH", group="oi", color="#8c9eff",
+                   desc="Open interest wszystkich perpetuali ETH zsumowany z wybranych giełd, w USD."),
+    "oi_alts": dict(name="OI ALTS", group="oi", color="#4caf7d",
+                    desc="Open interest wszystkich coinów OPRÓCZ BTC (z ETH). Odpowiednik TOTAL2 po stronie derywatów."),
+    "oi_others": dict(name="OI OTHERS", group="oi", color="#ce93d8",
+                      desc="Open interest wszystkich coinów OPRÓCZ BTC i ETH. Odpowiednik TOTAL3 po stronie derywatów."),
+    # ── Market cap (TradingView CRYPTOCAP) ──
+    "total": dict(name="TOTAL", group="mcap", color="#e0e0e0",
+                  desc="Kapitalizacja całego rynku krypto (CRYPTOCAP:TOTAL z TradingView)."),
+    "total2": dict(name="TOTAL2", group="mcap", color="#26c6da",
+                   desc="Kapitalizacja rynku krypto bez BTC (CRYPTOCAP:TOTAL2)."),
+    "total3": dict(name="TOTAL3", group="mcap", color="#ffc107",
+                   desc="Kapitalizacja rynku krypto bez BTC i ETH (CRYPTOCAP:TOTAL3)."),
+    # ── Dominance ──
+    "btc_d": dict(name="BTC.D", group="pct", color="#ff9800",
+                  desc="Dominacja BTC: udział kapitalizacji BTC w TOTAL, w % (CRYPTOCAP:BTC.D)."),
+    "eth_d": dict(name="ETH.D", group="pct", color="#7986cb",
+                  desc="Dominacja ETH: udział kapitalizacji ETH w TOTAL, w % (CRYPTOCAP:ETH.D)."),
+    "usdt_d": dict(name="USDT.D", group="pct", color="#26a69a",
+                   desc="Dominacja USDT: udział stablecoina USDT w TOTAL, w %. Rośnie, gdy kapitał ucieka do gotówki (CRYPTOCAP:USDT.D)."),
+    "oi_btc_dom": dict(name="OI BTC.D", group="pct", color="#ffb74d",
+                       desc="Dominacja BTC w open interest: OI BTC / OI TOTAL, w %. Odpowiednik BTC.D po stronie derywatów. Spadek = lewar przenosi się na alty."),
+    # ── Leverage & ratios ──
+    "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#81c784",
+                           desc="Ile razy OI altów (bez BTC) jest większe od OI BTC. Powyżej 1 = na altach jest więcej lewara niż na BTC (historycznie sygnał przegrzania altów)."),
+    "lev_btc": dict(name="Dźwignia BTC", group="pct", color="#f7931a",
+                    desc="OI BTC / kapitalizacja BTC (TOTAL − TOTAL2), w %. Ile otwartych pozycji przypada na kapitalizację BTC."),
+    "lev_alts": dict(name="Dźwignia ALTS", group="pct", color="#4caf7d",
+                     desc="OI ALTS / TOTAL2, w %. Wysokie wartości = wzrosty altów napędzane lewarem, ryzyko kaskady likwidacji."),
+    "lev_others": dict(name="Dźwignia OTHERS", group="pct", color="#ce93d8",
+                       desc="OI OTHERS / TOTAL3, w %. Lewar na altach bez ETH względem ich kapitalizacji."),
+}
+
+
+def watch_id(sym):
+    return f"oi_{sym.lower()}"
+
+
+def catalog_with_watchlist(watchlist):
+    cat = dict(CATALOG)
+    palette = ["#5b9cf6", "#e05252", "#ffd54f", "#ba68c8", "#4dd0e1", "#aed581",
+               "#ff8a65", "#90a4ae", "#f06292", "#9575cd"]
+    for i, sym in enumerate(watchlist):
+        sid = watch_id(sym)
+        if sid not in cat:
+            cat[sid] = dict(name=f"OI {sym.upper()}", group="oi", color=palette[i % len(palette)],
+                            desc=f"Open interest perpetuali {sym.upper()} zsumowany z wybranych giełd, w USD.")
+    return cat
+
+
+def aggregate(hist, sym_base, timestamps, last_known=None, ffill_steps=6, step=HOUR):
+    """Sum per-symbol OI into per-asset OI at each timestamp.
+
+    hist:       {symbol: {t: value}}
+    last_known: {symbol: [t, value]} from the previous run — used to bridge
+                short gaps (missing candles / failed requests) so sums don't dip.
+    Returns ({base: {t: value}}, new_last_known).
+    """
+    last_known = dict(last_known or {})
+    per_base = {}
+    new_last = {}
+    for sym, base in sym_base.items():
+        # align bucket timestamps to the step grid (robust to off-grid timestamps)
+        h = {t - t % step: v for t, v in (hist.get(sym) or {}).items() if v is not None}
+        prev = last_known.get(sym)
+        prev_t, prev_v = (prev if prev else (None, None))
+        dst = per_base.setdefault(base, {})
+        for t in timestamps:
+            v = h.get(t)
+            if v is None and prev_t is not None and t > prev_t and (t - prev_t) <= ffill_steps * step:
+                v = prev_v
+            elif v is not None:
+                prev_t, prev_v = t, v
+            if v is not None:
+                dst[t] = dst.get(t, 0.0) + v
+        if prev_t is not None:
+            new_last[sym] = [prev_t, prev_v]
+    return per_base, new_last
+
+
+def oi_series(per_base, timestamps, watchlist):
+    """Per-asset OI → catalogue series {id: {t: v}}."""
+    out = {k: {} for k in ("oi_total", "oi_btc", "oi_eth", "oi_alts", "oi_others")}
+    for sym in watchlist:
+        out[watch_id(sym)] = {}
+    for t in timestamps:
+        total = sum(b.get(t, 0.0) for b in per_base.values())
+        if total <= 0:
+            continue
+        btc = per_base.get("BTC", {}).get(t, 0.0)
+        eth = per_base.get("ETH", {}).get(t, 0.0)
+        out["oi_total"][t] = total
+        out["oi_btc"][t] = btc
+        out["oi_eth"][t] = eth
+        out["oi_alts"][t] = total - btc
+        out["oi_others"][t] = total - btc - eth
+        for sym in watchlist:
+            v = per_base.get(sym.upper(), {}).get(t)
+            if v:
+                out[watch_id(sym)][t] = v
+    return out
+
+
+def derived(series):
+    """Compute derived indicators in place for one resolution."""
+    s = series
+
+    def combine(dst, fn, *ids):
+        srcs = [s.get(i) or {} for i in ids]
+        if not all(srcs):
+            return
+        common = set(srcs[0]).intersection(*srcs[1:])
+        out = {}
+        for t in common:
+            try:
+                v = fn(*(src[t] for src in srcs))
+            except ZeroDivisionError:
+                continue
+            if v is not None:
+                out[t] = v
+        s[dst] = out
+
+    combine("oi_btc_dom", lambda b, tot: b / tot * 100, "oi_btc", "oi_total")
+    combine("oi_alts_vs_btc", lambda a, b: a / b, "oi_alts", "oi_btc")
+    combine("lev_btc", lambda oi, t1, t2: oi / (t1 - t2) * 100, "oi_btc", "total", "total2")
+    combine("lev_alts", lambda oi, t2: oi / t2 * 100, "oi_alts", "total2")
+    combine("lev_others", lambda oi, t3: oi / t3 * 100, "oi_others", "total3")
+    return s
+
+
+def daily_from_hourly(hourly, day_from):
+    """Day value = last hourly value of that UTC day (= daily close). {t_day: v}."""
+    out = {}
+    last_t = {}
+    for t, v in hourly.items():
+        d = t - t % DAY
+        if d < day_from:
+            continue
+        if d not in last_t or t > last_t[d]:
+            last_t[d] = t
+            out[d] = v
+    return out

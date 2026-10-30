@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OI & TOTAL Monitor</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--green-bg:rgba(76,175,125,.12);
+    --red:#e05252;--red-bg:rgba(224,82,82,.12);
+    --blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--purple:#ce93d8;
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);transition:all .15s;}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);}
+  .status-dot.stale{background:var(--amber);}
+  .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+  .banner code{font-family:var(--mono);font-size:11px;}
+
+  .section-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 7px;}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:8px;}
+  .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px 8px;cursor:pointer;transition:border-color .15s,background .15s;position:relative;user-select:none;}
+  .tile:hover{background:var(--bg3);border-color:var(--border2);}
+  .tile.on{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+  .tile-head{display:flex;align-items:center;gap:6px;}
+  .swatch{width:8px;height:8px;border-radius:2px;flex-shrink:0;background:var(--c);}
+  .tile-name{font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .info{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);color:var(--text3);font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:help;font-style:italic;font-family:Georgia,serif;}
+  .info:hover{color:var(--text);border-color:var(--text2);}
+  .tile-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
+  .tile-chg{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  .pos{color:var(--green);} .neg{color:var(--red);}
+  .spark{display:block;width:100%;height:34px;margin-top:5px;}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:18px;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;transition:all .15s;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .pill:disabled{opacity:.35;cursor:not-allowed;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  select,.btn{font-size:11px;padding:4px 9px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;font-family:inherit;}
+  select{max-width:240px;min-width:0;}
+  .panel,.tile{min-width:0;}
+  .btn{cursor:pointer;background:rgba(255,255,255,.06);}
+  .btn:hover{background:rgba(255,255,255,.12);}
+  .picker{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+  .picker-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .picker-row .ctrl-label{min-width:92px;}
+  .chip{font-size:11px;padding:3px 9px 3px 7px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;transition:all .15s;}
+  .chip:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
+  .chip .swatch{opacity:.45;}
+  .chip.on{color:var(--text);border-color:var(--c);background:rgba(255,255,255,.05);}
+  .chip.on .swatch{opacity:1;}
+  .chart-wrap{position:relative;height:min(62vh,620px);min-height:340px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;pointer-events:auto;width:max-content;}
+  .lg-name{color:var(--text2);cursor:help;}
+  .lg-val{font-family:var(--mono);color:var(--text);}
+  .lg-x{color:var(--text3);cursor:pointer;font-size:12px;padding:0 2px;}
+  .lg-x:hover{color:var(--red);}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+  .hint a{color:var(--text3);}
+  .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
+  .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
+
+  #tip{position:fixed;z-index:50;max-width:300px;background:#262626;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px;line-height:1.5;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s;}
+  #tip.show{opacity:1;}
+  #tip b{display:block;margin-bottom:3px;font-size:12px;}
+  #tip .tid{display:block;margin-top:5px;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  @media (max-width:640px){
+    body{padding:14px;}
+    .tiles{grid-template-columns:repeat(2,1fr);}
+    .picker-row .ctrl-label{min-width:100%;}
+    select{max-width:150px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>OI & TOTAL Monitor</h1>
+      <p>Open interest (Coinalyze, wiele giełd) &nbsp;·&nbsp; Kapitalizacja TOTAL/TOTAL2/TOTAL3 (TradingView)</p>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <span class="status-dot" id="dot"></span>
+    <span class="status-label" id="status">Ładowanie…</span>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div id="tiles"></div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Zestaw</span>
+      <select id="preset"></select>
+      <button class="btn" id="save-preset" title="Zapisz aktualny wybór serii i ustawień jako zestaw">Zapisz</button>
+      <button class="btn" id="del-preset" title="Usuń wybrany własny zestaw">Usuń</button>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Interwał</span>
+      <div class="pills" id="res-pills">
+        <button class="pill" data-val="1h">1H</button>
+        <button class="pill" data-val="1d">1D</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Zakres</span>
+      <div class="pills" id="range-pills">
+        <button class="pill" data-val="7">1T</button>
+        <button class="pill" data-val="30">1M</button>
+        <button class="pill" data-val="90">3M</button>
+        <button class="pill" data-val="180">6M</button>
+        <button class="pill" data-val="365">1R</button>
+        <button class="pill" data-val="1095">3L</button>
+        <button class="pill" data-val="0">ALL</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Tryb</span>
+      <div class="pills" id="mode-pills">
+        <button class="pill" data-val="val" title="Każda grupa ma własną oś: OI po prawej, kapitalizacja po lewej, % i stosunki w panelu poniżej">Wartości</button>
+        <button class="pill" data-val="pct" title="Wszystkie serie startują od 0% na początku widocznego zakresu — widać, co rośnie szybciej">% zmiana</button>
+        <button class="pill" data-val="idx" title="Wszystkie serie startują od 100 na początku widocznego zakresu">Index 100</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="pills">
+        <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
+        <button class="pill" id="lvl-btn" title="Pokaż poziomy z config.yaml (tryb Wartości)">Poziomy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="picker" id="picker"></div>
+
+  <div class="chart-wrap">
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty" id="empty">Wybierz serie powyżej albo kliknij kafelek</div>
+  </div>
+  <div class="hint">
+    Kliknij kafelek lub nazwę serii, żeby dodać ją do wykresu. Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
+    Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
+  </div>
+</div>
+
+<div class="footer">
+  Dane: <a href="https://coinalyze.net" target="_blank" rel="noopener">Coinalyze</a> (open interest) &nbsp;·&nbsp;
+  <a href="https://www.tradingview.com/markets/cryptocurrencies/global-charts/" target="_blank" rel="noopener">TradingView CRYPTOCAP</a> (kapitalizacja) &nbsp;·&nbsp;
+  Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a><br>
+  <span id="foot-info"></span>
+</div>
+
+<div id="tip"></div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+
+// ── data source ─────────────────────────────────────────────
+const qs = new URLSearchParams(location.search);
+const DATA_BASE = (() => {
+  if (qs.get('data')) return qs.get('data').replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/data/`;
+  }
+  return 'data/';
+})();
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(name) {
+  const r = await fetch(`${DATA_BASE}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── state ───────────────────────────────────────────────────
+const GROUPS = [
+  ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'],
+];
+const TILE_SECTIONS = [
+  ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total']],
+  ['Kapitalizacja (spot)', ['total', 'total2', 'total3']],
+  ['Dominacja', ['btc_d', 'eth_d', 'usdt_d', 'oi_btc_dom']],
+  ['Dźwignia i stosunki', ['oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
+];
+const BUILTIN_PRESETS = [
+  {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
+  {name: 'OI: BTC / ALTS / OTHERS (wartości)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'val'},
+  {name: 'TOTAL2 / TOTAL3 + BTC.D', series: ['total2', 'total3', 'btc_d'], mode: 'val'},
+  {name: 'TOTAL3 vs OI OTHERS', series: ['total3', 'oi_others'], mode: 'pct'},
+  {name: 'TOTAL2 vs OI ALTS', series: ['total2', 'oi_alts'], mode: 'pct'},
+  {name: 'Dźwignia: OI / kapitalizacja', series: ['lev_btc', 'lev_alts', 'lev_others'], mode: 'val'},
+  {name: 'Dominacja: BTC.D vs OI BTC.D', series: ['btc_d', 'oi_btc_dom'], mode: 'val'},
+  {name: 'OI ALTS/BTC + TOTAL3', series: ['oi_alts_vs_btc', 'total3'], mode: 'val'},
+];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('oimon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('oimon.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+
+let META = null, CAT = {};
+const DATA = {'1d': null, '1h': null};
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true},
+  store.get('view', {}), parseHash());
+
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const o = {};
+  if (h.get('s')) o.series = h.get('s').split(',').filter(Boolean);
+  if (h.get('m')) o.mode = h.get('m');
+  if (h.get('r')) o.res = h.get('r');
+  if (h.get('z')) o.range = +h.get('z');
+  if (h.get('log')) o.log = h.get('log') === '1';
+  return o;
+}
+function persist() {
+  store.set('view', S);
+  const h = new URLSearchParams({s: S.series.join(','), m: S.mode, r: S.res, z: S.range});
+  if (S.log) h.set('log', '1');
+  history.replaceState(null, '', '#' + h.toString());
+}
+
+// ── formatting ──────────────────────────────────────────────
+function fmt(v, group) {
+  if (v == null || isNaN(v)) return '—';
+  if (group === 'oi' || group === 'mcap') {
+    const a = Math.abs(v);
+    if (a >= 1e12) return '$' + (v / 1e12).toFixed(3) + 'T';
+    if (a >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+    if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    return '$' + v.toFixed(0);
+  }
+  if (group === 'pct') return v.toFixed(2) + '%';
+  if (group === 'ratio') return v.toFixed(3) + '×';
+  return String(v);
+}
+function chg(now, before) {
+  if (now == null || !before) return '<span>—</span>';
+  const c = (now / before - 1) * 100;
+  return `<span class="${c > 0 ? 'pos' : c < 0 ? 'neg' : ''}">${c > 0 ? '+' : ''}${c.toFixed(1)}%</span>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+function ago(ts) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+  if (m < 60) return `${m} min temu`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h} h temu` : `${Math.round(h / 24)} dni temu`;
+}
+
+// ── tooltip ─────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+function showTip(el) {
+  const c = CAT[el.dataset.tip];
+  if (!c) return;
+  tip.innerHTML = `<b>${esc(c.name)}</b>${esc(c.desc)}<span class="tid">id: ${esc(el.dataset.tip)}</span>`;
+  const r = el.getBoundingClientRect();
+  tip.classList.add('show');
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = Math.min(Math.max(8, r.left), innerWidth - w - 8);
+  let y = r.bottom + 6;
+  if (y + h > innerHeight - 8) y = r.top - h - 6;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); });
+document.addEventListener('mouseout', e => { if (e.target.closest('[data-tip]')) tip.classList.remove('show'); });
+document.addEventListener('click', e => {
+  const i = e.target.closest('.info');
+  if (i) { e.stopPropagation(); showTip(i); setTimeout(() => tip.classList.remove('show'), 4000); }
+}, true);
+
+// ── series helpers ──────────────────────────────────────────
+function pts(res, sid) { return (DATA[res] && DATA[res].series[sid]) || []; }
+function valueAt(arr, t) { // last value at/before t (binary search)
+  let lo = 0, hi = arr.length - 1, best = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m][0] <= t) { best = m; lo = m + 1; } else hi = m - 1; }
+  return best >= 0 ? arr[best][1] : null;
+}
+function available(sid) { return pts('1d', sid).length > 0 || pts('1h', sid).length > 0; }
+
+// ── tiles ───────────────────────────────────────────────────
+function sparkline(arr, color) {
+  const a = arr.slice(-90);
+  if (a.length < 2) return '<svg class="spark"></svg>';
+  const vals = a.map(p => p[1]);
+  const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1;
+  const W = 160, H = 34;
+  const p = a.map((q, i) => `${(i / (a.length - 1) * W).toFixed(1)},${(H - 2 - (q[1] - mn) / span * (H - 4)).toFixed(1)}`);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <polygon points="0,${H} ${p.join(' ')} ${W},${H}" fill="${color}" opacity=".08"/>
+    <polyline points="${p.join(' ')}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function renderTiles() {
+  const sections = TILE_SECTIONS.slice();
+  const watch = (META.watchlist || []).map(s => 'oi_' + s.toLowerCase()).filter(available);
+  if (watch.length) sections.push(['Watchlista OI', watch]);
+  let html = '';
+  for (const [label, ids] of sections) {
+    const tiles = ids.filter(id => CAT[id] && available(id)).map(id => {
+      const c = CAT[id], d = pts('1d', id), h = pts('1h', id);
+      const last = (h.length && (!d.length || h[h.length - 1][0] >= d[d.length - 1][0])) ? h[h.length - 1] : d[d.length - 1];
+      const t = last[0], v = last[1];
+      return `<div class="tile ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${c.color}">
+        <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
+        <div class="tile-val">${fmt(v, c.group)}</div>
+        <div class="tile-chg"><span>1D ${chg(v, valueAt(d, t - 86400))}</span><span>7D ${chg(v, valueAt(d, t - 7 * 86400))}</span><span>30D ${chg(v, valueAt(d, t - 30 * 86400))}</span></div>
+        ${sparkline(d, c.color)}
+      </div>`;
+    }).join('');
+    if (tiles) html += `<div class="section-label">${label}</div><div class="tiles">${tiles}</div>`;
+  }
+  document.getElementById('tiles').innerHTML = html;
+}
+document.getElementById('tiles').addEventListener('click', e => {
+  const t = e.target.closest('.tile');
+  if (t && !e.target.closest('.info')) toggleSeries(t.dataset.sid);
+});
+
+// ── picker ──────────────────────────────────────────────────
+function renderPicker() {
+  const ids = Object.keys(CAT).filter(available);
+  document.getElementById('picker').innerHTML = GROUPS.map(([g, label]) => {
+    const chips = ids.filter(id => CAT[id].group === g).map(id =>
+      `<button class="chip ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${CAT[id].color}"><span class="swatch"></span><span data-tip="${id}">${esc(CAT[id].name)}</span></button>`).join('');
+    return chips ? `<div class="picker-row"><span class="ctrl-label">${label}</span>${chips}</div>` : '';
+  }).join('');
+}
+document.getElementById('picker').addEventListener('click', e => {
+  const c = e.target.closest('.chip');
+  if (c) toggleSeries(c.dataset.sid);
+});
+function toggleSeries(sid) {
+  const i = S.series.indexOf(sid);
+  if (i >= 0) S.series.splice(i, 1); else S.series.push(sid);
+  document.getElementById('preset').value = '';
+  refresh();
+}
+
+// ── presets ─────────────────────────────────────────────────
+function userPresets() { return store.get('presets', []); }
+function renderPresets() {
+  const sel = document.getElementById('preset');
+  const u = userPresets();
+  sel.innerHTML = '<option value="">— własny wybór —</option>' +
+    '<optgroup label="Gotowe">' + BUILTIN_PRESETS.map((p, i) => `<option value="b${i}">${esc(p.name)}</option>`).join('') + '</optgroup>' +
+    (u.length ? '<optgroup label="Moje">' + u.map((p, i) => `<option value="u${i}">${esc(p.name)}</option>`).join('') + '</optgroup>' : '');
+  const match = [...BUILTIN_PRESETS.map((p, i) => ['b' + i, p]), ...u.map((p, i) => ['u' + i, p])]
+    .find(([, p]) => p.mode === S.mode && p.series.join() === S.series.join() && (!p.res || p.res === S.res));
+  sel.value = match ? match[0] : '';
+}
+document.getElementById('preset').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  const p = v[0] === 'b' ? BUILTIN_PRESETS[+v.slice(1)] : userPresets()[+v.slice(1)];
+  if (!p) return;
+  S.series = p.series.slice(); S.mode = p.mode;
+  if (p.res) S.res = p.res;
+  if (p.range != null) S.range = p.range;
+  if (p.log != null) S.log = p.log;
+  refresh(true);
+});
+document.getElementById('save-preset').addEventListener('click', () => {
+  if (!S.series.length) return;
+  const name = prompt('Nazwa zestawu:', S.series.map(id => CAT[id] ? CAT[id].name : id).join(' + '));
+  if (!name) return;
+  const u = userPresets().filter(p => p.name !== name);
+  u.push({name, series: S.series.slice(), mode: S.mode, res: S.res, range: S.range, log: S.log});
+  store.set('presets', u);
+  renderPresets();
+});
+document.getElementById('del-preset').addEventListener('click', () => {
+  const v = document.getElementById('preset').value;
+  if (!v || v[0] !== 'u') return;
+  const u = userPresets(); u.splice(+v.slice(1), 1); store.set('presets', u);
+  renderPresets();
+});
+
+// ── controls ────────────────────────────────────────────────
+function bindPills(id, key, conv = x => x) {
+  document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('.pill');
+    if (!b || b.disabled) return;
+    S[key] = conv(b.dataset.val);
+    refresh(key === 'range' || key === 'res');
+  });
+}
+bindPills('res-pills', 'res');
+bindPills('range-pills', 'range', Number);
+bindPills('mode-pills', 'mode');
+document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
+document.getElementById('lvl-btn').addEventListener('click', () => { S.levels = !S.levels; refresh(); });
+function syncControls() {
+  for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
+  const val = S.mode === 'val';
+  const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
+  const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !(META.levels || []).length;
+  document.querySelector('#res-pills [data-val="1h"]').disabled = !DATA['1h'] && DATA._1hFailed;
+}
+
+// ── chart ───────────────────────────────────────────────────
+let chart = null, mounted = [];
+function makeChart() {
+  chart = LWC.createChart(document.getElementById('chart'), {
+    autoSize: true,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11,
+      panes: {separatorColor: 'rgba(255,255,255,.1)', separatorHoverColor: 'rgba(255,255,255,.2)'}},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL'},
+  });
+  chart.subscribeCrosshairMove(updateLegend);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); });
+}
+let lastCrosshair = null;
+
+function scaleFor(group, usdPresent) {
+  if (S.mode !== 'val') return {pane: 0, scale: 'right'};
+  const lower = usdPresent ? 1 : 0;
+  return {
+    oi: {pane: 0, scale: 'right'}, mcap: {pane: 0, scale: 'left'},
+    pct: {pane: lower, scale: 'right'}, ratio: {pane: lower, scale: 'left'},
+  }[group] || {pane: 0, scale: 'right'};
+}
+
+function drawChart(resetRange) {
+  if (!chart) makeChart();
+  const prevRange = chart.timeScale().getVisibleRange();
+  for (const m of mounted) chart.removeSeries(m.series);
+  mounted = [];
+  while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+
+  const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
+  document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
+  const usdPresent = ids.some(id => ['oi', 'mcap'].includes(CAT[id].group));
+  const used = {};
+  for (const id of ids) {
+    const c = CAT[id];
+    const {pane, scale} = scaleFor(c.group, usdPresent);
+    used[pane + ':' + scale] = true;
+    const series = chart.addSeries(LWC.LineSeries, {
+      color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
+      lastValueVisible: true, priceLineVisible: false,
+      priceFormat: S.mode === 'val' ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, c.group)}
+        : {type: 'price', precision: 2, minMove: 0.01},
+    }, pane);
+    series.setData(pts(S.res, id).map(([t, v]) => ({time: t, value: v})));
+    if (S.mode === 'val' && S.levels) {
+      for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
+        series.createPriceLine({price: +lv.level, color: c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
+          axisLabelVisible: true, title: lv.label || ''});
+      }
+    }
+    mounted.push({id, series});
+  }
+  // scales
+  const mode = S.mode === 'pct' ? LWC.PriceScaleMode.Percentage : S.mode === 'idx' ? LWC.PriceScaleMode.IndexedTo100
+    : (S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal);
+  // LWC needs the same left/right axis visibility in every pane
+  const sideUsed = side => Object.keys(used).some(k => k.endsWith(':' + side));
+  chart.panes().forEach((p, i) => {
+    for (const side of ['left', 'right']) {
+      const visible = sideUsed(side);
+      const isUsd = S.mode === 'val' && i === 0 && usdPresent;
+      p.priceScale(side).applyOptions({visible, mode: (S.mode !== 'val' || isUsd) ? mode : LWC.PriceScaleMode.Normal,
+        scaleMargins: {top: .12, bottom: .08}});
+    }
+  });
+  if (chart.panes().length > 1) {
+    const total = document.getElementById('chart').clientHeight;
+    chart.panes()[1].setHeight(Math.round(total * .3));
+  }
+  // range
+  const all = mounted.flatMap(m => { const a = pts(S.res, m.id); return a.length ? [a[0][0], a[a.length - 1][0]] : []; });
+  if (all.length) {
+    const end = Math.max(...all), start = Math.min(...all);
+    if (resetRange || !prevRange) {
+      if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(start, end - S.range * 86400), to: end});
+      else chart.timeScale().fitContent();
+    } else {
+      chart.timeScale().setVisibleRange(prevRange);
+    }
+  }
+  updateLegend();
+}
+
+function updateLegend(param) {
+  lastCrosshair = param && param.time ? param : null;
+  const rows = mounted.map(({id, series}) => {
+    const c = CAT[id];
+    let v = null;
+    if (lastCrosshair) { const d = param.seriesData.get(series); v = d && d.value; }
+    if (v == null) { const a = pts(S.res, id); v = a.length ? a[a.length - 1][1] : null; }
+    let extra = '';
+    if (S.mode !== 'val') {
+      const vr = chart.timeScale().getVisibleRange();
+      const a = pts(S.res, id);
+      const first = vr ? a.find(p => p[0] >= vr.from) : null;
+      if (first && v != null) extra = ' ' + chg(v, first[1]);
+    }
+    return `<div class="lg-row"><span class="swatch" style="--c:${c.color}"></span><span class="lg-name" data-tip="${id}">${esc(c.name)}</span>` +
+      `<span class="lg-val">${fmt(v, c.group)}${extra}</span><span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;
+  });
+  const lg = document.getElementById('legend');
+  lg.innerHTML = rows.join('');
+  let lw = 0;
+  try { lw = chart.priceScale('left').width(); } catch (e) {}
+  lg.style.left = (lw + 8) + 'px';
+}
+document.getElementById('legend').addEventListener('click', e => {
+  const x = e.target.closest('.lg-x');
+  if (x) toggleSeries(x.dataset.sid);
+});
+
+// ── refresh ─────────────────────────────────────────────────
+async function ensureRes() {
+  if (S.res === '1h' && !DATA['1h']) {
+    setStatus('stale', 'Ładowanie danych 1H…');
+    try { DATA['1h'] = await getJSON('1h.json'); }
+    catch (e) { DATA._1hFailed = true; S.res = '1d'; }
+    setUpdated();
+  }
+}
+async function refresh(resetRange = false) {
+  await ensureRes();
+  persist();
+  syncControls();
+  renderPicker();
+  renderPresets();
+  document.querySelectorAll('.tile').forEach(t => t.classList.toggle('on', S.series.includes(t.dataset.sid)));
+  drawChart(resetRange);
+}
+
+// ── status / boot ───────────────────────────────────────────
+function setStatus(kind, text) {
+  document.getElementById('dot').className = 'status-dot ' + kind;
+  document.getElementById('status').textContent = text;
+}
+function setUpdated() {
+  const age = Date.now() / 1000 - META.updated;
+  setStatus(age < 5 * 3600 ? 'live' : 'stale', 'Aktualizacja: ' + ago(META.updated));
+  const bad = Object.entries(META.health || {}).filter(([, v]) => v !== 'ok');
+  const b = document.getElementById('banner');
+  if (bad.length) {
+    b.className = 'banner warn';
+    b.innerHTML = '⚠️ Ostatnie pobranie danych miało problem: ' + bad.map(([k, v]) => `<b>${esc(k)}</b> — ${esc(v).slice(0, 200)}`).join('; ');
+  } else if (age > 12 * 3600) {
+    b.className = 'banner warn';
+    b.textContent = `⚠️ Dane nie były aktualizowane od ${ago(META.updated)}. Sprawdź zakładkę Actions w repozytorium.`;
+  }
+  const info = META.info && META.info.coinalyze;
+  document.getElementById('foot-info').textContent =
+    `Giełdy OI: ${(META.exchanges || []).join(', ')}` + (info ? ` · ${info.markets} rynków perp` : '');
+}
+
+async function boot() {
+  try {
+    [META, DATA['1d']] = await Promise.all([getJSON('meta.json'), getJSON('1d.json')]);
+  } catch (e) {
+    setStatus('error', 'Brak danych');
+    const b = document.getElementById('banner');
+    b.className = 'banner err';
+    b.innerHTML = `Nie udało się wczytać danych (${esc(e.message)}).<br>Jeśli to pierwsze uruchomienie: w repozytorium wejdź w <b>Actions → OI Monitor → Run workflow</b> i wybierz <code>backfill</code>. Instrukcja: <code>collector/README.md</code>.`;
+    return;
+  }
+  CAT = META.catalog || {};
+  S.series = S.series.filter(id => CAT[id]);
+  if (!['1h', '1d'].includes(S.res)) S.res = '1d';
+  if (!['val', 'pct', 'idx'].includes(S.mode)) S.mode = 'pct';
+  setUpdated();
+  renderTiles();
+  await refresh(true);
+  if (!DATA['1h']) getJSON('1h.json').then(d => { DATA['1h'] = d; renderTiles(); renderPicker(); }).catch(() => { DATA._1hFailed = true; });
+}
+if (!LWC) {
+  setStatus('error', 'Błąd ładowania biblioteki wykresów');
+} else {
+  boot();
+}
+</script>
+</body>
+</html>
