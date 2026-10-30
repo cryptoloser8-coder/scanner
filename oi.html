@@ -216,7 +216,7 @@ const TILE_SECTIONS = [
   ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total']],
   ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'stable_mcap']],
   ['Dominacja', ['btc_d', 'eth_d', 'usdt_d', 'oi_btc_dom']],
-  ['Dźwignia i stosunki', ['oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
+  ['Dźwignia i stosunki', ['oi_others_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
 ];
 const BUILTIN_PRESETS = [
   {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
@@ -226,7 +226,8 @@ const BUILTIN_PRESETS = [
   {name: 'TOTAL2 vs OI ALTS', series: ['total2', 'oi_alts'], mode: 'pct'},
   {name: 'Dźwignia: OI / kapitalizacja', series: ['lev_btc', 'lev_alts', 'lev_others'], mode: 'val'},
   {name: 'Dominacja: BTC.D vs OI BTC.D', series: ['btc_d', 'oi_btc_dom'], mode: 'val'},
-  {name: 'OI ALTS/BTC + TOTAL3', series: ['oi_alts_vs_btc', 'total3'], mode: 'val'},
+  {name: 'OI OTHERS / OI BTC (zrównanie = 1.0) + TOTAL3', series: ['oi_others_vs_btc', 'total3'], mode: 'val'},
+  {name: 'OI OTHERS vs OI BTC (wartości)', series: ['oi_btc', 'oi_others'], mode: 'val'},
 ];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('oimon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
