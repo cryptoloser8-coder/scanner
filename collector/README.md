@@ -25,6 +25,11 @@ data  ── 1h.json, 1d.json, meta.json, state.json   (nadpisywane przy każdym
 3. Otwórz w przeglądarce `https://api.telegram.org/bot<TOKEN>/getUpdates` i znajdź `"chat":{"id":123456789` — to Twój **chat id**.
 4. Dodaj dwa sekrety w repo (jak wyżej): `TELEGRAM_BOT_TOKEN` i `TELEGRAM_CHAT_ID`.
 
+### 2b. (Zalecane) Darmowy klucz CoinGecko
+CoinGecko służy do odróżnienia coinów krypto od perpów na złoto, ropę czy akcje. Bez klucza serwery GitHuba bywają przez CoinGecko odrzucane.
+1. Załóż darmowe konto na coingecko.com → Developer Dashboard → utwórz klucz **Demo**.
+2. Dodaj sekret `COINGECKO_API_KEY`.
+
 ### 3. Pierwsze pobranie historii (backfill)
 **Actions → OI Monitor → Run workflow → mode: `backfill` → Run.**
 

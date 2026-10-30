@@ -153,7 +153,7 @@ def check_changes(store, catalog, rules, state, now):
 
 
 REPORT_IDS = ["total", "total2", "total3", "btc_d", "usdt_d", "stable_mcap",
-              "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_alts_vs_btc", "lev_others"]
+              "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_others_vs_btc", "lev_others"]
 
 
 def daily_report(store, catalog, levels, page_url=""):

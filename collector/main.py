@@ -55,15 +55,19 @@ def make_crypto_filter(cfg, st, now, fetch=None):
     incl = {a.upper() for a in ccfg.get("include_assets") or []}
     top = int(ccfg.get("crypto_whitelist_top", 1500) or 0)
     wl = None
+    st["crypto_filter"] = "exclude_assets"
     if top > 0:
         try:
             wl = set((fetch or coingecko.crypto_symbols)(top))
             st["crypto_whitelist"] = {"at": now, "symbols": sorted(wl)}
+            st["crypto_filter"] = f"CoinGecko top {top}"
         except Exception as e:  # noqa: BLE001
             cached = (st.get("crypto_whitelist") or {}).get("symbols")
             log.warning("CoinGecko niedostępne (%s) — %s", e,
                         "używam zapisanej listy" if cached else "filtruję tylko listą exclude_assets")
             wl = set(cached) if cached else None
+            if cached:
+                st["crypto_filter"] = "CoinGecko (zapisana lista)"
 
     def is_crypto(base):
         if base in incl:
@@ -83,8 +87,11 @@ def collect_oi(client, store, cfg, now, backfill, cg_fetch=None):
     refresh_h = float(ccfg.get("universe_refresh_hours", 24))
     if backfill or not uni or now - uni.get("at", 0) >= refresh_h * HOUR:
         u = build_universe(client, ccfg, is_crypto=make_crypto_filter(cfg, st, now, cg_fetch))
-        uni = {"at": now, "symbols": u["symbols"], "excluded": u["excluded"],
-               "top": sorted(u["ranking"], key=u["ranking"].get, reverse=True)[:30]}
+        ranked = sorted(u["ranking"], key=u["ranking"].get, reverse=True)
+        uni = {"at": now, "symbols": u["symbols"], "excluded": u["excluded"], "top": ranked[:30],
+               "filter": st.get("crypto_filter"),
+               "assets": [[a, round(u["ranking"][a] / 1e6, 1)] for a in ranked
+                          if a in set(u["symbols"].values())]}
         st["universe"] = uni
     sym_base = uni["symbols"]
     symbols = sorted(sym_base)
@@ -224,6 +231,9 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "info": info,
         "top_oi_assets": (st.get("universe") or {}).get("top", []),
         "excluded_assets": (st.get("universe") or {}).get("excluded", []),
+        "crypto_filter": (st.get("universe") or {}).get("filter"),
+        # tracked assets with current OI in $M at universe refresh — to audit what's counted
+        "universe_assets": (st.get("universe") or {}).get("assets", []),
     }
     store.save(now, meta)
     log.info("Gotowe. Wiadomości: %d. %s", len(msgs), info)

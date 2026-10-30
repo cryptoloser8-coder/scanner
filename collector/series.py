@@ -40,7 +40,9 @@ CATALOG = {
                        desc="Dominacja BTC w open interest: OI BTC / OI TOTAL, w %. Odpowiednik BTC.D po stronie derywatów. Spadek = lewar przenosi się na alty."),
     # ── Leverage & ratios ──
     "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#64b5f6",
-                           desc="Ile razy OI altów (bez BTC) jest większe od OI BTC. Powyżej 1 = na altach jest więcej lewara niż na BTC (historycznie sygnał przegrzania altów)."),
+                           desc="Ile razy OI wszystkich altów (z ETH) jest większe od OI BTC. Uwaga: zawiera ETH, więc zwykle jest > 1. Do sygnału „alty zrównują się z BTC” używaj OI OTHERS / OI BTC."),
+    "oi_others_vs_btc": dict(name="OI OTHERS / OI BTC", group="ratio", color="#f06292",
+                             desc="OI altów BEZ ETH podzielone przez OI BTC. 1.0 = zrównanie. Historycznie lokalne szczyty wypadały, gdy wskaźnik zbliżał się do ~0.9–1.0 (grudzień 2024, październik 2025) — lewar uciekał w małe alty."),
     "lev_btc": dict(name="Dźwignia BTC", group="pct", color="#f7931a",
                     desc="OI BTC / kapitalizacja BTC (TOTAL − TOTAL2), w %. Ile otwartych pozycji przypada na kapitalizację BTC."),
     "lev_alts": dict(name="Dźwignia ALTS", group="pct", color="#4caf7d",
@@ -140,6 +142,7 @@ def derived(series):
 
     combine("oi_btc_dom", lambda b, tot: b / tot * 100, "oi_btc", "oi_total")
     combine("oi_alts_vs_btc", lambda a, b: a / b, "oi_alts", "oi_btc")
+    combine("oi_others_vs_btc", lambda o, b: o / b, "oi_others", "oi_btc")
     combine("lev_btc", lambda oi, t1, t2: oi / (t1 - t2) * 100, "oi_btc", "total", "total2")
     combine("stable_mcap", lambda t, tes: t - tes, "total", "totales")
     # leverage vs market cap WITHOUT stablecoins (no perps on stables); fall back if ES missing

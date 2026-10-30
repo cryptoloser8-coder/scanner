@@ -133,6 +133,28 @@ def test_rate_limiter_waits():
     assert slept and 59 < sum(slept) < 61
 
 
+def test_coingecko_retries_network_errors():
+    import coingecko
+    import requests as rq
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return [{"symbol": "btc"}, {"symbol": "eth"}]
+
+    class Sess:
+        n = 0
+
+        def get(self, *a, **k):
+            Sess.n += 1
+            if Sess.n == 1:
+                raise rq.ConnectionError("aborted")
+            return R()
+    out = coingecko.crypto_symbols(250, session=Sess(), sleep=lambda s: None)
+    assert out == {"BTC", "ETH"} and Sess.n == 2
+
+
 def test_two_batches_per_minute_and_skip_failed_batch():
     import coinalyze as C
 
@@ -226,6 +248,9 @@ def test_tradfi_excluded_and_daily_trimmed(tmp_path):
     assert res["Coinalyze"] is None
     assert "XAU" not in set(store.state["universe"]["symbols"].values())
     assert "XAU" in store.state["universe"]["excluded"]
+    meta = json.load(open(os.path.join(d, "meta.json")))
+    assert meta["crypto_filter"].startswith("CoinGecko")
+    assert [a for a, _ in meta["universe_assets"]][:2] == ["BTC", "ETH"]
     s = store.series["1d"]["oi_total"]
     assert min(s) == cz.btc_daily_from          # SOL-only days before BTC/ETH data dropped
     # CoinGecko down + no cache → exclude list still removes XAU

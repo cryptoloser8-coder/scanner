@@ -18,9 +18,14 @@ def crypto_symbols(top_n=1500, session=None, sleep=time.sleep):
     out = set()
     pages = max(1, (int(top_n) + 249) // 250)
     for page in range(1, pages + 1):
-        for attempt in range(5):
-            r = s.get(URL, params={"vs_currency": "usd", "order": "market_cap_desc",
-                                   "per_page": 250, "page": page}, headers=headers, timeout=30)
+        for attempt in range(6):
+            try:
+                r = s.get(URL, params={"vs_currency": "usd", "order": "market_cap_desc",
+                                       "per_page": 250, "page": page}, headers=headers, timeout=30)
+            except requests.RequestException as e:  # flaky connections from CI runners
+                log.warning("CoinGecko strona %d: błąd sieci (%s), ponawiam", page, e)
+                sleep(min(10 * (attempt + 1), 60))
+                continue
             if r.status_code == 200:
                 break
             if r.status_code == 429 or r.status_code >= 500:
