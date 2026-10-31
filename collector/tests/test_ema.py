@@ -29,6 +29,7 @@ class FakeBinance:
         self.calls = 0
         self.kl_requests = []
         self.live = live or {}
+        self.ages = {}
 
     def exchange_info(self):
         self.calls += 1
@@ -48,12 +49,14 @@ class FakeBinance:
             return 1 + 0.2 * math.sin(x / 30)
         return 5.0
 
-    def klines(self, symbol, limit):
+    def klines(self, symbol, limit, end_ms=None):
         self.calls += 1
-        self.kl_requests.append((symbol, limit))
+        self.kl_requests.append((symbol, limit) if end_ms is None else (symbol, limit, "old"))
         today = self.now - self.now % D
-        age = 120 if symbol == "CCCUSDT" else 2000
-        days = [today - i * D for i in range(min(limit, age))][::-1]
+        age = 120 if symbol == "CCCUSDT" else self.ages.get(symbol, 2000)
+        listing = today - (age - 1) * D
+        last = today if end_ms is None else (end_ms // 1000) - (end_ms // 1000) % D
+        days = [last - i * D for i in range(limit) if last - i * D >= listing][::-1]
         return [[t * 1000, "0", "0", "0", str(self._close(symbol, t)), "0", (t + D) * 1000 - 1, "0", 0, "0", "0", "0"]
                 for t in days]
 
@@ -109,19 +112,20 @@ def test_first_run_check_and_publish(tmp_path):
     assert pub["total"] == 3 and pub["coins"][0]["s"] in ("AAA", "BBB", "JUP")
     assert abs(pub["coins"][0]["d"]) <= abs(pub["coins"][-1]["d"])        # sorted by distance
     a = next(c for c in pub["coins"] if c["s"] == "AAA")
-    assert a["alert"] == {"cross": True, "near": 2.0} and a["days"] == 999
+    assert a["alert"] == {"cross": True, "near": 2.0} and a["days"] == 1999   # older history filled in already
     assert next(c for c in pub["coins"] if c["s"] == "JUP")["alert"] is None
     assert pub["breadth"] and 0 <= pub["breadth"][-1][1] <= 100
     hist = json.load(open(tmp_path / "st" / "pub" / "hist" / "AAA.json"))
-    assert len(hist["d"]) == 999 and len(hist["d"][0]) == 3
+    assert len(hist["d"]) == 1000 and len(hist["d"][0]) == 3
     # same day again: no candle requests, only prices
     fb2 = FakeBinance(now=NOW + 300)
     E.run(cfg(), st, now=NOW + 300, client=fb2, telegram=tg, remote=None)
-    assert fb2.kl_requests == [] and fb2.calls == 1
+    assert [r for r in fb2.kl_requests if len(r) == 2] == []          # no new-candle requests on the same day
     # next day: only the missing candles are fetched
     fb3 = FakeBinance(now=NOW + D)
     E.run(cfg(), st, now=NOW + D, client=fb3, telegram=tg, remote=None)
-    assert fb3.kl_requests and all(lim <= 4 for _, lim in fb3.kl_requests)   # missing days + margin, not 1000
+    new = [r for r in fb3.kl_requests if len(r) == 2]
+    assert new and all(r[1] <= 4 for r in new)   # missing days + margin, not 1000
 
 
 def _rows(d, side=None, p=100.0):
@@ -214,3 +218,29 @@ def test_wrapped_and_pegged_tokens_excluded_even_before_daily_refresh():
     candles = {f"{b}USDT": [[i * D, 1.0] for i in range(400)] for b in ("BTC", "WBTC")}
     rows, _, _ = E.compute(candles, {"BTCUSDT": "BTC", "WBTCUSDT": "WBTC"}, {}, {}, cfg(), [])
     assert [r["s"] for r in rows] == ["BTC"]
+
+
+def test_older_history_is_filled_in_pages_up_to_the_listing(tmp_path):
+    st = str(tmp_path)
+    c = cfg(history_pages_per_run=3)
+    fb = FakeBinance()
+    fb.ages = {"AAAUSDT": 2600, "BBBUSDT": 900, "JUPUSDT": 1500}
+    E.run(c, st, now=NOW, client=fb, remote=None)
+    cand = json.load(open(os.path.join(st, "candles.json")))
+    # first run: 999 recent days for all + 3 older pages (AAA, BBB, CCC… sorted: AAA, BBB, CCC)
+    assert len(cand["BBBUSDT"]) == 899                          # young coin: complete at once (899 closed days)
+    for i in range(1, 6):
+        fbn = FakeBinance(now=NOW + i * 300)
+        fbn.ages = fb.ages
+        E.run(c, st, now=NOW + i * 300, client=fbn, remote=None)
+    cand = json.load(open(os.path.join(st, "candles.json")))
+    stt = json.load(open(os.path.join(st, "state.json")))
+    assert len(cand["AAAUSDT"]) == 2599 and len(cand["JUPUSDT"]) == 1499   # back to the listing
+    assert set(stt["full_hist"]) == {"AAAUSDT", "BBBUSDT", "CCCUSDT", "JUPUSDT"}
+    pub = json.load(open(os.path.join(st, "pub", "ema.json")))
+    assert pub["history_full"] == 4 and pub["breadth"][0][0] < NOW - 2000 * D   # breadth covers the long history
+    # nothing left to do → no more "old" requests
+    fbx = FakeBinance(now=NOW + 3600)
+    fbx.ages = fb.ages
+    E.run(c, st, now=NOW + 3600, client=fbx, remote=None)
+    assert not [r for r in fbx.kl_requests if len(r) == 3]
