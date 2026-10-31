@@ -373,10 +373,12 @@ async function refreshChart(resetRange) {
     s.setData(br.map(([t, v]) => ({time: t, value: v})));
     for (const [lvl, col] of [[50, 'rgba(255,255,255,.3)'], [70, 'rgba(255,193,7,.5)'], [30, 'rgba(224,82,82,.5)']])
       s.createPriceLine({price: lvl, color: col, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
-    mounted.push({series: s, name: '% coinów nad EMA200', color: '#5b9cf6', fmt: v => v.toFixed(1) + '%', extra: br});
+    mounted.push({series: s, name: '% coinów nad EMA200', color: '#5b9cf6', fmt: v => v.toFixed(1) + '%', counts: new Map(br.map(([t, , n]) => [t, n]))});
     if (br.length) setRange(br[0][0], br[br.length - 1][0]);
+    const filling = DATA.pairs && DATA.history_full != null && DATA.history_full < DATA.pairs;
     document.getElementById('chart-hint').textContent = 'Szerokość rynku: % coinów (z co najmniej ' + DATA.min_days + ' dniami historii w danym dniu), które zamknęły dzień nad swoją EMA200. ' +
-      'Liczone z coinów notowanych dziś na Binance, więc dawniejsze lata nie obejmują coinów wycofanych z giełdy. Linie: 30%, 50%, 70%.';
+      'Liczone z coinów notowanych dziś na Binance, więc dawniejsze lata nie obejmują coinów wycofanych z giełdy, a liczba coinów w starszych latach jest mniejsza (widać ją w legendzie). Linie: 30%, 50%, 70%.' +
+      (filling ? ` Trwa uzupełnianie starszej historii: ${DATA.history_full} z ${DATA.pairs} par gotowe.` : '');
     updateLegend();
     return;
   }
@@ -419,7 +421,9 @@ function updateLegend(param) {
     let v = null;
     if (live) { const d = param.seriesData.get(m.series); v = d && d.value; }
     else { const d = m.series.data(); v = d.length ? d[d.length - 1].value : null; }
-    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span></div>`;
+    let extra = '';
+    if (m.counts) { const t = live ? param.time : (m.series.data().slice(-1)[0] || {}).time; const n = m.counts.get(t); if (n) extra = ` <span class="lg-name">z ${n} coinów</span>`; }
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span>${extra}</div>`;
   });
   if (mounted.length === 2 && S.view === 'coin') {
     const vals = mounted.map(m => { const d = live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0]; return d && d.value; });
