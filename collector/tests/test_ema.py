@@ -57,8 +57,8 @@ class FakeBinance:
         listing = today - (age - 1) * D
         last = today if end_ms is None else (end_ms // 1000) - (end_ms // 1000) % D
         days = [last - i * D for i in range(limit) if last - i * D >= listing][::-1]
-        return [[t * 1000, "0", "0", "0", str(self._close(symbol, t)), "0", (t + D) * 1000 - 1, "0", 0, "0", "0", "0"]
-                for t in days]
+        return [[t * 1000, "0", str(self._close(symbol, t) * 1.02), str(self._close(symbol, t) * 0.98),
+                 str(self._close(symbol, t)), "0", (t + D) * 1000 - 1, "0", 0, "0", "0", "0"] for t in days]
 
     def prices(self):
         self.calls += 1

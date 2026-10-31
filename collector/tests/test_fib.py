@@ -126,3 +126,45 @@ def test_run_with_fib_from_telegram_and_config(tmp_path):
     E.run(c, st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=tg, remote=None,
           bot=FakeBot([]), hl=lambda: {"HYPE": 27.0})
     assert len(tg.sent) == 1 and "Fibo" in tg.sent[0] and "HYPE" in tg.sent[0] and "0.786" in tg.sent[0]
+
+
+D = 86400
+PC = dict(F.PROPOSAL_DEFAULTS)
+
+
+def _hl(path, start=0):
+    """[[t, high, low]] from a list of closes (±1% wicks)."""
+    return [[start + i * D, c * 1.01, c * 0.99] for i, c in enumerate(path)]
+
+
+def test_candidates_long_short_dedupe_and_size_filter():
+    up = [100] * 200 + [100 + i for i in range(100)] + [199 - i * 0.5 for i in range(65)]   # rally then pullback
+    c = F.candidates("AAA", _hl(up), PC)
+    longs = [x for x in c if x["dir"] == "long"]
+    assert longs and abs(longs[-1]["low"] - 99) < 1e-9 and abs(longs[-1]["high"] - 199 * 1.01) < 1e-9
+    assert all(x["win"] for x in c) and len({(x["high"], x["low"], x["dir"]) for x in c}) == len(c)
+    flat = [100 + (i % 3) for i in range(400)]                                             # 2–3% noise only
+    assert F.candidates("BBB", _hl(flat), PC) == []
+    down = [200 - i * 0.3 for i in range(300)] + [110 + i * 0.4 for i in range(80)]         # fall then bounce
+    assert any(x["dir"] == "short" for x in F.candidates("CCC", _hl(down), PC))
+
+
+def test_proposals_only_near_or_in_zone_sorted_and_command():
+    cands = [{"coin": "A", "dir": "long", "high": 200.0, "low": 100.0, "win": "3M"},   # zone 121.4–129.5
+             {"coin": "B", "dir": "long", "high": 200.0, "low": 100.0, "win": "1M"},
+             {"coin": "C", "dir": "long", "high": 200.0, "low": 100.0, "win": "1R"}]
+    out = F.proposals(cands, {"A": 125.0, "B": 133.0, "C": 180.0}, PC)
+    assert [(p["coin"], p["status"]) for p in out] == [("A", "zone"), ("B", "near")]
+    assert F.command_for(out[0]) == "/fib A 200 100 long auto 3M"
+    assert F.parse_command(F.command_for(out[0]))[1]["label"] == "auto 3M"     # command round-trips
+
+
+def test_run_publishes_proposals_with_high_low(tmp_path):
+    st = str(tmp_path)
+    E.run(cfg(), st, now=NOW, client=FakeBinance(), remote=None, bot=FakeBot([]), hl=lambda: {})
+    hl = json.load(open(os.path.join(st, "hl.json")))
+    assert {"AAAUSDT", "BBBUSDT", "JUPUSDT"} <= set(hl) and 380 <= len(hl["AAAUSDT"]) <= 400
+    pub = json.load(open(os.path.join(st, "pub", "fib.json")))
+    assert "proposals" in pub and pub["candidates"] >= 1
+    for p in pub["proposals"]:
+        assert p["status"] in ("zone", "near") and p["cmd"].startswith("/fib ")
