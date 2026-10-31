@@ -816,7 +816,7 @@ def to_markdown(rep, page_url=""):
     return "\n".join(L)
 
 
-def save(out_dir, rep, keep=120, md=None):
+def save(out_dir, rep, keep=120, md=None, page_url=""):
     """Write reports/<id>.json (+ .md for AI), update index.json (newest first, at most `keep`) and latest.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
@@ -839,7 +839,31 @@ def save(out_dir, rep, keep=120, md=None):
     elif md is not None:
         with open(os.path.join(out_dir, "reports", f"{rep['id']}.md"), "w", encoding="utf-8") as f:
             f.write(md)
+    if md is not None:
+        backfill_md(out_dir, items, page_url)
     return items
+
+
+def backfill_md(out_dir, items, page_url=""):
+    """Reports made before the AI text version existed get their .md built from their saved JSON."""
+    made = 0
+    for it in items:
+        path = os.path.join(out_dir, "reports", f"{it['id']}.md")
+        if os.path.exists(path):
+            continue
+        old = _read(os.path.join(out_dir, "reports", f"{it['id']}.json"))
+        if not old:
+            continue
+        try:
+            text = to_markdown(old, page_url)
+        except Exception as e:  # noqa: BLE001 — an odd old report must not stop the new one
+            log.warning("Brak wersji dla AI dla %s: %s", it["id"], e)
+            continue
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        made += 1
+    if made:
+        log.info("Uzupełniono wersję dla AI dla %d starszych raportów", made)
 
 
 def notify_text(entry, page_url):
@@ -880,7 +904,8 @@ def main(argv=None):
 
     if a.cmd == "make":
         rep = build(a.data, a.ema, a.kind, cfg=cfg)
-        save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, a.page or cfg["page_url"]))
+        page = a.page or cfg["page_url"]
+        save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page)
         n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
         log.info("Raport %s: %d bloków, %d pozycji", rep["id"], len(rep["blocks"]), n)
         return 0
