@@ -307,8 +307,9 @@ function factsBlock(b) {
 }
 function tableBlock(b) {
   const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^(-\d|▼)/.test(v) ? 'neg' : '';
-  return `<div class="tbl"><table><thead><tr>${(b.cols || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${(b.rows || []).map(r => `<tr>${r.map(v => `<td class="${cls(String(v))}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const left = b.left || [];
+  return `<div class="tbl"><table><thead><tr>${(b.cols || []).map((c, j) => `<th${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${cls(String(v))}"${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function chartBlock(b, i) {
   const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
