@@ -26,7 +26,11 @@ EVENTS = [  # Friday 30.10.2026 (US on summer time: 8:30 ET = 12:30 UTC = 13:30 
     {"title": "Fed Chair Speech", "country": "US", "date": "2026-10-29T18:30:00Z", "importance": 1},
     {"title": "ECB Rate Decision", "country": "EU", "date": "2026-10-30T12:15:00.000Z", "importance": 1, "actual": 2.0},
     {"title": "ISM Manufacturing PMI", "country": "US", "date": "2026-11-02T15:00:00.000Z", "importance": 1,
-     "forecast": 49.5, "previous": 49.1},
+     "forecast": 49.5, "previous": 49.1, "period": "Oct"},
+    {"title": "Construction Spending MoM", "country": "US", "date": "2026-11-02T15:00:00.000Z", "importance": 0,
+     "forecast": 0.1, "previous": -0.2, "unit": "%"},
+    {"title": "JOLTs Job Openings", "country": "US", "date": "2026-11-03T15:00:00.000Z", "importance": 1,
+     "forecast": 7.2, "previous": 7.1, "scale": "M"},
 ]
 
 
@@ -92,6 +96,7 @@ def test_fetch_params_headers_and_errors():
     assert econ.fetch(ts(2026, 10, 30, 21, 45), session=s) == EVENTS
     url, params, headers = s.calls[0]
     assert url == econ.URL and params["countries"] == "US" and params["from"] == "2026-10-25T21:45:00.000Z"
+    assert params["to"] == "2026-11-04T21:45:00.000Z"
     assert headers["Origin"] == "https://www.tradingview.com"
     for bad in (FakeResp({"status": "error", "errmsg": "x"}), FakeResp({}, 403)):
         try:
@@ -119,3 +124,18 @@ def test_short_error():
     assert econ.short_error(E("x")) == "HTTP 403"
     assert econ.short_error(ConnectionError("Tunnel connection failed")) == "brak połączenia"
     assert econ.short_error(ValueError("status error")) == "status error"
+
+
+def test_next_day_plan():
+    day, evs = econ.next_day(EVENTS, ts(2026, 10, 30, 21, 45))              # Friday evening → Monday
+    assert str(day) == "2026-11-02" and [e["title"] for e in evs] == ["ISM Manufacturing PMI", "Construction Spending MoM"]
+    plan = econ.block(EVENTS, ts(2026, 10, 30, 21, 45))[2]
+    assert plan["title"] == "Zaplanowane — poniedziałek, 02.11.2026"
+    assert plan["rows"][0] == ["16:00", "ISM Manufacturing PMI (Oct)", "★★★", "49.5", "49.1"]
+    morning = econ.block(EVENTS, ts(2026, 11, 2, 6, 0))                     # Monday morning: Friday + today
+    assert morning[1]["title"].startswith("Publikacje z USA — piątek") and morning[2]["title"] == "Zaplanowane — dziś, 02.11.2026"
+    evening = econ.block(EVENTS, ts(2026, 11, 2, 21, 45))                   # Monday evening: today + tomorrow
+    assert evening[1]["title"] == "Publikacje z USA — dziś, 02.11.2026"
+    assert evening[2]["title"] == "Zaplanowane — jutro, 03.11.2026" and evening[2]["rows"][0][3] == "7.2M"
+    none = econ.block(EVENTS, ts(2026, 11, 3, 21, 45))
+    assert none[2]["type"] == "text" and "Brak zaplanowanych" in none[2]["text"]
