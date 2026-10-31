@@ -173,3 +173,23 @@ def test_notify_disabled_in_config(tmp_path):
     out = tmp_path / "out"
     report.save(str(out), {"id": "a", "kind": "test", "title": "T", "created": T0, "summary": "", "blocks": []})
     assert report.main(["notify", "--out", str(out), "--config", str(cfg)]) == 0
+
+
+def test_markdown_for_ai(tmp_path):
+    now = T0 + 800 * DAY
+    data, ema = make_dirs(tmp_path, now)
+    rep = report.build(data, ema, "manual", now=now)
+    md = report.to_markdown(rep, "https://x.github.io/scanner/raporty.html")
+    assert md.startswith("# Raport na żądanie")
+    assert f"raporty.html?id={rep['id']}" in md
+    for sec in ("## Rynek", "## Alty", "## Derywaty", "## Likwidacje", "## EMA200", "## Źródła danych i metody"):
+        assert sec in md
+    assert "dziś na " in md and "% zakresu" in md                     # range bars as numbers
+    assert "Linie poziomów: 0.600× = strefa dołków" in md             # chart levels as numbers
+    assert "| Dzień (UTC) | Suma | Longi | Shorty | Udział longów |" in md
+    assert "<" not in md.replace("<=", "")                            # plain text, no HTML
+    out = str(tmp_path / "out")
+    report.save(out, rep, md=md)
+    assert open(os.path.join(out, "latest.md"), encoding="utf-8").read() == md
+    assert os.path.exists(os.path.join(out, "reports", f"{rep['id']}.md"))
+    assert json.load(open(os.path.join(out, "latest.json")))["id"] == rep["id"]
