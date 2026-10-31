@@ -84,23 +84,57 @@
   .chart-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:6px;}
   .chart-legend span::before{content:'';display:inline-block;width:10px;height:3px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:middle;}
 
+  .tbl{width:100%;overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:12px;}
   th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;text-align:right;padding:5px 8px;border-bottom:1px solid var(--border2);font-weight:600;}
   td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);}
   th:first-child,td:first-child{text-align:left;}
   td.pos{color:var(--green);} td.neg{color:var(--red);}
 
+  .sec{font-size:15px;font-weight:600;letter-spacing:-.2px;margin:22px 2px 0;padding-bottom:6px;border-bottom:1px solid var(--border2);}
+  .rng{padding:10px 0;border-bottom:1px solid var(--border);}
+  .rng:last-child{border-bottom:none;padding-bottom:2px;}
+  .rng-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .rng-label{font-size:13px;font-weight:600;}
+  .rng-val{font-family:var(--mono);font-size:15px;font-weight:600;}
+  .rng-sub{font-family:var(--mono);font-size:11px;color:var(--text2);margin-left:8px;font-weight:400;}
+  .rng-track{position:relative;height:8px;border-radius:4px;background:var(--bg3);border:1px solid var(--border2);margin:12px 0 5px;}
+  .rng-dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid var(--bg2);transform:translate(-50%,-50%);z-index:2;}
+  .rng-mark{position:absolute;top:-5px;width:2px;height:16px;transform:translateX(-50%);background:var(--text3);}
+  .rng-mark.ref{background:var(--amber);}
+  .rng-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  .rng-desc{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5;}
+  .rng-legend,.bars-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:8px;}
+  .lg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px;vertical-align:-1px;}
+  .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
+  .lg-mark.ref{background:var(--amber);}
+  .bar-row{display:grid;grid-template-columns:62px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:4px 0;font-size:12px;}
+  .bar-row.cur{border-top:1px dashed var(--border2);margin-top:4px;padding-top:8px;}
+  .bar-label{font-family:var(--mono);color:var(--text2);}
+  .bar-track{position:relative;height:16px;}
+  .bar-fill{position:absolute;top:0;bottom:0;display:flex;border-radius:3px;overflow:hidden;left:0;}
+  .bar-fill span{height:100%;}
+  .bar-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--amber);}
+  .bar-text{font-family:var(--mono);font-size:11px;color:var(--text2);text-align:right;white-space:nowrap;}
+  .chart-lines{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3);margin-top:6px;}
+  .chart-lines span::before{content:'';display:inline-block;width:12px;border-top:2px dashed var(--c);margin-right:5px;vertical-align:middle;}
   .tip{position:fixed;z-index:50;max-width:320px;background:#1d1d1d;border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:11px;line-height:1.55;color:var(--text);display:none;pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.5);}
   .footer{font-size:10px;color:var(--text3);margin-top:18px;line-height:1.6;}
   .print-only{display:none;}
 
   @media (max-width:820px){
     body{padding:14px;}
-    .layout{grid-template-columns:1fr;}
+    .layout{grid-template-columns:minmax(0,1fr);}
+    .rep-meta{word-break:break-word;}
     .side{position:static;max-height:260px;order:2;}
     .facts{grid-template-columns:repeat(2,minmax(0,1fr));}
     .fact-val{font-size:15px;}
     .chart-box{height:240px;}
+    .bar-row{grid-template-columns:52px minmax(0,1fr) 112px;gap:6px;}
+    table{font-size:11px;}
+    th{padding:4px 5px;font-size:9px;}
+    td{padding:5px;}
+    .bar-text{font-size:10px;}
   }
 
   /* ── PDF / druk: jasny motyw, bez menu ── */
@@ -119,6 +153,9 @@
     .legend-print{display:block;margin-top:8px;font-size:9px;color:#555;line-height:1.5;}
     .legend-print b{color:#222;}
     .facts{grid-template-columns:repeat(3,1fr);}
+    .sec{margin-top:14px;font-size:13px;break-after:avoid;page-break-after:avoid;}
+    .rng-dot{border-color:#fff;}
+    .tbl{overflow:visible;}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
 </style>
@@ -264,14 +301,51 @@ function factsBlock(b) {
     ${legend ? `<div class="legend-print">${legend}</div>` : ''}`;
 }
 function tableBlock(b) {
-  const cls = v => /^[+]/.test(v) ? 'pos' : /^-\d/.test(v) ? 'neg' : '';
-  return `<table><thead><tr>${(b.cols || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${(b.rows || []).map(r => `<tr>${r.map(v => `<td class="${cls(String(v))}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^(-\d|▼)/.test(v) ? 'neg' : '';
+  return `<div class="tbl"><table><thead><tr>${(b.cols || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${(b.rows || []).map(r => `<tr>${r.map(v => `<td class="${cls(String(v))}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function chartBlock(b, i) {
   const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
   return `<div class="chart-legend">${lg}</div>
-    <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>`;
+    <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>
+    ${(b.lines || []).length ? `<div class="chart-lines">${b.lines.map(l => `<span style="--c:${esc(l.color)}">${esc(fmt(l.value, (b.series[0] || {}).fmt))} — ${esc(l.label)}</span>`).join('')}</div>` : ''}`;
+}
+function rangesBlock(b) {
+  const items = b.items || [];
+  let hasRef = false, hasMark = false;
+  const rows = items.map(it => {
+    const marks = (it.marks || []).map(m => {
+      if (m.kind === 'ref') hasRef = true; else hasMark = true;
+      return `<div class="rng-mark ${m.kind === 'ref' ? 'ref' : ''}" style="left:${+m.pos}%" data-note="${esc(m.label)}"></div>`;
+    }).join('');
+    return `<div class="rng">
+      <div class="rng-head"><span class="rng-label">${esc(it.label)}</span>
+        <span class="rng-val">${esc(it.value)}<span class="rng-sub">${esc(it.sub || '')}</span></span></div>
+      ${it.pos == null ? '' : `<div class="rng-track">${marks}<div class="rng-dot" style="left:${+it.pos}%" data-note="dziś: ${esc(it.value)}"></div></div>
+      <div class="rng-ends"><span>${esc(it.min || '')}</span><span>${esc(it.max || '')}</span></div>`}
+      ${it.note ? `<div class="rng-desc">${esc(it.note)}</div>` : ''}
+    </div>`;
+  }).join('');
+  const marksLegend = [...new Set(items.flatMap(it => (it.marks || []).filter(m => m.kind !== 'ref').map(m => m.label)))];
+  return rows + `<div class="rng-legend"><span><span class="lg-dot"></span>dziś</span>
+    ${hasRef ? '<span><span class="lg-mark ref"></span>ostatni altseason</span>' : ''}
+    ${hasMark ? marksLegend.map(l => `<span><span class="lg-mark"></span>${esc(l)}</span>`).join('') : ''}</div>`;
+}
+function barsBlock(b) {
+  const rows = b.rows || [], parts = b.parts || [];
+  const tot = r => parts.reduce((a, p) => a + (+r[p.key] || 0), 0);
+  const max = Math.max(1, ...rows.map(tot), b.line && b.line.value ? b.line.value : 0) * 1.04;
+  const body = rows.map(r => {
+    const t = tot(r);
+    const seg = parts.map(p => `<span style="width:${t ? (100 * (+r[p.key] || 0) / t) : 0}%;background:${esc(p.color)}"></span>`).join('');
+    return `<div class="bar-row ${r.current ? 'cur' : ''}"><span class="bar-label">${esc(r.label)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${100 * t / max}%">${seg}</div>
+        ${b.line && b.line.value ? `<div class="bar-line" style="left:${100 * b.line.value / max}%"></div>` : ''}</div>
+      <span class="bar-text">${esc(r.text || '')}</span></div>`;
+  }).join('');
+  return body + `<div class="bars-legend">${parts.map(p => `<span><span class="lg-dot" style="background:${esc(p.color)};border-radius:2px"></span>${esc(p.name)}</span>`).join('')}
+    ${b.line && b.line.value ? `<span><span class="lg-mark ref" style="height:11px"></span>${esc(b.line.label)}</span>` : ''}</div>`;
 }
 function renderBlock(b, i) {
   let body = '';
@@ -279,6 +353,9 @@ function renderBlock(b, i) {
   else if (b.type === 'facts') body = factsBlock(b);
   else if (b.type === 'table') body = tableBlock(b);
   else if (b.type === 'chart') body = (b.series || []).length ? chartBlock(b, i) : '<p class="text">Brak danych do wykresu.</p>';
+  else if (b.type === 'ranges') body = rangesBlock(b);
+  else if (b.type === 'bars') body = barsBlock(b);
+  else if (b.type === 'section') return `<h2 class="sec">${esc(b.title)}</h2>`;
   else return '';
   return `<section class="block ${b.title === 'Uwaga' ? 'warn' : ''}">
     ${b.title ? `<h3>${esc(b.title)}</h3>` : ''}${body}${b.note && b.type !== 'text' ? `<div class="note">${esc(b.note)}</div>` : ''}</section>`;
@@ -313,6 +390,10 @@ function drawChart(b, i) {
     if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
     if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
     ser.setData(s.data.map(([t, v]) => ({time: t, value: v})));
+    if (s === b.series[0]) for (const l of (b.lines || [])) {
+      ser.createPriceLine({price: +l.value, color: l.color || '#888', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
+        axisLabelVisible: true, title: ''});
+    }
   }
   chart.timeScale().fitContent();
   charts.push({chart, i});
