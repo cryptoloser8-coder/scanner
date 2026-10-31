@@ -117,6 +117,38 @@ changes: []
 #    cooldown_hours: 12
 
 # ─────────────────────────────────────────────────────────────
+#  EMA200 (zakładka ema.html) — działa na Orange Pi, dane z Binance spot
+#  Pi czyta ten plik przy każdym uruchomieniu (co 5 min), więc zmiana
+#  alertów działa po commicie, bez wgrywania czegokolwiek na Pi.
+# ─────────────────────────────────────────────────────────────
+ema:
+  period: 200            # długość EMA (świeca dzienna)
+  quote: USDT            # liczymy wszystkie pary */USDT (bez stablecoinów, fiat, złota i tokenów z dźwignią)
+  min_days: 300          # coin musi mieć tyle zamkniętych dni, inaczej EMA jest za mało dokładna (pomijany)
+  min_volume_usd: 0      # pomiń pary z mniejszym obrotem 24h (0 = wszystkie)
+  exclude: []            # dodatkowe coiny do pominięcia, np. [LUNC, USTC]
+  cross_buffer_pct: 0.5  # przecięcie liczy się dopiero po wyjściu o tyle % na drugą stronę (chroni przed „piłą”)
+  cooldown_hours: 12     # po alercie o przecięciu ten sam coin milczy tyle godzin
+  publish_minutes: 15    # jak często Pi odświeża dane na stronie
+  #
+  # ALERTY — dowolnie wiele reguł:
+  #   coins:     lista coinów albo all (uwaga: all = setki coinów, dużo wiadomości)
+  #   cross:     true = alert przy przecięciu EMA
+  #   confirm:   live  = w trakcie dnia (sprawdzane co 5 min, z buforem cross_buffer_pct)
+  #              close = dopiero po zamknięciu świecy dziennej (00:00 UTC), najmniej fałszywych sygnałów
+  #   direction: both | up (tylko przebicie w górę) | down (tylko w dół)
+  #   near_pct:  alert, gdy cena jest bliżej niż X% od EMA (raz; ponownie po oddaleniu na 1,5 × X)
+  alerts:
+    - coins: [BTC, ETH, SOL, XRP, BNB, DOGE, HYPE, SUI]
+      cross: true
+      confirm: live
+      direction: both
+      near_pct: 2
+#    - coins: all
+#      cross: true
+#      confirm: close
+
+# ─────────────────────────────────────────────────────────────
 #  LIKWIDACJE — alert, gdy suma likwidacji w oknie przekroczy próg (USD)
 #
 #  series: liq_total, liq_btc, liq_eth, liq_others (long + short razem),

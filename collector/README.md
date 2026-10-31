@@ -82,6 +82,25 @@ Ustawienia: sekcja `liquidations:` w `config.yaml`. Alerty (domyślnie wyłączo
 
 Diagnostyka (po każdym uruchomieniu) jest w `meta.json` → `info.liquidations`: liczba rynków na giełdę, ile ma dane o likwidacjach, surowy funding BTC per giełda, wykryta jednostka fundingu, giełdy z configu bez rynków.
 
+## EMA200: zakładka `ema.html` (działa na Orange Pi)
+Binance blokuje serwery GitHuba (USA), więc EMA liczy Orange Pi (`collector/ema_monitor.py`, co 5 min z crona):
+- wszystkie pary */USDT ze spotu Binance (bez stablecoinów, fiat, złota i tokenów z dźwignią), które mają co najmniej `min_days` zamkniętych dni (domyślnie 300 — krótsza historia daje niedokładną EMA, takie coiny są pomijane),
+- raz na dobę (pierwsze uruchomienie po 00:00 UTC): świece dzienne (nowe coiny 1000 dni, pozostałe tylko brakujące dni), EMA200, szerokość rynku (% coinów nad EMA200), historia do wykresów,
+- co 5 min: jedno zapytanie o ceny wszystkich coinów → odległość od EMA200 i alerty na Telegram,
+- co ~15 min publikuje dane na gałąź **`ema`** (osobną od `data`), skąd czyta je strona.
+
+Alerty: sekcja `ema: alerts:` w `config.yaml` (przecięcie w trakcie dnia albo po zamknięciu dnia, kierunek, zbliżenie na X%). Pi przy każdym uruchomieniu robi `git pull`, więc zmiany w configu i kodzie działają po commicie.
+
+Instalacja na Pi (jednorazowo):
+1. Token GitHub z `~/.scanner_token` musi mieć dodatkowo **Contents: Read and write** (GitHub → Settings → Developer settings → Fine-grained tokens → token → Edit).
+2. `git clone https://github.com/cryptoloser8-coder/scanner.git ~/scanner`
+3. `python3 -c "import requests, yaml"` — jeśli błąd: `sudo apt install -y python3-requests python3-yaml`
+4. Dane Telegrama w `~/.scanner_env` (chmod 600): `TELEGRAM_BOT_TOKEN=...` i `TELEGRAM_CHAT_ID=...`
+5. Test: `python3 ~/scanner/collector/ema_monitor.py check --test-telegram`
+6. Cron: `*/5 * * * * flock -n /tmp/ema-monitor.lock bash $HOME/scanner/collector/ema_cron.sh >> $HOME/ema-monitor.log 2>&1`
+
+Stan i pobrane świece: `~/.ema-monitor/` (można usunąć — przy następnym uruchomieniu pobierze wszystko od nowa).
+
 ## Uwagi
 - **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.
 - **TradingView** jest pobierane nieoficjalnym protokołem (tym samym co strona TV), bez logowania. Gdy TV coś zmieni, bot przyśle alert „Źródło TradingView nie działa”, a OI będzie zbierane dalej.
