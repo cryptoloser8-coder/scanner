@@ -45,8 +45,9 @@ DEFAULTS = {
     "quote": "USDT",
     "min_days": 300,
     "min_volume_usd": 0,
-    "keep_days": 1500,
-    "breadth_days": 1095,
+    "keep_days": 0,                 # 0 = keep the whole history (from the Binance listing)
+    "breadth_days": 0,              # 0 = whole history
+    "history_pages_per_run": 100,   # older-candle requests per run while the full history is being filled in
     "breadth_min_coins": 10,
     "chart_days": 1000,
     "publish_minutes": 15,
@@ -123,8 +124,11 @@ class Binance:
     def exchange_info(self):
         return self._get("/api/v3/exchangeInfo")
 
-    def klines(self, symbol, limit):
-        return self._get("/api/v3/klines", {"symbol": symbol, "interval": "1d", "limit": int(limit)})
+    def klines(self, symbol, limit, end_ms=None):
+        params = {"symbol": symbol, "interval": "1d", "limit": int(limit)}
+        if end_ms is not None:
+            params["endTime"] = int(end_ms)
+        return self._get("/api/v3/klines", params)
 
     def prices(self):
         return {r["symbol"]: float(r["price"]) for r in self._get("/api/v3/ticker/price")}
@@ -167,7 +171,8 @@ def closed_candles(rows, now):
 def merge(old, new, keep):
     d = {t: c for t, c in old or []}
     d.update({t: c for t, c in new})
-    return sorted(d.items())[-keep:]
+    out = sorted(d.items())
+    return out[-keep:] if keep else out
 
 
 def ema_series(closes, period):
@@ -311,7 +316,7 @@ def compute(candles, sym_base, prices, vols, cfg, rules):
 def breadth(series, cfg, now):
     """% of coins (with ≥ min_days of history at that day) closing above their EMA, per day."""
     min_days = int(cfg["min_days"])
-    start = now - now % DAY - int(cfg["breadth_days"]) * DAY
+    start = now - now % DAY - int(cfg["breadth_days"]) * DAY if int(cfg.get("breadth_days") or 0) else 0
     cnt, above = {}, {}
     for times, closes, emas in series.values():
         for i in range(min_days - 1, len(times)):
@@ -459,6 +464,32 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         log.info("Dzienne odświeżenie: %d par, pobrano świece dla %d", len(sym_base), fetched)
     sym_base = st["symbols"]
 
+    # fill in older candles (back to the Binance listing), a limited number of requests per run
+    backfilled = 0
+    if not check_only and int(cfg.get("history_pages_per_run") or 0) > 0:
+        full = set(st.get("full_hist") or [])
+        todo = [s for s in sorted(sym_base) if s not in full and candles.get(s)]
+        if todo:
+            log.info("Starsza historia: zostało %d par, w tym uruchomieniu do %d paczek",
+                     len(todo), int(cfg["history_pages_per_run"]))
+        for sym in todo[:int(cfg["history_pages_per_run"])]:
+            first = candles[sym][0][0]
+            try:
+                rows = cl.klines(sym, 1000, end_ms=first * 1000 - 1)
+            except Exception as e:  # noqa: BLE001
+                log.warning("%s (starsza historia): %s", sym, e)
+                continue
+            older = closed_candles(rows, now)
+            if older:
+                candles[sym] = merge(older, candles[sym], int(cfg["keep_days"]))
+                backfilled += 1
+            if len(rows) < 1000:
+                full.add(sym)          # reached the listing date
+        st["full_hist"] = sorted(full & set(sym_base))
+        info["history_done"] = f"{len(st['full_hist'])}/{len(sym_base)}"
+        if backfilled:
+            log.info("Starsza historia: dopisano %d paczek, kompletne %s", backfilled, info["history_done"])
+
     prices = cl.prices()
     rows, excluded, series = compute(candles, sym_base, prices, st.get("volumes") or {}, cfg, cfg["alerts"])
 
@@ -474,7 +505,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             tg.send("\n".join([header, ""] + msgs[i:i + 25]))
 
     above = sum(1 for r in rows if r["d"] >= 0)
-    br = breadth(series, cfg, now) if daily_due or not st.get("breadth") else st["breadth"]
+    br = breadth(series, cfg, now) if daily_due or backfilled or not st.get("breadth") else st["breadth"]
     st["breadth"] = br
     payload = {
         "updated": now, "daily_at": st.get("daily_day"), "period": int(cfg["period"]),
@@ -483,16 +514,22 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "coins": [{k: (_round(v) if isinstance(v, float) else v) for k, v in r.items()} for r in rows],
         "excluded": excluded, "breadth": br,
         "rules": cfg["alerts"], "near_default": None,
+        "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
     }
     info.update({"pairs": len(sym_base), "coins": len(rows), "excluded": len(excluded), "above": above,
                  "alerts_sent": 0 if check_only else len(msgs), "calls": cl.calls})
 
     if not check_only:
-        _write(cpath, candles)
+        if daily_due or backfilled:      # candles change only once a day (or while filling in history)
+            _write(cpath, candles)
         due = daily_due or now - st.get("published_at", 0) >= float(cfg["publish_minutes"]) * 60 - 30
+        if backfilled:
+            st["hist_dirty"] = True              # EMA changed (longer warm-up) → rewrite chart files
         if publish and due:
             pub = os.path.join(state_dir, "pub")
-            write_outputs(pub, payload, series, cfg, write_hist=daily_due or not os.path.isdir(os.path.join(pub, "hist")))
+            write_hist = daily_due or st.get("hist_dirty") or not os.path.isdir(os.path.join(pub, "hist"))
+            write_outputs(pub, payload, series, cfg, write_hist=write_hist)
+            st["hist_dirty"] = False
             if remote:
                 try:
                     git_publish(pub, remote, cfg["branch"], run=git)
