@@ -205,3 +205,12 @@ def test_breadth_counts_only_coins_with_enough_history():
 def test_fmt_price_small_values():
     assert E.fmt_price(0.00002191) == "$0.00002191"
     assert E.fmt_price(0.9147) == "$0.9147" and E.fmt_price(124.2) == "$124.20" and E.fmt_price(95957) == "$95,957"
+
+
+def test_wrapped_and_pegged_tokens_excluded_even_before_daily_refresh():
+    info = {"symbols": [{"symbol": f"{b}USDT", "baseAsset": b, "quoteAsset": "USDT", "status": "TRADING"}
+                        for b in ("BTC", "WBTC", "BNSOL", "KGST")]}
+    assert set(E.universe(info, cfg())) == {"BTCUSDT"}
+    candles = {f"{b}USDT": [[i * D, 1.0] for i in range(400)] for b in ("BTC", "WBTC")}
+    rows, _, _ = E.compute(candles, {"BTCUSDT": "BTC", "WBTCUSDT": "WBTC"}, {}, {}, cfg(), [])
+    assert [r["s"] for r in rows] == ["BTC"]
