@@ -116,7 +116,7 @@ def test_first_run_check_and_publish(tmp_path):
     assert next(c for c in pub["coins"] if c["s"] == "JUP")["alert"] is None
     assert pub["breadth"] and 0 <= pub["breadth"][-1][1] <= 100
     hist = json.load(open(tmp_path / "st" / "pub" / "hist" / "AAA.json"))
-    assert len(hist["d"]) == 1000 and len(hist["d"][0]) == 3
+    assert len(hist["d"]) == 1999 and len(hist["d"][0]) == 3   # whole history in the chart file
     # same day again: no candle requests, only prices
     fb2 = FakeBinance(now=NOW + 300)
     E.run(cfg(), st, now=NOW + 300, client=fb2, telegram=tg, remote=None)
