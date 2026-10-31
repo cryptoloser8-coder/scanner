@@ -193,3 +193,17 @@ def test_markdown_for_ai(tmp_path):
     assert open(os.path.join(out, "latest.md"), encoding="utf-8").read() == md
     assert os.path.exists(os.path.join(out, "reports", f"{rep['id']}.md"))
     assert json.load(open(os.path.join(out, "latest.json")))["id"] == rep["id"]
+
+
+def test_backfill_md_for_older_reports(tmp_path):
+    now = T0 + 800 * DAY
+    data, ema = make_dirs(tmp_path, now)
+    out = str(tmp_path / "out")
+    old = report.build(data, ema, "test", now=now - 3600)
+    report.save(out, old)                                            # made before the AI text existed: no .md
+    assert not os.path.exists(os.path.join(out, "reports", f"{old['id']}.md"))
+    new = report.build(data, ema, "manual", now=now)
+    report.save(out, new, md=report.to_markdown(new), page_url="https://x/raporty.html")
+    text = open(os.path.join(out, "reports", f"{old['id']}.md"), encoding="utf-8").read()
+    assert text.startswith("# Raport testowy") and f"raporty.html?id={old['id']}" in text
+    assert open(os.path.join(out, "latest.md"), encoding="utf-8").read().startswith("# Raport na żądanie")
