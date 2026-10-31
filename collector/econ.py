@@ -5,7 +5,8 @@
                                   "actual", "forecast", "previous", "unit", "scale", "period", "source", …}]}
 
 Only medium and high importance (≈ 2 and 3 stars). A report shows the releases of the last US day that had any
-(evening report: today's results; morning report: the same results again as a reminder; Monday morning: Friday).
+(evening report: today's results; morning report: the same results again as a reminder; Monday morning: Friday)
+and the plan of the next US day with scheduled releases (evening: tomorrow; morning: today; Friday evening: Monday).
 All numbers come from the calendar; nothing is interpreted.
 """
 import logging
@@ -23,7 +24,7 @@ HEADERS = {"Origin": "https://www.tradingview.com", "Referer": "https://www.trad
            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"}
 STARS = {0: "★★", 1: "★★★"}
 IMPORTANCE = {"low": -1, "medium": 0, "high": 1}
-DEFAULTS = {"enabled": True, "countries": ["US"], "min_importance": "medium", "days_back": 5}
+DEFAULTS = {"enabled": True, "countries": ["US"], "min_importance": "medium", "days_back": 5, "days_ahead": 5}
 NY = "America/New_York"
 WEEKDAYS = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 
@@ -43,7 +44,7 @@ def fetch(now_ts, cfg=None, session=None, timeout=20):
     import requests
     st = settings(cfg)
     now = datetime.fromtimestamp(now_ts, timezone.utc)
-    params = {"from": _iso(now - timedelta(days=int(st["days_back"]))), "to": _iso(now + timedelta(hours=1)),
+    params = {"from": _iso(now - timedelta(days=int(st["days_back"]))), "to": _iso(now + timedelta(days=int(st["days_ahead"]))),
               "countries": ",".join(c.upper() for c in st["countries"])}
     r = (session or requests).get(URL, params=params, headers=HEADERS, timeout=timeout)
     r.raise_for_status()
@@ -64,10 +65,11 @@ def _ts(ev):
     return dt.timestamp()
 
 
-def last_day(events, now_ts, cfg=None):
-    """(US date, [events]) — releases of the latest New York calendar day (≤ now) with medium/high events."""
+def _by_day(events, cfg):
+    """{New York date: [events]} for the configured countries and importance."""
     st = settings(cfg)
     lvl = IMPORTANCE.get(str(st["min_importance"]).lower(), 0)
+    countries = [c.upper() for c in st["countries"] or []]
     ny = ZoneInfo(NY)
     days = {}
     for ev in events:
@@ -75,16 +77,37 @@ def last_day(events, now_ts, cfg=None):
             ts = _ts(ev)
         except (ValueError, TypeError):
             continue
-        if ts > now_ts or (ev.get("importance") if ev.get("importance") is not None else -9) < lvl:
+        imp = ev.get("importance")
+        if imp is None or imp < lvl:
             continue
-        if st["countries"] and str(ev.get("country") or "").upper() not in [c.upper() for c in st["countries"]]:
+        if countries and str(ev.get("country") or "").upper() not in countries:
             continue
-        day = datetime.fromtimestamp(ts, ny).date()
-        days.setdefault(day, []).append(dict(ev, _ts=ts))
+        days.setdefault(datetime.fromtimestamp(ts, ny).date(), []).append(dict(ev, _ts=ts))
+    return days
+
+
+def _sorted(evs):
+    return sorted(evs, key=lambda e: (e["_ts"], -(e.get("importance") or 0), e.get("title") or ""))
+
+
+def last_day(events, now_ts, cfg=None):
+    """(US date, [events]) — releases of the latest New York calendar day (≤ now) with medium/high events."""
+    days = {d: [e for e in evs if e["_ts"] <= now_ts] for d, evs in _by_day(events, cfg).items()}
+    days = {d: evs for d, evs in days.items() if evs}
     if not days:
         return None, []
     day = max(days)
-    return day, sorted(days[day], key=lambda e: (e["_ts"], -(e.get("importance") or 0), e.get("title") or ""))
+    return day, _sorted(days[day])
+
+
+def next_day(events, now_ts, cfg=None):
+    """(US date, [events]) — scheduled releases of the next New York calendar day (> now) that has any."""
+    days = {d: [e for e in evs if e["_ts"] > now_ts] for d, evs in _by_day(events, cfg).items()}
+    days = {d: evs for d, evs in days.items() if evs}
+    if not days:
+        return None, []
+    day = min(days)
+    return day, _sorted(days[day])
 
 
 def fmt_num(v, ev, sign=False):
@@ -122,27 +145,53 @@ def pl_hm(ts):
     return datetime.fromtimestamp(ts, ZoneInfo("Europe/Warsaw")).strftime("%H:%M")
 
 
+def _when(day, now_ts):
+    ny_today = datetime.fromtimestamp(now_ts, ZoneInfo(NY)).date()
+    if day == ny_today:
+        return "dziś"
+    if day == ny_today - timedelta(days=1):
+        return "wczoraj"
+    if day == ny_today + timedelta(days=1):
+        return "jutro"
+    return WEEKDAYS[day.weekday()]
+
+
+def _name(ev):
+    return f"{ev.get('title', '')}" + (f" ({ev['period']})" if ev.get("period") else "")
+
+
 def block(events, now_ts, cfg=None, error=None):
-    """Report blocks for the 'Dane z USA' section."""
+    """Report blocks for the 'Dane makro z USA' section: last day's results + next day's plan."""
     head = {"type": "section", "title": "Dane makro z USA"}
     if error:
         return [head, {"type": "text", "title": "", "text": f"Kalendarz ekonomiczny niedostępny ({error}). Reszta raportu bez zmian."}]
+    st = settings(cfg)
+    out = [head]
     day, evs = last_day(events or [], now_ts, cfg)
-    if not evs:
-        return [head, {"type": "text", "title": "", "text": "Brak publikacji o średniej i wysokiej ważności w ostatnich dniach."}]
-    rows = []
-    for ev in evs:
-        period = f" ({ev['period']})" if ev.get("period") else ""
-        rows.append([pl_hm(ev["_ts"]), f"{ev.get('title', '')}{period}", STARS.get(ev.get("importance"), ""),
-                     fmt_num(ev.get("actual"), ev), fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev),
-                     diff_text(ev)])
-    ny_today = datetime.fromtimestamp(now_ts, ZoneInfo(NY)).date()
-    when = "dziś" if day == ny_today else ("wczoraj" if day == ny_today - timedelta(days=1) else WEEKDAYS[day.weekday()])
-    return [head, {"type": "table", "title": f"Publikacje z USA — {when}, {day.strftime('%d.%m.%Y')}",
-                   "cols": ["Godz. PL", "Publikacja", "Ważność", "Wynik", "Prognoza", "Poprzednio", "Wynik − prognoza"],
-                   "rows": rows, "plain": True, "left": [1],
-                   "desc": "Dane makro z USA o średniej (★★) i wysokiej (★★★) ważności z ostatniego dnia publikacji. "
-                           "Wieczorem — wyniki z dzisiaj; rano — te same wyniki jako przypomnienie.",
-                   "note": "Źródło: kalendarz ekonomiczny TradingView (ważność według TradingView: średnia = ★★, wysoka = ★★★). "
-                           "Prognoza = oczekiwanie rynku przed publikacją. Godziny w czasie polskim. "
-                           "Wystąpienia (np. przemówienia z Fed) nie mają liczb."}]
+    if evs:
+        rows = [[pl_hm(ev["_ts"]), _name(ev), STARS.get(ev.get("importance"), ""), fmt_num(ev.get("actual"), ev),
+                 fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev), diff_text(ev)] for ev in evs]
+        out.append({"type": "table", "title": f"Publikacje z USA — {_when(day, now_ts)}, {day.strftime('%d.%m.%Y')}",
+                    "cols": ["Godz. PL", "Publikacja", "Ważność", "Wynik", "Prognoza", "Poprzednio", "Wynik − prognoza"],
+                    "rows": rows, "plain": True, "left": [1],
+                    "desc": "Dane makro z USA o średniej (★★) i wysokiej (★★★) ważności z ostatniego dnia publikacji. "
+                            "Wieczorem — wyniki z dzisiaj; rano — te same wyniki jako przypomnienie.",
+                    "note": "Źródło: kalendarz ekonomiczny TradingView (ważność według TradingView: średnia = ★★, wysoka = ★★★). "
+                            "Prognoza = oczekiwanie rynku przed publikacją. Godziny w czasie polskim. "
+                            "Wystąpienia (np. przemówienia z Fed) nie mają liczb."})
+    else:
+        out.append({"type": "text", "title": "", "text": "Brak publikacji o średniej i wysokiej ważności w ostatnich dniach."})
+    nday, nevs = next_day(events or [], now_ts, cfg)
+    if nevs:
+        rows = [[pl_hm(ev["_ts"]), _name(ev), STARS.get(ev.get("importance"), ""),
+                 fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev)] for ev in nevs]
+        out.append({"type": "table", "title": f"Zaplanowane — {_when(nday, now_ts)}, {nday.strftime('%d.%m.%Y')}",
+                    "cols": ["Godz. PL", "Publikacja", "Ważność", "Prognoza", "Poprzednio"],
+                    "rows": rows, "plain": True, "left": [1],
+                    "desc": "Co i o której wyjdzie w najbliższym dniu z publikacjami ★★ i ★★★ "
+                            "(wieczorem — jutro, rano — dziś, w piątek wieczorem — poniedziałek).",
+                    "note": "Godziny w czasie polskim, według kalendarza TradingView; terminy i prognozy mogą się jeszcze zmienić."})
+    else:
+        out.append({"type": "text", "title": "Zaplanowane",
+                    "text": f"Brak zaplanowanych publikacji ★★ i ★★★ w najbliższych {st['days_ahead']} dniach."})
+    return out

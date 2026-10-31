@@ -127,6 +127,7 @@ reports:
     countries: [US]
     min_importance: medium  # medium = ★★ i ★★★, high = tylko ★★★
     days_back: 5            # ile dni wstecz szukać ostatniego dnia z publikacjami (poniedziałek rano → piątek)
+    days_ahead: 5           # ile dni naprzód szukać najbliższego dnia z zaplanowanymi publikacjami
   lines:                    # linie poziomów na wykresach: [poziom, opis]
     oi_others_vs_btc:
       - [0.60, "strefa dołków"]
