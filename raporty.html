@@ -61,11 +61,12 @@
   .btn.primary:hover{background:rgba(91,156,246,.25);}
 
   .block{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;margin-top:12px;break-inside:avoid;page-break-inside:avoid;}
-  .block h3{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:9px;}
+  .block h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;}
   .block p.text{font-size:13px;line-height:1.6;color:var(--text);}
   .block.warn{border-color:rgba(255,193,7,.3);}
   .block.warn h3{color:var(--amber);}
-  .block .note{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+  .block .note{font-size:11.5px;color:var(--text2);margin-top:8px;line-height:1.6;}
+  .block .desc{font-size:13px;color:var(--text);line-height:1.55;margin:-2px 0 10px;}
 
   .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
   .fact{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:9px 11px;min-width:0;}
@@ -103,7 +104,7 @@
   .rng-mark{position:absolute;top:-5px;width:2px;height:16px;transform:translateX(-50%);background:var(--text3);}
   .rng-mark.ref{background:var(--amber);}
   .rng-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);}
-  .rng-desc{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5;}
+  .rng-desc{font-size:13px;color:var(--text2);margin-top:4px;line-height:1.5;}
   .rng-legend,.bars-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:8px;}
   .lg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px;vertical-align:-1px;}
   .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
@@ -116,7 +117,7 @@
   .bar-fill span{height:100%;}
   .bar-line{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--amber);}
   .bar-text{font-family:var(--mono);font-size:11px;color:var(--text2);text-align:right;white-space:nowrap;}
-  .chart-lines{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--text3);margin-top:6px;}
+  .chart-lines{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text2);margin-top:6px;}
   .chart-lines span::before{content:'';display:inline-block;width:12px;border-top:2px dashed var(--c);margin-right:5px;vertical-align:middle;}
   .tip{position:fixed;z-index:50;max-width:320px;background:#1d1d1d;border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:11px;line-height:1.55;color:var(--text);display:none;pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.5);}
   .footer{font-size:10px;color:var(--text3);margin-top:18px;line-height:1.6;}
@@ -147,6 +148,8 @@
     .layout{display:block;}
     .print-only{display:block;}
     .block{margin-top:8px;}
+    .block .desc{font-size:11px;}
+    .block .note{font-size:9.5px;}
     .chart-box{height:auto;}
     .chart-box .c{display:none;}
     .chart-img{display:block;}
@@ -358,7 +361,7 @@ function renderBlock(b, i) {
   else if (b.type === 'section') return `<h2 class="sec">${esc(b.title)}</h2>`;
   else return '';
   return `<section class="block ${b.title === 'Uwaga' ? 'warn' : ''}">
-    ${b.title ? `<h3>${esc(b.title)}</h3>` : ''}${body}${b.note && b.type !== 'text' ? `<div class="note">${esc(b.note)}</div>` : ''}</section>`;
+    ${b.title ? `<h3>${esc(b.title)}</h3>` : ''}${b.desc ? `<p class="desc">${esc(b.desc)}</p>` : ''}${body}${b.note && b.type !== 'text' ? `<div class="note">${esc(b.note)}</div>` : ''}</section>`;
 }
 
 const DARK = {layout: {textColor: '#888'}, grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
