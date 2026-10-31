@@ -8,6 +8,11 @@ on:
         type: choice
         options: [run, backfill]
         default: run
+      report:
+        description: "Po skanie zbuduj raport (none = bez raportu). Uruchamia to Orange Pi wg harmonogramu."
+        type: choice
+        options: [none, morning, evening, manual, test]
+        default: none
 
 permissions:
   contents: write
@@ -50,3 +55,12 @@ jobs:
         env:
           REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
         run: bash collector/publish.sh data-branch "$REMOTE"
+
+  # raport zaraz po świeżych danych (harmonogram w config.yaml → schedule, uruchamia Orange Pi)
+  report:
+    needs: collect
+    if: ${{ always() && inputs.mode != 'backfill' && inputs.report != '' && inputs.report != 'none' }}
+    uses: ./.github/workflows/report.yml
+    with:
+      kind: ${{ inputs.report }}
+    secrets: inherit

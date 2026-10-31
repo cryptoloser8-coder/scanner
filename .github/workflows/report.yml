@@ -2,8 +2,11 @@ name: Raport
 
 # Buduje raport z gałęzi data (OI, TOTAL, likwidacje) i ema (EMA200, Fibo),
 # publikuje go na gałęzi reports (czyta ją zakładka raporty.html)
-# i wysyła na Telegram powiadomienie z linkiem.
-# Uruchamianie: Actions → Raport → Run workflow (później także z Orange Pi).
+# i wysyła na Telegram powiadomienie z linkiem (do wątku grupy, jeśli ustawiony).
+# Uruchamianie:
+#   - automatycznie: OI Monitor po skanie (harmonogram w config.yaml → schedule, wyzwala Orange Pi),
+#   - z Telegrama: /raport_teraz,
+#   - ręcznie: Actions → Raport → Run workflow.
 
 on:
   workflow_dispatch:
@@ -11,20 +14,24 @@ on:
       kind:
         description: "Rodzaj raportu"
         type: choice
-        options: [test, daily, manual]
-        default: test
+        options: [manual, morning, evening, test]
+        default: manual
+  workflow_call:
+    inputs:
+      kind:
+        type: string
+        default: manual
 
 permissions:
   contents: write
-
-concurrency:
-  group: report
-  cancel-in-progress: false
 
 jobs:
   report:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: report
+      cancel-in-progress: false
     env:
       REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
     steps:
@@ -46,7 +53,7 @@ jobs:
           rm -rf reports-branch/.git
 
       - name: Zbuduj raport
-        run: python collector/report.py make --kind "${{ inputs.kind || 'test' }}" --data data-branch --ema ema-branch --out reports-branch
+        run: python collector/report.py make --kind "${{ inputs.kind || 'manual' }}" --data data-branch --ema ema-branch --out reports-branch
 
       - name: Opublikuj raport (gałąź reports)
         env:
@@ -59,5 +66,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          REPORT_PAGE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/raporty.html
         run: python collector/report.py notify --out reports-branch
