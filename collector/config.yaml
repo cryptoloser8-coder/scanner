@@ -160,6 +160,13 @@ ema:
 # ─────────────────────────────────────────────────────────────
 fib:
   near_pct: 2            # alert „zbliża się”, gdy cena jest bliżej niż 2% od strefy
+  # Propozycje (automat, tylko na stronie): główny ruch w oknach 30/90/365 dni
+  proposals:
+    windows: [30, 90, 365]
+    min_move_pct: 8      # ruch co najmniej 8%…
+    vol_mult: 4          # …i co najmniej 4× typowy dzienny zakres coina (BTC i memecoiny traktowane uczciwie)
+    near_pct: 5          # pokazuj, gdy cena jest w strefie albo bliżej niż 5% od niej
+    max: 60
   setups: []
 #    - coin: SOL
 #      high: 250

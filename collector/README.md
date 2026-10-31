@@ -108,6 +108,8 @@ Dodawanie setupów:
 - z Telegrama (bot odpowiada w ciągu ~5 min): `/fib SOL 250 120 long opis`, `/fiby`, `/usun 3`, `/pomoc` — działa tylko z czatu `TELEGRAM_CHAT_ID`; setupy zapisuje Pi (`~/.ema-monitor/state.json`),
 - na stałe w `config.yaml`, sekcja `fib: setups:` (id c1, c2…).
 
+Propozycje (automat, tylko na stronie): raz dziennie dla każdego coina z listy EMA200 bot bierze główny ruch (najniższy dołek i najwyższy szczyt z knotów) w oknach 1M, 3M i 1R; ruch musi mieć ≥ `min_move_pct` i ≥ `vol_mult` × typowy dzienny zakres coina. Strona pokazuje te, gdzie cena jest w strefie albo bliżej niż `near_pct` (domyślnie 5%), z przyciskiem „Kopiuj” (gotowa komenda `/fib …`). Ustawienia: `fib: proposals:` w `config.yaml`. Pi przechowuje szczyty i dołki ostatnich ~400 dni w `~/.ema-monitor/hl.json`.
+
 Uwaga: komendy odbiera Pi przez `getUpdates`. Jeśli ten sam token bota używa inny program z webhookiem albo `getUpdates`, komendy będą się gubić — wtedy użyj osobnego bota.
 
 ## Uwagi

@@ -302,3 +302,75 @@ def publish_rows(setups, hist_coins):
                      "price": ev.get("price"), "status": ev.get("status"), "dist": ev.get("dist"),
                      "chart": s["coin"] in hist_coins})
     return rows
+
+
+# ── automatic proposals (shown on the page only) ─────────────
+PROPOSAL_DEFAULTS = {"windows": [30, 90, 365], "min_move_pct": 8.0, "vol_mult": 4.0,
+                     "near_pct": 5.0, "max": 60, "hl_days": 400}
+WINDOW_NAME = {30: "1M", 90: "3M", 365: "1R"}
+
+
+def daily_vol_pct(hl, n=30):
+    """Median daily range (high−low)/low in % over the last n days."""
+    xs = sorted((h - l_) / l_ * 100 for _, h, l_ in hl[-n:] if l_ > 0)
+    return xs[len(xs) // 2] if xs else None
+
+
+def candidates(coin, hl, pcfg):
+    """Main move in each window → list of raw candidates (status computed later with the live price).
+
+    hl: [[t, high, low], ...] closed daily candles, oldest first.
+    """
+    out = []
+    if len(hl) < 20:
+        return out
+    dvol = daily_vol_pct(hl)
+    if not dvol:
+        return out
+    need = max(float(pcfg["min_move_pct"]), float(pcfg["vol_mult"]) * dvol)
+    seen = {}
+    for w in pcfg["windows"]:
+        win = hl[-int(w):]
+        if len(win) < min(int(w), 20):
+            continue
+        i_hi = max(range(len(win)), key=lambda i: win[i][1])
+        i_lo = min(range(len(win)), key=lambda i: win[i][2])
+        hi, lo = win[i_hi][1], win[i_lo][2]
+        if lo <= 0 or i_hi == i_lo:
+            continue
+        move = (hi / lo - 1) * 100
+        if move < need:
+            continue
+        d = "long" if i_lo < i_hi else "short"
+        key = (round(hi, 12), round(lo, 12), d)
+        name = WINDOW_NAME.get(int(w), f"{int(w)}d")
+        if key in seen:
+            seen[key]["win"] += "/" + name
+            continue
+        c = {"coin": coin, "dir": d, "high": hi, "low": lo, "t_high": win[i_hi][0], "t_low": win[i_lo][0],
+             "win": name, "move": move, "dvol": dvol}
+        seen[key] = c
+        out.append(c)
+    return out
+
+
+def proposals(cands, prices, pcfg):
+    """Live status for raw candidates → only those in the zone or approaching it (≤ near_pct), sorted."""
+    near = float(pcfg["near_pct"])
+    out = []
+    for c in cands:
+        p = prices.get(c["coin"])
+        if p is None:
+            continue
+        ev = evaluate(c, p, near)
+        if ev["status"] not in ("zone", "near"):
+            continue
+        out.append(dict(c, **{k: ev[k] for k in ("l705", "l75", "l786", "price", "status", "dist")}))
+    out.sort(key=lambda r: (0 if r["status"] == "zone" else 1, abs(r["dist"] or 0)))
+    return out[:int(pcfg["max"])]
+
+
+def command_for(p):
+    def num(v):
+        return f"{v:.6g}"
+    return f"/fib {p['coin']} {num(p['high'])} {num(p['low'])} {p['dir']} auto {p['win']}"

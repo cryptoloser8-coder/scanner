@@ -169,11 +169,22 @@ def closed_candles(rows, now):
     return out
 
 
+def closed_hl(rows, now):
+    """Binance klines → [[t_open_s, high, low], ...] (closed candles only)."""
+    return [[int(k[0]) // 1000, float(k[2]), float(k[3])] for k in rows or [] if int(k[6]) < now * 1000]
+
+
 def merge(old, new, keep):
     d = {t: c for t, c in old or []}
     d.update({t: c for t, c in new})
     out = sorted(d.items())
     return out[-keep:] if keep else out
+
+
+def _merge_hl(old, new, keep):
+    d = {t: (h, l_) for t, h, l_ in old or []}
+    d.update({t: (h, l_) for t, h, l_ in new})
+    return [[t, h, l_] for t, (h, l_) in sorted(d.items())][-keep:]
 
 
 def ema_series(closes, period):
@@ -396,7 +407,10 @@ def load_cfg(path):
     cfg.update(full.get("ema") or {})
     cfg["alerts"] = cfg.get("alerts") or []
     fcfg = full.get("fib") or {}
-    cfg["fib"] = {"near_pct": float(fcfg.get("near_pct", 2) or 2), "setups": fcfg.get("setups") or []}
+    pcfg = dict(F.PROPOSAL_DEFAULTS)
+    pcfg.update(fcfg.get("proposals") or {})
+    cfg["fib"] = {"near_pct": float(fcfg.get("near_pct", 2) or 2), "setups": fcfg.get("setups") or [],
+                  "proposals": pcfg}
     return cfg
 
 
@@ -427,6 +441,10 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     cpath, spath = os.path.join(state_dir, "candles.json"), os.path.join(state_dir, "state.json")
     candles = _read(cpath, {})
     st = _read(spath, {})
+    hlpath = os.path.join(state_dir, "hl.json")
+    hld = _read(hlpath, {})
+    hl_days = int((cfg.get("fib") or {}).get("proposals", F.PROPOSAL_DEFAULTS).get("hl_days", 400))
+    hl_changed = False
     cl = client or Binance()
     today = now - now % DAY
     info = {}
@@ -438,6 +456,9 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         st["symbols"] = sym_base
         for k in [k for k in candles if k not in sym_base]:
             del candles[k]
+        for k in [k for k in hld if k not in sym_base]:
+            del hld[k]
+            hl_changed = True
         fetched = 0
         log.info("Pobieram świece dzienne dla %d par (pierwszy raz trwa kilka minut)…", len(sym_base))
         for n_sym, sym in enumerate(sorted(sym_base), 1):
@@ -452,11 +473,15 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             else:
                 limit = 1000
             try:
-                new = closed_candles(cl.klines(sym, limit), now)
+                rows_k = cl.klines(sym, limit)
             except Exception as e:  # noqa: BLE001
                 log.warning("%s: %s", sym, e)
                 continue
+            new = closed_candles(rows_k, now)
             candles[sym] = merge(old, new, int(cfg["keep_days"]))
+            if sym in hld or not old:            # known coin (or brand-new one): extend high/low too
+                hld[sym] = _merge_hl(hld.get(sym), closed_hl(rows_k, now), hl_days)
+                hl_changed = True
             fetched += 1
         try:
             st["volumes"] = cl.volumes()
@@ -493,6 +518,19 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         if backfilled:
             log.info("Starsza historia: dopisano %d paczek, kompletne %s", backfilled, info["history_done"])
 
+    # high/low of the last ~hl_days days for Fibo proposals (one request per coin, capped per run)
+    if not check_only:
+        need = [s for s in sorted(sym_base) if candles.get(s) and len(candles[s]) >= int(cfg["min_days"])
+                and len(hld.get(s) or []) < min(hl_days, len(candles[s])) - 2]
+        for sym in need[:int(cfg.get("history_pages_per_run") or 100)]:
+            try:
+                hld[sym] = _merge_hl(hld.get(sym), closed_hl(cl.klines(sym, min(1000, hl_days + 2)), now), hl_days)
+                hl_changed = True
+            except Exception as e:  # noqa: BLE001
+                log.warning("%s (high/low): %s", sym, e)
+        if need:
+            info["hl_missing"] = max(0, len(need) - int(cfg.get("history_pages_per_run") or 100))
+
     prices = cl.prices()
     rows, excluded, series = compute(candles, sym_base, prices, st.get("volumes") or {}, cfg, cfg["alerts"])
 
@@ -522,6 +560,19 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     setups = cfg_setups + (st.get("fib_user") or [])
     fmsgs = F.check(setups, fprices, st.setdefault("fib_state", {}), fcfg["near_pct"], arm_only=check_only)
 
+    # automatic Fibo proposals: raw candidates once a day (or when high/low data changed), live status every run
+    pcfg = fcfg.get("proposals") or F.PROPOSAL_DEFAULTS
+    listed = {r["s"]: r["sym"] for r in rows}
+    if daily_due or hl_changed or "fib_cands" not in st:
+        cands = []
+        for base, sym in listed.items():
+            cands += F.candidates(base, hld.get(sym) or [], pcfg)
+        st["fib_cands"] = cands
+    props = F.proposals(st.get("fib_cands") or [], {r["s"]: r["p"] for r in rows}, pcfg)
+    for pr in props:
+        pr["cmd"] = F.command_for(pr)
+        pr["chart"] = pr["coin"] in series
+
     if (msgs or fmsgs) and not check_only:
         tg = telegram or alerts.Telegram()
         if msgs:
@@ -544,7 +595,9 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
     }
     fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
-                   "setups": F.publish_rows(setups, set(series))}
+                   "setups": F.publish_rows(setups, set(series)),
+                   "proposals": [{k: (_round(v) if isinstance(v, float) else v) for k, v in pr.items()} for pr in props],
+                   "proposal_cfg": pcfg, "candidates": len(st.get("fib_cands") or [])}
     info.update({"pairs": len(sym_base), "coins": len(rows), "excluded": len(excluded), "above": above,
                  "alerts_sent": 0 if check_only else len(msgs) + len(fmsgs), "calls": cl.calls,
                  "fib_setups": len(setups)})
@@ -552,6 +605,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     if not check_only:
         if daily_due or backfilled:      # candles change only once a day (or while filling in history)
             _write(cpath, candles)
+        if hl_changed:
+            _write(hlpath, hld)
         due = daily_due or now - st.get("published_at", 0) >= float(cfg["publish_minutes"]) * 60 - 30
         if backfilled:
             st["hist_dirty"] = True              # EMA changed (longer warm-up) → rewrite chart files
