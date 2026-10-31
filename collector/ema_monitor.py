@@ -63,7 +63,9 @@ DEFAULTS = {
 ALWAYS_EXCLUDE = {
     "USDT", "USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USDE", "PYUSD", "USD1", "RLUSD", "BFUSD",
     "XUSD", "USDS", "AEUR", "EURI", "EUR", "GBP", "AUD", "BRL", "TRY", "JPY", "PLN", "RON", "ZAR", "UAH",
-    "ARS", "MXN", "COP", "CZK", "PAXG", "XAUT",
+    "ARS", "MXN", "COP", "CZK", "KGST", "PAXG", "XAUT",
+    # wrapped / staked copies of other coins (would double-count BTC, ETH, SOL…)
+    "WBTC", "WBETH", "BETH", "BNSOL", "STETH", "WSTETH", "CBBTC",
 }
 LEVERAGED = ("UP", "DOWN", "BULL", "BEAR")
 
@@ -275,7 +277,10 @@ def compute(candles, sym_base, prices, vols, cfg, rules):
     min_vol = float(cfg.get("min_volume_usd") or 0)
     rows, excluded, series = [], [], {}
     a = 2 / (period + 1)
+    excl = ALWAYS_EXCLUDE | {e.upper() for e in cfg.get("exclude") or []}
     for sym, base in sym_base.items():
+        if base in excl:
+            continue
         cs = candles.get(sym) or []
         if len(cs) < min_days:
             excluded.append([base, len(cs)])
@@ -426,7 +431,10 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         for k in [k for k in candles if k not in sym_base]:
             del candles[k]
         fetched = 0
-        for sym in sorted(sym_base):
+        log.info("Pobieram świece dzienne dla %d par (pierwszy raz trwa kilka minut)…", len(sym_base))
+        for n_sym, sym in enumerate(sorted(sym_base), 1):
+            if n_sym % 50 == 0:
+                log.info("  %d/%d par", n_sym, len(sym_base))
             old = candles.get(sym) or []
             if old:
                 missing = (today - old[-1][0]) // DAY       # days after the last stored closed candle
