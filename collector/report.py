@@ -16,6 +16,7 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...]}]}
   {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours)}
   {"type": "section", "title"}                                       — section heading
+  any block: optional "desc" — plain-language explanation shown above the content (bigger font than "note")
   {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
                                                  "marks": [{"pos", "label", "kind"}], "note"}]}  — range bars
   {"type": "bars", "title", "note", "rows": [{"label", "long", "short", "text", "current"}],
@@ -489,31 +490,31 @@ def alts_section(d, ema, L, refs, now):
     if refs:
         blocks.append({"type": "table", "title": "Stan altów na tle poprzednich szczytów",
                        "cols": ["Wskaźnik", "Dziś"] + [lbl for _, lbl in refs], "rows": rows, "plain": True,
+                       "desc": "Dzisiejsze wartości obok tych z ważnych momentów. W prawdziwym altseasonie wysoko jest wszystko naraz; "
+                               "gdy wysoko jest tylko lewar, to raczej ostrzeżenie.",
                        "note": f"Kolumny wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
-                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia. "
-                               "W prawdziwym altseasonie wysoko jest wszystko naraz; gdy wysoko jest tylko lewar, to raczej ostrzeżenie."})
+                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia."})
     blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
-                              note="Ile otwartych pozycji (z dźwignią) jest na altach bez ETH w porównaniu z BTC. "
-                                   "Rośnie = lewar przenosi się na alty. " + history_note(d, "oi_others_vs_btc")))
+                              note=history_note(d, "oi_others_vs_btc")))
     blocks[-1]["lines"] = lines_for(L, "oi_others_vs_btc")
+    blocks[-1]["desc"] = ("Ile pozycji z dźwignią jest na altach (bez ETH) w porównaniu z BTC. Rośnie = lewar przenosi się na alty. "
+                          "Czytaj razem z wykresem kapitału niżej: oba rosną = kapitał naprawdę płynie w alty; "
+                          "rośnie tylko lewar = ruch na dźwigni, łatwo o kaskadę likwidacji (tak było we wrześniu 2025 i 2026).")
     since = int(datetime.strptime(str(L["alts_chart_from"]), "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
     abw = [p for p in ab if p[0] >= since]
     if abw:
         hi = max(ab, key=lambda p: p[1] if p[0] >= since else -1)
         blocks.append({"type": "chart", "title": f"Kapitał: Alty / BTC — od {utc(since, '%Y')}", "log": False,
                        "lines": lines_for(L, "alts_vs_btc"),
-                       "note": "Ile są warte alty (bez BTC, ETH i stablecoinów) w porównaniu z BTC — realne pieniądze, bez dźwigni. "
-                               f"Maks. na wykresie {hi[1]:.3f} ({utc(hi[0], '%d.%m.%Y')}); każdy cykl kończył się niżej, "
+                       "desc": "Ile są warte alty (bez BTC, ETH i stablecoinów) w porównaniu z BTC — realne pieniądze, bez dźwigni. "
+                               "Rośnie razem z lewarem wyżej = mocny sygnał; rośnie sam, bez lewara = spokojny napływ bez przegrzania.",
+                       "note": f"Maks. na wykresie {hi[1]:.3f} ({utc(hi[0], '%d.%m.%Y')}). Każdy cykl kończył się niżej, "
                                "więc linie są z ostatnich lat.",
                        "series": [{"name": "Alty / BTC", "color": d.color("alts_vs_btc", "#26c6da"), "fmt": "ratio",
                                    "scale": "right", "data": abw}]})
-    blocks.append({"type": "text", "title": "Jak czytać te dwa wykresy",
-                   "text": "Lewar (OI) pokazuje, ile pozycji z dźwignią jest na altach, a kapitał (Alty/BTC) — ile realnych pieniędzy w nich siedzi. "
-                           "Oba rosną razem = mocny sygnał, że kapitał naprawdę płynie w alty. Rośnie tylko lewar = ruch napędzany dźwignią, "
-                           "łatwo o kaskadę likwidacji (tak było we wrześniu 2025 i 2026). Rośnie tylko kapitał = spokojny napływ bez przegrzania."})
-    cb = chart_block(d, "OI OTHERS i OI BTC — w dolarach", ["oi_others", "oi_btc"],
-                     note="Te same dane co stosunek wyżej, ale osobno: widać, czy stosunek rośnie, bo alty dokładają pozycji, "
-                          "czy dlatego, że z BTC pozycje schodzą.")
+    cb = chart_block(d, "OI OTHERS i OI BTC — w dolarach", ["oi_others", "oi_btc"])
+    cb["desc"] = ("Te same dane co stosunek wyżej, ale osobno: widać, czy stosunek rośnie, bo alty dokładają pozycji, "
+                  "czy dlatego, że z BTC pozycje schodzą.")
     for s in cb["series"]:
         s["scale"] = "right"
     blocks.append(cb)
@@ -521,7 +522,9 @@ def alts_section(d, ema, L, refs, now):
         last_t = br[-1][0]
         blocks.append({"type": "chart", "title": "Szerokość rynku — % coinów nad EMA200, 2 lata", "log": False,
                        "range": [0, 100], "lines": [{"value": 90, "label": "rozgrzanie altów", "color": "#e05252"}],
-                       "note": "Odsetek coinów Binance */USDT (≥ 300 dni historii) z ceną nad EMA200. " + breadth_peaks_note(ema["breadth"]),
+                       "desc": "Jaki odsetek coinów jest w trendzie wzrostowym (cena nad EMA200). Powyżej 90% = rynek altów rozgrzany, "
+                               "tak było przy szczytach altów; blisko 0% = dno.",
+                       "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"]),
                        "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
     return blocks
@@ -572,9 +575,10 @@ def derivatives_section(d, L, alt_t):
     if rows:
         blocks.append({"type": "table", "title": "Open interest i cena — BTC i ETH",
                        "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "OI ($)", "Co to znaczy"], "rows": rows,
+                       "desc": "Kto napędza ruch ceny. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; "
+                               "cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów.",
                        "note": "OI w coinach = OI w dolarach podzielone przez cenę — bez tego OI rósłby i spadał razem z ceną. "
-                               f"Zmiana poniżej {flat:g}% = „bez zmian”. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; "
-                               "cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów."})
+                               f"Zmiana poniżej {flat:g}% = „bez zmian”."})
     years = int(L["range_years"])
     items = []
     for coin in ("BTC", "ETH"):
@@ -618,8 +622,9 @@ def liq_section(d, L):
             {"type": "bars", "title": f"Likwidacje — ostatnie {L['liq_days']} dni (doba UTC)", "rows": rows,
              "parts": [{"key": "long", "name": "longi", "color": "#e05252"}, {"key": "short", "name": "shorty", "color": "#4caf7d"}],
              "line": {"value": big, "label": f"duży dzień: {alerts.fmt_value(big, 'liq')} (więcej tylko w {100 - L['liq_big_pct']:.0f}% dni z 2 lat)"} if big else None,
-             "note": "Duże likwidacje longów = kaskada w dół, wypłukanie lewara (często blisko lokalnych dołków); "
-                     f"duże likwidacje shortów = short squeeze. Mediana dnia z 2 lat: {alerts.fmt_value(med, 'liq')}. "
+             "desc": "Duże likwidacje longów = kaskada w dół, wypłukanie lewara (często blisko lokalnych dołków); "
+                     "duże likwidacje shortów = short squeeze.",
+             "note": f"Mediana dnia z 2 lat: {alerts.fmt_value(med, 'liq')}. "
                      "Suma z Binance, Bybit i OKX (bez Hyperliquid) — dolne oszacowanie."}]
 
 
@@ -643,6 +648,8 @@ def ema_near_section(ema, L):
     return blocks + [{"type": "table", "title": f"Bliżej niż {near_pct:g}% od EMA200, obrót ≥ {vol_txt} dziennie",
                       "cols": ["Coin", "Cena", "EMA200", "Odległość", "Strona", "Dni po tej stronie", "Obrót/dzień"],
                       "rows": rows,
+                      "desc": "Coiny, przy których cena jest tuż przy EMA200 — tu decyduje się, czy trend się odwraca. "
+                              "Coiny daleko od średniej pomijamy.",
                       "note": "Binance spot */USDT, świeca dzienna; odległość z aktualnej ceny. „Dni po tej stronie” = od ostatniego "
                               "przecięcia na zamknięciu dnia (1–2 = świeże przecięcie). Obrót = średni dzienny w USDT."
                               + (f" I jeszcze {more} — zakładka EMA200." if more > 0 else "")}]
