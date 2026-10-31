@@ -149,6 +149,25 @@ ema:
 #      confirm: close
 
 # ─────────────────────────────────────────────────────────────
+#  FIBO — Twoje własne setupy (zakładka fib.html, liczy Orange Pi co 5 min)
+#  Strefa 0.705–0.786 z linią 0.75. Alerty: zbliża się (near_pct), wejście w strefę,
+#  przebicie 0.786, unieważnienie (cena za dołkiem/szczytem ruchu).
+#  Setupy dodajesz tutaj albo z Telegrama:
+#    /fib COIN SZCZYT DOŁEK [long|short] [opis]   np. /fib SOL 250 120 long term
+#    /fiby  (lista)    /usun ID    /pomoc
+#  long  = cofnięcie po wzroście (strefa pod szczytem), short = odbicie po spadku.
+#  Ceny: Binance */USDT, a gdy coina tam nie ma — Hyperliquid (np. HYPE).
+# ─────────────────────────────────────────────────────────────
+fib:
+  near_pct: 2            # alert „zbliża się”, gdy cena jest bliżej niż 2% od strefy
+  setups: []
+#    - coin: SOL
+#      high: 250
+#      low: 120
+#      dir: long
+#      label: "SOL 1D long term"
+
+# ─────────────────────────────────────────────────────────────
 #  LIKWIDACJE — alert, gdy suma likwidacji w oknie przekroczy próg (USD)
 #
 #  series: liq_total, liq_btc, liq_eth, liq_others (long + short razem),

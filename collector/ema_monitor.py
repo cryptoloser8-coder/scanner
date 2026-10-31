@@ -35,6 +35,7 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
+import fib as F  # noqa: E402
 
 log = logging.getLogger("ema")
 DAY = 86400
@@ -394,6 +395,8 @@ def load_cfg(path):
     cfg = dict(DEFAULTS)
     cfg.update(full.get("ema") or {})
     cfg["alerts"] = cfg.get("alerts") or []
+    fcfg = full.get("fib") or {}
+    cfg["fib"] = {"near_pct": float(fcfg.get("near_pct", 2) or 2), "setups": fcfg.get("setups") or []}
     return cfg
 
 
@@ -418,7 +421,7 @@ def _read(path, default):
 
 
 def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remote=None,
-        git=subprocess.run, check_only=False):
+        git=subprocess.run, check_only=False, bot=None, hl=F.hyperliquid_mids):
     now = int(now or time.time())
     os.makedirs(state_dir, exist_ok=True)
     cpath, spath = os.path.join(state_dir, "candles.json"), os.path.join(state_dir, "state.json")
@@ -498,11 +501,35 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     first = not st.get("armed")
     msgs = check_alerts(rows, cfg["alerts"], ast, cfg, now, daily_done=daily_due, arm_only=first or check_only)
     st["armed"] = True
-    if msgs and not check_only:
+
+    # Fibonacci setups: config + Telegram commands
+    fcfg = cfg.get("fib") or {"near_pct": 2, "setups": []}
+    cfg_setups = F.from_config(fcfg["setups"])
+    fib_coins = {x["coin"] for x in cfg_setups + (st.get("fib_user") or [])}
+    if bot is None and not check_only and os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"):
+        bot = F.Bot(os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"])
+    # prices for commands may concern new coins → fetch Hyperliquid lazily inside coin_prices
+    fprices = F.coin_prices(fib_coins, prices, cfg["quote"], hl=hl)
+
+    class _Lazy(dict):
+        def get(self, k, d=None):
+            if k not in self:
+                self.update(F.coin_prices({k}, prices, cfg["quote"], hl=hl))
+            return dict.get(self, k, d)
+    fprices = _Lazy(fprices)
+    if bot is not None and not check_only:
+        F.handle_commands(bot, st, cfg_setups, fprices, fcfg["near_pct"], now=now)
+    setups = cfg_setups + (st.get("fib_user") or [])
+    fmsgs = F.check(setups, fprices, st.setdefault("fib_state", {}), fcfg["near_pct"], arm_only=check_only)
+
+    if (msgs or fmsgs) and not check_only:
         tg = telegram or alerts.Telegram()
-        header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
-        for i in range(0, len(msgs), 25):
-            tg.send("\n".join([header, ""] + msgs[i:i + 25]))
+        if msgs:
+            header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
+            for i in range(0, len(msgs), 25):
+                tg.send("\n".join([header, ""] + msgs[i:i + 25]))
+        if fmsgs:
+            tg.send("\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
 
     above = sum(1 for r in rows if r["d"] >= 0)
     br = breadth(series, cfg, now) if daily_due or backfilled or not st.get("breadth") else st["breadth"]
@@ -516,8 +543,11 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "rules": cfg["alerts"], "near_default": None,
         "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
     }
+    fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
+                   "setups": F.publish_rows(setups, set(series))}
     info.update({"pairs": len(sym_base), "coins": len(rows), "excluded": len(excluded), "above": above,
-                 "alerts_sent": 0 if check_only else len(msgs), "calls": cl.calls})
+                 "alerts_sent": 0 if check_only else len(msgs) + len(fmsgs), "calls": cl.calls,
+                 "fib_setups": len(setups)})
 
     if not check_only:
         if daily_due or backfilled:      # candles change only once a day (or while filling in history)
@@ -529,6 +559,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             pub = os.path.join(state_dir, "pub")
             write_hist = daily_due or st.get("hist_dirty") or not os.path.isdir(os.path.join(pub, "hist"))
             write_outputs(pub, payload, series, cfg, write_hist=write_hist)
+            _write(os.path.join(pub, "fib.json"), fib_payload)
             st["hist_dirty"] = False
             if remote:
                 try:
@@ -541,7 +572,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
                     log.error("Publikacja: %s", e)
                     info["publish_error"] = str(e)
         _write(spath, st)
-    return info, rows, excluded, msgs
+    info["fib"] = fib_payload["setups"]
+    return info, rows, excluded, msgs + fmsgs
 
 
 def main(argv=None):
@@ -592,6 +624,11 @@ def main(argv=None):
                 if miss:
                     print(f"\nUwaga: z reguły alertów nie ma na liście: {', '.join(miss)} "
                           "(brak pary USDT na Binance albo za krótka historia)")
+        if info.get("fib"):
+            print("\nSetupy Fibo:")
+            for r in info["fib"]:
+                stt = F.STATUS_PL.get(r["status"], "brak ceny")
+                print(f"  [{r['id']}] {r['coin']} {r['dir']}  0.75 = {F.fmt(r['l75'])}  cena {F.fmt(r['price'])}  {stt}")
         print(f"\nTelegram: {'skonfigurowany' if os.environ.get('TELEGRAM_BOT_TOKEN') and os.environ.get('TELEGRAM_CHAT_ID') else 'BRAK danych w ~/.scanner_env'}")
         print(f"GitHub (publikacja): {'token jest' if remote else 'BRAK tokenu'}")
         if a.test_telegram:

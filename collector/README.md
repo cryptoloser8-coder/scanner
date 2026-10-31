@@ -101,6 +101,15 @@ Instalacja na Pi (jednorazowo):
 
 Stan i pobrane świece: `~/.ema-monitor/` (można usunąć — przy następnym uruchomieniu pobierze wszystko od nowa).
 
+## Fibo — moje setupy: zakładka `fib.html` (też Orange Pi)
+Ty wybierasz ruch (szczyt i dołek, dowolny interwał), Pi co 5 min sprawdza cenę i wysyła alerty: zbliża się do strefy (`near_pct`), wejście w strefę 0.705–0.786, przebicie 0.786, unieważnienie (cena za dołkiem/szczytem ruchu). Ceny z Binance */USDT, a brakujące coiny (np. HYPE) z Hyperliquid.
+
+Dodawanie setupów:
+- z Telegrama (bot odpowiada w ciągu ~5 min): `/fib SOL 250 120 long opis`, `/fiby`, `/usun 3`, `/pomoc` — działa tylko z czatu `TELEGRAM_CHAT_ID`; setupy zapisuje Pi (`~/.ema-monitor/state.json`),
+- na stałe w `config.yaml`, sekcja `fib: setups:` (id c1, c2…).
+
+Uwaga: komendy odbiera Pi przez `getUpdates`. Jeśli ten sam token bota używa inny program z webhookiem albo `getUpdates`, komendy będą się gubić — wtedy użyj osobnego bota.
+
 ## Uwagi
 - **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.
 - **TradingView** jest pobierane nieoficjalnym protokołem (tym samym co strona TV), bez logowania. Gdy TV coś zmieni, bot przyśle alert „Źródło TradingView nie działa”, a OI będzie zbierane dalej.
