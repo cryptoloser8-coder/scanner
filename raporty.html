@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raporty</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--green-bg:rgba(76,175,125,.12);
+    --red:#e05252;--red-bg:rgba(224,82,82,.12);
+    --blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--purple:#ce93d8;
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);transition:all .15s;}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);}
+  .status-dot.stale{background:var(--amber);}
+  .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+
+  .layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;align-items:start;}
+  .side{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;}
+  .side h2{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:2px 4px 8px;font-weight:600;}
+  .rep-item{display:block;padding:7px 8px;border-radius:var(--radius);text-decoration:none;color:var(--text2);border:1px solid transparent;margin-bottom:2px;}
+  .rep-item:hover{background:var(--bg3);color:var(--text);}
+  .rep-item.on{background:rgba(255,255,255,.07);border-color:var(--border2);color:var(--text);}
+  .rep-item .t{font-size:12px;font-weight:600;display:flex;gap:6px;align-items:center;}
+  .rep-item .d{font-size:10px;font-family:var(--mono);color:var(--text3);margin-top:2px;}
+  .kind{font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:2px 5px;border-radius:4px;background:var(--bg3);color:var(--text3);}
+  .kind.test{background:rgba(91,156,246,.15);color:var(--blue);}
+  .kind.daily{background:rgba(76,175,125,.15);color:var(--green);}
+  .kind.manual{background:rgba(206,147,216,.15);color:var(--purple);}
+  .side .empty-list{font-size:11px;color:var(--text3);padding:6px;line-height:1.6;}
+
+  .rep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .rep-head h2{font-size:20px;font-weight:600;letter-spacing:-.3px;}
+  .rep-meta{font-size:11px;color:var(--text2);margin-top:3px;font-family:var(--mono);}
+  .rep-summary{font-size:12px;color:var(--text2);margin-top:6px;}
+  .actions{display:flex;gap:6px;}
+  .btn{font-size:12px;padding:6px 12px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;font-family:inherit;transition:all .15s;}
+  .btn:hover{background:var(--bg3);border-color:rgba(255,255,255,.25);}
+  .btn.primary{background:rgba(91,156,246,.15);border-color:rgba(91,156,246,.4);color:var(--blue);}
+  .btn.primary:hover{background:rgba(91,156,246,.25);}
+
+  .block{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;margin-top:12px;break-inside:avoid;page-break-inside:avoid;}
+  .block h3{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:9px;}
+  .block p.text{font-size:13px;line-height:1.6;color:var(--text);}
+  .block.warn{border-color:rgba(255,193,7,.3);}
+  .block.warn h3{color:var(--amber);}
+  .block .note{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+
+  .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
+  .fact{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:9px 11px;min-width:0;}
+  .fact-head{display:flex;align-items:center;gap:6px;}
+  .fact-label{font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .info{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);color:var(--text3);font-size:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:help;font-style:italic;font-family:Georgia,serif;}
+  .info:hover{color:var(--text);border-color:var(--text2);}
+  .fact-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
+  .fact-sub{font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.5;}
+  .z-green{color:var(--green);} .z-yellow{color:var(--amber);} .z-red{color:var(--red);}
+  .legend-print{display:none;}
+
+  .chart-box{position:relative;height:300px;}
+  .chart-box .c{position:absolute;inset:0;}
+  .chart-img{display:none;width:100%;}
+  .chart-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:6px;}
+  .chart-legend span::before{content:'';display:inline-block;width:10px;height:3px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:middle;}
+
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;text-align:right;padding:5px 8px;border-bottom:1px solid var(--border2);font-weight:600;}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);}
+  th:first-child,td:first-child{text-align:left;}
+  td.pos{color:var(--green);} td.neg{color:var(--red);}
+
+  .tip{position:fixed;z-index:50;max-width:320px;background:#1d1d1d;border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:11px;line-height:1.55;color:var(--text);display:none;pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.5);}
+  .footer{font-size:10px;color:var(--text3);margin-top:18px;line-height:1.6;}
+  .print-only{display:none;}
+
+  @media (max-width:820px){
+    body{padding:14px;}
+    .layout{grid-template-columns:1fr;}
+    .side{position:static;max-height:260px;order:2;}
+    .facts{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .fact-val{font-size:15px;}
+    .chart-box{height:240px;}
+  }
+
+  /* ── PDF / druk: jasny motyw, bez menu ── */
+  @media print{
+    @page{size:A4;margin:12mm;}
+    :root{--bg:#fff;--bg2:#fff;--bg3:#f6f6f6;--border:#ddd;--border2:#ccc;--text:#111;--text2:#444;--text3:#777;
+      --green:#1e8a52;--red:#c62828;--amber:#b7791f;--blue:#1d5fd1;}
+    body{padding:0;background:#fff;font-size:12px;}
+    .header,.side,.actions,.banner,.tip,.info,.footer{display:none !important;}
+    .layout{display:block;}
+    .print-only{display:block;}
+    .block{margin-top:8px;}
+    .chart-box{height:auto;}
+    .chart-box .c{display:none;}
+    .chart-img{display:block;}
+    .legend-print{display:block;margin-top:8px;font-size:9px;color:#555;line-height:1.5;}
+    .legend-print b{color:#222;}
+    .facts{grid-template-columns:repeat(3,1fr);}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Raporty</h1>
+      <p>Raporty z danych projektu: fakty liczy kod, komentarz AI pojawi się później</p>
+    </div>
+  </div>
+  <div><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="layout">
+  <aside class="side">
+    <h2>Lista raportów</h2>
+    <div id="list"></div>
+  </aside>
+  <main id="report"></main>
+</div>
+
+<div class="footer">
+  Raporty powstają w GitHub Actions (workflow „Raport”) z danych z gałęzi <code>data</code> (Coinalyze, TradingView) i <code>ema</code> (Binance, Orange Pi)
+  i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>.
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+
+// ── data source ─────────────────────────────────────────────
+const qs = new URLSearchParams(location.search);
+const BASE = (() => {
+  if (qs.get('data')) return qs.get('data').replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/reports/`;
+  }
+  return 'reports/';
+})();
+async function getJSON(name, fresh) {
+  const r = await fetch(`${BASE}${name}?v=${fresh ? Date.now() : Math.floor(Date.now() / 300000)}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── formatting ──────────────────────────────────────────────
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+function dt(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+}
+function fmt(v, g) {
+  if (v == null || !isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (g === 'mcap' || g === 'oi' || g === 'liq') {
+    if (a >= 1e12) return '$' + (v / 1e12).toFixed(3) + 'T';
+    if (a >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
+    if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    return '$' + Math.round(v).toLocaleString('pl-PL');
+  }
+  if (g === 'pct') return v.toFixed(2) + '%';
+  if (g === 'fund') return v.toFixed(1) + '%';
+  if (g === 'ratio') return v.toFixed(3) + '×';
+  if (g === 'pair') return v < 1 ? v.toFixed(5) : v.toPrecision(4);
+  if (g === 'price') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toPrecision(4));
+  return String(+v.toPrecision(5));
+}
+
+function setStatus(cls, txt) {
+  document.getElementById('dot').className = 'status-dot ' + cls;
+  document.getElementById('status').textContent = txt;
+}
+function banner(cls, html) {
+  const b = document.getElementById('banner');
+  b.className = 'banner ' + cls;
+  b.innerHTML = html;
+}
+
+// ── tooltip ─────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-note]');
+  if (!el) { tip.style.display = 'none'; return; }
+  tip.textContent = el.dataset.note;
+  tip.style.display = 'block';
+  const r = el.getBoundingClientRect();
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = Math.min(r.left, innerWidth - w - 10), y = r.bottom + 6;
+  if (y + h > innerHeight - 6) y = r.top - h - 6;
+  tip.style.left = Math.max(6, x) + 'px';
+  tip.style.top = Math.max(6, y) + 'px';
+});
+
+// ── list ────────────────────────────────────────────────────
+let INDEX = [], current = null, charts = [];
+function renderList() {
+  const el = document.getElementById('list');
+  if (!INDEX.length) {
+    el.innerHTML = '<div class="empty-list">Brak raportów. Uruchom na GitHubie: <b>Actions → Raport → Run workflow</b>.</div>';
+    return;
+  }
+  el.innerHTML = INDEX.map(r => `
+    <a class="rep-item ${current && r.id === current.id ? 'on' : ''}" href="?id=${encodeURIComponent(r.id)}" data-id="${esc(r.id)}">
+      <div class="t">${esc(r.title)} <span class="kind ${esc(r.kind)}">${esc(r.kind)}</span></div>
+      <div class="d">${dt(r.created)}</div>
+    </a>`).join('');
+}
+document.getElementById('list').addEventListener('click', e => {
+  const a = e.target.closest('.rep-item');
+  if (!a || e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  history.pushState(null, '', '?id=' + encodeURIComponent(a.dataset.id) + (qs.get('data') ? '&data=' + encodeURIComponent(qs.get('data')) : ''));
+  openReport(a.dataset.id);
+});
+addEventListener('popstate', () => openReport(new URLSearchParams(location.search).get('id') || (INDEX[0] || {}).id));
+
+// ── report ──────────────────────────────────────────────────
+function factsBlock(b) {
+  const items = b.items || [];
+  const legend = items.filter(it => it.note).map(it => `<div><b>${esc(it.label)}</b> — ${esc(it.note)}</div>`).join('');
+  return `<div class="facts">${items.map(it => `
+      <div class="fact">
+        <div class="fact-head"><span class="fact-label">${esc(it.label)}</span>${it.note ? `<span class="info" data-note="${esc(it.note)}">i</span>` : ''}</div>
+        <div class="fact-val ${it.zone ? 'z-' + esc(it.zone) : ''}">${esc(it.value)}</div>
+        <div class="fact-sub">${esc(it.sub || '')}</div>
+      </div>`).join('')}</div>
+    ${legend ? `<div class="legend-print">${legend}</div>` : ''}`;
+}
+function tableBlock(b) {
+  const cls = v => /^[+]/.test(v) ? 'pos' : /^-\d/.test(v) ? 'neg' : '';
+  return `<table><thead><tr>${(b.cols || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${(b.rows || []).map(r => `<tr>${r.map(v => `<td class="${cls(String(v))}">${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function chartBlock(b, i) {
+  const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
+  return `<div class="chart-legend">${lg}</div>
+    <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>`;
+}
+function renderBlock(b, i) {
+  let body = '';
+  if (b.type === 'text') body = `<p class="text">${esc(b.text)}</p>`;
+  else if (b.type === 'facts') body = factsBlock(b);
+  else if (b.type === 'table') body = tableBlock(b);
+  else if (b.type === 'chart') body = (b.series || []).length ? chartBlock(b, i) : '<p class="text">Brak danych do wykresu.</p>';
+  else return '';
+  return `<section class="block ${b.title === 'Uwaga' ? 'warn' : ''}">
+    ${b.title ? `<h3>${esc(b.title)}</h3>` : ''}${body}${b.note && b.type !== 'text' ? `<div class="note">${esc(b.note)}</div>` : ''}</section>`;
+}
+
+const DARK = {layout: {textColor: '#888'}, grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+  rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, timeScale: {borderColor: 'rgba(255,255,255,.1)'}};
+const LIGHT = {layout: {textColor: '#444'}, grid: {vertLines: {color: 'rgba(0,0,0,.06)'}, horzLines: {color: 'rgba(0,0,0,.06)'}},
+  rightPriceScale: {borderColor: 'rgba(0,0,0,.2)'}, leftPriceScale: {borderColor: 'rgba(0,0,0,.2)'}, timeScale: {borderColor: 'rgba(0,0,0,.2)'}};
+
+function drawChart(b, i) {
+  const el = document.getElementById('chart-' + i);
+  if (!el) return;
+  const hasLeft = b.series.some(s => s.scale === 'left');
+  const chart = LWC.createChart(el, {
+    autoSize: true,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
+    grid: DARK.grid,
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)', mode: b.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal},
+    leftPriceScale: {visible: hasLeft, borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 2},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL'},
+    handleScroll: false, handleScale: false,
+  });
+  for (const s of b.series) {
+    const ser = chart.addSeries(LWC.LineSeries, {
+      color: s.color, lineWidth: 2, priceScaleId: s.scale === 'left' ? 'left' : 'right',
+      priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)},
+      lastValueVisible: true, priceLineVisible: false,
+    });
+    if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
+    if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
+    ser.setData(s.data.map(([t, v]) => ({time: t, value: v})));
+  }
+  chart.timeScale().fitContent();
+  charts.push({chart, i});
+}
+
+// PDF: wykresy jako obrazki w jasnych kolorach (płótno nie drukuje się pewnie)
+function chartsToImages() {
+  for (const {chart, i} of charts) {
+    const box = document.getElementById('chart-' + i);
+    if (!box || box.clientWidth < 50) continue;      // already in print layout → keep the earlier image
+    try {
+      chart.applyOptions(LIGHT);
+      const img = document.getElementById('chart-img-' + i);
+      img.src = chart.takeScreenshot().toDataURL('image/png');
+      chart.applyOptions(DARK);
+    } catch (e) { console.warn('screenshot', e); }
+  }
+}
+addEventListener('beforeprint', chartsToImages);
+function downloadPdf() {
+  chartsToImages();
+  setTimeout(() => window.print(), 50);
+}
+
+async function openReport(id) {
+  const root = document.getElementById('report');
+  for (const c of charts) c.chart.remove();
+  charts = [];
+  if (!id) { root.innerHTML = ''; return; }
+  let rep;
+  try {
+    rep = await getJSON(`reports/${encodeURIComponent(id)}.json`, true);
+  } catch (e) {
+    root.innerHTML = `<section class="block warn"><h3>Nie udało się wczytać raportu</h3><p class="text">${esc(id)}: ${esc(e.message)}. Jeśli raport właśnie powstał, odśwież stronę za minutę.</p></section>`;
+    return;
+  }
+  current = rep;
+  const entry = INDEX.find(r => r.id === rep.id);
+  if (entry && !entry.created) Object.assign(entry, {title: rep.title, kind: rep.kind, created: rep.created});
+  document.title = `${rep.title} ${dt(rep.created).replace(' UTC', '')}`;
+  const src = rep.sources || {};
+  root.innerHTML = `
+    <div class="rep-head">
+      <div>
+        <h2>${esc(rep.title)} <span class="kind ${esc(rep.kind)}">${esc(rep.kind)}</span></h2>
+        <div class="rep-meta">${dt(rep.created)} · dane OI/TOTAL: ${dt(src.data_updated)} · EMA/Fibo: ${dt(src.ema_updated)}</div>
+        ${rep.summary ? `<div class="rep-summary">${esc(rep.summary)}</div>` : ''}
+      </div>
+      <div class="actions">
+        <button class="btn" id="copy-link">Kopiuj link</button>
+        <button class="btn primary" id="pdf">Pobierz PDF</button>
+      </div>
+    </div>
+    ${(rep.blocks || []).map(renderBlock).join('')}
+    <div class="note print-only" style="margin-top:10px;font-size:9px;color:#777">Crypto Scanner · ${esc(rep.id)} · ${esc(location.href.split('#')[0])}</div>`;
+  (rep.blocks || []).forEach((b, i) => { if (b.type === 'chart' && (b.series || []).length) drawChart(b, i); });
+  document.getElementById('pdf').onclick = downloadPdf;
+  document.getElementById('copy-link').onclick = async e => {
+    const url = location.origin + location.pathname + '?id=' + encodeURIComponent(rep.id);
+    try { await navigator.clipboard.writeText(url); e.target.textContent = 'Skopiowano'; } catch (err) { e.target.textContent = url; }
+    setTimeout(() => { e.target.textContent = 'Kopiuj link'; }, 1800);
+  };
+  renderList();
+}
+
+async function init() {
+  const wanted = qs.get('id');
+  try {
+    const idx = await getJSON('index.json', true);
+    INDEX = idx.reports || [];
+    setStatus('live', `${INDEX.length} raport(ów) · ostatni ${dt((INDEX[0] || {}).created)}`);
+  } catch (e) {
+    INDEX = [];
+    setStatus(wanted ? 'stale' : 'error', 'Brak listy raportów');
+    if (!wanted) banner('warn', 'Nie ma jeszcze żadnych raportów (brak gałęzi <code>reports</code>). Uruchom na GitHubie: <b>Actions → Raport → Run workflow</b>.');
+  }
+  // raport z linku może być nowszy niż (buforowana) lista
+  if (wanted && !INDEX.some(r => r.id === wanted)) INDEX.unshift({id: wanted, title: 'Raport', kind: '', created: null});
+  renderList();
+  await openReport(wanted || (INDEX[0] || {}).id);
+}
+init();
+</script>
+</body>
+</html>
