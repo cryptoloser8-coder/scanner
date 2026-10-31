@@ -244,3 +244,17 @@ def test_older_history_is_filled_in_pages_up_to_the_listing(tmp_path):
     fbx.ages = fb.ages
     E.run(c, st, now=NOW + 3600, client=fbx, remote=None)
     assert not [r for r in fbx.kl_requests if len(r) == 3]
+
+
+def test_chart_files_rewritten_after_version_bump(tmp_path):
+    st = str(tmp_path)
+    E.run(cfg(), st, now=NOW, client=FakeBinance(), remote=None)
+    f = os.path.join(st, "pub", "hist", "AAA.json")
+    os.remove(f)
+    E.run(cfg(), st, now=NOW + 1000, client=FakeBinance(now=NOW + 1000), remote=None)
+    assert not os.path.exists(f)                             # same day, same version → not rewritten
+    s = json.load(open(os.path.join(st, "state.json")))
+    s["hist_version"] = 1                                    # state from an older version (like the Pi now)
+    json.dump(s, open(os.path.join(st, "state.json"), "w"))
+    E.run(cfg(), st, now=NOW + 2000, client=FakeBinance(now=NOW + 2000), remote=None)
+    assert os.path.exists(f)
