@@ -54,7 +54,7 @@
   .rep-head h2{font-size:20px;font-weight:600;letter-spacing:-.3px;}
   .rep-meta{font-size:11px;color:var(--text2);margin-top:3px;font-family:var(--mono);}
   .rep-summary{font-size:12px;color:var(--text2);margin-top:6px;}
-  .actions{display:flex;gap:6px;}
+  .actions{display:flex;gap:6px;flex-wrap:wrap;}
   .btn{font-size:12px;padding:6px 12px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;font-family:inherit;transition:all .15s;}
   .btn:hover{background:var(--bg3);border-color:rgba(255,255,255,.25);}
   .btn.primary{background:rgba(91,156,246,.15);border-color:rgba(91,156,246,.4);color:var(--blue);}
@@ -189,6 +189,8 @@
 <div class="footer">
   Raporty powstają w GitHub Actions (workflow „Raport”) z danych z gałęzi <code>data</code> (Coinalyze, TradingView) i <code>ema</code> (Binance, Orange Pi)
   i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>.
+  „Kopiuj dla AI” kopiuje cały raport jako tekst (wykresy zamienione na liczby, źródła i metody na końcu) — wklej go w dowolnego asystenta AI.
+  „Link dla AI” kopiuje adres tej wersji; stały adres najnowszego raportu: <code id="latest-md"></code>.
 </div>
 <div class="tip" id="tip"></div>
 
@@ -447,6 +449,8 @@ async function openReport(id) {
       </div>
       <div class="actions">
         <button class="btn" id="copy-link">Kopiuj link</button>
+        <button class="btn" id="copy-ai" style="display:none" title="Cały raport jako tekst (liczby zamiast wykresów) — do wklejenia w dowolnego asystenta AI">Kopiuj dla AI</button>
+        <button class="btn" id="link-ai" style="display:none" title="Adres wersji tekstowej — asystent AI z dostępem do internetu może ją sam otworzyć">Link dla AI</button>
         <button class="btn primary" id="pdf">Pobierz PDF</button>
       </div>
     </div>
@@ -454,6 +458,22 @@ async function openReport(id) {
     <div class="note print-only" style="margin-top:10px;font-size:9px;color:#777">Crypto Scanner · ${esc(rep.id)} · ${esc(location.href.split('#')[0])}</div>`;
   (rep.blocks || []).forEach((b, i) => { if (b.type === 'chart' && (b.series || []).length) drawChart(b, i); });
   document.getElementById('pdf').onclick = downloadPdf;
+  // wersja tekstowa dla AI (markdown z gałęzi reports); starsze raporty jej nie mają
+  const mdUrl = new URL(`${BASE}reports/${encodeURIComponent(rep.id)}.md`, location.href).href;
+  let mdText = null;
+  fetch(mdUrl + '?v=' + rep.created, {cache: 'no-cache'}).then(r => r.ok ? r.text() : null).then(t => {
+    if (!t || current !== rep) return;
+    mdText = t;
+    document.getElementById('copy-ai').style.display = '';
+    document.getElementById('link-ai').style.display = '';
+  }).catch(() => {});
+  const copyText = async (btn, text, label) => {
+    try { await navigator.clipboard.writeText(text); btn.textContent = 'Skopiowano'; }
+    catch (err) { window.prompt('Skopiuj ręcznie:', text.length > 2000 ? mdUrl : text); }
+    setTimeout(() => { btn.textContent = label; }, 1800);
+  };
+  document.getElementById('copy-ai').onclick = e => mdText && copyText(e.target, mdText, 'Kopiuj dla AI');
+  document.getElementById('link-ai').onclick = e => copyText(e.target, mdUrl, 'Link dla AI');
   document.getElementById('copy-link').onclick = async e => {
     const url = location.origin + location.pathname + '?id=' + encodeURIComponent(rep.id);
     try { await navigator.clipboard.writeText(url); e.target.textContent = 'Skopiowano'; } catch (err) { e.target.textContent = url; }
@@ -463,6 +483,7 @@ async function openReport(id) {
 }
 
 async function init() {
+  document.getElementById('latest-md').textContent = new URL(`${BASE}latest.md`, location.href).href;
   const wanted = qs.get('id');
   try {
     const idx = await getJSON('index.json', true);
