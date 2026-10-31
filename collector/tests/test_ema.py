@@ -73,10 +73,15 @@ class FakeBinance:
 class FakeTG:
     def __init__(self):
         self.sent = []
+        self.kinds = []
 
     def send(self, text):
         self.sent.append(text)
         return True
+
+    def post(self, kind, text):
+        self.kinds.append(kind)
+        return self.send(text)
 
 
 def test_universe_filters_stables_leveraged_and_other_quotes():
@@ -134,7 +139,7 @@ def _rows(d, side=None, p=100.0):
 
 
 def test_alerts_near_cross_hysteresis_cooldown():
-    c = cfg(alerts=[{"coins": ["AAA"], "cross": True, "confirm": "live", "near_pct": 2}])
+    c = cfg(alerts=[{"coins": ["AAA"], "cross": True, "confirm": "live", "near_pct": 2}], near_cooldown_hours=0)
     st, t = {}, NOW
     assert E.check_alerts(_rows(-5), c["alerts"], st, c, t, False) == []         # new coin: armed silently
     m = E.check_alerts(_rows(-1.5), c["alerts"], st, c, t + 300, False)

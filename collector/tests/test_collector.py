@@ -264,7 +264,7 @@ def test_backfill_then_run(tmp_path):
     assert cz2.calls_made == len(uni)  # universe reused, one history pass
     assert all(n < 20 for (_, iv, n) in tv2.requests)
     assert max(store2.series["1h"]["oi_total"]) == NOW + 2 * H - (NOW + 2 * H) % H
-    assert any("Dzienny raport" in m for m in msgs2)
+    assert not any("Dzienny raport" in m for m in msgs2)     # old text report removed (zakładka Raporty)
 
 
 def test_tradfi_excluded_and_daily_trimmed(tmp_path):
@@ -583,10 +583,6 @@ def test_liq_sum_alerts_and_report(tmp_path):
     assert alerts.check_sums(st_, cat, rules, state, NOW + H) == []          # cooldown
     assert alerts.check_sums(st_, cat, [dict(rules[0], usd=2e9)], {}, NOW) == []
     assert alerts.check_sums(st_, cat, [{"series": "nope", "usd": 1}], {}, NOW) == []
-    st_.put("1h", "fund_btc", {t: 25.0})
-    rep = alerts.daily_report(st_, cat, [], liquidations=True)
-    assert "Likwidacje BTC" in rep and "Funding BTC" in rep and "+25.0%/r" in rep
-    assert "Likwidacje" not in alerts.daily_report(st_, cat, [])
 
 
 def test_store_bundles_roundtrip(tmp_path):
@@ -631,3 +627,22 @@ def test_dominance_breakdown_sums_to_100():
     assert abs(btc_d + eth_d + s["stable_d"][0] + s["alts_d"][0] - 100) < 1e-9
     cat = S.catalog_with_watchlist([])
     assert cat["stable_d"]["group"] == "pct" and cat["alts_d"]["group"] == "pct"
+
+
+def test_run_routes_market_alerts_to_group_and_failures_to_admin(tmp_path):
+    d = str(tmp_path)
+    tgcfg = {"group_chat_id": -100500, "group_thread_id": 7}
+    tg = alerts.Telegram(token="", chat_id="111", enabled=False, tg_cfg=tgcfg)
+    main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(fail=True), telegram=tg, cg_fetch=CG)
+    assert [k for k, *_ in tg.sent_to] == ["system", "system"]                 # TV failure + backfill → admin only
+    assert all(chat == "111" for _, chat, _, _ in tg.sent_to)
+    from store import Store
+    v = Store(d).latest("oi_total")[1]
+    cfg = _cfg()
+    cfg["levels"] = [{"series": "oi_total", "level": v * 1.01, "near_pct": 3, "label": "test A"},
+                     {"series": "oi_total", "level": v * 0.99, "near_pct": 3, "label": "test B"}]
+    tg2 = alerts.Telegram(token="", chat_id="111", enabled=False, tg_cfg=tgcfg)
+    main.run(d, cfg, now=NOW + 2 * H, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg2, cg_fetch=CG)
+    market = [x for x in tg2.sent_to if x[0] == "market"]
+    assert len(market) == 1 and market[0][1:3] == ("-100500", 7)               # both alerts in ONE message
+    assert "test A" in market[0][3] and "test B" in market[0][3] and "Rynek" in market[0][3]

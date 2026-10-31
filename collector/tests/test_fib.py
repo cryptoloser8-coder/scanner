@@ -59,38 +59,22 @@ def test_parse_commands():
     assert F.parse_command("hello") is None and F.parse_command("/inna") is None
 
 
-class FakeBot:
-    chat_id = "42"
-
-    def __init__(self, texts, chat="42", date=NOW):
-        self.queue = [{"update_id": 100 + i, "message": {"chat": {"id": chat}, "text": t, "date": date}}
-                      for i, t in enumerate(texts)]
-        self.replies = []
-
-    def updates(self, offset):
-        out = [u for u in self.queue if u["update_id"] >= offset]
-        return out
-
-    def reply(self, text):
-        self.replies.append(text)
-
-
-def test_handle_commands_add_list_delete_and_foreign_chat():
-    st = {}
-    bot = FakeBot(["/fib SOL 200 100 long swing", "/fib BTC 120000 90000", "/fiby", "/usun 1", "/usun c1", "/usun 9"])
-    F.handle_commands(bot, st, [{"id": "c1", "coin": "ETH", "high": 3, "low": 2}], {"SOL": 127, "BTC": 100000}, 2, now=NOW)
-    assert [s["coin"] for s in st["fib_user"]] == ["BTC"] and st["tg_offset"] == 106
-    assert "Dodano" in bot.replies[0] and "0.75 = $125.00" in bot.replies[0] and "w strefie" in bot.replies[0]
-    assert "Setupy Fibo" in bot.replies[2] and "[c1]" in bot.replies[2]
-    assert "Usunięto" in bot.replies[3] and "config.yaml" in bot.replies[4] and "Nie ma" in bot.replies[5]
-    # messages from another chat and stale ones are ignored, offset still advances
-    bot2 = FakeBot(["/fib XRP 3 1"], chat="999")
-    bot2.queue[0]["update_id"] = 200
-    F.handle_commands(bot2, st, [], {}, 2, now=NOW)
-    bot3 = FakeBot(["/fib XRP 3 1"], date=NOW - 3 * 86400)
-    bot3.queue[0]["update_id"] = 300
-    F.handle_commands(bot3, st, [], {}, 2, now=NOW)
-    assert bot2.replies == [] and bot3.replies == [] and len(st["fib_user"]) == 1 and st["tg_offset"] == 301
+def test_command_helpers_add_list_delete():
+    user = []
+    s1 = F.add_setup(user, F.parse_command("/fib SOL 200 100 long swing")[1], NOW)
+    s2 = F.add_setup(user, F.parse_command("/fib BTC 120000 90000")[1], NOW)
+    assert (s1["id"], s2["id"]) == ("1", "2") and s1["src"] == "telegram"
+    txt = F.added_text(s1, 127, 2)
+    assert "Dodano" in txt and "0.75 = $125.00" in txt and "w strefie" in txt
+    assert "brak ceny" in F.added_text(s2, None, 2)
+    cfg_setups = [{"id": "c1", "coin": "ETH", "high": 3, "low": 2}]
+    lst = F.list_text(cfg_setups + user, {"SOL": 127}, 2)
+    assert "Setupy Fibo" in lst and "[c1]" in lst and "brak ceny" in lst
+    assert "Usunięto" in F.delete_setup(user, cfg_setups, "1")
+    assert "config.yaml" in F.delete_setup(user, cfg_setups, "c1")
+    assert "Nie ma" in F.delete_setup(user, cfg_setups, "9")
+    assert [s["coin"] for s in user] == ["BTC"]
+    assert "Brak setupów" in F.list_text([], {}, 2)
 
 
 def test_coin_prices_binance_then_hyperliquid():
@@ -112,20 +96,41 @@ def test_run_with_fib_from_telegram_and_config(tmp_path):
     st = str(tmp_path)
     c = cfg()
     c["fib"] = {"near_pct": 2, "setups": [{"coin": "AAA", "high": 200, "low": 50, "label": "z configu"}]}
+    # setups added in Telegram live in bot.json (written by bot.py)
+    with open(os.path.join(st, "bot.json"), "w") as f:
+        json.dump({"fib_user": [{"id": "1", "coin": "HYPE", "high": 60, "low": 20, "dir": "long", "label": "hl",
+                                 "src": "telegram"}]}, f)
     tg = FakeTG()
-    bot = FakeBot(["/fib HYPE 60 20 long hl"])
-    E.run(c, st, now=NOW, client=FakeBinance(), telegram=tg, remote=None, bot=bot, hl=lambda: {"HYPE": 30.0})
-    assert "Dodano" in bot.replies[0] and "brak ceny" not in bot.replies[0]
+    E.run(c, st, now=NOW, client=FakeBinance(), telegram=tg, remote=None, hl=lambda: {"HYPE": 30.0})
     pub = json.load(open(os.path.join(st, "pub", "fib.json")))
     rows = {r["id"]: r for r in pub["setups"]}
     assert set(rows) == {"c1", "1"}
     assert rows["c1"]["chart"] is True and rows["1"]["chart"] is False and rows["1"]["price"] == 30.0
     assert rows["1"]["status"] == "zone"                     # zone of 20→60 long = 28.56–31.8
-    assert tg.sent == []                                     # new setups are armed silently (status is in the reply)
-    # next run: HYPE drops through 0.786 → alert
-    E.run(c, st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=tg, remote=None,
-          bot=FakeBot([]), hl=lambda: {"HYPE": 27.0})
+    assert tg.sent == []                                     # new setups are armed silently
+    # next run: HYPE drops through 0.786 → alert to the market channel (group)
+    E.run(c, st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=tg, remote=None, hl=lambda: {"HYPE": 27.0})
     assert len(tg.sent) == 1 and "Fibo" in tg.sent[0] and "HYPE" in tg.sent[0] and "0.786" in tg.sent[0]
+    assert tg.kinds == ["market"]
+
+
+def test_run_respects_mute_and_publishes_it(tmp_path):
+    st = str(tmp_path)
+    c = cfg()
+    c["fib"] = {"near_pct": 2, "setups": []}
+    with open(os.path.join(st, "bot.json"), "w") as f:
+        json.dump({"fib_user": [{"id": "1", "coin": "HYPE", "high": 60, "low": 20, "dir": "long", "label": ""}],
+                   "mute_until": NOW + 3600}, f)
+    tg = FakeTG()
+    E.run(c, st, now=NOW, client=FakeBinance(), telegram=tg, remote=None, hl=lambda: {"HYPE": 30.0})
+    E.run(c, st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=tg, remote=None, hl=lambda: {"HYPE": 27.0})
+    assert tg.sent == []
+    assert json.load(open(os.path.join(st, "pub", "ema.json")))["mute_until"] == NOW + 3600
+
+
+def test_old_state_setups_used_until_bot_runs(tmp_path):
+    st = {"fib_user": [{"id": "1", "coin": "SOL"}]}
+    assert E.load_bot_state(str(tmp_path), st)["fib_user"][0]["coin"] == "SOL"
 
 
 D = 86400
@@ -161,7 +166,7 @@ def test_proposals_only_near_or_in_zone_sorted_and_command():
 
 def test_run_publishes_proposals_with_high_low(tmp_path):
     st = str(tmp_path)
-    E.run(cfg(), st, now=NOW, client=FakeBinance(), remote=None, bot=FakeBot([]), hl=lambda: {})
+    E.run(cfg(), st, now=NOW, client=FakeBinance(), remote=None, hl=lambda: {})
     hl = json.load(open(os.path.join(st, "hl.json")))
     assert {"AAAUSDT", "BBBUSDT", "JUPUSDT"} <= set(hl) and 380 <= len(hl["AAAUSDT"]) <= 400
     pub = json.load(open(os.path.join(st, "pub", "fib.json")))
