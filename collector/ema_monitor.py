@@ -50,7 +50,7 @@ DEFAULTS = {
     "breadth_days": 0,              # 0 = whole history
     "history_pages_per_run": 100,   # older-candle requests per run while the full history is being filled in
     "breadth_min_coins": 10,
-    "chart_days": 1000,
+    "chart_days": 0,                # 0 = whole history in the chart files
     "publish_minutes": 15,
     "cross_buffer_pct": 0.5,
     "cooldown_hours": 12,
@@ -353,12 +353,14 @@ def write_outputs(pub_dir, payload, series, cfg, write_hist):
     if write_hist:
         hdir = os.path.join(pub_dir, "hist")
         os.makedirs(hdir, exist_ok=True)
-        keep = int(cfg["chart_days"])
+        keep = int(cfg.get("chart_days") or 0)
         names = set()
         for base, (times, closes, emas) in series.items():
             fn = f"{base}.json"
             names.add(fn)
-            pts = [[t, _round(c), _round(e)] for t, c, e in zip(times[-keep:], closes[-keep:], emas[-keep:])]
+            if keep:
+                times, closes, emas = times[-keep:], closes[-keep:], emas[-keep:]
+            pts = [[t, _round(c), _round(e)] for t, c, e in zip(times, closes, emas)]
             _write(os.path.join(hdir, fn), {"s": base, "p": int(cfg["period"]), "d": pts})
         for fn in os.listdir(hdir):
             if fn.endswith(".json") and fn not in names:
