@@ -704,20 +704,141 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None):
             "blocks": blocks}
 
 
-def save(out_dir, rep, keep=120):
-    """Write reports/<id>.json and update index.json (newest first, at most `keep`)."""
+# ── text version for AI agents (markdown) ───────────────────
+SOURCES_MD = """## Źródła danych i metody
+- Kapitalizacja i dominacje (TOTAL, TOTAL2, TOTAL3ES — alty bez BTC, ETH i stablecoinów, BTC.D, stablecoiny = TOTAL − TOTALES): indeksy CRYPTOCAP z TradingView (https://www.tradingview.com/symbols/CRYPTOCAP-TOTAL/), świece dzienne.
+- ETH/BTC: para ETHBTC z Binance przez TradingView.
+- Open interest, funding, likwidacje, ceny perpetuali BTC i ETH: Coinalyze (https://coinalyze.net) — suma z Binance, Bybit, OKX, Hyperliquid i Deribit; likwidacje tylko z Binance, Bybit i OKX (dolne oszacowanie). OI w USD; „OI w coinach” = OI w USD / cena.
+- OTHERS w open interest = wszystkie śledzone coiny bez BTC i ETH (top coiny według OI).
+- Funding: stawka ważona open interest, przeliczona na % w skali roku; ok. 11% rocznie = poziom neutralny (0,01% na 8 h).
+- EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Historia szerokości liczona tylko z coinów notowanych dziś, więc starsze lata są zawyżone.
+- Daty bez godziny = dzień UTC. Wszystkie liczby policzył program; raport nie zawiera interpretacji ani rekomendacji.
+"""
+
+
+def _md_cell(v):
+    return str(v if v is not None else "—").replace("|", "/").replace("\n", " ")
+
+
+def _md_table(cols, rows):
+    out = ["| " + " | ".join(_md_cell(c) for c in cols) + " |", "|" + "---|" * len(cols)]
+    out += ["| " + " | ".join(_md_cell(c) for c in r) + " |" for r in rows]
+    return out
+
+
+def _md_series(s, lines):
+    """A chart series as numbers: today, earlier values, extremes, position vs the drawn levels."""
+    pts = s.get("data") or []
+    if not pts:
+        return []
+    g = s.get("fmt", "")
+    t, v = pts[-1]
+    f = lambda x: fmt_val(x, g)  # noqa: E731
+    ago = []
+    for days, label in ((7, "7 dni temu"), (30, "30 dni temu"), (90, "90 dni temu"), (365, "rok temu")):
+        x = at(pts, t - days * DAY, 3 * DAY)
+        if x is not None:
+            ago.append(f"{label} {f(x)}")
+    hi = max(pts, key=lambda p: p[1])
+    lo = min(pts, key=lambda p: p[1])
+    out = [f"- **{s.get('name')}**: dziś {f(v)} ({utc(t, '%d.%m.%Y')})" + (f"; {', '.join(ago)}" if ago else "") + ".",
+           f"  Na wykresie (od {utc(pts[0][0], '%m.%Y')}): maks. {f(hi[1])} ({utc(hi[0], '%d.%m.%Y')}), "
+           f"min. {f(lo[1])} ({utc(lo[0], '%d.%m.%Y')})."]
+    if lines:
+        below = [ln for ln in lines if v < ln["value"]]
+        above = [ln for ln in lines if v >= ln["value"]]
+        pos = []
+        if above:
+            pos.append(f"nad {f(max(above, key=lambda x: x['value'])['value'])}")
+        if below:
+            pos.append(f"pod {f(min(below, key=lambda x: x['value'])['value'])}")
+        out.append("  Linie poziomów: " + "; ".join(f"{f(ln['value'])} = {ln['label']}" for ln in lines)
+                   + (f". Dziś: {' i '.join(pos)}." if pos else "."))
+    return out
+
+
+def to_markdown(rep, page_url=""):
+    """The whole report as plain markdown — to paste into any AI agent (charts turned into numbers)."""
+    src = rep.get("sources") or {}
+    L = [f"# {rep['title']} — {pl_time(rep['created'])} czasu polskiego ({utc(rep['created'])})", "",
+         "Raport rynku kryptowalut z projektu Crypto Scanner. Same dane: wszystkie liczby policzył program z danych źródłowych "
+         "(lista na końcu), bez interpretacji i rekomendacji. Opisy przy wskaźnikach mówią tylko, co wskaźnik mierzy i jak się go "
+         "zwykle czyta. Zapis liczb: kropka dziesiętna, $ = USD, M = mln, B = mld, T = bln, pp = punkty procentowe, "
+         "× = krotność, %/r = procent w skali roku.",
+         f"Dane: OI/TOTAL/likwidacje z {pl_time(src['data_updated']) if src.get('data_updated') else 'brak'}, "
+         f"EMA200 z {pl_time(src['ema_updated']) if src.get('ema_updated') else 'brak'} (czas polski)."]
+    if page_url:
+        L.append(f"Wersja z wykresami: {page_url}?id={rep['id']}")
+    for b in rep.get("blocks") or []:
+        t, title = b.get("type"), b.get("title") or ""
+        if t == "section":
+            L += ["", f"## {title}"]
+            continue
+        if t == "text" and title == "O tym raporcie":
+            continue
+        L += ["", f"### {title}"] if title else [""]
+        if b.get("desc"):
+            L.append(b["desc"])
+        if t == "text":
+            L.append(b.get("text", ""))
+        elif t == "facts":
+            for it in b.get("items") or []:
+                L.append(f"- **{it.get('label')}**: {it.get('value')} ({it.get('sub', '')})")
+        elif t == "ranges":
+            for it in b.get("items") or []:
+                line = f"- **{it.get('label')}**: {it.get('value')}" + (f" ({it['sub']})" if it.get("sub") else "")
+                if it.get("pos") is not None:
+                    line += (f". Zakres: {it.get('min')} – {it.get('max')}; dziś na {it['pos']:.0f}% zakresu "
+                             "(0% = minimum, 100% = maksimum)")
+                    refs = [m["label"] for m in it.get("marks") or []]
+                    if refs:
+                        line += "; punkty odniesienia: " + ", ".join(refs)
+                L.append(line + ".")
+                if it.get("note"):
+                    L.append(f"  {it['note']}")
+        elif t == "table":
+            L += _md_table(b.get("cols") or [], b.get("rows") or [])
+        elif t == "chart":
+            for i, s_ in enumerate(b.get("series") or []):
+                L += _md_series(s_, b.get("lines") if i == 0 else None)
+        elif t == "bars":
+            rows = []
+            for r in b.get("rows") or []:
+                tot = (r.get("long") or 0) + (r.get("short") or 0)
+                rows.append([r.get("label"), alerts.fmt_value(tot, "liq"), alerts.fmt_value(r.get("long"), "liq"),
+                             alerts.fmt_value(r.get("short"), "liq"), f"{100 * r['long'] / tot:.0f}%" if tot else "—"])
+            L += _md_table(["Dzień (UTC)", "Suma", "Longi", "Shorty", "Udział longów"], rows)
+            if b.get("line"):
+                L.append(f"Próg — {b['line']['label']}.")
+        if b.get("note"):
+            L.append(f"_{b['note']}_")
+    L += ["", SOURCES_MD]
+    return "\n".join(L)
+
+
+def save(out_dir, rep, keep=120, md=None):
+    """Write reports/<id>.json (+ .md for AI), update index.json (newest first, at most `keep`) and latest.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
     items.insert(0, {k: rep[k] for k in ("id", "kind", "title", "created", "summary")})
     items.sort(key=lambda r: r.get("created") or 0, reverse=True)
     for old in items[keep:]:
-        try:
-            os.remove(os.path.join(out_dir, "reports", f"{old['id']}.json"))
-        except FileNotFoundError:
-            pass
+        for ext in ("json", "md"):
+            try:
+                os.remove(os.path.join(out_dir, "reports", f"{old['id']}.{ext}"))
+            except FileNotFoundError:
+                pass
     items = items[:keep]
     _write(os.path.join(out_dir, "reports", f"{rep['id']}.json"), rep)
     _write(os.path.join(out_dir, "index.json"), {"updated": rep["created"], "reports": items})
+    if md is not None and items and items[0]["id"] == rep["id"]:
+        for path in (os.path.join(out_dir, "reports", f"{rep['id']}.md"), os.path.join(out_dir, "latest.md")):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(md)
+        _write(os.path.join(out_dir, "latest.json"), rep)
+    elif md is not None:
+        with open(os.path.join(out_dir, "reports", f"{rep['id']}.md"), "w", encoding="utf-8") as f:
+            f.write(md)
     return items
 
 
@@ -759,7 +880,7 @@ def main(argv=None):
 
     if a.cmd == "make":
         rep = build(a.data, a.ema, a.kind, cfg=cfg)
-        save(a.out, rep, keep=int(cfg["keep"]))
+        save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, a.page or cfg["page_url"]))
         n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
         log.info("Raport %s: %d bloków, %d pozycji", rep["id"], len(rep["blocks"]), n)
         return 0
