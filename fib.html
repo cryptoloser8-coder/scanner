@@ -242,7 +242,7 @@ async function draw(reset) {
     autoSize: true, layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)', scaleMargins: {top: .08, bottom: .05}},
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3}, localization: {locale: 'pl-PL'}});
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3, fixLeftEdge: true, fixRightEdge: true}, localization: {locale: 'pl-PL'}});
   for (const m of mounted) chart.removeSeries(m); mounted = [];
   chart.priceScale('right').applyOptions({mode: S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal});
   const s = item(S.id);
@@ -275,7 +275,8 @@ async function draw(reset) {
   }
   if (reset) {
     const last = pts[pts.length - 1].time, first = pts[0].time;
-    if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last}); else chart.timeScale().fitContent();
+    const apply = () => { if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last}); else chart.timeScale().fitContent(); };
+    apply(); requestAnimationFrame(() => requestAnimationFrame(apply));
   }
 }
 async function boot() {

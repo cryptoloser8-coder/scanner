@@ -345,7 +345,7 @@ function makeChart() {
     layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3, fixLeftEdge: true, fixRightEdge: true},
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: {locale: 'pl-PL'},
   });
@@ -353,8 +353,12 @@ function makeChart() {
 }
 function clearChart() { for (const m of mounted) chart.removeSeries(m.series); mounted = []; }
 function setRange(first, last) {
-  if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last});
-  else chart.timeScale().fitContent();
+  const apply = () => {
+    if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last});
+    else chart.timeScale().fitContent();
+  };
+  apply();
+  requestAnimationFrame(() => requestAnimationFrame(apply));   // again once the chart knows its real width
 }
 async function refreshChart(resetRange) {
   syncControls();
