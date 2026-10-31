@@ -44,6 +44,7 @@
   .tile-icon.rsi{background:rgba(76,175,125,.12);color:var(--green);}
   .tile-icon.oi{background:rgba(206,147,216,.12);color:var(--purple);}
   .tile-icon.liq{background:rgba(224,82,82,.12);color:var(--red);}
+  .tile-icon.ema{background:rgba(255,193,7,.12);color:var(--amber);}
   .tile-icon.soon{background:var(--bg3);color:var(--text3);}
 
   .tile-title{font-size:16px;font-weight:600;letter-spacing:-.2px;}
@@ -91,14 +92,21 @@
     <a href="liq.html" class="tile">
       <div class="tile-icon liq">LIQ</div>
       <div class="tile-title">Likwidacje i funding</div>
-      <div class="tile-desc">Likwidacje long/short BTC, ETH i największych altów z wielu giełd (z Hyperliquid), funding ważony OI w % rocznie, udział giełd, największe dni.</div>
+      <div class="tile-desc">Likwidacje long/short BTC, ETH i największych altów (Binance, Bybit, OKX), funding ważony OI w % rocznie (także Hyperliquid), udział giełd, największe dni.</div>
+      <span class="tile-tag beta">● Beta</span>
+    </a>
+
+    <a href="ema.html" class="tile">
+      <div class="tile-icon ema">EMA</div>
+      <div class="tile-title">EMA200 Monitor</div>
+      <div class="tile-desc">Wszystkie coiny z Binance (pary USDT) względem EMA200 na świecy dziennej: tabela najbliższych przecięcia, szerokość rynku, alerty przecięcia i zbliżenia na Telegram.</div>
       <span class="tile-tag beta">● Beta</span>
     </a>
 
     <div class="tile disabled">
       <div class="tile-icon soon">+</div>
       <div class="tile-title">Wkrótce</div>
-      <div class="tile-desc">Miejsce na kolejne narzędzia — Volume Profile, EMA cross, Order Flow, cokolwiek się przyda.</div>
+      <div class="tile-desc">Miejsce na kolejne narzędzia.</div>
       <span class="tile-tag soon">Soon</span>
     </div>
 

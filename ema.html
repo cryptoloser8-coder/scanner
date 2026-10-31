@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EMA200 Monitor</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--green-bg:rgba(76,175,125,.12);
+    --red:#e05252;--red-bg:rgba(224,82,82,.12);
+    --blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--purple:#ce93d8;
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);transition:all .15s;}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);} .status-dot.stale{background:var(--amber);} .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+  .banner code{font-family:var(--mono);font-size:11px;}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}
+  .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;min-width:0;}
+  .tile.click{cursor:pointer;} .tile.click:hover{background:var(--bg3);border-color:var(--border2);}
+  .tile-name{font-size:11px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:6px;}
+  .info{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);color:var(--text3);font-size:9px;display:flex;align-items:center;justify-content:center;cursor:help;font-style:italic;font-family:Georgia,serif;}
+  .tile-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
+  .tile-sub{font-family:var(--mono);font-size:10px;color:var(--text3);}
+  .pos{color:var(--green);} .neg{color:var(--red);} .warn{color:var(--amber);}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:14px;min-width:0;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;transition:all .15s;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  input[type=search]{font-size:11px;padding:4px 9px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;font-family:inherit;width:130px;}
+  .coin-title{font-size:15px;font-weight:600;font-family:var(--mono);}
+  .chart-wrap{position:relative;height:min(52vh,520px);min-height:320px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;}
+  .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);}
+  .lg-name{color:var(--text2);} .lg-val{font-family:var(--mono);}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+  .hint code{font-family:var(--mono);}
+
+  .table-wrap{overflow-x:auto;max-height:70vh;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  th{position:sticky;top:0;background:var(--bg3);z-index:1;font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;font-weight:500;text-align:right;padding:6px 8px;border-bottom:1px solid var(--border2);cursor:pointer;user-select:none;white-space:nowrap;}
+  th:hover{color:var(--text);} th.sorted{color:var(--text);}
+  th:first-child,td:first-child{text-align:left;}
+  td{font-family:var(--mono);text-align:right;padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tr.row{cursor:pointer;} tr.row:hover td{background:var(--bg3);} tr.row.sel td{background:rgba(91,156,246,.12);}
+  .dist{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;}
+  .bar{display:inline-block;width:50px;height:6px;background:var(--bg3);border-radius:3px;position:relative;overflow:hidden;}
+  .bar i{position:absolute;top:0;bottom:0;}
+  .bell{color:var(--amber);}
+  details{margin-top:10px;font-size:11px;color:var(--text2);}
+  details summary{cursor:pointer;color:var(--text2);}
+  details p{margin-top:6px;line-height:1.7;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  .rules{font-size:11px;color:var(--text2);line-height:1.7;}
+  .rules b{color:var(--text);}
+  .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
+  .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
+  #tip{position:fixed;z-index:50;max-width:320px;background:#262626;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:11px;line-height:1.5;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s;}
+  #tip.show{opacity:1;}
+  @media (max-width:640px){ body{padding:14px;} .tiles{grid-template-columns:repeat(2,1fr);} input[type=search]{width:100px;} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>EMA200 Monitor</h1>
+      <p>Binance spot */USDT &nbsp;·&nbsp; świeca dzienna &nbsp;·&nbsp; liczone na Orange Pi, odświeżane co ~15 min</p>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <span class="status-dot" id="dot"></span>
+    <span class="status-label" id="status">Ładowanie…</span>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Widok</span>
+      <div class="pills" id="view-pills">
+        <button class="pill" data-val="coin">Coin + EMA200</button>
+        <button class="pill" data-val="breadth" title="Jaki % coinów zamyka dzień nad swoją EMA200">Szerokość rynku</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <span class="coin-title" id="coin-title"></span>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Zakres</span>
+      <div class="pills" id="range-pills">
+        <button class="pill" data-val="90">3M</button>
+        <button class="pill" data-val="180">6M</button>
+        <button class="pill" data-val="365">1R</button>
+        <button class="pill" data-val="730">2L</button>
+        <button class="pill" data-val="0">ALL</button>
+      </div>
+    </div>
+    <div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna">Log</button></div>
+  </div>
+  <div class="chart-wrap">
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty" id="empty">Wybierz coin w tabeli poniżej</div>
+  </div>
+  <div class="hint" id="chart-hint"></div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Pokaż</span>
+      <div class="pills" id="filter-pills">
+        <button class="pill" data-val="all">Wszystkie</button>
+        <button class="pill" data-val="near" title="Coiny bliżej niż 3% od EMA200">Blisko (±3%)</button>
+        <button class="pill" data-val="above">Nad EMA</button>
+        <button class="pill" data-val="below">Pod EMA</button>
+        <button class="pill" data-val="fresh" title="Przecięcie na zamknięciu dnia w ostatnich 7 dniach">Świeże przecięcia (7D)</button>
+        <button class="pill" data-val="alert">Z alertem</button>
+      </div>
+    </div>
+    <input type="search" id="search" placeholder="Szukaj coina…">
+    <span class="hint" id="count" style="margin:0"></span>
+  </div>
+  <div class="table-wrap"><table id="table"></table></div>
+  <div class="hint">Kliknij nagłówek, żeby sortować (drugi klik odwraca kolejność). Kliknij wiersz, żeby zobaczyć wykres.
+    „Odległość” liczona z aktualną ceną (dzisiejsza świeca jeszcze otwarta, jak na TradingView); „Od” i „Przecięcie” liczone na zamknięciach dni.</div>
+  <details id="excluded"></details>
+</div>
+
+<div class="panel">
+  <h2 style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Alerty na Telegram</h2>
+  <div class="rules" id="rules"></div>
+  <div class="hint">Alerty ustawiasz w <code>collector/config.yaml</code>, sekcja <code>ema: alerts:</code> (edycja na GitHubie i Commit). Orange Pi czyta je co 5 minut, nic więcej nie trzeba robić.</div>
+</div>
+
+<div class="footer">
+  Dane: <a href="https://www.binance.com" target="_blank" rel="noopener">Binance</a> (spot, świece dzienne) &nbsp;·&nbsp;
+  Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a><br>
+  <span id="foot-info"></span>
+</div>
+<div id="tip"></div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+const qs = new URLSearchParams(location.search);
+const BASE = (() => {
+  if (qs.get('ema')) return qs.get('ema').replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/ema/`;
+  }
+  return 'ema-data/';
+})();
+const bust = () => 'v=' + Math.floor(Date.now() / 120000);
+async function getJSON(name) {
+  const r = await fetch(`${BASE}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('emamon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('emamon.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+
+let DATA = null, HIST = {};
+let S = Object.assign({coin: 'BTC', view: 'coin', range: 365, log: false, sort: 'ad', dir: 1, filter: 'all', q: ''},
+  store.get('view', {}), parseHash());
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1)), o = {};
+  if (h.get('c')) o.coin = h.get('c').toUpperCase();
+  if (h.get('v')) o.view = h.get('v');
+  if (h.get('z')) o.range = +h.get('z');
+  if (h.get('f')) o.filter = h.get('f');
+  return o;
+}
+function persist() {
+  store.set('view', {coin: S.coin, view: S.view, range: S.range, log: S.log, sort: S.sort, dir: S.dir, filter: S.filter});
+  history.replaceState(null, '', '#' + new URLSearchParams({c: S.coin, v: S.view, z: S.range, f: S.filter}));
+}
+
+// ── formatting ──────────────────────────────────────────────
+function price(v) {
+  if (v == null || isNaN(v)) return '—';
+  if (v === 0) return '$0';
+  const a = Math.abs(v);
+  if (a >= 1000) return '$' + Math.round(v).toLocaleString('pl-PL');
+  if (a >= 1) return '$' + v.toFixed(2);
+  return '$' + v.toPrecision(4);
+}
+const usd = v => v == null ? '—' : v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + v.toFixed(0);
+const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const dateFmt = t => t ? new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'UTC'}) : '—';
+function ago(ts) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+  if (m < 60) return `${m} min temu`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h} h temu` : `${Math.round(h / 24)} dni temu`;
+}
+const nearOf = c => (c.alert && c.alert.near) || 2;
+
+// tooltip
+const tip = document.getElementById('tip');
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-tip]'); if (!el) return;
+  tip.textContent = el.dataset.tip; tip.classList.add('show');
+  const r = el.getBoundingClientRect();
+  tip.style.left = Math.min(Math.max(8, r.left), innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (r.bottom + 6 + tip.offsetHeight > innerHeight ? r.top - tip.offsetHeight - 6 : r.bottom + 6) + 'px';
+});
+document.addEventListener('mouseout', e => { if (e.target.closest('[data-tip]')) tip.classList.remove('show'); });
+
+// ── tiles ───────────────────────────────────────────────────
+function renderTiles() {
+  const C = DATA.coins, n = C.length;
+  const ab = DATA.above, pctAbove = n ? ab / n * 100 : 0;
+  const br = DATA.breadth || [];
+  const b7 = br.length > 7 ? br[br.length - 8][1] : null, b30 = br.length > 30 ? br[br.length - 31][1] : null;
+  const wk = Date.now() / 1000 - 7 * 86400;
+  const up7 = C.filter(c => c.side > 0 && c.cross_t && c.cross_t >= wk).length;
+  const dn7 = C.filter(c => c.side < 0 && c.cross_t && c.cross_t >= wk).length;
+  const near = C.filter(c => Math.abs(c.d) <= 3).length;
+  const cls = pctAbove >= 70 ? 'warn' : pctAbove >= 50 ? 'pos' : 'neg';
+  const sel = C.find(c => c.s === S.coin);
+  document.getElementById('tiles').innerHTML = `
+    <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Powyżej ~70% rynek jest szeroko rozgrzany, poniżej ~30% słaby. Historia liczona na zamknięciach dni, tylko z coinów, które są dziś na Binance.">i</span></div>
+      <div class="tile-val ${cls}">${pctAbove.toFixed(0)}%</div>
+      <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.toFixed(0)}%` : ''}${b30 != null ? ` · 30D ${b30.toFixed(0)}%` : ''}</div></div>
+    <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>
+      <div class="tile-val warn">${near}</div><div class="tile-sub">coinów w odległości do 3% od EMA200</div></div>
+    <div class="tile click" data-go="fresh"><div class="tile-name">Przecięcia w 7 dni (zamknięcia)</div>
+      <div class="tile-val"><span class="pos">▲${up7}</span> <span class="neg">▼${dn7}</span></div><div class="tile-sub">w górę / w dół, na świecy dziennej</div></div>
+    ${sel ? `<div class="tile click" data-go="coin"><div class="tile-name">${esc(sel.s)}</div>
+      <div class="tile-val ${sel.d >= 0 ? 'pos' : 'neg'}">${pct(sel.d)}</div>
+      <div class="tile-sub">${price(sel.p)} · EMA ${price(sel.e)} · ${sel.side > 0 ? 'nad' : 'pod'} od ${sel.since} dni</div></div>` : ''}`;
+}
+document.getElementById('tiles').addEventListener('click', e => {
+  const t = e.target.closest('[data-go]'); if (!t || e.target.closest('.info')) return;
+  const g = t.dataset.go;
+  if (g === 'breadth' || g === 'coin') { S.view = g; refreshChart(true); }
+  else { S.filter = g; renderTable(); }
+  persist(); syncControls();
+});
+
+// ── table ───────────────────────────────────────────────────
+const COLS = [
+  ['s', 'Coin', c => `<b>${esc(c.s)}</b>${c.alert ? ' <span class="bell" title="Alert ustawiony">🔔</span>' : ''}`],
+  ['p', 'Cena', c => price(c.p)],
+  ['e', 'EMA200', c => price(c.e)],
+  ['ad', 'Odległość', c => {
+    const z = nearOf(c), a = Math.abs(c.d), col = a <= z ? 'var(--amber)' : c.d >= 0 ? 'var(--green)' : 'var(--red)';
+    const w = Math.min(25, a / 40 * 25);
+    const bar = c.d >= 0 ? `<i style="left:50%;width:${w * 2}%;background:${col}"></i>` : `<i style="right:50%;width:${w * 2}%;background:${col}"></i>`;
+    return `<span class="dist"><span style="color:${col}">${pct(c.d)}</span><span class="bar">${bar}</span></span>`;
+  }],
+  ['since', 'Od (dni)', c => `<span class="${c.side > 0 ? 'pos' : 'neg'}">${c.side > 0 ? 'nad' : 'pod'}</span> ${c.since}`],
+  ['cross_t', 'Przecięcie', c => dateFmt(c.cross_t)],
+  ['vol', 'Obrót 24h', c => usd(c.vol)],
+  ['days', 'Historia', c => c.days + ' d'],
+];
+function rowsFiltered() {
+  const q = S.q.trim().toUpperCase(), wk = Date.now() / 1000 - 7 * 86400;
+  let r = DATA.coins.filter(c => !q || c.s.includes(q));
+  if (S.filter === 'near') r = r.filter(c => Math.abs(c.d) <= 3);
+  if (S.filter === 'above') r = r.filter(c => c.d >= 0);
+  if (S.filter === 'below') r = r.filter(c => c.d < 0);
+  if (S.filter === 'fresh') r = r.filter(c => c.cross_t && c.cross_t >= wk);
+  if (S.filter === 'alert') r = r.filter(c => c.alert);
+  const key = S.sort, val = c => key === 'ad' ? Math.abs(c.d) : key === 's' ? c.s : (c[key] == null ? -Infinity : c[key]);
+  r.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * S.dir; });
+  return r;
+}
+function renderTable() {
+  const r = rowsFiltered();
+  document.getElementById('count').textContent = `${r.length} z ${DATA.coins.length}`;
+  document.getElementById('table').innerHTML =
+    `<tr>${COLS.map(([k, l]) => `<th data-k="${k}" class="${S.sort === k ? 'sorted' : ''}">${l}${S.sort === k ? (S.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr>` +
+    r.map(c => `<tr class="row ${c.s === S.coin ? 'sel' : ''}" data-c="${esc(c.s)}">${COLS.map(([, , f]) => `<td>${f(c)}</td>`).join('')}</tr>`).join('');
+  syncControls();
+}
+document.getElementById('table').addEventListener('click', e => {
+  const th = e.target.closest('th');
+  if (th) {
+    const k = th.dataset.k;
+    if (S.sort === k) S.dir = -S.dir; else { S.sort = k; S.dir = ['s', 'ad', 'since'].includes(k) ? 1 : -1; }
+    persist(); renderTable(); return;
+  }
+  const tr = e.target.closest('tr.row');
+  if (tr) { S.coin = tr.dataset.c; S.view = 'coin'; persist(); renderTable(); renderTiles(); refreshChart(true);
+    document.querySelector('.chart-wrap').scrollIntoView({behavior: 'smooth', block: 'center'}); }
+});
+document.getElementById('search').addEventListener('input', e => { S.q = e.target.value; renderTable(); });
+document.getElementById('filter-pills').addEventListener('click', e => {
+  const b = e.target.closest('.pill'); if (b) { S.filter = b.dataset.val; persist(); renderTable(); }
+});
+
+// ── controls ────────────────────────────────────────────────
+function syncControls() {
+  for (const [id, key] of [['view-pills', 'view'], ['range-pills', 'range'], ['filter-pills', 'filter']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
+  document.getElementById('log-btn').classList.toggle('active', S.log);
+}
+document.getElementById('view-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.view = b.dataset.val; persist(); refreshChart(true); } });
+document.getElementById('range-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.range = +b.dataset.val; persist(); refreshChart(true); } });
+document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; persist(); refreshChart(false); });
+
+// ── chart ───────────────────────────────────────────────────
+let chart = null, mounted = [];
+function makeChart() {
+  chart = LWC.createChart(document.getElementById('chart'), {
+    autoSize: true,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL'},
+  });
+  chart.subscribeCrosshairMove(updateLegend);
+}
+function clearChart() { for (const m of mounted) chart.removeSeries(m.series); mounted = []; }
+function setRange(first, last) {
+  if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last});
+  else chart.timeScale().fitContent();
+}
+async function refreshChart(resetRange) {
+  syncControls();
+  if (!chart) makeChart();
+  const empty = document.getElementById('empty');
+  const title = document.getElementById('coin-title');
+  clearChart();
+  chart.priceScale('right').applyOptions({mode: S.log && S.view === 'coin' ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal,
+    scaleMargins: {top: .08, bottom: .03}});
+  if (S.view === 'breadth') {
+    title.textContent = '';
+    const br = DATA.breadth || [];
+    empty.style.display = br.length ? 'none' : 'flex';
+    empty.textContent = 'Brak historii szerokości rynku';
+    const s = chart.addSeries(LWC.LineSeries, {color: '#5b9cf6', lineWidth: 2, priceFormat: {type: 'custom', minMove: .01, formatter: v => v.toFixed(0) + '%'}, priceLineVisible: false});
+    s.setData(br.map(([t, v]) => ({time: t, value: v})));
+    for (const [lvl, col] of [[50, 'rgba(255,255,255,.3)'], [70, 'rgba(255,193,7,.5)'], [30, 'rgba(224,82,82,.5)']])
+      s.createPriceLine({price: lvl, color: col, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+    mounted.push({series: s, name: '% coinów nad EMA200', color: '#5b9cf6', fmt: v => v.toFixed(1) + '%', extra: br});
+    if (br.length) setRange(br[0][0], br[br.length - 1][0]);
+    document.getElementById('chart-hint').textContent = 'Szerokość rynku: % coinów (z co najmniej ' + DATA.min_days + ' dniami historii w danym dniu), które zamknęły dzień nad swoją EMA200. ' +
+      'Liczone z coinów notowanych dziś na Binance, więc dawniejsze lata nie obejmują coinów wycofanych z giełdy. Linie: 30%, 50%, 70%.';
+    updateLegend();
+    return;
+  }
+  const c = DATA.coins.find(x => x.s === S.coin);
+  title.textContent = c ? c.s + '/USDT' : '';
+  if (!c) { empty.style.display = 'flex'; empty.textContent = 'Wybierz coin w tabeli poniżej'; return; }
+  let h = HIST[c.s];
+  if (!h) {
+    empty.style.display = 'flex'; empty.textContent = 'Ładowanie ' + c.s + '…';
+    try { h = HIST[c.s] = await getJSON(`hist/${encodeURIComponent(c.s)}.json`); }
+    catch (e) { empty.textContent = 'Nie udało się wczytać historii ' + c.s + ' (' + e.message + ')'; return; }
+    if (S.coin !== c.s) return;
+  }
+  empty.style.display = 'none';
+  const today = Math.floor(DATA.updated / 86400) * 86400;
+  const pts = h.d.filter(p => p[0] < today);
+  const closeData = pts.map(([t, cl]) => ({time: t, value: cl})).concat([{time: today, value: c.p}]);
+  const emaData = pts.map(([t, , e]) => ({time: t, value: e})).concat([{time: today, value: c.e}]);
+  const sp = chart.addSeries(LWC.LineSeries, {color: '#e0e0e0', lineWidth: 1.5, priceFormat: {type: 'custom', minMove: 1e-8, formatter: price}, priceLineVisible: false});
+  sp.setData(closeData);
+  const se = chart.addSeries(LWC.LineSeries, {color: '#ffc107', lineWidth: 2, priceFormat: {type: 'custom', minMove: 1e-8, formatter: price}, priceLineVisible: false});
+  se.setData(emaData);
+  // markers on daily-close crossings
+  const marks = [];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1][1] >= pts[i - 1][2], b = pts[i][1] >= pts[i][2];
+    if (a !== b) marks.push({time: pts[i][0], position: b ? 'belowBar' : 'aboveBar', color: b ? '#4caf7d' : '#e05252', shape: b ? 'arrowUp' : 'arrowDown', size: .6});
+  }
+  if (LWC.createSeriesMarkers) LWC.createSeriesMarkers(sp, marks);
+  mounted.push({series: sp, name: 'Cena (zamknięcie)', color: '#e0e0e0', fmt: price}, {series: se, name: 'EMA' + DATA.period, color: '#ffc107', fmt: price});
+  if (resetRange) setRange(closeData[0].time, today);
+  document.getElementById('chart-hint').textContent =
+    `Biała linia: zamknięcia dni, ostatni punkt to aktualna cena (dzień jeszcze trwa). Żółta: EMA${DATA.period}. Strzałki: przecięcia na zamknięciu dnia. ` +
+    `Historia coina: ${c.days} dni.` + (c.alert ? ` Alert: ${c.alert.cross ? 'przecięcie' : ''}${c.alert.cross && c.alert.near ? ' + ' : ''}${c.alert.near ? `zbliżenie do ${c.alert.near}%` : ''}.` : '');
+  updateLegend();
+}
+function updateLegend(param) {
+  const live = param && param.time;
+  const rows = mounted.map(m => {
+    let v = null;
+    if (live) { const d = param.seriesData.get(m.series); v = d && d.value; }
+    else { const d = m.series.data(); v = d.length ? d[d.length - 1].value : null; }
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span></div>`;
+  });
+  if (mounted.length === 2 && S.view === 'coin') {
+    const vals = mounted.map(m => { const d = live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0]; return d && d.value; });
+    if (vals[0] != null && vals[1]) rows.push(`<div class="lg-row"><span class="lg-name">Odległość</span><span class="lg-val">${pct((vals[0] / vals[1] - 1) * 100)}</span></div>`);
+  }
+  document.getElementById('legend').innerHTML = rows.join('');
+}
+
+// ── rules / excluded / status ───────────────────────────────
+function renderRules() {
+  const R = DATA.rules || [];
+  document.getElementById('rules').innerHTML = R.length ? R.map(r => {
+    const coins = r.coins === 'all' ? '<b>wszystkie coiny</b>' : (r.coins || []).map(c => `<b>${esc(c)}</b>`).join(', ');
+    const what = [];
+    if (r.cross) what.push(`przecięcie (${r.confirm === 'close' ? 'po zamknięciu dnia' : 'w trakcie dnia'}${r.direction && r.direction !== 'both' ? ', tylko ' + (r.direction === 'up' ? 'w górę' : 'w dół') : ''})`);
+    if (r.near_pct != null) what.push(`zbliżenie na ${r.near_pct}%`);
+    return `• ${coins}: ${what.join(' + ') || '—'}`;
+  }).join('<br>') : 'Brak ustawionych alertów.';
+  const ex = DATA.excluded || [];
+  document.getElementById('excluded').innerHTML = ex.length ? `<summary>Pominięte: ${ex.length} coinów z historią krótszą niż ${DATA.min_days} dni</summary><p>${ex.map(([s, d]) => `${esc(s)} (${d} d)`).join(', ')}</p>` : '';
+}
+function setStatus(kind, text) { document.getElementById('dot').className = 'status-dot ' + kind; document.getElementById('status').textContent = text; }
+async function boot() {
+  try { DATA = await getJSON('ema.json'); }
+  catch (e) {
+    setStatus('error', 'Brak danych');
+    const b = document.getElementById('banner'); b.className = 'banner warn';
+    b.innerHTML = `Brak danych EMA (${esc(e.message)}). Liczy je Orange Pi — pojawią się po pierwszym uruchomieniu skryptu <code>ema_cron.sh</code> z tokenem z uprawnieniem do zapisu (instrukcja w <code>collector/README.md</code>).`;
+    document.getElementById('empty').textContent = 'Brak danych';
+    return;
+  }
+  const age = Date.now() / 1000 - DATA.updated;
+  setStatus(age < 3600 ? 'live' : 'stale', 'Aktualizacja: ' + ago(DATA.updated));
+  if (age > 3 * 3600) {
+    const b = document.getElementById('banner'); b.className = 'banner warn';
+    b.textContent = `⚠️ Dane nie były odświeżane od ${ago(DATA.updated)}. Sprawdź Orange Pi (cron, log ~/ema-monitor.log).`;
+  }
+  document.getElementById('foot-info').textContent = `${DATA.source} · ${DATA.total} coinów z EMA${DATA.period} (min. ${DATA.min_days} dni historii) · świece dzienne do ${dateFmt(DATA.daily_at - 86400)}`;
+  if (!DATA.coins.some(c => c.s === S.coin)) S.coin = DATA.coins.length ? (DATA.coins.find(c => c.s === 'BTC') || DATA.coins[0]).s : '';
+  document.getElementById('search').value = S.q;
+  renderTiles(); renderTable(); renderRules();
+  await refreshChart(true);
+}
+if (!LWC) setStatus('error', 'Błąd ładowania biblioteki wykresów'); else boot();
+</script>
+</body>
+</html>
