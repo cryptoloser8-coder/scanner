@@ -70,6 +70,7 @@ ALWAYS_EXCLUDE = {
     "WBTC", "WBETH", "BETH", "BNSOL", "STETH", "WSTETH", "CBBTC",
 }
 LEVERAGED = ("UP", "DOWN", "BULL", "BEAR")
+HIST_VERSION = 2          # bump → chart files are rewritten on the next run (not only after 00:00 UTC)
 
 
 def fmt_price(v):
@@ -614,10 +615,13 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             st["hist_dirty"] = True              # EMA changed (longer warm-up) → rewrite chart files
         if publish and due:
             pub = os.path.join(state_dir, "pub")
-            write_hist = daily_due or st.get("hist_dirty") or not os.path.isdir(os.path.join(pub, "hist"))
+            write_hist = (daily_due or st.get("hist_dirty") or st.get("hist_version") != HIST_VERSION
+                          or not os.path.isdir(os.path.join(pub, "hist")))
             write_outputs(pub, payload, series, cfg, write_hist=write_hist)
             _write(os.path.join(pub, "fib.json"), fib_payload)
             st["hist_dirty"] = False
+            if write_hist:
+                st["hist_version"] = HIST_VERSION
             if remote:
                 try:
                     git_publish(pub, remote, cfg["branch"], run=git)
