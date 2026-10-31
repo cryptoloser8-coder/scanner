@@ -79,8 +79,8 @@ telegram:
   # GRUPA: alerty rynkowe i raporty idą do wątku grupy; awarie i sprawy systemu — tylko do Ciebie na priv.
   # Jak ustawić: dodaj bota do grupy, w wybranym wątku napisz /watek@NazwaTwojegoBota,
   # przepisz tu obie liczby i zapisz plik na GitHubie. Puste (null) = wszystko na priv.
-  group_chat_id: null      # np. -1001234567890
-  group_thread_id: null    # numer wątku (null = wątek „Ogólny” / grupa bez tematów)
+  group_chat_id: -1002325353182      # np. -1001234567890
+  group_thread_id: 168872    # numer wątku (null = wątek „Ogólny” / grupa bez tematów)
   # Jak często przypominać o awarii (godziny).
   health_reminder_hours: 12
 
