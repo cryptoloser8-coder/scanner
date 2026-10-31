@@ -14,7 +14,17 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "text",  "title", "text"}
   {"type": "facts", "title", "items": [{"label", "value", "sub", "zone", "note"}]}   zone: green|yellow|red|None
   {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...]}]}
-  {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...]}
+  {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours)}
+  {"type": "section", "title"}                                       — section heading
+  {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
+                                                 "marks": [{"pos", "label", "kind"}], "note"}]}  — range bars
+  {"type": "bars", "title", "note", "rows": [{"label", "long", "short", "text", "current"}],
+                   "parts": [{"key", "name", "color"}], "line": {"value", "label"}}         — horizontal stacked bars
+  chart: optional "lines": [{"value", "label", "color"}] — horizontal levels
+
+Layout v2 (31.10.2026): Rynek (range bars) → Alty (table vs past peaks, OI OTHERS/OI BTC and Alty/BTC with levels,
+OI OTHERS + OI BTC, market breadth) → Derywaty (OI vs price, funding bars) → Likwidacje (7 days) → EMA200 (coins near it).
+Thresholds and levels: config.yaml → reports: (see LAYOUT).
 """
 import argparse
 import json
@@ -260,76 +270,389 @@ def history_note(d, sid):
             f"min. {fmt_val(v_min, g)} ({utc(t_min, '%d.%m.%Y')}).")
 
 
-def ema_blocks(ema, fib):
-    blocks = []
-    if not ema:
-        return [{"type": "text", "title": "EMA200 i szerokość rynku", "text": "Brak danych z gałęzi ema."}]
-    breadth = ema.get("breadth") or []
-    total = ema.get("total") or 0
-    above = ema.get("above") or 0
-    now_pct = 100 * above / total if total else None
-    items = [{"label": "Szerokość rynku", "value": f"{now_pct:.1f}%" if now_pct is not None else "—",
-              "sub": f"{above} z {total} coinów nad EMA200", "zone": None,
-              "note": "Odsetek coinów Binance */USDT (z co najmniej 300 dniami historii) z ceną nad EMA200 na świecy dziennej."}]
-    if breadth:
-        last_t = breadth[-1][0]
-        yr = [b for b in breadth if b[0] >= last_t - 365 * DAY]
-        mx = max(yr, key=lambda b: b[1])
-        mn = min(yr, key=lambda b: b[1])
-        items[0]["sub"] += f" · 12 mies.: maks. {mx[1]:.0f}% ({utc(mx[0], '%d.%m.%Y')}), min. {mn[1]:.0f}% ({utc(mn[0], '%d.%m.%Y')})"
-    coins = {c.get("s"): c for c in ema.get("coins") or []}
-    for sym in ("BTC", "ETH"):
-        c = coins.get(sym)
-        if c:
-            side = "nad" if c.get("side", 0) > 0 else "pod"
-            items.append({"label": f"{sym} vs EMA200", "value": f"{c['d']:+.2f}%",
-                          "sub": f"cena {fmt_price(c['p'])} · EMA {fmt_price(c['e'])} · {side} od {c.get('since', '?')} dni",
-                          "zone": None, "note": "Odległość aktualnej ceny od EMA200 (świeca dzienna)."})
-    blocks.append({"type": "facts", "title": "EMA200 i szerokość rynku (Binance)", "items": items})
+# ── layout settings (config.yaml → reports:) ────────────────
+LAYOUT = {
+    "range_years": 2,              # pasek zakresu w sekcji Rynek i przy fundingu
+    "ema_near_pct": 3.0,           # EMA200: tylko coiny bliżej niż X% od średniej
+    "ema_min_volume": 10e6,        # … z obrotem ≥ $ dziennie
+    "ema_max_rows": 15,
+    "oi_flat_pct": 1.0,            # OI i cena: zmiana poniżej X% = „bez zmian”
+    "liq_days": 7,                 # likwidacje: ostatnie N pełnych dni
+    "liq_big_pct": 90,             # linia „duży dzień” = percentyl z 2 lat
+    "alts_ref_level": 1.0,         # kolumny tabeli altów: szczyty OI OTHERS/OI BTC ≥ poziom …
+    "alts_ref_count": 3,           # … ostatnie N
+    "alts_chart_from": "2020-01-01",
+    "lines": {
+        "oi_others_vs_btc": [[0.60, "strefa dołków"], [0.85, "górne 10% dni"],
+                             [0.95, "szczyty 03.2024 i 07.2025"], [1.00, "zrównanie z BTC"]],
+        "alts_vs_btc": [[0.28, "dołki 2025–2026"], [0.38, "szczyt 09.2025"], [0.47, "szczyty 12.2023 i 12.2024"]],
+    },
+}
+NEUTRAL_FUNDING = 10.95        # 0,01% na 8 h w skali roku
+LINE_COLORS = ["#4caf7d", "#ffc107", "#ff9800", "#e05252"]
 
-    if breadth:
-        last_t = breadth[-1][0]
-        blocks.append({"type": "chart", "title": "Szerokość rynku — % coinów nad EMA200, 2 lata", "log": False,
-                       "range": [0, 100],
-                       "note": breadth_peaks_note(breadth),
-                       "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
-                                   "data": [[b[0], b[1]] for b in breadth if b[0] >= last_t - 730 * DAY]}]})
 
-    rule_coins = []
-    for r in ema.get("rules") or []:
-        rule_coins += [c for c in r.get("coins") or [] if c not in rule_coins]
-    rows = []
-    for sym in rule_coins:
-        c = coins.get(sym)
-        if not c:
+def layout(cfg):
+    out = dict(LAYOUT)
+    out.update({k: v for k, v in (cfg or {}).items() if k in LAYOUT and v is not None})
+    lines = dict(LAYOUT["lines"])
+    lines.update((cfg or {}).get("lines") or {})
+    out["lines"] = lines
+    return out
+
+
+# ── helpers for the sections ─────────────────────────────────
+def daily_at(pts, t, tolerance=3 * DAY):
+    return at(pts, t, tolerance)
+
+
+def avg_days(pts, t, days):
+    vals = [v for tt, v in pts if t - days * DAY < tt <= t]
+    return sum(vals) / len(vals) if vals else None
+
+
+def ratio_pts(d, sid, fn, *ids):
+    """Daily series from the data branch, or computed from its parts (older data without the derived series)."""
+    p = d.pts("1d", sid)
+    if p:
+        return p
+    srcs = [dict(d.pts("1d", i)) for i in ids]
+    out = []
+    for t in sorted(set(srcs[0]).intersection(*srcs[1:])) if srcs and all(srcs) else []:
+        try:
+            v = fn(*(src[t] for src in srcs))
+        except ZeroDivisionError:
+            v = None
+        if v is not None:
+            out.append([t, v])
+    return out
+
+
+def alts_btc_pts(d):
+    return ratio_pts(d, "alts_vs_btc", lambda a, t, t2: a / (t - t2) if t > t2 else None, "total3es", "total", "total2")
+
+
+def local_peaks(pts, level, window_days=45):
+    """Days that are the highest point within ±window and ≥ level."""
+    out = []
+    w = window_days * DAY
+    for i, (t, v) in enumerate(pts):
+        if v < level:
             continue
-        rows.append([sym, fmt_price(c["p"]), fmt_price(c["e"]),
-                     f"{c['d']:+.2f}%", ("nad" if c.get("side", 0) > 0 else "pod") + f" {c.get('since', '?')} dni"])
-    rows.sort(key=lambda r: abs(float(r[3].rstrip("%"))))
-    if rows:
-        blocks.append({"type": "table", "title": "Coiny z alertami EMA200 — od najbliższego przecięcia",
-                       "note": "Coiny bez pary na Binance spot (np. HYPE) nie mają tu EMA200.",
-                       "cols": ["Coin", "Cena", "EMA200", "Odległość", "Strona"], "rows": rows})
+        lo = i
+        while lo > 0 and pts[lo - 1][0] >= t - w:
+            lo -= 1
+        hi = i
+        while hi + 1 < len(pts) and pts[hi + 1][0] <= t + w:
+            hi += 1
+        win = pts[lo:hi + 1]
+        if v >= max(x[1] for x in win) and not any(x[1] == v and x[0] < t for x in win):
+            out.append((t, v))
+    return out
 
-    if fib:
-        setups = fib.get("setups") or []
-        props = fib.get("proposals") or []
-        by = {}
-        for s in setups:
-            by[s.get("status", "?")] = by.get(s.get("status", "?"), 0) + 1
-        in_zone = sum(1 for p in props if p.get("status") == "zone")
-        txt = (f"Twoje setupy: {len(setups)}" + (" (" + ", ".join(f"{k}: {v}" for k, v in sorted(by.items())) + ")" if by else "")
-               + f". Propozycje automatu: {len(props)} (w strefie 0.705–0.786: {in_zone}), "
-               f"wybrane z {fib.get('candidates', '?')} ruchów.")
-        blocks.append({"type": "text", "title": "Fibo", "text": txt})
+
+def breadth_series(ema):
+    return [[b[0], b[1]] for b in (ema or {}).get("breadth") or []]
+
+
+def breadth_now(ema):
+    if ema and ema.get("total"):
+        return 100 * ema["above"] / ema["total"]
+    return None
+
+
+def alts_refs(d, ema, L, now):
+    """Reference moments for the alt table — all found in the data:
+    the last N peaks of OI OTHERS/OI BTC ≥ level + the lowest point of the last 12 months.
+    A peak with market breadth ≥ 90% that day is marked as an altseason."""
+    oi = d.pts("1d", "oi_others_vs_btc")
+    br = breadth_series(ema)
+    if not oi:
+        return [], None
+    peaks = local_peaks(oi, float(L["alts_ref_level"]))
+    alt_t = None
+    for t, _ in peaks:
+        b = daily_at(br, t)
+        if b is not None and b >= 90:
+            alt_t = t
+    refs = []
+    for t, _ in peaks[-int(L["alts_ref_count"]):]:
+        b = daily_at(br, t)
+        refs.append((t, f"szczyt {utc(t, '%d.%m.%Y')}" + (" (altseason)" if b is not None and b >= 90 else "")))
+    if alt_t and all(t != alt_t for t, _ in refs):
+        refs.insert(0, (alt_t, f"altseason {utc(alt_t, '%d.%m.%Y')}"))
+    year = [p for p in oi if p[0] >= oi[-1][0] - 365 * DAY]
+    if year:
+        t_min = min(year, key=lambda p: p[1])[0]
+        if all(t != t_min for t, _ in refs):
+            refs.append((t_min, f"dno 12 mies. {utc(t_min, '%d.%m.%Y')}"))
+    refs.sort()
+    return refs, alt_t
+
+
+def range_item(d, label, pts, v, group, desc, alt_t, years, sub="", marks=None, fmt=None):
+    """One bar: where today's value sits between the min and max of the last `years` years."""
+    fmt = fmt or (lambda x: fmt_val(x, group))
+    if v is None or not pts:
+        return {"label": label, "value": "—", "sub": "brak danych", "pos": None, "note": desc}
+    t_end = pts[-1][0]
+    win = [p for p in pts if p[0] >= t_end - years * 365 * DAY]
+    lo = min(win, key=lambda p: p[1])
+    hi = max(win, key=lambda p: p[1])
+    vmin, vmax = min(lo[1], v), max(hi[1], v)
+    span = (vmax - vmin) or 1
+
+    def pos(x):
+        return round(max(0.0, min(100.0, (x - vmin) / span * 100)), 1)
+    mk = []
+    for x, txt in (marks or []):
+        if x is not None:
+            mk.append({"pos": pos(x), "label": txt})
+    if alt_t and alt_t >= win[0][0]:
+        av = daily_at(pts, alt_t)
+        if av is not None:
+            mk.append({"pos": pos(av), "label": f"altseason {utc(alt_t, '%m.%Y')}: {fmt(av)}", "kind": "ref"})
+    return {"label": label, "value": fmt(v), "sub": sub, "pos": pos(v), "marks": mk,
+            "min": f"min. {fmt(lo[1])} ({utc(lo[0], '%m.%Y')})", "max": f"maks. {fmt(hi[1])} ({utc(hi[0], '%m.%Y')})",
+            "note": desc}
+
+
+def chg_text(v, before, diff=False):
+    if v is None or before is None:
+        return ""
+    return fmt_chg((v - before) if diff else pct_change(v, before), " pp" if diff else "%")
+
+
+# ── sections ─────────────────────────────────────────────────
+MARKET = [
+    ("total", "Cały rynek (TOTAL)", "Wielkość całego rynku krypto. Pokazuje, jak daleko jesteśmy od szczytu."),
+    ("btc_d", "Udział BTC (BTC.D)", "Jaka część rynku to BTC. Rośnie = kapitał ucieka z altów do BTC, spada = płynie w alty."),
+    ("stable_d", "Udział stablecoinów", "Ile rynku czeka w gotówce. Wysoko = strach i czekanie, nisko = wszyscy w ryzyku."),
+    ("stable_mcap", "Kapitał w stablecoinach", "Pieniądze gotowe do zakupów. Rośnie = na rynek wchodzi nowy kapitał."),
+]
+
+
+def market_section(d, L, alt_t):
+    items = []
+    years = int(L["range_years"])
+    for sid, label, desc in MARKET:
+        last = d.latest(sid)
+        daily = ratio_pts(d, sid, lambda t, tes: t - tes, "total", "totales") if sid == "stable_mcap" else d.pts("1d", sid)
+        if sid == "stable_d" and not daily:
+            daily = ratio_pts(d, sid, lambda t, tes: (t - tes) / t * 100, "total", "totales")
+        v = last[1] if last else (daily[-1][1] if daily else None)
+        g = d.group(sid) or ("pct" if sid.endswith("_d") else "mcap")
+        sub = ""
+        if v is not None and daily:
+            sub = "7D " + chg_text(v, daily_at(daily, daily[-1][0] - 7 * DAY), diff=(g == "pct"))
+            if sid == "total":
+                ath = max(daily, key=lambda p: p[1])
+                sub = f"{pct_change(v, ath[1]):+.0f}% od szczytu ({utc(ath[0], '%m.%Y')}) · " + sub
+        items.append(range_item(d, label, daily, v, g, desc, alt_t, years, sub=sub))
+    return [{"type": "section", "title": "Rynek"},
+            {"type": "ranges", "title": "Gdzie jest rynek na tle ostatnich 2 lat", "items": items,
+             "note": f"Pasek = zakres z ostatnich {years} lat (od minimum do maksimum). Kropka = dziś, "
+                     "znacznik = dzień ostatniego altseasonu (wyznaczony z danych: szczyt OI OTHERS/OI BTC przy szerokości rynku ≥ 90%)."}]
+
+
+def lines_for(L, sid):
+    out = []
+    for i, (v, label) in enumerate(L["lines"].get(sid) or []):
+        out.append({"value": float(v), "label": str(label), "color": LINE_COLORS[i % len(LINE_COLORS)]})
+    return out
+
+
+def alts_section(d, ema, L, refs, now):
+    blocks = [{"type": "section", "title": "Alty"}]
+    oi = d.pts("1d", "oi_others_vs_btc")
+    ab = alts_btc_pts(d)
+    br = breadth_series(ema)
+    fund = d.pts("1d", "fund_others")
+    eb = d.pts("1d", "ethbtc")
+    last_oi = d.latest("oi_others_vs_btc")
+    last_eb = d.latest("ethbtc")
+    rows_def = [
+        ("Lewar: OI OTHERS / OI BTC", lambda t: daily_at(oi, t), last_oi[1] if last_oi else None, lambda x: f"{x:.3f}"),
+        ("Kapitał: Alty / BTC", lambda t: daily_at(ab, t), ab[-1][1] if ab else None, lambda x: f"{x:.3f}"),
+        ("Szerokość rynku (% nad EMA200)", lambda t: daily_at(br, t), breadth_now(ema), lambda x: f"{x:.0f}%"),
+        ("Funding OTHERS (śr. 7 dni, rocznie)", lambda t: avg_days(fund, t, 7),
+         avg_days(fund, fund[-1][0], 7) if fund else None, lambda x: f"{x:+.1f}%"),
+        ("ETH / BTC", lambda t: daily_at(eb, t), last_eb[1] if last_eb else None, lambda x: f"{x:.4f}"),
+    ]
+    rows = []
+    for name, at_t, today, f in rows_def:
+        cells = [name, f(today) if today is not None else "—"]
+        for t, _ in refs:
+            x = at_t(t)
+            cells.append(f(x) if x is not None else "—")
+        rows.append(cells)
+    if refs:
+        blocks.append({"type": "table", "title": "Stan altów na tle poprzednich szczytów",
+                       "cols": ["Wskaźnik", "Dziś"] + [lbl for _, lbl in refs], "rows": rows, "plain": True,
+                       "note": f"Kolumny wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
+                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia. "
+                               "W prawdziwym altseasonie wysoko jest wszystko naraz; gdy wysoko jest tylko lewar, to raczej ostrzeżenie."})
+    blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
+                              note="Ile otwartych pozycji (z dźwignią) jest na altach bez ETH w porównaniu z BTC. "
+                                   "Rośnie = lewar przenosi się na alty. " + history_note(d, "oi_others_vs_btc")))
+    blocks[-1]["lines"] = lines_for(L, "oi_others_vs_btc")
+    since = int(datetime.strptime(str(L["alts_chart_from"]), "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    abw = [p for p in ab if p[0] >= since]
+    if abw:
+        hi = max(ab, key=lambda p: p[1] if p[0] >= since else -1)
+        blocks.append({"type": "chart", "title": f"Kapitał: Alty / BTC — od {utc(since, '%Y')}", "log": False,
+                       "lines": lines_for(L, "alts_vs_btc"),
+                       "note": "Ile są warte alty (bez BTC, ETH i stablecoinów) w porównaniu z BTC — realne pieniądze, bez dźwigni. "
+                               f"Maks. na wykresie {hi[1]:.3f} ({utc(hi[0], '%d.%m.%Y')}); każdy cykl kończył się niżej, "
+                               "więc linie są z ostatnich lat.",
+                       "series": [{"name": "Alty / BTC", "color": d.color("alts_vs_btc", "#26c6da"), "fmt": "ratio",
+                                   "scale": "right", "data": abw}]})
+    blocks.append({"type": "text", "title": "Jak czytać te dwa wykresy",
+                   "text": "Lewar (OI) pokazuje, ile pozycji z dźwignią jest na altach, a kapitał (Alty/BTC) — ile realnych pieniędzy w nich siedzi. "
+                           "Oba rosną razem = mocny sygnał, że kapitał naprawdę płynie w alty. Rośnie tylko lewar = ruch napędzany dźwignią, "
+                           "łatwo o kaskadę likwidacji (tak było we wrześniu 2025 i 2026). Rośnie tylko kapitał = spokojny napływ bez przegrzania."})
+    cb = chart_block(d, "OI OTHERS i OI BTC — w dolarach", ["oi_others", "oi_btc"],
+                     note="Te same dane co stosunek wyżej, ale osobno: widać, czy stosunek rośnie, bo alty dokładają pozycji, "
+                          "czy dlatego, że z BTC pozycje schodzą.")
+    for s in cb["series"]:
+        s["scale"] = "right"
+    blocks.append(cb)
+    if br:
+        last_t = br[-1][0]
+        blocks.append({"type": "chart", "title": "Szerokość rynku — % coinów nad EMA200, 2 lata", "log": False,
+                       "range": [0, 100], "lines": [{"value": 90, "label": "rozgrzanie altów", "color": "#e05252"}],
+                       "note": "Odsetek coinów Binance */USDT (≥ 300 dni historii) z ceną nad EMA200. " + breadth_peaks_note(ema["breadth"]),
+                       "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
+                                   "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
     return blocks
 
 
-def build(data_dir, ema_dir, kind="test", now=None):
+OI_CASES = {
+    (1, 1): "nowe longi — wzrost wspierany lewarem",
+    (-1, 1): "nowe shorty — gra na spadek",
+    (0, 1): "lewar rośnie, cena stoi — budowanie pozycji",
+    (1, -1): "zamykanie shortów — wzrost bez nowych kupujących",
+    (-1, -1): "zamykanie longów — wypłukiwanie lewara",
+    (0, -1): "lewar maleje, cena stoi",
+    (1, 0): "cena rośnie bez zmiany lewara",
+    (-1, 0): "cena spada bez zmiany lewara",
+    (0, 0): "bez wyraźnych zmian",
+}
+
+
+def oi_case(px_ch, oi_coin_ch, flat):
+    def sgn(x):
+        return 0 if x is None or abs(x) < flat else (1 if x > 0 else -1)
+    return OI_CASES[(sgn(px_ch), sgn(oi_coin_ch))]
+
+
+def oi_price_rows(d, coin, flat):
+    rows = []
+    oi_sid, px_sid = f"oi_{coin.lower()}", f"px_{coin.lower()}"
+    for label, res, sec in (("24 h", "1h", DAY), ("7 dni", "1d", 7 * DAY)):
+        oi, px = d.pts(res, oi_sid), d.pts(res, px_sid)
+        if not oi or not px:
+            continue
+        t = min(oi[-1][0], px[-1][0])
+        tol = 3 * HOUR if res == "1h" else 2 * DAY
+        o1, p1, o0, p0 = at(oi, t, tol), at(px, t, tol), at(oi, t - sec, tol), at(px, t - sec, tol)
+        if None in (o1, p1, o0, p0) or not (o0 and p0 and p1):
+            continue
+        px_ch = pct_change(p1, p0)
+        oi_usd = pct_change(o1, o0)
+        oi_coin = ((o1 / p1) / (o0 / p0) - 1) * 100
+        rows.append([coin, label, fmt_chg(px_ch), fmt_chg(oi_coin), fmt_chg(oi_usd), oi_case(px_ch, oi_coin, flat)])
+    return rows
+
+
+def derivatives_section(d, L, alt_t):
+    flat = float(L["oi_flat_pct"])
+    rows = oi_price_rows(d, "BTC", flat) + oi_price_rows(d, "ETH", flat)
+    blocks = [{"type": "section", "title": "Derywaty"}]
+    if rows:
+        blocks.append({"type": "table", "title": "Open interest i cena — BTC i ETH",
+                       "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "OI ($)", "Co to znaczy"], "rows": rows,
+                       "note": "OI w coinach = OI w dolarach podzielone przez cenę — bez tego OI rósłby i spadał razem z ceną. "
+                               f"Zmiana poniżej {flat:g}% = „bez zmian”. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; "
+                               "cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów."})
+    years = int(L["range_years"])
+    items = []
+    for coin in ("BTC", "ETH"):
+        sid = f"fund_{coin.lower()}"
+        pts, last = d.pts("1d", sid), d.latest(sid)
+        a7 = avg_days(pts, pts[-1][0], 7) if pts else None
+        items.append(range_item(
+            d, f"Funding {coin}", pts, last[1] if last else None, "fund",
+            "Opłata między longami a shortami, w % rocznie. Dodatni = longi płacą shortom (przewaga longów), "
+            "ujemny = shorty płacą longom (przewaga shortów, często blisko dołków). Neutralnie ok. 11%.",
+            alt_t, years, sub=f"śr. 7 dni {a7:+.1f}%" if a7 is not None else "",
+            marks=[(NEUTRAL_FUNDING, "neutralnie ~11%")], fmt=lambda x: f"{x:+.1f}%"))
+    for it in items[1:]:
+        it["note"] = ""                                  # one description for both coins
+    blocks.append({"type": "ranges", "title": "Funding na tle ostatnich 2 lat", "items": items,
+                   "note": "Pasek = zakres dziennych odczytów z ostatnich 2 lat. Szary znacznik = poziom neutralny."})
+    return blocks
+
+
+def liq_section(d, L):
+    lg, sh = d.pts("1d", "liq_total_long"), dict(d.pts("1d", "liq_total_short"))
+    if not lg:
+        return []
+    days = [(t, v, sh.get(t, 0.0)) for t, v in lg][:-1]          # last day is not finished
+    since = days[-1][0] - 730 * DAY if days else 0
+    tot2 = [lv + sv for t, lv, sv in days if t >= since]
+    big = sorted(tot2)[min(len(tot2) - 1, int(len(tot2) * float(L["liq_big_pct"]) / 100))] if tot2 else None
+    med = sorted(tot2)[len(tot2) // 2] if tot2 else None
+    rows = []
+    for t, lv, sv in days[-int(L["liq_days"]):]:
+        rows.append({"label": utc(t, "%d.%m"), "long": lv, "short": sv})
+    hl, hs = d.pts("1h", "liq_total_long"), d.pts("1h", "liq_total_short")
+    if hl:
+        t_now = hl[-1][0]
+        rows.append({"label": "24 h", "long": sum(v for t, v in hl if t > t_now - DAY),
+                     "short": sum(v for t, v in hs if t > t_now - DAY), "current": True})
+    for r in rows:
+        tot = r["long"] + r["short"]
+        r["text"] = f"{alerts.fmt_value(tot, 'liq')} · {100 * r['long'] / tot:.0f}% long" if tot else "$0"
+    return [{"type": "section", "title": "Likwidacje"},
+            {"type": "bars", "title": f"Likwidacje — ostatnie {L['liq_days']} dni (doba UTC)", "rows": rows,
+             "parts": [{"key": "long", "name": "longi", "color": "#e05252"}, {"key": "short", "name": "shorty", "color": "#4caf7d"}],
+             "line": {"value": big, "label": f"duży dzień: {alerts.fmt_value(big, 'liq')} (więcej tylko w {100 - L['liq_big_pct']:.0f}% dni z 2 lat)"} if big else None,
+             "note": "Duże likwidacje longów = kaskada w dół, wypłukanie lewara (często blisko lokalnych dołków); "
+                     f"duże likwidacje shortów = short squeeze. Mediana dnia z 2 lat: {alerts.fmt_value(med, 'liq')}. "
+                     "Suma z Binance, Bybit i OKX (bez Hyperliquid) — dolne oszacowanie."}]
+
+
+def ema_near_section(ema, L):
+    near_pct, min_vol = float(L["ema_near_pct"]), float(L["ema_min_volume"])
+    blocks = [{"type": "section", "title": "EMA200 — coiny blisko średniej"}]
+    if not ema:
+        return blocks + [{"type": "text", "title": "", "text": "Brak danych z gałęzi ema."}]
+    coins = [c for c in ema.get("coins") or [] if abs(c.get("d", 99)) <= near_pct and (c.get("vol") or 0) >= min_vol]
+    coins.sort(key=lambda c: abs(c["d"]))
+    vol_txt = alerts.fmt_value(min_vol, "liq")
+    if not coins:
+        return blocks + [{"type": "text", "title": "",
+                          "text": f"Żaden coin z obrotem ≥ {vol_txt} dziennie nie jest bliżej niż {near_pct:g}% od EMA200."}]
+    rows = []
+    for c in coins[:int(L["ema_max_rows"])]:
+        side = "nad" if c.get("side", 0) > 0 else "pod"
+        rows.append([c["s"], fmt_price(c["p"]), fmt_price(c["e"]), f"{c['d']:+.2f}%", side,
+                     str(c.get("since", "?")), alerts.fmt_value(c.get("vol"), "liq")])
+    more = len(coins) - len(rows)
+    return blocks + [{"type": "table", "title": f"Bliżej niż {near_pct:g}% od EMA200, obrót ≥ {vol_txt} dziennie",
+                      "cols": ["Coin", "Cena", "EMA200", "Odległość", "Strona", "Dni po tej stronie", "Obrót/dzień"],
+                      "rows": rows,
+                      "note": "Binance spot */USDT, świeca dzienna; odległość z aktualnej ceny. „Dni po tej stronie” = od ostatniego "
+                              "przecięcia na zamknięciu dnia (1–2 = świeże przecięcie). Obrót = średni dzienny w USDT."
+                              + (f" I jeszcze {more} — zakładka EMA200." if more > 0 else "")}]
+
+
+def build(data_dir, ema_dir, kind="test", now=None, cfg=None):
     now = int(now or time.time())
+    L = layout(cfg)
     d = Data(data_dir)
     ema = _read(os.path.join(ema_dir, "ema.json")) if ema_dir else None
-    fib = _read(os.path.join(ema_dir, "fib.json")) if ema_dir else None
 
     blocks = []
     warn = []
@@ -339,44 +662,36 @@ def build(data_dir, ema_dir, kind="test", now=None):
         warn.append(f"dane OI/TOTAL sprzed {(now - d.updated) / HOUR:.0f} h")
     ema_upd = (ema or {}).get("updated") or 0
     if not ema_upd:
-        warn.append("brak danych z gałęzi ema (EMA200, Fibo)")
+        warn.append("brak danych z gałęzi ema (EMA200)")
     elif now - ema_upd > 2 * HOUR:
         warn.append(f"dane EMA sprzed {(now - ema_upd) / HOUR:.0f} h")
 
     if kind == "test":
         blocks.append({"type": "text", "title": "O tym raporcie",
-                       "text": "To raport testowy: sprawdza drogę od danych do strony, pobierania PDF i powiadomienia na Telegramie. "
-                               "Liczby policzył kod z aktualnych danych. Treść i układ raportu ustalimy później; "
-                               "komentarz AI pojawi się w tym miejscu."})
+                       "text": "Raport testowy. Liczby i oceny liczy kod z aktualnych danych; układ dopracowujemy stopniowo. "
+                               "Komentarz AI pojawi się później."})
     if warn:
         blocks.append({"type": "text", "title": "Uwaga", "text": "Nieświeże dane: " + "; ".join(warn) + "."})
 
-    blocks.append({"type": "facts", "title": "Rynek — kapitalizacja i dominacje (TradingView)",
-                   "items": [fact_series(d, s) for s in ("total", "total2", "total3", "btc_d", "eth_d", "stable_d", "alts_d", "ethbtc")]})
-    der = [fact_series(d, "oi_total"), fact_series(d, "oi_btc"), fact_history(d, "oi_others_vs_btc"),
-           fact_series(d, "fund_btc"), fact_series(d, "fund_others")]
-    lq = liq_24h(d)
-    if lq:
-        der.append(lq)
-    blocks.append({"type": "facts", "title": "Derywaty — open interest, funding, likwidacje (Coinalyze)", "items": der})
-    blocks.append(chart_block(d, "TOTAL3 i BTC.D — 12 miesięcy", ["total3", "btc_d"], days=365,
-                              colors={"total3": "#26c6da"},
-                              note="TOTAL3 (prawa oś) = kapitalizacja bez BTC i ETH; BTC.D (lewa oś) w %."))
-    blocks.append(chart_block(d, "OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
-                              note=history_note(d, "oi_others_vs_btc")))
-    blocks += ema_blocks(ema, fib)
+    refs, alt_t = alts_refs(d, ema, L, now)
+    if d.updated:
+        blocks += market_section(d, L, alt_t)
+        blocks += alts_section(d, ema, L, refs, now)
+        blocks += derivatives_section(d, L, alt_t)
+        blocks += liq_section(d, L)
+    blocks += ema_near_section(ema, L)
 
-    # one-line summary (index + Telegram)
     parts = []
-    for sid in ("total", "btc_d"):
+    for sid in ("total", "btc_d", "oi_others_vs_btc"):
         last = d.latest(sid)
         if last:
             parts.append(f"{d.name(sid)} {fmt_val(last[1], d.group(sid))}")
-    if ema and ema.get("total"):
-        parts.append(f"szerokość rynku {100 * ema['above'] / ema['total']:.0f}%")
+    bn = breadth_now(ema)
+    if bn is not None:
+        parts.append(f"szerokość rynku {bn:.0f}%")
     summary = " · ".join(parts)
 
-    return {"id": utc(now, "%Y%m%d-%H%M") + "-" + kind, "kind": kind,
+    return {"id": utc(now, "%Y%m%d-%H%M") + "-" + kind, "kind": kind, "layout": 2,
             "title": KIND_TITLES.get(kind, "Raport"), "created": now, "summary": summary,
             "sources": {"data_updated": d.updated or None, "ema_updated": ema_upd or None},
             "blocks": blocks}
@@ -436,7 +751,7 @@ def main(argv=None):
     cfg = load_cfg(a.config)
 
     if a.cmd == "make":
-        rep = build(a.data, a.ema, a.kind)
+        rep = build(a.data, a.ema, a.kind, cfg=cfg)
         save(a.out, rep, keep=int(cfg["keep"]))
         n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
         log.info("Raport %s: %d bloków, %d pozycji", rep["id"], len(rep["blocks"]), n)

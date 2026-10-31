@@ -110,6 +110,27 @@ reports:
   notify: true
   keep: 120
   page_url: https://cryptoloser8-coder.github.io/scanner/raporty.html
+  # ── układ raportu (poprawka 19); brak wpisu = wartość domyślna z report.py ──
+  range_years: 2            # paski zakresu (Rynek, funding): min–maks. z ostatnich N lat
+  ema_near_pct: 3           # EMA200: tylko coiny bliżej niż X% od średniej…
+  ema_min_volume: 10000000  # …z obrotem co najmniej $ dziennie
+  ema_max_rows: 15
+  oi_flat_pct: 1            # OI i cena: zmiana poniżej X% = „bez zmian”
+  liq_days: 7               # likwidacje: ostatnie N pełnych dni
+  liq_big_pct: 90           # linia „duży dzień” = percentyl dziennych likwidacji z 2 lat
+  alts_ref_level: 1.0       # tabela altów: kolumny = szczyty OI OTHERS/OI BTC powyżej tego poziomu…
+  alts_ref_count: 3         # …ostatnie N (+ najniższy punkt z 12 miesięcy)
+  alts_chart_from: "2020-01-01"
+  lines:                    # linie poziomów na wykresach: [poziom, opis]
+    oi_others_vs_btc:
+      - [0.60, "strefa dołków"]
+      - [0.85, "górne 10% dni"]
+      - [0.95, "szczyty 03.2024 i 07.2025"]
+      - [1.00, "zrównanie z BTC"]
+    alts_vs_btc:
+      - [0.28, "dołki 2025–2026"]
+      - [0.38, "szczyt 09.2025"]
+      - [0.47, "szczyty 12.2023 i 12.2024"]
 
 # ─────────────────────────────────────────────────────────────
 #  POZIOMY — alerty o zbliżaniu się i przebiciu

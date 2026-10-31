@@ -59,6 +59,11 @@ CATALOG = {
     # ── Leverage & ratios ──
     "oi_alts_vs_btc": dict(name="OI ALTS / OI BTC", group="ratio", color="#64b5f6",
                            desc="Ile razy OI wszystkich altów (z ETH) jest większe od OI BTC. Uwaga: zawiera ETH, więc zwykle jest > 1. Do sygnału „alty zrównują się z BTC” używaj OI OTHERS / OI BTC."),
+    "alts_vs_btc": dict(name="Alty / BTC", group="ratio", color="#26c6da",
+                        desc="Kapitalizacja altów bez BTC, ETH i stablecoinów (TOTAL3ES) podzielona przez kapitalizację BTC "
+                             "(= Alty.D / BTC.D). Odpowiednik OI OTHERS / OI BTC po stronie realnego kapitału (spot). "
+                             "Bez stablecoinów, bo te nie spadają w bessie i zawyżałyby wynik (TOTAL3/BTC w 2022 ~1,05). "
+                             "Szczyty: 01.2018 ~1,17, 05.2021 ~0,91, 12.2023 i 12.2024 ~0,47–0,48, 09.2025 ~0,38 — każdy cykl niżej."),
     "oi_others_vs_btc": dict(name="OI OTHERS / OI BTC", group="ratio", color="#f06292",
                              desc="OI altów BEZ ETH podzielone przez OI BTC. 1.0 = zrównanie. Historycznie: szczyt altów w grudniu 2024 przy ~1.1–1.27, wrzesień 2025 ~1.05–1.07, tuż przed krachem 10.10.2025 ~0.95, szczyt z marca 2024 ~0.85. Wysoko = lewar ucieka w małe alty."),
     "lev_btc": dict(name="Dźwignia BTC", group="pct", color="#f7931a",
@@ -240,6 +245,7 @@ def derived(series):
     combine("stable_mcap", lambda t, tes: t - tes, "total", "totales")
     combine("stable_d", lambda t, tes: (t - tes) / t * 100, "total", "totales")
     combine("alts_d", lambda t3es, t: t3es / t * 100, "total3es", "total")
+    combine("alts_vs_btc", lambda t3es, t, t2: t3es / (t - t2) if t > t2 else None, "total3es", "total", "total2")
     # leverage vs market cap WITHOUT stablecoins (no perps on stables); fall back if ES missing
     if s.get("stable_mcap"):
         combine("lev_alts", lambda oi, t2, st: oi / (t2 - st) * 100, "oi_alts", "total2", "stable_mcap")
