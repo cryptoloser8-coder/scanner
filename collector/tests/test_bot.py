@@ -182,6 +182,22 @@ def test_timetable_polish_time_skip_and_dst():
     assert [e["key"][11:] for e in nxt] == ["00:15 scan", "02:15 scan"]
 
 
+def test_timetable_evening_in_new_york_time():
+    sc = TT.load({"reports": [{"scan_at": "06:15", "kind": "morning"},
+                              {"scan_at": "16:05", "timezone": "America/New_York", "kind": "evening"}]})
+    def evening(y, m, d):
+        e = [x for x in TT.events_on(sc, datetime(y, m, d).date()) if x["kind"] == "evening"]
+        assert len(e) == 1
+        return e[0]["key"][11:16]
+    assert evening(2026, 11, 2) == "22:05"          # both on winter time
+    assert evening(2026, 7, 1) == "22:05"           # both on summer time
+    assert evening(2026, 10, 31) == "21:05"         # Poland already on winter time, US still on summer time
+    assert evening(2027, 3, 16) == "21:05"          # US already on summer time, Poland not yet
+    keys = [e["key"][11:] for e in TT.events_on(sc, datetime(2026, 10, 31).date())]
+    assert "20:15 scan" not in keys and "22:15 scan" in keys      # regular scan near 21:05 skipped, 22:15 kept
+    assert [e["kind"] for e in TT.due(sc, pl(2026, 10, 31, 21, 6), {})] == ["evening"]
+
+
 def test_schedule_tick_dispatch_retry_and_pending(tmp_path):
     c = ctx_for(tmp_path, now=pl(2026, 11, 2, 6, 16), gh=FakeGH(ok=False))
     assert B.schedule_tick(c) == []
