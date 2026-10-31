@@ -8,7 +8,7 @@ Bot co 2 godziny (GitHub Actions):
 5. wysyła na **Telegram** alerty o poziomach, dzienny raport i informacje o awariach źródeł.
 
 ```
-main  ── oi.html, liq.html, collector/ (kod + config.yaml), .github/workflows/oi-monitor.yml
+main  ── oi.html, liq.html, raporty.html, collector/ (kod + config.yaml), .github/workflows/oi-monitor.yml, report.yml
 data  ── 1h.json, 1d.json, liq_1h.json, liq_1d.json, meta.json, state.json   (nadpisywane przy każdym uruchomieniu)
 ```
 
@@ -111,6 +111,16 @@ Dodawanie setupów:
 Propozycje (automat, tylko na stronie): raz dziennie dla każdego coina z listy EMA200 bot bierze główny ruch (najniższy dołek i najwyższy szczyt z knotów) w oknach 1M, 3M i 1R; ruch musi mieć ≥ `min_move_pct` i ≥ `vol_mult` × typowy dzienny zakres coina. Strona pokazuje te, gdzie cena jest w strefie albo bliżej niż `near_pct` (domyślnie 5%), z przyciskiem „Kopiuj” (gotowa komenda `/fib …`). Ustawienia: `fib: proposals:` w `config.yaml`. Pi przechowuje szczyty i dołki ostatnich ~400 dni w `~/.ema-monitor/hl.json`.
 
 Uwaga: komendy odbiera Pi przez `getUpdates`. Jeśli ten sam token bota używa inny program z webhookiem albo `getUpdates`, komendy będą się gubić — wtedy użyj osobnego bota.
+
+## Raporty: zakładka `raporty.html` (workflow „Raport”)
+
+**Actions → Raport → Run workflow** (rodzaj: `test`) buduje raport z gałęzi `data` i `ema`, publikuje go na gałęzi **`reports`**
+(`index.json` + `reports/<id>.json`) i wysyła na Telegram powiadomienie z linkiem `raporty.html?id=…`. Trwa ok. 1 minuty.
+
+- Liczby liczy `collector/report.py` (kod); strona tylko je rysuje. Układ raportu to lista bloków (tekst, kafelki, wykres, tabela) — zmiana treści = zmiana tylko w `report.py`.
+- „Pobierz PDF” otwiera okno drukowania (jasny motyw, wykresy jako obrazki) → **Zapisz jako PDF**.
+- Ustawienia w `config.yaml` → `reports:` (`notify`, `keep` — ile raportów trzymać, `page_url`).
+- Lokalnie: `python collector/report.py make --data <katalog data> --ema <katalog ema> --out <katalog reports>`.
 
 ## Uwagi
 - **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.

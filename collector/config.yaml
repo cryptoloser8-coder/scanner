@@ -84,6 +84,16 @@ telegram:
   report_liquidations: false
 
 # ─────────────────────────────────────────────────────────────
+#  RAPORTY — zakładka raporty.html (workflow „Raport”, gałąź reports)
+#  notify: powiadomienie na Telegram z linkiem do nowego raportu
+#  keep:   ile ostatnich raportów trzymać (starsze są usuwane)
+# ─────────────────────────────────────────────────────────────
+reports:
+  notify: true
+  keep: 120
+  page_url: https://cryptoloser8-coder.github.io/scanner/raporty.html
+
+# ─────────────────────────────────────────────────────────────
 #  POZIOMY — alerty o zbliżaniu się i przebiciu
 #
 #  series:   id serii (lista id: w zakładce, najedź na nazwę serii)
