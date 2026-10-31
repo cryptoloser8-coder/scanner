@@ -61,6 +61,9 @@
   .dir-long{color:var(--green);} .dir-short{color:var(--red);}
   .cmds{font-size:11px;color:var(--text2);line-height:1.9;}
   .cmds code{font-family:var(--mono);color:var(--text);background:var(--bg3);padding:1px 5px;border-radius:4px;}
+  .copy{font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;}
+  .copy:hover{color:var(--text);border-color:rgba(255,255,255,.3);} .copy.ok{color:var(--green);border-color:var(--green);}
+  .win{display:inline-block;font-size:10px;padding:0 6px;border-radius:8px;background:var(--bg3);color:var(--text2);font-family:var(--mono);}
   .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
   @media (max-width:640px){ body{padding:14px;} .tiles{grid-template-columns:repeat(2,1fr);} }
@@ -101,6 +104,20 @@
 </div>
 
 <div class="panel">
+  <h2>Propozycje (automat) <span style="font-weight:400;color:var(--text3);font-size:10px" id="prop-sub"></span></h2>
+  <div class="controls">
+    <span class="ctrl-label">Okno</span>
+    <div class="pills" id="win-pills"><button class="pill" data-val="all">Wszystkie</button><button class="pill" data-val="1M">1M</button><button class="pill" data-val="3M">3M</button><button class="pill" data-val="1R">1R</button></div>
+    <span class="ctrl-label">Kierunek</span>
+    <div class="pills" id="dir-pills"><button class="pill" data-val="all">Oba</button><button class="pill" data-val="long">Long</button><button class="pill" data-val="short">Short</button></div>
+    <span class="ctrl-label">Status</span>
+    <div class="pills" id="pst-pills"><button class="pill" data-val="all">Wszystkie</button><button class="pill" data-val="zone">W strefie</button><button class="pill" data-val="near">Blisko</button></div>
+  </div>
+  <div class="table-wrap"><table id="ptable"></table></div>
+  <div class="hint" id="prop-hint"></div>
+</div>
+
+<div class="panel">
   <h2>Jak dodać setup</h2>
   <div class="cmds">
     Napisz do swojego bota na Telegramie (odpowie w ciągu ~5 min):<br>
@@ -130,8 +147,12 @@ async function getJSON(n) { const r = await fetch(`${BASE}${n}?${bust()}`, {cach
 const store = {get(k, d) { try { const v = localStorage.getItem('fibmon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('fibmon.' + k, JSON.stringify(v)); } catch (e) {} }};
 let DATA = null, HIST = {}, chart = null, mounted = [];
-let S = Object.assign({id: null, range: 365, log: false}, store.get('view', {}));
+let S = Object.assign({id: null, range: 365, log: false, win: 'all', dir: 'all', pst: 'all'}, store.get('view', {}));
 { const h = new URLSearchParams(location.hash.slice(1)); if (h.get('id')) S.id = h.get('id'); }
+// S.id: setup id, or "p<n>" for a proposal (index in DATA.proposals)
+const isProp = id => typeof id === 'string' && /^p\d+$/.test(id);
+function item(id) { return isProp(id) ? (DATA.proposals || [])[+id.slice(1)] : DATA.setups.find(x => x.id === id); }
+const dateShort = t => t ? new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'UTC'}) : '—';
 const STATUS = {zone: ['w strefie', 0], near: ['blisko strefy', 1], deep: ['za 0.786', 2], above: ['przed strefą', 3], invalid: ['unieważniony', 4]};
 function price(v) {
   if (v == null || isNaN(v)) return '—';
@@ -168,14 +189,51 @@ function renderTable() {
         `<td><span class="st st-${st ? s.status : 'none'}">${st ? st[0] : 'brak ceny'}</span></td></tr>`;
     }).join('');
 }
+function propsFiltered() {
+  return (DATA.proposals || []).map((p, i) => Object.assign({idx: i}, p)).filter(p =>
+    (S.win === 'all' || p.win.split('/').includes(S.win)) && (S.dir === 'all' || p.dir === S.dir) && (S.pst === 'all' || p.status === S.pst));
+}
+function renderProps() {
+  const P = DATA.proposals || [], rows = propsFiltered();
+  document.getElementById('prop-sub').textContent = `· ${P.length} z ${DATA.candidates || 0} wykrytych ruchów jest w strefie lub blisko`;
+  const pc = DATA.proposal_cfg || {};
+  document.getElementById('prop-hint').innerHTML =
+    `Codziennie dla każdego coina z listy EMA200 bot bierze główny ruch (najniższy dołek i najwyższy szczyt z knotów) w oknach ${(pc.windows || []).map(w => ({30: '1M', 90: '3M', 365: '1R'}[w] || w + 'd')).join(', ')}. ` +
+    `Ruch musi mieć co najmniej ${pc.min_move_pct || 8}% i ${pc.vol_mult || 4}× typowy dzienny zakres coina. Pokazane są te, gdzie cena jest w strefie 0.705–0.786 albo bliżej niż ${pc.near_pct || 5}% od niej. ` +
+    `To podpowiedzi do sprawdzenia na wykresie — „Kopiuj” kopiuje komendę do bota, która doda setup z alertami.`;
+  const tb = document.getElementById('ptable');
+  if (!rows.length) { tb.innerHTML = `<tr><td style="padding:14px;color:var(--text3);font-family:inherit">${P.length ? 'Brak propozycji dla wybranych filtrów.' : 'Brak propozycji — pojawią się po pierwszym dziennym przeliczeniu (Pi uzupełnia też szczyty i dołki świec).'}</td></tr>`; return; }
+  tb.innerHTML = '<tr><th>Coin</th><th>Okno</th><th>Kier.</th><th>Ruch</th><th>Dołek</th><th>Szczyt</th><th>0.705</th><th>0.75</th><th>0.786</th><th>Cena</th><th>Odległość</th><th>Status</th><th></th></tr>' +
+    rows.map(p => `<tr class="row ${S.id === 'p' + p.idx ? 'sel' : ''}" data-id="p${p.idx}"><td><b>${esc(p.coin)}</b></td><td><span class="win">${esc(p.win)}</span></td>` +
+      `<td class="dir-${p.dir}">${p.dir}</td><td>${p.dir === 'short' ? '−' + ((1 - p.low / p.high) * 100).toFixed(0) : '+' + p.move.toFixed(0)}%</td><td>${price(p.low)} <span style="color:var(--text3)">${dateShort(p.t_low)}</span></td>` +
+      `<td>${price(p.high)} <span style="color:var(--text3)">${dateShort(p.t_high)}</span></td><td>${price(p.l705)}</td><td><b>${price(p.l75)}</b></td><td>${price(p.l786)}</td>` +
+      `<td>${price(p.price)}</td><td>${p.status === 'zone' ? '—' : (p.dist > 0 ? '+' : '') + p.dist.toFixed(2) + '%'}</td>` +
+      `<td><span class="st st-${p.status}">${STATUS[p.status][0]}</span></td><td><button class="copy" data-cmd="${esc(p.cmd)}" title="${esc(p.cmd)}">Kopiuj</button></td></tr>`).join('');
+}
+document.getElementById('ptable').addEventListener('click', async e => {
+  const b = e.target.closest('.copy');
+  if (b) {
+    e.stopPropagation();
+    try { await navigator.clipboard.writeText(b.dataset.cmd); } catch (err) { prompt('Skopiuj komendę:', b.dataset.cmd); return; }
+    b.textContent = 'Skopiowano'; b.classList.add('ok'); setTimeout(() => { b.textContent = 'Kopiuj'; b.classList.remove('ok'); }, 1500);
+    return;
+  }
+  const tr = e.target.closest('tr.row'); if (!tr) return;
+  S.id = tr.dataset.id; persist(); renderTable(); renderProps(); draw(true);
+  document.querySelector('.chart-wrap').scrollIntoView({behavior: 'smooth', block: 'center'});
+});
+for (const [id, key] of [['win-pills', 'win'], ['dir-pills', 'dir'], ['pst-pills', 'pst']])
+  document.getElementById(id).addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S[key] = b.dataset.val; persist(); sync(); renderProps(); } });
 document.getElementById('table').addEventListener('click', e => {
   const tr = e.target.closest('tr.row'); if (!tr) return;
-  S.id = tr.dataset.id; persist(); renderTable(); draw(true);
+  S.id = tr.dataset.id; persist(); renderTable(); renderProps(); draw(true);
 });
 document.getElementById('range-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.range = +b.dataset.val; persist(); draw(true); } });
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; persist(); draw(false); });
 function sync() {
   document.querySelectorAll('#range-pills .pill').forEach(b => b.classList.toggle('active', String(S.range) === b.dataset.val));
+  for (const [id, key] of [['win-pills', 'win'], ['dir-pills', 'dir'], ['pst-pills', 'pst']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', S[key] === b.dataset.val));
   document.getElementById('log-btn').classList.toggle('active', S.log);
 }
 async function draw(reset) {
@@ -187,15 +245,15 @@ async function draw(reset) {
     timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3}, localization: {locale: 'pl-PL'}});
   for (const m of mounted) chart.removeSeries(m); mounted = [];
   chart.priceScale('right').applyOptions({mode: S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal});
-  const s = DATA.setups.find(x => x.id === S.id);
+  const s = item(S.id);
   const empty = document.getElementById('empty');
-  document.getElementById('title').textContent = s ? `${s.coin} · ${s.dir}${s.label ? ' · ' + s.label : ''}` : '';
-  if (!s) { empty.style.display = 'flex'; empty.textContent = DATA.setups.length ? 'Wybierz setup w tabeli' : 'Brak setupów'; return; }
+  document.getElementById('title').textContent = s ? `${s.coin} · ${s.dir}${s.label ? ' · ' + s.label : ''}${isProp(S.id) ? ' · propozycja ' + s.win : ''}` : '';
+  if (!s) { empty.style.display = 'flex'; empty.textContent = (DATA.setups.length || (DATA.proposals || []).length) ? 'Wybierz setup albo propozycję w tabeli' : 'Brak setupów'; return; }
   let pts = [];
   if (s.chart) {
     let h = HIST[s.coin];
     if (!h) { try { h = HIST[s.coin] = await getJSON(`hist/${encodeURIComponent(s.coin)}.json`); } catch (e) { h = null; } }
-    if (S.id !== s.id) return;
+    if (item(S.id) !== s) return;
     if (h) { const today = Math.floor(DATA.updated / 86400) * 86400; pts = h.d.filter(p => p[0] < today).map(([t, c]) => ({time: t, value: c})); if (s.price) pts.push({time: today, value: s.price}); }
   }
   if (!pts.length) {
@@ -209,6 +267,12 @@ async function draw(reset) {
   const L = (p, col, title, style = LWC.LineStyle.Dashed, w = 1) => ser.createPriceLine({price: p, color: col, lineWidth: w, lineStyle: style, axisLabelVisible: true, title});
   L(s.high, 'rgba(200,200,200,.5)', 'szczyt'); L(s.low, 'rgba(200,200,200,.5)', 'dołek');
   L(s.l705, 'rgba(255,193,7,.8)', '0.705'); L(s.l786, 'rgba(255,193,7,.8)', '0.786'); L(s.l75, '#5b9cf6', '0.75', LWC.LineStyle.Solid, 2);
+  if (s.t_high && s.t_low && LWC.createSeriesMarkers) {
+    LWC.createSeriesMarkers(ser, [
+      {time: s.t_low, position: 'belowBar', color: '#4caf7d', shape: 'arrowUp', text: 'dołek'},
+      {time: s.t_high, position: 'aboveBar', color: '#e05252', shape: 'arrowDown', text: 'szczyt'},
+    ].sort((a, b) => a.time - b.time));
+  }
   if (reset) {
     const last = pts[pts.length - 1].time, first = pts[0].time;
     if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last}); else chart.timeScale().fitContent();
@@ -225,8 +289,9 @@ async function boot() {
   const age = Date.now() / 1000 - DATA.updated;
   document.getElementById('dot').className = 'status-dot ' + (age < 3600 ? 'live' : 'stale');
   document.getElementById('status').textContent = 'Aktualizacja: ' + ago(DATA.updated);
-  if (!DATA.setups.some(s => s.id === S.id)) S.id = DATA.setups.length ? sorted()[0].id : null;
-  renderTiles(); renderTable(); await draw(true);
+  DATA.proposals = DATA.proposals || [];
+  if (!item(S.id)) S.id = DATA.setups.length ? sorted()[0].id : (DATA.proposals.length ? 'p0' : null);
+  renderTiles(); renderTable(); renderProps(); await draw(true);
 }
 if (!LWC) document.getElementById('status').textContent = 'Błąd ładowania biblioteki wykresów'; else boot();
 </script>
