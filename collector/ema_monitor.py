@@ -55,6 +55,7 @@ DEFAULTS = {
     "cross_buffer_pct": 0.5,
     "cooldown_hours": 12,
     "near_rearm": 1.5,
+    "near_cooldown_hours": 24,      # "approaching" alert for the same coin at most once per N hours
     "exclude": [],
     "alerts": [],
     "repo": "cryptoloser8-coder/scanner",
@@ -235,6 +236,7 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
     buf = float(cfg["cross_buffer_pct"])
     cool = float(cfg["cooldown_hours"]) * HOUR
     rearm = float(cfg["near_rearm"])
+    near_cool = float(cfg.get("near_cooldown_hours") or 0) * HOUR
     page = cfg.get("page_url", "")
     for r in rows:
         coin = r["s"]
@@ -280,8 +282,10 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
         np_ = rule["near_pct"]
         if np_ is not None:
             if abs(d) <= np_ and s.get("zone") != "near":
-                where = "od dołu" if d < 0 else "od góry"
-                msgs.append(f"⚠️ zbliża się do EMA{cfg['period']} {where}: {head} ({d:+.2f}%, {ema_txt}){link}")
+                if now - s.get("near_at", 0) >= near_cool:
+                    where = "od dołu" if d < 0 else "od góry"
+                    msgs.append(f"⚠️ zbliża się do EMA{cfg['period']} {where}: {head} ({d:+.2f}%, {ema_txt}){link}")
+                    s["near_at"] = now
                 s["zone"] = "near"
             elif abs(d) > np_ * rearm:
                 s["zone"] = "far"
@@ -414,6 +418,7 @@ def load_cfg(path):
     pcfg.update(fcfg.get("proposals") or {})
     cfg["fib"] = {"near_pct": float(fcfg.get("near_pct", 2) or 2), "setups": fcfg.get("setups") or [],
                   "proposals": pcfg}
+    cfg["telegram"] = full.get("telegram") or {}
     return cfg
 
 
@@ -437,8 +442,16 @@ def _read(path, default):
         return default
 
 
+def load_bot_state(state_dir, st=None):
+    """bot.json (written by bot.py): Telegram setups, mute. Before the bot's first run: old state.json keys."""
+    b = _read(os.path.join(state_dir, "bot.json"), None)
+    if b is None:
+        b = {"fib_user": (st or {}).get("fib_user") or []}
+    return b
+
+
 def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remote=None,
-        git=subprocess.run, check_only=False, bot=None, hl=F.hyperliquid_mids):
+        git=subprocess.run, check_only=False, hl=F.hyperliquid_mids):
     now = int(now or time.time())
     os.makedirs(state_dir, exist_ok=True)
     cpath, spath = os.path.join(state_dir, "candles.json"), os.path.join(state_dir, "state.json")
@@ -543,25 +556,16 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     msgs = check_alerts(rows, cfg["alerts"], ast, cfg, now, daily_done=daily_due, arm_only=first or check_only)
     st["armed"] = True
 
-    # Fibonacci setups: config + Telegram commands
+    # Fibonacci setups: config + Telegram (/fib is handled by bot.py, stored in bot.json)
+    bst = load_bot_state(state_dir, st)
     fcfg = cfg.get("fib") or {"near_pct": 2, "setups": []}
     cfg_setups = F.from_config(fcfg["setups"])
-    fib_coins = {x["coin"] for x in cfg_setups + (st.get("fib_user") or [])}
-    if bot is None and not check_only and os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"):
-        bot = F.Bot(os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"])
-    # prices for commands may concern new coins → fetch Hyperliquid lazily inside coin_prices
+    user_setups = bst.get("fib_user") or []
+    fib_coins = {x["coin"] for x in cfg_setups + user_setups}
     fprices = F.coin_prices(fib_coins, prices, cfg["quote"], hl=hl)
-
-    class _Lazy(dict):
-        def get(self, k, d=None):
-            if k not in self:
-                self.update(F.coin_prices({k}, prices, cfg["quote"], hl=hl))
-            return dict.get(self, k, d)
-    fprices = _Lazy(fprices)
-    if bot is not None and not check_only:
-        F.handle_commands(bot, st, cfg_setups, fprices, fcfg["near_pct"], now=now)
-    setups = cfg_setups + (st.get("fib_user") or [])
+    setups = cfg_setups + user_setups
     fmsgs = F.check(setups, fprices, st.setdefault("fib_state", {}), fcfg["near_pct"], arm_only=check_only)
+    mute_until = bst.get("mute_until")
 
     # automatic Fibo proposals: raw candidates once a day (or when high/low data changed), live status every run
     pcfg = fcfg.get("proposals") or F.PROPOSAL_DEFAULTS
@@ -577,13 +581,17 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         pr["chart"] = pr["coin"] in series
 
     if (msgs or fmsgs) and not check_only:
-        tg = telegram or alerts.Telegram()
-        if msgs:
-            header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
-            for i in range(0, len(msgs), 25):
-                tg.send("\n".join([header, ""] + msgs[i:i + 25]))
-        if fmsgs:
-            tg.send("\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
+        if alerts.is_muted(mute_until, now):
+            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(msgs) + len(fmsgs))
+            info["muted_alerts"] = len(msgs) + len(fmsgs)
+        else:
+            tg = telegram or alerts.Telegram(tg_cfg=cfg.get("telegram") or {})
+            if msgs:
+                header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
+                for i in range(0, len(msgs), 25):
+                    tg.post("market", "\n".join([header, ""] + msgs[i:i + 25]))
+            if fmsgs:
+                tg.post("market", "\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
 
     above = sum(1 for r in rows if r["d"] >= 0)
     br = breadth(series, cfg, now) if daily_due or backfilled or not st.get("breadth") else st["breadth"]
@@ -595,6 +603,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "coins": [{k: (_round(v) if isinstance(v, float) else v) for k, v in r.items()} for r in rows],
         "excluded": excluded, "breadth": br,
         "rules": cfg["alerts"], "near_default": None,
+        "mute_until": mute_until if alerts.is_muted(mute_until, now) else None,
         "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
     }
     fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
@@ -693,13 +702,51 @@ def main(argv=None):
         print(f"\nTelegram: {'skonfigurowany' if os.environ.get('TELEGRAM_BOT_TOKEN') and os.environ.get('TELEGRAM_CHAT_ID') else 'BRAK danych w ~/.scanner_env'}")
         print(f"GitHub (publikacja): {'token jest' if remote else 'BRAK tokenu'}")
         if a.test_telegram:
-            ok = alerts.Telegram().send("✅ Test EMA200 z Orange Pi — powiadomienia działają.")
-            print("Wiadomość testowa:", "wysłana" if ok else "NIE wysłana (sprawdź token i chat id)")
+            tg = alerts.Telegram(tg_cfg=cfg["telegram"])
+            ok = tg.post("system", "✅ Test z Orange Pi — wiadomości do Ciebie (priv) działają.")
+            print("Wiadomość testowa na priv:", "wysłana" if ok else "NIE wysłana (sprawdź token i chat id)")
+            if tg.target("market")[0] != tg.chat_id:
+                ok = tg.post("market", "✅ Test z Orange Pi — alerty i raporty trafiają do tego wątku.")
+                print("Wiadomość testowa do grupy:", "wysłana" if ok else
+                      "NIE wysłana (sprawdź group_chat_id / group_thread_id i czy bot jest w grupie)")
+            else:
+                print("Grupa: nieustawiona (telegram.group_chat_id) — alerty idą na priv")
         return 0
-    info, _, _, msgs = run(cfg, a.state, publish=not a.no_publish, remote=remote)
-    if msgs or info.get("publish_error") or info.get("fetched") is not None:
-        log.info("%s", info)
+    results = {"Obliczenia EMA na Orange Pi (Binance)": None, "Publikacja EMA/Fibo na stronę": None}
+    msgs = []
+    try:
+        info, _, _, msgs = run(cfg, a.state, publish=not a.no_publish, remote=remote)
+        results["Publikacja EMA/Fibo na stronę"] = info.get("publish_error")
+        if msgs or info.get("publish_error") or info.get("fetched") is not None:
+            log.info("%s", info)
+    except Exception as e:  # noqa: BLE001
+        log.exception("EMA run")
+        results["Obliczenia EMA na Orange Pi (Binance)"] = f"{type(e).__name__}: {e}"
+    report_health(a.state, results, cfg)
     return 0
+
+
+def report_health(state_dir, results, cfg, now=None, telegram=None):
+    """Failures of the Pi itself → admin (private): first failure, reminder, recovery."""
+    now = int(now or time.time())
+    path = os.path.join(state_dir, "health.json")
+    hst = _read(path, {})
+    hrs = float((cfg.get("telegram") or {}).get("health_reminder_hours", 12) or 12)
+    # report a failure only after 3 runs in a row (~15 min) — single network blips are normal
+    streak = hst.setdefault("_streak", {})
+    effective = {}
+    for src, err in results.items():
+        streak[src] = streak.get(src, 0) + 1 if err else 0
+        failing = ((hst.get("health") or {}).get(src) or {}).get("failing")
+        effective[src] = err if (err and (failing or streak[src] >= 3)) else None
+    msgs = alerts.health_messages(hst, effective, now, hrs)
+    if msgs:
+        tg = telegram or alerts.Telegram(tg_cfg=cfg.get("telegram") or {})
+        for m in msgs:
+            tg.post("system", m)
+    os.makedirs(state_dir, exist_ok=True)
+    _write(path, hst)
+    return msgs
 
 
 if __name__ == "__main__":

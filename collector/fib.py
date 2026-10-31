@@ -10,14 +10,13 @@ Zone = 0.705–0.786 with the 0.75 line. Status: far → near → zone → deep 
 (beyond the swing low/high). Alerts: near (once, re-armed after moving away), entering the zone,
 breaking through 0.786, invalidation.
 
-Setups come from config.yaml (`fib:`) and from Telegram commands (stored on the Pi):
-  /fib SOL 250 120 [long|short] [opis]   /fiby   /usun ID   /pomoc
+Setups come from config.yaml (`fib:`) and from Telegram commands handled by bot.py
+(stored on the Pi in ~/.ema-monitor/bot.json):  /fib SOL 250 120 [long|short] [opis]   /fiby   /usun ID
 """
 import html
 import logging
 import math
 import re
-import time
 
 import requests
 
@@ -143,14 +142,6 @@ def from_config(items):
 
 
 _NUM = r"[0-9]+(?:[.,][0-9]+)?"
-HELP = ("<b>Fibo — komendy</b>\n"
-        "/fib COIN SZCZYT DOŁEK [long|short] [opis] — dodaj setup\n"
-        "   np. <code>/fib SOL 250 120 long term</code>\n"
-        "   long = cofnięcie po wzroście (strefa pod szczytem), short = odbicie po spadku\n"
-        "/fiby — lista setupów ze statusem\n"
-        "/usun ID — usuń setup (np. /usun 3)\n"
-        "Setupy z config.yaml (id c1, c2…) usuwasz w configu.")
-
 
 def parse_command(text):
     """→ ("add", setup) | ("list", None) | ("del", id) | ("help", None) | ("error", msg) | None."""
@@ -184,85 +175,47 @@ def parse_command(text):
     return None
 
 
-class Bot:
-    """Minimal Telegram polling (getUpdates, no webhook). Only messages from `chat_id` are handled."""
-
-    def __init__(self, token, chat_id, session=None):
-        self.token, self.chat_id = token, str(chat_id)
-        self.s = session or requests.Session()
-
-    def updates(self, offset):
-        r = self.s.get(f"https://api.telegram.org/bot{self.token}/getUpdates",
-                       params={"offset": offset, "timeout": 0, "allowed_updates": '["message"]'}, timeout=30)
-        r.raise_for_status()
-        return r.json().get("result", [])
-
-    def reply(self, text):
-        self.s.post(f"https://api.telegram.org/bot{self.token}/sendMessage",
-                    json={"chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
-                          "disable_web_page_preview": True}, timeout=30)
+# ── command handlers (called by bot.py) ──────────────────────
+def add_setup(user, spec, now):
+    """Append a Telegram setup to `user` (list, mutated) → the new setup."""
+    nid = str(max([int(s["id"]) for s in user if str(s["id"]).isdigit()] + [0]) + 1)
+    setup = dict(spec, id=nid, src="telegram", added=int(now))
+    user.append(setup)
+    return setup
 
 
-def handle_commands(bot, st, config_setups, prices, near_pct, now=None):
-    """Process pending Telegram commands. st["fib_user"] = user setups, st["tg_offset"] = last update."""
-    now = int(now or time.time())
-    user = st.setdefault("fib_user", [])
-    try:
-        ups = bot.updates(st.get("tg_offset", 0))
-    except Exception as e:  # noqa: BLE001
-        log.warning("Telegram getUpdates: %s", e)
-        return 0
-    handled = 0
-    for u in ups:
-        st["tg_offset"] = u["update_id"] + 1
-        msg = u.get("message") or {}
-        if str((msg.get("chat") or {}).get("id")) != bot.chat_id:
-            continue
-        if msg.get("date") and now - int(msg["date"]) > 86400:
-            continue                     # ignore stale messages (e.g. sent before the bot was set up)
-        parsed = parse_command(msg.get("text"))
-        if not parsed:
-            continue
-        handled += 1
-        kind, arg = parsed
-        if kind == "help":
-            bot.reply(HELP)
-        elif kind == "error":
-            bot.reply("❓ " + html.escape(arg))
-        elif kind == "add":
-            nid = str(max([int(s["id"]) for s in user if str(s["id"]).isdigit()] + [0]) + 1)
-            setup = dict(arg, id=nid, src="telegram", added=now)
-            user.append(setup)
-            ev = evaluate(setup, prices.get(setup["coin"]), near_pct)
-            if ev["price"] is None:
-                price_txt = "⚠️ brak ceny dla tego coina na Binance i Hyperliquid"
-            else:
-                dist_txt = "" if ev["dist"] in (None, 0) else " ({:+.2f}%)".format(ev["dist"])
-                price_txt = "cena {} — {}{}".format(fmt(ev["price"]), STATUS_PL.get(ev["status"], ""), dist_txt)
-            bot.reply(f"✅ Dodano {describe(setup)}\nszczyt {fmt(setup['high'])}, dołek {fmt(setup['low'])}\n"
-                      f"0.705 = {fmt(ev['l705'])} · <b>0.75 = {fmt(ev['l75'])}</b> · 0.786 = {fmt(ev['l786'])}\n{price_txt}")
-        elif kind == "del":
-            before = len(user)
-            user[:] = [s for s in user if str(s["id"]) != str(arg)]
-            if len(user) < before:
-                bot.reply(f"🗑 Usunięto setup {html.escape(str(arg))}")
-            elif any(s["id"] == arg for s in config_setups):
-                bot.reply(f"Setup {html.escape(arg)} jest w config.yaml — usuń go tam.")
-            else:
-                bot.reply(f"Nie ma setupu o id {html.escape(str(arg))}. Lista: /fiby")
-        elif kind == "list":
-            allset = config_setups + user
-            if not allset:
-                bot.reply("Brak setupów. Dodaj: /fib COIN SZCZYT DOŁEK [long|short] [opis]")
-            else:
-                lines = ["<b>Setupy Fibo</b>"]
-                for s in allset:
-                    ev = evaluate(s, prices.get(s["coin"]), near_pct)
-                    stt = STATUS_PL.get(ev["status"], "brak ceny")
-                    dist = "" if ev["dist"] in (None, 0) else f" {ev['dist']:+.1f}%"
-                    lines.append(f"{describe(s)}: {stt}{dist} · 0.75 = {fmt(ev['l75'])}")
-                bot.reply("\n".join(lines))
-    return handled
+def added_text(setup, price, near_pct):
+    ev = evaluate(setup, price, near_pct)
+    if ev["price"] is None:
+        price_txt = "⚠️ brak ceny dla tego coina na Binance i Hyperliquid"
+    else:
+        dist_txt = "" if ev["dist"] in (None, 0) else " ({:+.2f}%)".format(ev["dist"])
+        price_txt = "cena {} — {}{}".format(fmt(ev["price"]), STATUS_PL.get(ev["status"], ""), dist_txt)
+    return (f"✅ Dodano {describe(setup)}\nszczyt {fmt(setup['high'])}, dołek {fmt(setup['low'])}\n"
+            f"0.705 = {fmt(ev['l705'])} · <b>0.75 = {fmt(ev['l75'])}</b> · 0.786 = {fmt(ev['l786'])}\n{price_txt}")
+
+
+def delete_setup(user, config_setups, sid):
+    """Remove a Telegram setup → reply text."""
+    before = len(user)
+    user[:] = [s for s in user if str(s["id"]) != str(sid)]
+    if len(user) < before:
+        return f"🗑 Usunięto setup {html.escape(str(sid))}"
+    if any(s["id"] == sid for s in config_setups):
+        return f"Setup {html.escape(sid)} jest w config.yaml — usuń go tam."
+    return f"Nie ma setupu o id {html.escape(str(sid))}. Lista: /fiby"
+
+
+def list_text(setups, prices, near_pct):
+    if not setups:
+        return "Brak setupów Fibo. Dodaje administrator: /fib COIN SZCZYT DOŁEK [long|short] [opis]"
+    lines = ["<b>Setupy Fibo</b>"]
+    for s in setups:
+        ev = evaluate(s, prices.get(s["coin"]), near_pct)
+        stt = STATUS_PL.get(ev["status"], "brak ceny")
+        dist = "" if ev["dist"] in (None, 0) else f" {ev['dist']:+.1f}%"
+        lines.append(f"{describe(s)}: {stt}{dist} · 0.75 = {fmt(ev['l75'])}")
+    return "\n".join(lines)
 
 
 def hyperliquid_mids(session=None):

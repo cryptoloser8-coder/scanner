@@ -2,7 +2,7 @@
 import html
 import logging
 import os
-from datetime import datetime, timezone
+import time
 
 import requests
 
@@ -47,26 +47,44 @@ def fmt_change(now, before):
 
 # ── telegram ─────────────────────────────────────────────────
 class Telegram:
-    def __init__(self, token=None, chat_id=None, enabled=True, session=None):
+    """Sends messages. Routing (config `telegram`): market alerts and reports go to the group thread
+    (group_chat_id / group_thread_id) when it is configured, system messages always to the admin
+    (TELEGRAM_CHAT_ID, private chat)."""
+
+    def __init__(self, token=None, chat_id=None, enabled=True, session=None, tg_cfg=None):
         self.token = token if token is not None else os.environ.get("TELEGRAM_BOT_TOKEN", "")
         self.chat_id = chat_id if chat_id is not None else os.environ.get("TELEGRAM_CHAT_ID", "")
+        self.cfg = tg_cfg or {}
         self.enabled = enabled and bool(self.token and self.chat_id)
         self.session = session or requests.Session()
-        self.sent = []
+        self.sent = []          # texts (all targets) — used by tests and logs
+        self.sent_to = []       # (kind, chat_id, thread_id, text)
 
-    def send(self, text):
+    def target(self, kind="system"):
+        """→ (chat_id, thread_id) for a message kind: system | market | report."""
+        gid = self.cfg.get("group_chat_id")
+        if kind in ("market", "report") and gid not in (None, "", 0):
+            tid = self.cfg.get("group_thread_id")
+            return str(gid), (int(tid) if tid not in (None, "", 0) else None)
+        return self.chat_id, None
+
+    def post(self, kind, text):
+        chat, thread = self.target(kind)
+        return self.send(text, chat_id=chat, thread_id=thread, kind=kind)
+
+    def send(self, text, chat_id=None, thread_id=None, kind="system"):
+        chat = chat_id or self.chat_id
         self.sent.append(text)
+        self.sent_to.append((kind, chat, thread_id, text))
         if not self.enabled:
             log.info("[telegram wyłączony] %s", text.replace("\n", " | "))
             return False
         for chunk in _chunks_text(text, 3900):
+            body = {"chat_id": chat, "text": chunk, "parse_mode": "HTML", "disable_web_page_preview": True}
+            if thread_id:
+                body["message_thread_id"] = int(thread_id)
             try:
-                r = self.session.post(
-                    f"https://api.telegram.org/bot{self.token}/sendMessage",
-                    json={"chat_id": self.chat_id, "text": chunk, "parse_mode": "HTML",
-                          "disable_web_page_preview": True},
-                    timeout=30,
-                )
+                r = self.session.post(f"https://api.telegram.org/bot{self.token}/sendMessage", json=body, timeout=30)
                 if r.status_code != 200:
                     log.error("Telegram HTTP %s: %s", r.status_code, r.text[:200])
                     return False
@@ -74,6 +92,26 @@ class Telegram:
                 log.error("Telegram: %s", e)
                 return False
         return True
+
+
+def is_muted(mute_until, now):
+    try:
+        return bool(mute_until) and float(mute_until) > now
+    except (TypeError, ValueError):
+        return False
+
+
+def fetch_mute(url, session=None, timeout=15):
+    """mute_until (unix ts) published by the Orange Pi in ema.json (/cisza); None when unknown."""
+    if not url:
+        return None
+    try:
+        r = (session or requests).get(url, params={"t": int(time.time())}, timeout=timeout)
+        r.raise_for_status()
+        return r.json().get("mute_until")
+    except Exception as e:  # noqa: BLE001
+        log.warning("Stan wyciszenia (%s): %s", url, e)
+        return None
 
 
 def _chunks_text(text, n):
@@ -208,60 +246,6 @@ def check_sums(store, catalog, rules, state, now):
                         f"(próg {fmt_value(usd, 'liq')}){split}{label}")
             st[key] = now
     return msgs
-
-
-REPORT_IDS = ["total", "total2", "total3", "btc_d", "eth_d", "stable_d", "alts_d", "others_d", "ethbtc", "stable_mcap",
-              "oi_btc", "oi_alts", "oi_others", "oi_btc_dom", "oi_others_vs_btc", "lev_others"]
-
-
-def daily_report(store, catalog, levels, page_url="", liquidations=False):
-    lines = ["📊 <b>Dzienny raport OI & TOTAL</b>", ""]
-    for sid in REPORT_IDS:
-        meta = catalog.get(sid)
-        latest = store.latest(sid)
-        if not meta or not latest:
-            continue
-        t, v = latest
-        d1 = store.value_at(sid, t - 86400, "1d", tolerance=2 * 86400)
-        d7 = store.value_at(sid, t - 7 * 86400, "1d", tolerance=2 * 86400)
-        lines.append(f"<b>{html.escape(meta['name'])}</b> {fmt_value(v, meta['group'])}  "
-                     f"1D {fmt_change(v, d1)} · 7D {fmt_change(v, d7)}")
-    if liquidations:
-        liq = []
-        for g in ("btc", "eth", "others", "total"):
-            p = liq_parts(store, catalog, f"liq_{g}", 24)
-            if p:
-                liq.append(f"<b>{html.escape(p[3])}</b> {fmt_value(p[0], 'liq')}  "
-                           f"(long {fmt_value(p[1], 'liq')} · short {fmt_value(p[2], 'liq')})")
-        for g in ("btc", "eth", "others"):
-            meta, latest = catalog.get(f"fund_{g}"), store.latest(f"fund_{g}")
-            if meta and latest:
-                liq.append(f"<b>{html.escape(meta['name'])}</b> {fmt_value(latest[1], 'fund')}")
-        if liq:
-            lines += ["", "<b>Likwidacje 24h i funding:</b>"] + liq
-    near = []
-    for lv in levels or []:
-        sid = lv.get("series")
-        meta = catalog.get(sid)
-        latest = store.latest(sid)
-        if not meta or not latest or not lv.get("level"):
-            continue
-        dist = (latest[1] - float(lv["level"])) / float(lv["level"]) * 100
-        near.append((abs(dist), f"{html.escape(lv.get('label') or meta['name'])}: {dist:+.2f}%"))
-    if near:
-        lines += ["", "<b>Odległość od poziomów:</b>"] + [s for _, s in sorted(near)[:8]]
-    if page_url:
-        lines += ["", f'<a href="{page_url}">Otwórz wykresy</a>']
-    return "\n".join(lines)
-
-
-def due_daily_report(state, now, hour_utc):
-    dt = datetime.fromtimestamp(now, timezone.utc)
-    today = dt.strftime("%Y-%m-%d")
-    if dt.hour >= int(hour_utc) and state.get("last_report") != today:
-        state["last_report"] = today
-        return True
-    return False
 
 
 def health_messages(state, results, now, reminder_hours=12):

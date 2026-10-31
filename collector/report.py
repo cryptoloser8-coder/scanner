@@ -34,7 +34,8 @@ log = logging.getLogger("report")
 
 HOUR = 3600
 DAY = 86400
-KIND_TITLES = {"test": "Raport testowy", "daily": "Raport dzienny", "manual": "Raport na żądanie"}
+KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny", "evening": "Raport wieczorny (po sesji w USA)",
+               "daily": "Raport dzienny", "manual": "Raport na żądanie"}
 DEFAULTS = {"notify": True, "keep": 120,
             "page_url": "https://cryptoloser8-coder.github.io/scanner/raporty.html"}
 
@@ -50,6 +51,15 @@ def _read(path, default=None):
 
 def utc(ts, fmt="%d.%m.%Y %H:%M UTC"):
     return datetime.fromtimestamp(ts, timezone.utc).strftime(fmt)
+
+
+def pl_time(ts, fmt="%d.%m.%Y %H:%M"):
+    """Polish local time (like the schedule and the bot)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.fromtimestamp(ts, ZoneInfo("Europe/Warsaw")).strftime(fmt)
+    except Exception:  # noqa: BLE001
+        return utc(ts, fmt + " UTC")
 
 
 def at(pts, t, tolerance):
@@ -391,7 +401,7 @@ def save(out_dir, rep, keep=120):
 
 def notify_text(entry, page_url):
     link = f"{page_url}?id={entry['id']}"
-    lines = [f"📊 <b>Nowy raport: {entry['title']}</b>", utc(entry["created"])]
+    lines = [f"📊 <b>Nowy raport: {entry['title']}</b>", pl_time(entry["created"])]
     if entry.get("summary"):
         lines.append(entry["summary"])
     lines += ["", f'<a href="{link}">Otwórz raport</a>']
@@ -406,7 +416,8 @@ def load_cfg(path):
         full = {}
     cfg = dict(DEFAULTS)
     cfg.update(full.get("reports") or {})
-    cfg["telegram_enabled"] = (full.get("telegram") or {}).get("enabled", True)
+    cfg["telegram"] = full.get("telegram") or {}
+    cfg["telegram_enabled"] = cfg["telegram"].get("enabled", True)
     return cfg
 
 
@@ -438,11 +449,11 @@ def main(argv=None):
     if not (cfg["notify"] and cfg["telegram_enabled"]):
         log.info("Powiadomienia o raportach wyłączone w configu")
         return 0
-    tg = alerts.Telegram()
+    tg = alerts.Telegram(tg_cfg=cfg["telegram"])
     if not tg.enabled:
         log.error("Brak TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID")
         return 1
-    ok = tg.send(notify_text(idx["reports"][0], a.page or cfg["page_url"]))
+    ok = tg.post("report", notify_text(idx["reports"][0], a.page or cfg["page_url"]))
     return 0 if ok else 1
 
 

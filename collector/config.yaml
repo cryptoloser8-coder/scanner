@@ -76,12 +76,30 @@ tradingview:
 
 telegram:
   enabled: true
-  # Codzienne podsumowanie — pierwsze uruchomienie po tej godzinie (UTC).
-  daily_report_hour_utc: 7
-  # Jak często przypominać o awarii źródła danych (godziny).
+  # GRUPA: alerty rynkowe i raporty idą do wątku grupy; awarie i sprawy systemu — tylko do Ciebie na priv.
+  # Jak ustawić: dodaj bota do grupy, w wybranym wątku napisz /watek@NazwaTwojegoBota,
+  # przepisz tu obie liczby i zapisz plik na GitHubie. Puste (null) = wszystko na priv.
+  group_chat_id: null      # np. -1001234567890
+  group_thread_id: null    # numer wątku (null = wątek „Ogólny” / grupa bez tematów)
+  # Jak często przypominać o awarii (godziny).
   health_reminder_hours: 12
-  # Dopisz do raportu dziennego likwidacje z 24h i funding (true/false).
-  report_liquidations: false
+
+# ─────────────────────────────────────────────────────────────
+#  HARMONOGRAM — skany OI/TOTAL i raporty (czas polski, zmiana czasu liczona sama)
+#  Pilnuje go Orange Pi (bot.py co minutę): uruchamia skan na GitHubie, a skan przed raportem
+#  po zakończeniu (~40 min) od razu buduje raport i wysyła link do grupy.
+#  Zmiana godzin = edycja tego pliku na GitHubie (Pi pobiera ją sam w ciągu 5 min).
+# ─────────────────────────────────────────────────────────────
+schedule:
+  timezone: Europe/Warsaw
+  scan_every_hours: 2        # zwykłe skany: co 2 h…
+  scan_minute: 15            # …o :15 (00:15, 02:15, …)
+  reports:
+    - scan_at: "06:15"       # raport poranny gotowy ok. 07:00 (dzienne świece zamknięte o 01:00/02:00 PL)
+      kind: morning
+    - scan_at: "22:05"       # po zamknięciu sesji w USA (22:00 PL; ok. 3 tygodnie w roku 21:00) → raport ok. 22:45
+      kind: evening
+  skip_regular_minutes: 60   # zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany
 
 # ─────────────────────────────────────────────────────────────
 #  RAPORTY — zakładka raporty.html (workflow „Raport”, gałąź reports)
@@ -139,6 +157,7 @@ ema:
   exclude: []            # dodatkowe coiny do pominięcia, np. [LUNC, USTC]
   cross_buffer_pct: 0.5  # przecięcie liczy się dopiero po wyjściu o tyle % na drugą stronę (chroni przed „piłą”)
   cooldown_hours: 12     # po alercie o przecięciu ten sam coin milczy tyle godzin
+  near_cooldown_hours: 24  # alert „zbliża się” dla tego samego coina najwyżej raz na tyle godzin
   publish_minutes: 15    # jak często Pi odświeża dane na stronie
   #
   # ALERTY — dowolnie wiele reguł:
@@ -149,7 +168,7 @@ ema:
   #   direction: both | up (tylko przebicie w górę) | down (tylko w dół)
   #   near_pct:  alert, gdy cena jest bliżej niż X% od EMA (raz; ponownie po oddaleniu na 1,5 × X)
   alerts:
-    - coins: [BTC, ETH, SOL, XRP, BNB, DOGE, HYPE, SUI]
+    - coins: [BTC, ETH, SOL, XRP, BNB, DOGE, SUI]   # HYPE nie ma pary na Binance spot → brak EMA200
       cross: true
       confirm: live
       direction: both
@@ -162,9 +181,9 @@ ema:
 #  FIBO — Twoje własne setupy (zakładka fib.html, liczy Orange Pi co 5 min)
 #  Strefa 0.705–0.786 z linią 0.75. Alerty: zbliża się (near_pct), wejście w strefę,
 #  przebicie 0.786, unieważnienie (cena za dołkiem/szczytem ruchu).
-#  Setupy dodajesz tutaj albo z Telegrama:
+#  Setupy dodajesz tutaj albo z Telegrama (tylko administrator):
 #    /fib COIN SZCZYT DOŁEK [long|short] [opis]   np. /fib SOL 250 120 long term
-#    /fiby  (lista)    /usun ID    /pomoc
+#    /fiby  (lista, każdy)    /usun ID    /pomoc (wszystkie komendy)
 #  long  = cofnięcie po wzroście (strefa pod szczytem), short = odbicie po spadku.
 #  Ceny: Binance */USDT, a gdy coina tam nie ma — Hyperliquid (np. HYPE).
 # ─────────────────────────────────────────────────────────────

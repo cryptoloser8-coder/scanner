@@ -212,8 +212,10 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     store = Store(data_dir)
     st = store.state
     catalog = build_catalog(cfg)
-    tg = telegram or alerts.Telegram(enabled=cfg["telegram"].get("enabled", True))
+    tg = telegram or alerts.Telegram(enabled=cfg["telegram"].get("enabled", True), tg_cfg=cfg["telegram"])
     page_url = os.environ.get("PAGE_URL", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    mute_url = f"https://raw.githubusercontent.com/{repo}/ema/ema.json" if repo else ""
     results, info = {}, {}
 
     client = None
@@ -247,7 +249,9 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     for res in ("1h", "1d"):
         S.derived(store.series[res])
 
-    msgs = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
+    # system messages → admin (private); market alerts → group thread (one message per run, unless muted)
+    system = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
+    market = []
     if backfill:
         n1h = len(store.series["1h"].get("oi_total", {}))
         n1d = len(store.series["1d"].get("oi_total", {}))
@@ -255,21 +259,24 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         extra = ""
         if liq_enabled(cfg):
             extra = f" Likwidacje {len(store.series['1d'].get('liq_total_long', {}))} dni."
-        msgs.append(f"✅ Backfill zakończony: OI {n1d} dni + {n1h} godzin, TOTAL {t1d} dni.{extra}")
+        system.append(f"✅ Backfill zakończony: OI {n1d} dni + {n1h} godzin, TOTAL {t1d} dni.{extra}")
         # arm level state silently so the first regular run doesn't fire stale crosses
         alerts.check_levels(store, catalog, cfg["levels"], st)
         alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
     else:
-        msgs += alerts.check_levels(store, catalog, cfg["levels"], st, page_url)
-        msgs += alerts.check_changes(store, catalog, cfg["changes"], st, now)
-        msgs += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
-        if cfg["telegram"].get("enabled", True) and alerts.due_daily_report(
-                st, now, cfg["telegram"].get("daily_report_hour_utc", 7)):
-            msgs.append(alerts.daily_report(
-                store, catalog, cfg["levels"], page_url,
-                liquidations=liq_enabled(cfg) and cfg["telegram"].get("report_liquidations", False)))
-    for m in msgs:
-        tg.send(m)
+        market += alerts.check_levels(store, catalog, cfg["levels"], st, page_url)
+        market += alerts.check_changes(store, catalog, cfg["changes"], st, now)
+        market += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
+    for m in system:
+        tg.post("system", m)
+    if market:
+        mute_until = alerts.fetch_mute(mute_url) if mute_url else None
+        if alerts.is_muted(mute_until, now):
+            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(market))
+            info["muted_alerts"] = len(market)
+        else:
+            tg.post("market", "\n\n".join(["📊 <b>Rynek</b> (OI, TOTAL, likwidacje)"] + market))
+    msgs = system + market
 
     meta = {
         "updated": now,
