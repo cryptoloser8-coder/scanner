@@ -14,7 +14,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "text",  "title", "text"}
   {"type": "facts", "title", "items": [{"label", "value", "sub", "zone", "note"}]}   zone: green|yellow|red|None
   {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...]}]}
-  {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours)}
+  {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours),
+                   "left" (optional: indexes of left-aligned columns)}
   {"type": "section", "title"}                                       — section heading
   any block: optional "desc" — plain-language explanation shown above the content (bigger font than "note")
   {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
@@ -39,6 +40,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import alerts  # noqa: E402  (fmt_value, Telegram)
+import econ  # noqa: E402  (US economic calendar)
 from store import _write  # noqa: E402
 
 log = logging.getLogger("report")
@@ -655,7 +657,8 @@ def ema_near_section(ema, L):
                               + (f" I jeszcze {more} — zakładka EMA200." if more > 0 else "")}]
 
 
-def build(data_dir, ema_dir, kind="test", now=None, cfg=None):
+def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
+    """macro: {"events": [...], "error": str|None} from econ.fetch (None = section left out)."""
     now = int(now or time.time())
     L = layout(cfg)
     d = Data(data_dir)
@@ -683,6 +686,9 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None):
     refs, alt_t = alts_refs(d, ema, L, now)
     if d.updated:
         blocks += market_section(d, L, alt_t)
+    if macro is not None:
+        blocks += econ.block(macro.get("events"), now, cfg, macro.get("error"))
+    if d.updated:
         blocks += alts_section(d, ema, L, refs, now)
         blocks += derivatives_section(d, L, alt_t)
         blocks += liq_section(d, L)
@@ -712,6 +718,7 @@ SOURCES_MD = """## Źródła danych i metody
 - OTHERS w open interest = wszystkie śledzone coiny bez BTC i ETH (top coiny według OI).
 - Funding: stawka ważona open interest, przeliczona na % w skali roku; ok. 11% rocznie = poziom neutralny (0,01% na 8 h).
 - EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Historia szerokości liczona tylko z coinów notowanych dziś, więc starsze lata są zawyżone.
+- Dane makro z USA: kalendarz ekonomiczny TradingView (https://www.tradingview.com/economic-calendar/) — publikacje o średniej (★★) i wysokiej (★★★) ważności według TradingView; wynik, prognoza (oczekiwanie rynku), poprzednia wartość.
 - Daty bez godziny = dzień UTC. Wszystkie liczby policzył program; raport nie zawiera interpretacji ani rekomendacji.
 """
 
@@ -903,7 +910,16 @@ def main(argv=None):
     cfg = load_cfg(a.config)
 
     if a.cmd == "make":
-        rep = build(a.data, a.ema, a.kind, cfg=cfg)
+        macro = None
+        st = econ.settings(cfg)
+        if st.get("enabled", True):
+            try:
+                macro = {"events": econ.fetch(time.time(), cfg), "error": None}
+                log.info("Kalendarz makro: %d wydarzeń", len(macro["events"]))
+            except Exception as e:  # noqa: BLE001 — the report goes out without this section's data
+                log.warning("Kalendarz makro niedostępny: %s", e)
+                macro = {"events": [], "error": econ.short_error(e)}
+        rep = build(a.data, a.ema, a.kind, cfg=cfg, macro=macro)
         page = a.page or cfg["page_url"]
         save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page)
         n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])

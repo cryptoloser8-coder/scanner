@@ -3,7 +3,9 @@
 Times are wall-clock times in `timezone` (default Europe/Warsaw); summer/winter time is handled by zoneinfo.
   regular scans:  every `scan_every_hours` hours at minute `scan_minute`  (00:15, 02:15, …)
   report scans:   reports: [{scan_at: "06:15", kind: morning}, …] — the OI scan runs (~40 min),
-                  then the same GitHub run builds the report and posts the link
+                  then the same GitHub run builds the report and posts the link.
+                  An entry may have its own `timezone` (e.g. {scan_at: "16:05", timezone: America/New_York}
+                  = always 5 min after the US close, whatever the summer/winter time in Poland and the US).
 A regular scan closer than `skip_regular_minutes` to a report scan is skipped (the report scan replaces it).
 An event is started once, at most `grace_minutes` late (report scans: `report_grace_minutes`),
 e.g. after the Pi was switched off for a while.
@@ -48,8 +50,11 @@ def events_on(sc, day):
     reports = []
     for r in sc["reports"]:
         h, m = _hm(r["scan_at"])
-        reports.append({"at": datetime(day.year, day.month, day.day, h, m, tzinfo=z),
-                        "type": "report", "kind": str(r.get("kind") or "daily")})
+        rz = ZoneInfo(r["timezone"]) if r.get("timezone") else z
+        for d in (day - timedelta(days=1), day, day + timedelta(days=1)):
+            at = datetime(d.year, d.month, d.day, h, m, tzinfo=rz).astimezone(z)
+            if at.date() == day:                       # the event of this local (Polish) day
+                reports.append({"at": at, "type": "report", "kind": str(r.get("kind") or "daily")})
     skip = float(sc.get("skip_regular_minutes") or 0) * 60
     regular = []
     every = int(sc.get("scan_every_hours") or 0)

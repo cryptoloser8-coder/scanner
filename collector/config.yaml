@@ -97,7 +97,8 @@ schedule:
   reports:
     - scan_at: "06:15"       # raport poranny gotowy ok. 07:00 (dzienne świece zamknięte o 01:00/02:00 PL)
       kind: morning
-    - scan_at: "22:05"       # po zamknięciu sesji w USA (22:00 PL; ok. 3 tygodnie w roku 21:00) → raport ok. 22:45
+    - scan_at: "16:05"       # 5 min po zamknięciu sesji w USA, liczone w czasie Nowego Jorku
+      timezone: America/New_York   # → zwykle 22:05 PL, ok. 3 tygodnie w roku 21:05 PL; raport ok. 40 min później
       kind: evening
   skip_regular_minutes: 60   # zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany
 
@@ -121,6 +122,11 @@ reports:
   alts_ref_level: 1.0       # tabela altów: kolumny = szczyty OI OTHERS/OI BTC powyżej tego poziomu…
   alts_ref_count: 3         # …ostatnie N (+ najniższy punkt z 12 miesięcy)
   alts_chart_from: "2020-01-01"
+  econ:                     # dane makro z USA (kalendarz ekonomiczny TradingView)
+    enabled: true
+    countries: [US]
+    min_importance: medium  # medium = ★★ i ★★★, high = tylko ★★★
+    days_back: 5            # ile dni wstecz szukać ostatniego dnia z publikacjami (poniedziałek rano → piątek)
   lines:                    # linie poziomów na wykresach: [poziom, opis]
     oi_others_vs_btc:
       - [0.60, "strefa dołków"]
