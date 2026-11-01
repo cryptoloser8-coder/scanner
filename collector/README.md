@@ -118,7 +118,7 @@ Uwaga: komendy odbiera tylko `bot.py` na Pi (`getUpdates`). Ten bot nie może by
 
 ## Raporty: zakładka `raporty.html` (workflow „Raport”)
 
-Raporty powstają same według harmonogramu (sekcja `schedule:` w `config.yaml`, czas polski): rano (skan 06:15 → raport ok. 07:00) i wieczorem po zamknięciu sesji w USA (skan 22:05 → raport ok. 22:45). Orange Pi uruchamia skan OI z parametrem `report`, a ten sam przebieg po publikacji danych buduje raport — raport nigdy nie wyprzedza danych. Na żądanie: `/raport_teraz` (z obecnych danych) albo `/raport_teraz skan`.
+Raporty powstają same według harmonogramu (sekcja `schedule:` w `config.yaml`, czas polski): rano (skan 06:15 → raport ok. 07:00, „Zamknięcie dnia”: pełny stan po zamknięciu dziennej świecy) i wieczorem (skan 16:05 czasu Nowego Jorku, zwykle 22:05 PL → raport ok. 22:45, „Krypto dziś”: tylko to, co zmieniło się od 00:00 UTC — `collector/today.py`; coiny w tabeli: `reports.today.coins`, domyślnie BTC, ETH, SOL, BNB, DOGE, HYPE). Orange Pi uruchamia skan OI z parametrem `report`, a ten sam przebieg po publikacji danych buduje raport — raport nigdy nie wyprzedza danych. Na żądanie: `/raport_teraz` (z obecnych danych) albo `/raport_teraz skan`.
 
 Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data` i `ema`, publikuje go na gałęzi **`reports`**
 (`index.json` + `reports/<id>.json`) i wysyła na Telegram powiadomienie z linkiem `raporty.html?id=…`. Trwa ok. 1 minuty.

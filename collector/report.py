@@ -34,6 +34,9 @@ Weekly and monthly reports (kind weekly / monthly, poprawka 30): built by period
 (Monday 00:00 UTC) / monthly (1st 00:00 UTC) candle closes; own pruning (`keep_periodic`) and stable
 latest-weekly.md/.json, latest-monthly.md/.json. `make --kind weekly,monthly` builds several reports in one run;
 `notify` posts a link for each report listed in --made (written by make).
+
+Morning vs evening (poprawka 35): morning = "zamknięcie dnia" (this layout; macro: only today's ★★★ plan),
+evening = "krypto dziś" (today.py: only what moved since the 00:00 UTC daily close, no 2-year background).
 """
 import argparse
 import json
@@ -54,7 +57,8 @@ log = logging.getLogger("report")
 
 HOUR = 3600
 DAY = 86400
-KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny", "evening": "Raport wieczorny (po sesji w USA)",
+KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny — zamknięcie dnia",
+               "evening": "Raport wieczorny — krypto dziś",
                "daily": "Raport dzienny", "manual": "Raport na żądanie",
                "weekly": "Raport tygodniowy", "monthly": "Raport miesięczny"}
 PERIODIC = ("weekly", "monthly")        # osobne listy w index.json (przycinanie) i osobne latest-<kind>.md
@@ -696,11 +700,18 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
     if warn:
         blocks.append({"type": "text", "title": "Uwaga", "text": "Nieświeże dane: " + "; ".join(warn) + "."})
 
+    if kind == "evening":                              # „Krypto dziś” — tylko zmiany od zamknięcia dnia
+        import today
+        return today.build(d, ema, now, cfg, macro, L, blocks, ema_upd)
+
     refs, alt_t = alts_refs(d, ema, L, now)
     if d.updated:
         blocks += market_section(d, L, alt_t)
     if macro is not None:
-        blocks += econ.block(macro.get("events"), now, cfg, macro.get("error"))
+        # rano: tylko plan ★★★ na dziś (wyniki z wczoraj były w raporcie wieczornym)
+        morning = kind == "morning"
+        blocks += econ.block(macro.get("events"), now, cfg, macro.get("error"),
+                             results=not morning, plan_importance="high" if morning else None)
     if d.updated:
         blocks += alts_section(d, ema, L, refs, now)
         blocks += derivatives_section(d, L, alt_t)

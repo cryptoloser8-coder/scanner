@@ -395,7 +395,7 @@ def _report_url(ctx, rid):
 
 
 def _kind_title(kind):
-    names = {"morning": "poranny", "evening": "wieczorny (po sesji w USA)", "manual": "na żądanie",
+    names = {"morning": "poranny (zamknięcie dnia)", "evening": "wieczorny (krypto dziś)", "manual": "na żądanie",
              "test": "testowy", "daily": "dzienny", "weekly": "tygodniowy", "monthly": "miesięczny"}
     return " i ".join(names.get(k, k) for k in str(kind or "").split(",") if k)
 

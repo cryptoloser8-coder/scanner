@@ -160,14 +160,15 @@ def _name(ev):
     return f"{ev.get('title', '')}" + (f" ({ev['period']})" if ev.get("period") else "")
 
 
-def block(events, now_ts, cfg=None, error=None):
-    """Report blocks for the 'Dane makro z USA' section: last day's results + next day's plan."""
+def block(events, now_ts, cfg=None, error=None, results=True, plan_importance=None):
+    """Report blocks for the 'Dane makro z USA' section: last day's results + next day's plan.
+    results=False → only the plan (morning report); plan_importance="high" → plan only with ★★★."""
     head = {"type": "section", "title": "Dane makro z USA"}
     if error:
         return [head, {"type": "text", "title": "", "text": f"Kalendarz ekonomiczny niedostępny ({error}). Reszta raportu bez zmian."}]
     st = settings(cfg)
     out = [head]
-    day, evs = last_day(events or [], now_ts, cfg)
+    day, evs = last_day(events or [], now_ts, cfg) if results else (None, [])
     if evs:
         rows = [[pl_hm(ev["_ts"]), _name(ev), STARS.get(ev.get("importance"), ""), fmt_num(ev.get("actual"), ev),
                  fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev), diff_text(ev)] for ev in evs]
@@ -179,19 +180,25 @@ def block(events, now_ts, cfg=None, error=None):
                     "note": "Źródło: kalendarz ekonomiczny TradingView (ważność według TradingView: średnia = ★★, wysoka = ★★★). "
                             "Prognoza = oczekiwanie rynku przed publikacją. Godziny w czasie polskim. "
                             "Wystąpienia (np. przemówienia z Fed) nie mają liczb."})
-    else:
+    elif results:
         out.append({"type": "text", "title": "", "text": "Brak publikacji o średniej i wysokiej ważności w ostatnich dniach."})
-    nday, nevs = next_day(events or [], now_ts, cfg)
+    pcfg = cfg
+    if plan_importance:
+        pcfg = dict(cfg or {}, econ=dict((cfg or {}).get("econ") or {}, min_importance=plan_importance))
+    stars = "★★★" if plan_importance == "high" else "★★ i ★★★"
+    nday, nevs = next_day(events or [], now_ts, pcfg)
     if nevs:
         rows = [[pl_hm(ev["_ts"]), _name(ev), STARS.get(ev.get("importance"), ""),
                  fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev)] for ev in nevs]
         out.append({"type": "table", "title": f"Zaplanowane — {_when(nday, now_ts)}, {nday.strftime('%d.%m.%Y')}",
                     "cols": ["Godz. PL", "Publikacja", "Ważność", "Prognoza", "Poprzednio"],
                     "rows": rows, "plain": True, "left": [1],
-                    "desc": "Co i o której wyjdzie w najbliższym dniu z publikacjami ★★ i ★★★ "
-                            "(wieczorem — jutro, rano — dziś, w piątek wieczorem — poniedziałek).",
+                    "desc": f"Co i o której wyjdzie w najbliższym dniu z publikacjami {stars} "
+                            + ("— najważniejsze dane z USA, zwykle ruszają też krypto. Wyniki z wczoraj były w raporcie "
+                               "wieczornym." if plan_importance == "high" else
+                               "(wieczorem — jutro, rano — dziś, w piątek wieczorem — poniedziałek)."),
                     "note": "Godziny w czasie polskim, według kalendarza TradingView; terminy i prognozy mogą się jeszcze zmienić."})
     else:
         out.append({"type": "text", "title": "Zaplanowane",
-                    "text": f"Brak zaplanowanych publikacji ★★ i ★★★ w najbliższych {st['days_ahead']} dniach."})
+                    "text": f"Brak zaplanowanych publikacji {stars} w najbliższych {st['days_ahead']} dniach."})
     return out
