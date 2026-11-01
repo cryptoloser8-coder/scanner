@@ -34,6 +34,8 @@ DEFAULTS = {
     "units": {"fed_assets": 1e6, "fed_tga": 1e6, "fed_rrp": 1e9, "fred_m2": 1e9},
     "ref_tops": 3,      # linie: tyle ostatnich zakończonych szczytów…
     "ref_bottoms": 2,   # …i den
+    "bottoms": [],      # dna bieżącego cyklu uznane ręcznie (zanim reguła potwierdzi je po halvingu), np. ["2026-06-30"]
+    "next_halving_estimate": "2028-04-15",   # szacunek (co 210 000 bloków ≈ 4 lata) — tylko do szacunku okna szczytu
 }
 TOP_COLOR, BOTTOM_COLOR = "#e05252", "#4caf7d"
 
@@ -119,7 +121,23 @@ def ratio(a, b):
 TOP_WINDOW_DAYS = 730        # szczyt cyklu szukamy w 2 latach po halvingu (przed 1. halvingiem: od początku danych)
 
 
-def cycle_extremes(px):
+def manual_bottom(px, t_top, iso):
+    """Dno uznane ręcznie: najniższe zamknięcie w ±10 dni od podanej daty, po szczycie. Nieważne (None), gdy później
+    cena zamknęła się niżej — wtedy wraca reguła (bessa trwa)."""
+    try:
+        t0 = day_of(str(iso))
+    except ValueError:
+        return None
+    win = {t: v for t, v in px.items() if t > t_top and abs(t - t0) <= 10 * DAY}
+    if not win:
+        return None
+    t_b = min(win, key=win.get)
+    if any(v < win[t_b] for t, v in px.items() if t > t_b):
+        return None
+    return t_b, win[t_b]
+
+
+def cycle_extremes(px, manual_bottoms=()):
     """Szczyty i dna ceny BTC w cyklach wyznaczonych halvingami → (tops, bottoms) [(t, price)].
     Szczyt = maksimum w 2 latach po halvingu (pierwszy: przed 1. halvingiem). Dno = minimum między szczytem
     a następnym halvingiem. Szczyt bieżącego cyklu liczy się dopiero po spadku o ≥ 50%, a dno dopiero
@@ -145,14 +163,52 @@ def cycle_extremes(px):
             if wb:
                 t_bot = min(wb, key=wb.get)
                 bottoms.append((t_bot, wb[t_bot]))
+        else:                          # dno niepotwierdzone regułą — może je wskazać config (cycle.bottoms)
+            for iso in manual_bottoms or ():
+                mb = manual_bottom(px, t_top, iso)
+                if mb:
+                    bottoms.append(mb)
+                    break
     return tops, bottoms
+
+
+PHASES = {"bull": "hossa", "bear": "bessa", "acc": "akumulacja"}
+
+
+def phases(px, manual_bottoms=()):
+    """Fazy cykli BTC wyznaczone z cen zamknięcia → [{"phase": bull|bear|acc, "from": t, "to": t|None}] (None = trwa).
+    bessa = od szczytu cyklu do dna cyklu; akumulacja = od dna do pierwszego zamknięcia powyżej poprzedniego szczytu
+    (cena odrobiła bessę); hossa = od tego zamknięcia do kolejnego szczytu. Szczyty i dna jak w cycle_extremes:
+    bieżący szczyt liczy się po spadku ≥ 50%, bieżące dno dopiero po następnym halvingu (albo wcześniej, gdy wskazane
+    w config cycle.bottoms — wtedy akumulacja ma "confirmed": False, dopóki cena nie zamknie się powyżej poprzedniego
+    szczytu albo reguła nie potwierdzi dna po halvingu) — do tego czasu bessa „trwa”."""
+    tops, bottoms = cycle_extremes(px, manual_bottoms)
+    rule_bottoms = {t for t, _ in cycle_extremes(px)[1]} if manual_bottoms else None
+    ts = sorted(px)
+    out = []
+    for i, (t_top, v_top) in enumerate(tops):
+        bot = next((b for b in bottoms if b[0] > t_top), None)
+        if bot is None:
+            out.append({"phase": "bear", "from": t_top, "to": None})
+            break
+        out.append({"phase": "bear", "from": t_top, "to": bot[0]})
+        brk = next((t for t in ts if t > bot[0] and px[t] > v_top), None)
+        acc = {"phase": "acc", "from": bot[0], "to": brk}
+        if brk is None and rule_bottoms is not None and bot[0] not in rule_bottoms:
+            acc["confirmed"] = False   # dno uznane ręcznie: pewne dopiero po zamknięciu > poprzedni szczyt albo po halvingu
+        out.append(acc)
+        if brk is None:
+            break
+        nxt = tops[i + 1][0] if i + 1 < len(tops) else None
+        out.append({"phase": "bull", "from": brk, "to": nxt})
+    return out
 
 
 def ref_lines(store, cfg):
     """{sid: [{"value", "label", "color"}]} — wartości wskaźników przy poprzednich szczytach i dnach."""
     c = ccfg(cfg)
     s = store.series["1d"]
-    tops, bottoms = cycle_extremes(s.get("px_btc") or {})
+    tops, bottoms = cycle_extremes(s.get("px_btc") or {}, c.get("bottoms") or ())
     tops, bottoms = tops[-int(c["ref_tops"]):], bottoms[-int(c["ref_bottoms"]):]
     out = {}
     for sid in ("mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"):

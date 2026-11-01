@@ -316,4 +316,8 @@ cycle:
   enabled: true
   coinmetrics: true
   ref_tops: 3          # linie dla tylu ostatnich szczytów…
-  ref_bottoms: 2       # …i den
+  ref_bottoms: 3       # …i den
+  # dno bieżącego cyklu uznane przez nas (decyzja 01.11.2026) — reguła potwierdziłaby je dopiero po halvingu 2028;
+  # od tego dnia raporty liczą akumulację. Gdy cena zamknie się poniżej tego dna, wpis przestaje działać (wraca bessa).
+  bottoms: ["2026-06-30"]
+  next_halving_estimate: "2028-04-15"   # szacunek daty halvingu — tylko do okna szczytu w raporcie miesięcznym

@@ -21,6 +21,7 @@ HALVINGS = ("2012-11-28", "2016-07-09", "2020-05-11", "2024-04-19")
 MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień",
           "październik", "listopad", "grudzień"]
 DAYS_SHORT = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
+PHASE_NAMES = {"bull": "hossa", "bear": "bessa", "acc": "akumulacja"}
 RANGE_FROM = {"default": 1483228800, "ssr": 1577836800}      # 01.01.2017 (3 ostatnie cykle), SSR: 01.01.2020
 
 
@@ -368,8 +369,10 @@ MACRO_SIDS = ["net_liq", "m2", "dxy", "spx", "ndx", "vix", "us10y", "yc_10y2y", 
 
 
 # ── cykl BTC (miesięczny) ────────────────────────────────────
-def cycle_blocks(d, t_end):
+def cycle_blocks(d, t_end, cfg=None):
     import cycle as C
+    cc = C.ccfg(cfg or {})
+    manual = cc.get("bottoms") or ()
     px_pts = d.pts("1d", "px_btc")
     px = {t: v for t, v in px_pts if t <= t_end}
     if not px:
@@ -389,9 +392,57 @@ def cycle_blocks(d, t_end):
     if rp:
         items.append({"label": "Cena vs realized price", "value": f"{(v / rp - 1) * 100:+.1f}%",
                       "sub": f"realized price {R.fmt_price(rp)}", "zone": None, "note": ""})
+    phs = C.phases(px, manual)
+    bad_manual = []
+    if manual and phs and phs[-1]["phase"] == "bear":
+        bad_manual = list(manual)           # wpis w configu, który nie zadziałał (cena zamknęła się niżej / zła data)
+    if phs:
+        cur = phs[-1]
+        n = (t_end - cur["from"]) // DAY
+        if cur["phase"] == "bear":
+            after = {t: x for t, x in px.items() if t > cur["from"]}
+            t_lo = min(after, key=after.get) if after else None
+            sub = (f"od szczytu {R.utc(cur['from'], '%d.%m.%Y')}; najniższe zamknięcie od szczytu "
+                   f"{R.fmt_price(after[t_lo])} ({R.utc(t_lo, '%d.%m.%Y')}, {(after[t_lo] / px[cur['from']] - 1) * 100:+.0f}%)"
+                   if t_lo else f"od szczytu {R.utc(cur['from'], '%d.%m.%Y')}")
+            note = ("Bessa trwa formalnie do potwierdzenia dna cyklu (najniższe zamknięcie między szczytem a następnym "
+                    "halvingiem) — reguła pod wykresem faz.")
+        elif cur["phase"] == "acc":
+            v_bot = px[cur["from"]]
+            prev_top = max((p for p in phs if p["phase"] == "bear" and p["to"] == cur["from"]), key=lambda p: p["from"])
+            v_top = px[prev_top["from"]]
+            sub = (f"od dna {R.utc(cur['from'], '%d.%m.%Y')} ({R.fmt_price(v_bot)}); cena {(v / v_bot - 1) * 100:+.0f}% od dna; "
+                   f"do poprzedniego szczytu ({R.fmt_price(v_top)}) brakuje {(v_top / v - 1) * 100:+.0f}%")
+            note = ("Akumulacja = od dna cyklu do pierwszego zamknięcia powyżej poprzedniego szczytu."
+                    + (" Niepotwierdzona: dno uznane przez nas w config.yaml (cycle.bottoms); pewność daje zamknięcie "
+                       "powyżej poprzedniego szczytu albo halving bez niższego zamknięcia." if cur.get("confirmed") is False
+                       else ""))
+        else:
+            sub = f"od {R.utc(cur['from'], '%d.%m.%Y')}"
+            note = ""
+        past = [(p["to"] - p["from"]) // DAY for p in phs if p["phase"] == cur["phase"] and p["to"] is not None
+                and p["from"] >= _ts(datetime(2013, 1, 1))]
+        if past:
+            sub += f"; poprzednie: {min(past)}–{max(past)} dni"
+        items.insert(1, {"label": "Faza cyklu", "value": f"{phase_name(cur).capitalize()} · dzień {n}",
+                         "sub": sub, "zone": None, "note": note})
     out.append({"type": "facts", "title": "Stan na zamknięcie miesiąca", "items": items})
+    if bad_manual:
+        out.append({"type": "text", "title": "Uwaga",
+                    "text": f"Dno wpisane w config.yaml (cycle.bottoms: {', '.join(map(str, bad_manual))}) nie obowiązuje — "
+                            "po nim cena zamknęła się niżej albo data nie pasuje. Fazy liczone samą regułą."})
+    acc_now = bool(phs and phs[-1]["phase"] == "acc" and phs[-1]["to"] is None and manual)
+    out.append(price_chart(d, px, t_end, phs, (
+        f"Dno bieżącego cyklu ({R.utc(phs[-1]['from'], '%d.%m.%Y')}) uznane przez nas w config.yaml (cycle.bottoms), "
+        "dlatego akumulacja jest niepotwierdzona (fioletowa) — pewność daje pierwsze zamknięcie powyżej poprzedniego "
+        "szczytu albo halving bez niższego zamknięcia. Jeśli cena zamknie się poniżej dna, wpis przestanie działać "
+        "(wróci bessa).") if acc_now else ""))
+    tbl = phase_table(px, phs, t_end)
+    if tbl:
+        out.append(tbl)
+    out += projection_block(px, phs, t_end, cc)
     # porównanie z poprzednimi cyklami (te same dni po halvingu i po szczycie)
-    tops, bottoms = C.cycle_extremes(px)
+    tops, bottoms = C.cycle_extremes(px, manual)
     n_h = t_end - h_now
     cur_win = {t: x for t, x in px.items() if t >= h_now}
     t_top_now = max(cur_win, key=cur_win.get) if cur_win else None
@@ -408,8 +459,11 @@ def cycle_blocks(d, t_end):
                      f"{(a / top[1] - 1) * 100:+.0f}%" if a else "—", f"{(b / top[1] - 1) * 100:+.0f}%" if b else "—",
                      f"{(bot[1] / top[1] - 1) * 100:+.0f}% po {(bot[0] - top[0]) // DAY} dniach" if bot else "—"])
     if t_top_now:
+        bot = next(((t, x) for t, x in bottoms if t > t_top_now), None)
         rows.append([f"{R.utc(h_now, '%Y')}– (obecny)", f"{R.utc(t_top_now, '%m.%Y')} ({(t_top_now - h_now) // DAY} dni)",
-                     f"{(v / cur_win[t_top_now] - 1) * 100:+.0f}%", f"{(v / cur_win[t_top_now] - 1) * 100:+.0f}%", "—"])
+                     f"{(v / cur_win[t_top_now] - 1) * 100:+.0f}%", f"{(v / cur_win[t_top_now] - 1) * 100:+.0f}%",
+                     f"{(bot[1] / cur_win[t_top_now] - 1) * 100:+.0f}% po {(bot[0] - t_top_now) // DAY} dniach"
+                     + (" (uznane)" if manual else "") if bot else "—"])
     if rows:
         out.append({"type": "table", "title": "Obecny cykl na tle poprzednich", "plain": True, "left": [0],
                     "cols": ["Cykl (halving)", "Szczyt (dni po halvingu)", f"Cena {n_h // DAY} dni po halvingu vs szczyt",
@@ -443,7 +497,24 @@ def cycle_blocks(d, t_end):
                             "przy dnach (wyznaczone z danych).",
                     "note": "MVRV i realized price: Coin Metrics Community; Mayer, cena/200W, Pi Cycle — z ceny BTC; SSR — "
                             "TradingView. Opis każdego wskaźnika pod paskiem."})
-    # cena (log) z realized price i średnią 200 tygodni
+    return out
+
+
+PHASE_COLORS = {"bull": "#4caf7d", "bear": "#e05252", "acc": "#5b9cf6", "unsure": "#b39ddb"}
+
+
+def phase_name(p):
+    return PHASE_NAMES[p["phase"]] + (" niepotwierdzona" if p.get("confirmed") is False else "")
+
+
+def phase_bands(phs, t_last):
+    return [{"from": p["from"], "to": p["to"] or t_last,
+             "color": PHASE_COLORS["unsure" if p.get("confirmed") is False else p["phase"]],
+             "label": phase_name(p) + (" (trwa)" if p["to"] is None else "")} for p in phs]
+
+
+def price_chart(d, px, t_end, phs, manual_note=""):
+    """Cena BTC (log, co tydzień) od 2011 z realized price, średnią 200 tygodni i tłem w kolorach faz cyklu."""
     since = _ts(datetime(2011, 1, 1))
     ts = sorted(px)
     vals = [px[t] for t in ts]
@@ -453,14 +524,116 @@ def cycle_blocks(d, t_end):
     series = [{"name": "Cena BTC", "color": "#f7931a", "fmt": "price", "scale": "right", "data": p}]
     rpp = [x for x in d.pts("1d", "rprice_btc") if x[0] <= t_end and keep(x[0])]
     if rpp:
-        series.append({"name": "Realized price", "color": "#ffb74d", "fmt": "price", "scale": "right", "data": rpp})
+        series.append({"name": "Realized price", "color": "#ffd54f", "fmt": "price", "scale": "right", "data": rpp})
     if sma:
-        series.append({"name": "Średnia 200 tygodni", "color": "#e05252", "fmt": "price", "scale": "right", "data": sma})
-    out.append({"type": "chart", "title": "Cena BTC, realized price i średnia 200 tygodni — od 2011", "log": True,
-                "series": series,
-                "desc": "Skala logarytmiczna. Realized price = średnia cena, po której monety ostatnio się ruszały; "
-                        "średnia 200 tygodni = 1400 dni."})
-    return out
+        series.append({"name": "Średnia 200 tygodni", "color": "#4dd0e1", "fmt": "price", "scale": "right", "data": sma})
+    return {"type": "chart", "title": "Cena BTC i fazy cyklu — od 2011", "log": True, "series": series,
+            "bands": [b for b in phase_bands(phs, ts[-1]) if b["to"] >= since],
+            "desc": "Tło: zielone = hossa, czerwone = bessa, niebieskie = akumulacja, fioletowe = akumulacja niepotwierdzona "
+                    "(dno uznane przez nas, jeszcze bez pewności — reguła w opisie pod wykresem). "
+                    "Skala logarytmiczna. Realized price = średnia cena, po której monety ostatnio się ruszały; "
+                    "średnia 200 tygodni = 1400 dni.",
+            "note": "Fazy wyznaczone z dziennych zamknięć ceny BTC: bessa = od szczytu cyklu do dna cyklu; akumulacja = od "
+                    "dna do pierwszego zamknięcia powyżej poprzedniego szczytu (cena odrobiła bessę); hossa = od tego "
+                    "zamknięcia do kolejnego szczytu. Szczyt = najwyższe zamknięcie w 2 latach po halvingu (liczy się po "
+                    "spadku o ≥ 50%), dno = najniższe zamknięcie między szczytem a następnym halvingem (reguła potwierdza "
+                    "je dopiero po halvingu)." + (" " + manual_note if manual_note else "")}
+
+
+def projection_block(px, phs, t_end, cc):
+    """Okna kolejnych etapów, gdyby powtórzyły się długości z trzech ostatnich pełnych cykli (od dna 01.2015)."""
+    import cycle as C
+    if not phs:
+        return []
+    cur = phs[-1]
+    tops = [p["from"] for p in phs if p["phase"] == "bear"]                 # szczyty (początki bess)
+    bottoms = [p["from"] for p in phs if p["phase"] == "acc"]               # dna (początki akumulacji)
+    since = _ts(datetime(2015, 1, 1))
+    rows = []
+
+    def span(vals):
+        return f"{min(vals)}–{max(vals)}" if len(set(vals)) > 1 else str(vals[0])
+
+    def window(base, vals):
+        a, b = base + min(vals) * DAY, base + max(vals) * DAY
+        return f"{R.utc(a, '%m.%Y')} – {R.utc(b, '%m.%Y')}" if R.utc(a, "%m.%Y") != R.utc(b, "%m.%Y") else R.utc(a, "%m.%Y")
+    peaks = []
+    last_bot = bottoms[-1] if bottoms and cur["phase"] != "bear" else None
+    last_top = tops[-1] if tops else None
+    # koniec akumulacji (zamknięcie powyżej poprzedniego szczytu)
+    accs = [(p["to"] - p["from"]) // DAY for p in phs if p["phase"] == "acc" and p["to"] and p["from"] >= since]
+    if cur["phase"] == "acc" and accs:
+        rows.append(["Koniec akumulacji (zamknięcie powyżej poprzedniego szczytu)", "dno + długość akumulacji",
+                     span(accs), window(cur["from"], accs)])
+    # szczyt: dno → szczyt
+    b2t = [(t - b) // DAY for b in bottoms for t in tops if b >= since and t > b and
+           t == min([x for x in tops if x > b], default=None)]
+    if last_bot and b2t:
+        rows.append(["Kolejny szczyt cyklu", "dno + (dno → szczyt)", span(b2t), window(last_bot, b2t)])
+        peaks.append((last_bot + min(b2t) * DAY, last_bot + max(b2t) * DAY))
+    # szczyt: szczyt → szczyt
+    t2t = [(b - a) // DAY for a, b in zip(tops, tops[1:]) if a >= _ts(datetime(2013, 1, 1))]
+    if last_top and t2t:
+        rows.append(["Kolejny szczyt cyklu", "poprzedni szczyt + (szczyt → szczyt)", span(t2t), window(last_top, t2t)])
+        peaks.append((last_top + min(t2t) * DAY, last_top + max(t2t) * DAY))
+    # szczyt: halving → szczyt
+    halv = [C.day_of(h) for h in HALVINGS]
+    h2t = [(t - h) // DAY for h in halv for t in tops if h >= since and h < t < h + C.TOP_WINDOW_DAYS * DAY]
+    try:
+        nh = C.day_of(str(cc.get("next_halving_estimate") or ""))
+    except ValueError:
+        nh = None
+    if nh and h2t:
+        rows.append(["Kolejny szczyt cyklu", f"halving (szacunek {R.utc(nh, '%m.%Y')}) + (halving → szczyt)",
+                     span(h2t), window(nh, h2t)])
+        peaks.append((nh + min(h2t) * DAY, nh + max(h2t) * DAY))
+    if not rows:
+        return []
+    desc = ("Szacunek, nie prognoza: kiedy wypadłyby kolejne etapy, gdyby powtórzyły się długości z trzech ostatnich pełnych "
+            "cykli (2015–2018, 2018–2022, 2022–2025).")
+    if peaks:
+        a, b = min(p[0] for p in peaks), max(p[1] for p in peaks)
+        desc += f" Łączne okno szczytu ze wszystkich metod: {R.utc(a, '%m.%Y')} – {R.utc(b, '%m.%Y')}."
+    return [{"type": "table", "title": "Okno szacunkowe kolejnych etapów cyklu", "plain": True, "left": [0, 1],
+             "cols": ["Etap", "Metoda", "W poprzednich cyklach (dni)", "Gdyby się powtórzyło"], "rows": rows, "desc": desc,
+             "note": "Długości liczone z dziennych zamknięć ceny BTC; szczyty i dna jak w tabeli faz. Data następnego halvingu "
+                     "to szacunek z config.yaml (cycle.next_halving_estimate). Cykl 2011–2013 pominięty (rynek był wtedy zbyt "
+                     "mały i krótki, żeby go porównywać)."}]
+
+
+def phase_table(px, phs, t_end):
+    """Tabela faz: wiersz na szczyt cyklu — akumulacja przed nim, hossa, bessa po nim (dni i zmiana ceny)."""
+    def cell(p):
+        if p is None:
+            return "—"
+        to = p["to"] or t_end
+        a, b = px.get(p["from"]), px.get(to)
+        ch = f", {(b / a - 1) * 100:+.0f}%" if a and b else ""
+        tail = "trwa" if p["to"] is None else R.utc(to, "%m.%Y")
+        mark = ""
+        if p.get("confirmed") is False:
+            mark = " (niepotwierdzona)"
+        elif p["phase"] == "bear" and p["to"] in unsure:
+            mark = " (dno niepotwierdzone)"
+        return f"{R.utc(p['from'], '%m.%Y')}–{tail}: {(to - p['from']) // DAY} dni{ch}{mark}"
+    unsure = {p["from"] for p in phs if p.get("confirmed") is False}
+    rows = []
+    bears = [p for p in phs if p["phase"] == "bear"]
+    for bear in bears:
+        bull = next((p for p in phs if p["phase"] == "bull" and p["to"] == bear["from"]), None)
+        acc = next((p for p in phs if p["phase"] == "acc" and bull and p["to"] == bull["from"]), None)
+        rows.append([R.utc(bear["from"], "%m.%Y"), cell(acc), cell(bull), cell(bear)])
+    last = phs[-1] if phs else None
+    if last and last["phase"] in ("acc", "bull") and last["to"] is None:     # trwa akumulacja / hossa przed szczytem
+        acc = last if last["phase"] == "acc" else next((p for p in phs if p["phase"] == "acc" and p["to"] == last["from"]), None)
+        rows.append(["(następny)", cell(acc), cell(last) if last["phase"] == "bull" else "—", "—"])
+    if not rows:
+        return []
+    return {"type": "table", "title": "Fazy kolejnych cykli — czas trwania i zmiana ceny", "plain": True, "left": [0, 1, 2, 3],
+            "cols": ["Szczyt cyklu", "Akumulacja przed szczytem", "Hossa", "Bessa po szczycie"], "rows": rows,
+            "desc": "Ile trwała każda faza i o ile zmieniła się w niej cena BTC (zamknięcie na końcu fazy ÷ na początku). "
+                    "Reguła wyznaczania faz — pod wykresem powyżej.",
+            "note": "Pierwszy wiersz: szczyt z 06.2011 (dane od 2010, więc bez akumulacji i hossy przed nim)."}
 
 
 def month_return(px, y, m):
@@ -567,7 +740,7 @@ def build(d, ema, kind, now, cfg, macro):
                                t_end, start, end, hz, "Zamknięcie miesiąca i zmiany",
                                "Zamknięcie świecy miesięcznej i zmiana do zamknięcia 1, 3 i 12 miesięcy wcześniej.")
         blocks += seasonality(d, start, end)
-        blocks += cycle_blocks(d, t_end)
+        blocks += cycle_blocks(d, t_end, cfg)
         blocks += [{"type": "section", "title": "Struktura rynku"}]
         rows = []
         for sid in ("stable_mcap", "stable_d", "btc_d", "lev_btc", "lev_others", "oi_others_vs_btc", "alts_vs_btc",

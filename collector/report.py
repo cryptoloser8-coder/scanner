@@ -23,7 +23,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                                                  "marks": [{"pos", "label", "kind"}], "note"}]}  — range bars
   {"type": "bars", "title", "note", "rows": [{"label", "long", "short", "text", "current"}],
                    "parts": [{"key", "name", "color"}], "line": {"value", "label"}}         — horizontal stacked bars
-  chart: optional "lines": [{"value", "label", "color"}] — horizontal levels
+  chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
+         optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
 
 Layout v2 (31.10.2026): Rynek (range bars) → Alty (table vs past peaks, OI OTHERS/OI BTC and Alty/BTC with levels,
 OI OTHERS + OI BTC, market breadth) → Derywaty (OI vs price, funding bars) → Likwidacje (7 days) → EMA200 (coins near it).
@@ -820,6 +821,9 @@ def to_markdown(rep, page_url=""):
         elif t == "chart":
             for i, s_ in enumerate(b.get("series") or []):
                 L += _md_series(s_, b.get("lines") if i == 0 else None)
+            if b.get("bands"):
+                L.append("Tło wykresu (okresy): " + "; ".join(
+                    f"{bd['label']} {utc(bd['from'], '%d.%m.%Y')}–{utc(bd['to'], '%d.%m.%Y')}" for bd in b["bands"]) + ".")
         elif t == "bars":
             rows = []
             for r in b.get("rows") or []:
@@ -955,6 +959,7 @@ def load_cfg(path):
     cfg = dict(DEFAULTS)
     cfg.update(full.get("reports") or {})
     cfg["telegram"] = full.get("telegram") or {}
+    cfg["cycle"] = full.get("cycle") or {}           # dna uznane ręcznie, szacunek halvingu (raport miesięczny)
     cfg["telegram_enabled"] = cfg["telegram"].get("enabled", True)
     return cfg
 
