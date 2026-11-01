@@ -16,7 +16,7 @@ on:
       kind:
         description: "Rodzaj raportu"
         type: choice
-        options: [manual, weekly, monthly, "weekly,monthly", morning, evening, test]
+        options: [manual, weekly, monthly, "weekly,monthly", yearly, "monthly,yearly", "weekly,monthly,yearly", halving, morning, evening, test]
         default: manual
       delete:
         description: "Usuń raport(y) z historii zamiast budować nowy: ID z adresu raportu (?id=…), kilka po przecinku"
