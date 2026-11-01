@@ -98,6 +98,17 @@
   th:first-child,td:first-child{text-align:left;}
   td.pos{color:var(--green);} td.neg{color:var(--red);}
 
+  /* telefon: tabela szersza niż ekran → wiersze jako karty (nazwa kolumny przy wartości); zwykłe tabele bez zmian */
+  @media screen and (max-width:640px){
+    td,th{white-space:nowrap;}
+    .tbl.stack thead{display:none;}
+    .tbl.stack table,.tbl.stack tbody{display:block;}
+    .tbl.stack tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 10px;padding:8px 2px;border-bottom:1px solid var(--border);}
+    .tbl.stack td{display:flex;flex-direction:column;align-items:flex-start;text-align:left !important;border:none;padding:1px 0;white-space:normal;}
+    .tbl.stack td::before{content:attr(data-label);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
+    .tbl.stack td.ttl{grid-column:1/-1;order:-1;font-weight:600;font-size:12px;}
+    .tbl.stack td.ttl::before{display:none;}
+  }
   .sec{font-size:15px;font-weight:600;letter-spacing:-.2px;margin:22px 2px 0;padding-bottom:6px;border-bottom:1px solid var(--border2);}
   .rng{padding:10px 0;border-bottom:1px solid var(--border);}
   .rng:last-child{border-bottom:none;padding-bottom:2px;}
@@ -343,9 +354,19 @@ function factsBlock(b) {
 function tableBlock(b) {
   const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^(-\d|▼)/.test(v) ? 'neg' : '';
   const left = b.left || [];
+  const ttl = !left.length || left.includes(0) ? 0 : left[0];   // telefon (karty): tytuł karty = główna kolumna tekstowa
   return `<div class="tbl"><table><thead><tr>${(b.cols || []).map((c, j) => `<th${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${cls(String(v))}"${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${cls(String(v))}${j === ttl ? ' ttl' : ''}" data-label="${esc((b.cols || [])[j] || '')}"${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
+// telefon: tabele, które nie mieszczą się w szerokości, przechodzą w układ kart (CSS .tbl.stack)
+function fitTables() {
+  const narrow = matchMedia('screen and (max-width:640px)').matches;
+  document.querySelectorAll('.tbl').forEach(w => {
+    w.classList.remove('stack');
+    if (narrow && w.querySelector('table').scrollWidth > w.clientWidth + 2) w.classList.add('stack');
+  });
+}
+addEventListener('resize', () => requestAnimationFrame(fitTables));
 function chartBlock(b, i) {
   const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
   return `<div class="chart-legend">${lg}</div>
@@ -521,6 +542,7 @@ async function openReport(id) {
     ${(rep.blocks || []).map(renderBlock).join('')}
     <div class="note print-only" style="margin-top:10px;font-size:9px;color:#777">Crypto Scanner · ${esc(rep.id)} · ${esc(location.href.split('#')[0])}</div>`;
   (rep.blocks || []).forEach((b, i) => { if (b.type === 'chart' && (b.series || []).length) drawChart(b, i); });
+  fitTables();
   document.getElementById('pdf').onclick = downloadPdf;
   // wersja tekstowa dla AI (markdown z gałęzi reports); starsze raporty jej nie mają
   const mdUrl = new URL(`${BASE}reports/${encodeURIComponent(rep.id)}.md`, location.href).href;

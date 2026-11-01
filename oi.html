@@ -81,6 +81,15 @@
   .lg-val{font-family:var(--mono);color:var(--text);}
   .lg-x{color:var(--text3);cursor:pointer;font-size:12px;padding:0 2px;}
   .lg-x:hover{color:var(--red);}
+  .vlines{position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden;}
+  .vl{position:absolute;top:0;width:0;border-left:1px dashed var(--c);opacity:.75;}
+  .vl.manual{border-left-style:dotted;}
+  .vl.flip span{left:auto;right:3px;}
+  .vl span{position:absolute;left:3px;font-size:10px;font-family:var(--mono);color:var(--c);white-space:nowrap;background:rgba(15,15,15,.75);padding:0 3px;border-radius:3px;}
+  .cyc-legend{display:none;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:8px;align-items:center;}
+  .cyc-legend.on{display:flex;}
+  .cyc-legend .bd::before{content:'';display:inline-block;width:12px;height:10px;border-radius:2px;background:var(--c);opacity:.45;margin-right:5px;vertical-align:-1px;}
+  .cyc-legend .ln::before{content:'';display:inline-block;width:0;height:11px;border-left:1px dashed var(--c);margin-right:5px;vertical-align:-1px;}
   .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;}
   .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
   .hint a{color:var(--text3);}
@@ -159,6 +168,7 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
+        <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
       </div>
     </div>
@@ -169,8 +179,10 @@
   <div class="chart-wrap">
     <div id="chart"></div>
     <div class="legend" id="legend"></div>
+    <div class="vlines" id="vlines"></div>
     <div class="empty" id="empty">Wybierz serie powyżej albo kliknij kafelek</div>
   </div>
+  <div class="cyc-legend" id="cyc-legend"></div>
   <div class="hint">
     Kliknij kafelek lub nazwę serii, żeby dodać ją do wykresu. Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
     Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
@@ -253,7 +265,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -265,6 +277,7 @@ function parseHash() {
   if (h.get('z')) o.range = +h.get('z');
   if (h.get('log')) o.log = h.get('log') === '1';
   if (h.get('lines')) o.levels = h.get('lines') !== '0';
+  if (h.get('cyc')) o.cycle = h.get('cyc') === '1';
   return o;
 }
 function persist() {
@@ -272,6 +285,7 @@ function persist() {
   const h = new URLSearchParams({s: S.series.join(','), m: S.mode, r: S.res, z: S.range});
   if (S.log) h.set('log', '1');
   if (!S.levels) h.set('lines', '0');
+  if (S.cycle) h.set('cyc', '1');
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -464,6 +478,7 @@ bindPills('range-pills', 'range', Number);
 bindPills('mode-pills', 'mode');
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
 document.getElementById('lvl-btn').addEventListener('click', () => { S.levels = !S.levels; refresh(); });
+document.getElementById('cyc-btn').addEventListener('click', () => { S.cycle = !S.cycle; refresh(); });
 function syncControls() {
   for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
@@ -471,6 +486,9 @@ function syncControls() {
   const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
   const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
   const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
+  const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
+  cb.classList.toggle('active', S.cycle && hasCyc); cb.disabled = !hasCyc;
+  if (!hasCyc) cb.title = 'Fazy cyklu pojawią się po najbliższym skanie (meta.json bez cycle_marks).';
   document.querySelector('#res-pills [data-val="1h"]').disabled = !DATA['1h'] && DATA._1hFailed;
 }
 
@@ -490,7 +508,80 @@ function makeChart() {
     localization: {locale: 'pl-PL'},
   });
   chart.subscribeCrosshairMove(updateLegend);
-  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); });
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); });
+  new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
+}
+
+// ── fazy cyklu BTC: tło i pionowe linie (meta.cycle_marks — te same reguły co raport miesięczny) ──
+const PHASE_COLORS = {bull: '#4caf7d', bear: '#e05252', acc: '#5b9cf6', unsure: '#b39ddb'};
+const PHASE_NAMES = {bull: 'hossa', bear: 'bessa', acc: 'akumulacja', unsure: 'akumulacja niepotwierdzona'};
+const EVENT_COLORS = {halving: '#ffc107', top: '#e05252', bottom: '#4caf7d'};
+const EVENT_NAMES = {halving: 'halving', top: 'szczyt cyklu', bottom: 'dno cyklu'};
+const cycleOn = (any = false) => (any || S.cycle) && ((META.cycle_marks || {}).phases || []).length > 0;
+let bands = [], cycTimes = [];
+function addBands(panes, times) {
+  for (const pane of panes) {
+    let first = null;
+    for (const p of META.cycle_marks.phases) {
+      const to = p.to == null ? Infinity : p.to;
+      const i0 = times.findIndex(t => t >= p.from);
+      if (i0 < 0 || times[i0] > to) continue;
+      let i1 = times.findIndex(t => t > to);
+      i1 = i1 < 0 ? times.length - 1 : i1;               // do pierwszego punktu następnej fazy — bez przerw
+      const data = times.slice(i0, i1 + 1).map(t => ({time: t, value: 1}));
+      if (data.length < 2) continue;
+      const c = PHASE_COLORS[p.confirmed === false ? 'unsure' : p.phase] || '#888';
+      const bg = chart.addSeries(LWC.AreaSeries, {priceScaleId: 'cyc', lineColor: 'rgba(0,0,0,0)', lineWidth: 1,
+        topColor: c + '2e', bottomColor: c + '2e', lastValueVisible: false, priceLineVisible: false,
+        crosshairMarkerVisible: false, autoscaleInfoProvider: () => ({priceRange: {minValue: 0, maxValue: 1}})}, pane);
+      bg.setData(data);
+      bands.push(bg);
+      first = first || bg;
+    }
+    if (first) first.priceScale().applyOptions({scaleMargins: {top: 0, bottom: 0}, visible: false, mode: LWC.PriceScaleMode.Normal});
+  }
+}
+function nearestTime(t) {                               // pierwszy punkt wykresu ≥ t (najwyżej 3 dni później)
+  let lo = 0, hi = cycTimes.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (cycTimes[m] < t) lo = m + 1; else hi = m; }
+  return lo < cycTimes.length && cycTimes[lo] - t <= 3 * 86400 ? cycTimes[lo] : null;
+}
+function drawVLines() {
+  const el = document.getElementById('vlines');
+  if (!chart || !cycleOn() || !cycTimes.length) { el.innerHTML = ''; return; }
+  const ts = chart.timeScale();
+  let lw = 0, rw = 0;
+  try { lw = chart.priceScale('left').width(); rw = chart.priceScale('right').width(); } catch (e) {}
+  const W = el.clientWidth, axisH = ts.height ? ts.height() : 26, narrow = W < 600;
+  const off = {halving: 4, top: 20, bottom: 36};
+  const nextLeft = {};                // etykiety w jednym rzędzie nie nachodzą na siebie; pierwszeństwo mają najnowsze
+  el.innerHTML = (META.cycle_marks.events || []).slice().sort((a, b) => b.t - a.t).map(e => {
+    const t = nearestTime(e.t);
+    const x = t == null ? null : ts.timeToCoordinate(t);
+    if (x == null || x < 0 || lw + x > W - rw) return '';
+    const X = lw + x;
+    const label = narrow ? e.label.replace(/^\S+ /, '').replace(' (uznane)', '*') : e.label;
+    const w = 6.2 * label.length + 10;
+    const flip = X + w > W - rw;                          // przy prawej krawędzi etykieta po lewej stronie linii
+    const a = flip ? X - w : X, row = off[e.kind] || 4;
+    const show = a + w <= (nextLeft[row] ?? Infinity) - 4;
+    if (show) nextLeft[row] = a;
+    return `<div class="vl${e.manual ? ' manual' : ''}${flip ? ' flip' : ''}" style="left:${X.toFixed(1)}px;bottom:${axisH}px;` +
+      `--c:${EVENT_COLORS[e.kind] || '#888'}" title="${esc(e.label)}">${show ? `<span style="bottom:${row}px">${esc(label)}</span>` : ''}</div>`;
+  }).join('');
+}
+function renderCycLegend() {
+  const el = document.getElementById('cyc-legend');
+  const on = cycleOn() && cycTimes.length > 0;
+  el.classList.toggle('on', on);
+  if (!on) { el.innerHTML = ''; return; }
+  const used = new Set(META.cycle_marks.phases.map(p => p.confirmed === false ? 'unsure' : p.phase));
+  const manual = (META.cycle_marks.events || []).some(e => e.manual);
+  el.innerHTML = ['bull', 'bear', 'acc', 'unsure'].filter(k => used.has(k))
+    .map(k => `<span class="bd" style="--c:${PHASE_COLORS[k]}">${PHASE_NAMES[k]}</span>`).join('') +
+    ['halving', 'top', 'bottom'].map(k => `<span class="ln" style="--c:${EVENT_COLORS[k]}">${EVENT_NAMES[k]}</span>`).join('') +
+    `<span>Fazy z dziennych zamknięć BTC: bessa = szczyt → dno, akumulacja = dno → zamknięcie nad poprzednim szczytem, ` +
+    `hossa = stamtąd → kolejny szczyt.${manual ? ' Dno z dopiskiem „uznane” (na telefonie *) wpisane w config.yaml — jeszcze bez potwierdzenia regułą.' : ''}</span>`;
 }
 let lastCrosshair = null;
 
@@ -527,13 +618,17 @@ function drawChart(resetRange) {
   if (!chart) makeChart();
   const prevRange = chart.timeScale().getVisibleRange();
   for (const m of mounted) chart.removeSeries(m.series);
-  mounted = [];
+  for (const b of bands) chart.removeSeries(b);
+  mounted = []; bands = [];
   while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
 
   const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
   document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
   const axes = allocAxes(ids);
   const used = {};
+  // tło faz cyklu — najpierw (pod liniami serii), w każdym panelu, na punktach czasu wybranych serii
+  cycTimes = cycleOn() && ids.length ? [...new Set(ids.flatMap(id => pts(S.res, id).map(p => p[0])))].sort((a, b) => a - b) : [];
+  if (cycTimes.length) addBands([...new Set(ids.map(id => axes[id].pane))].sort(), cycTimes);
   for (const id of ids) {
     const c = CAT[id];
     const {pane, scale} = axes[id];
@@ -591,6 +686,8 @@ function drawChart(resetRange) {
     }
   }
   updateLegend();
+  renderCycLegend();
+  requestAnimationFrame(drawVLines);
 }
 
 function updateLegend(param) {
