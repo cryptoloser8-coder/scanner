@@ -646,3 +646,11 @@ def test_run_routes_market_alerts_to_group_and_failures_to_admin(tmp_path):
     market = [x for x in tg2.sent_to if x[0] == "market"]
     assert len(market) == 1 and market[0][1:3] == ("-100500", 7)               # both alerts in ONE message
     assert "test A" in market[0][3] and "test B" in market[0][3] and "Rynek" in market[0][3]
+
+
+def test_report_lines_in_meta_from_config():
+    import main as M
+    lines = M.report_lines({"reports": {"lines": {"oi_others_vs_btc": [[0.7, "test"]]}}})
+    assert lines["oi_others_vs_btc"] == [{"value": 0.7, "label": "test", "color": "#4caf7d"}]
+    assert [ln["value"] for ln in lines["alts_vs_btc"]] == [0.28, 0.38, 0.47]       # default from report.LAYOUT
+    assert M.report_lines({})["oi_others_vs_btc"][-1]["label"] == "zrównanie z BTC"
