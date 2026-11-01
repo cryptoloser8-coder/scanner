@@ -8,6 +8,7 @@ name: Raport
 #   - z Telegrama: /raport_teraz (także /raport_teraz tydzień | miesiąc),
 # Rodzaje weekly / monthly = raport tygodniowy / miesięczny za ostatni pełny okres (kilka naraz: "weekly,monthly").
 #   - ręcznie: Actions → Raport → Run workflow.
+# Usuwanie raportu z historii: pole „delete” (ID z adresu raportu) albo /usun_raport ID na Telegramie.
 
 on:
   workflow_dispatch:
@@ -17,11 +18,18 @@ on:
         type: choice
         options: [manual, weekly, monthly, "weekly,monthly", morning, evening, test]
         default: manual
+      delete:
+        description: "Usuń raport(y) z historii zamiast budować nowy: ID z adresu raportu (?id=…), kilka po przecinku"
+        type: string
+        default: ""
   workflow_call:
     inputs:
       kind:
         type: string
         default: manual
+      delete:
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -55,16 +63,27 @@ jobs:
           rm -rf reports-branch/.git
 
       - name: Zbuduj raport
-        run: python collector/report.py make --kind "${{ inputs.kind || 'manual' }}" --data data-branch --ema ema-branch --out reports-branch
+        if: inputs.delete == ''
+        env:
+          KIND: ${{ inputs.kind || 'manual' }}
+        run: python collector/report.py make --kind "$KIND" --data data-branch --ema ema-branch --out reports-branch
+
+      - name: Usuń raport(y) z historii
+        if: inputs.delete != ''
+        env:
+          IDS: ${{ inputs.delete }}
+        run: python collector/report.py delete --id "$IDS" --out reports-branch
 
       - name: Opublikuj raport (gałąź reports)
         env:
           DATA_BRANCH: reports
+          PUBLISH_ALLOW_SHRINK: ${{ inputs.delete != '' && '1' || '0' }}   # usunięcie = mniej plików (celowo)
           GIT_AUTHOR_NAME: report-bot
           GIT_AUTHOR_EMAIL: report-bot@users.noreply.github.com
         run: bash collector/publish.sh reports-branch "$REMOTE"
 
       - name: Powiadomienie na Telegram
+        if: inputs.delete == ''
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
