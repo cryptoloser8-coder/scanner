@@ -48,6 +48,12 @@
   .kind.manual{background:rgba(206,147,216,.15);color:var(--purple);}
   .kind.morning{background:rgba(255,193,7,.13);color:var(--amber);}
   .kind.evening{background:rgba(91,156,246,.15);color:var(--blue);}
+  .kind.weekly{background:rgba(77,208,225,.15);color:#4dd0e1;}
+  .kind.monthly{background:rgba(255,138,101,.15);color:#ff8a65;}
+  .pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
+  .pill{font-size:10.5px;padding:3px 8px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;}
+  .pill:hover{color:var(--text);}
+  .pill.on{background:rgba(255,255,255,.08);color:var(--text);border-color:rgba(255,255,255,.25);}
   .side .empty-list{font-size:11px;color:var(--text3);padding:6px;line-height:1.6;}
 
   .rep-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
@@ -103,12 +109,17 @@
   .rng-dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid var(--bg2);transform:translate(-50%,-50%);z-index:2;}
   .rng-mark{position:absolute;top:-5px;width:2px;height:16px;transform:translateX(-50%);background:var(--text3);}
   .rng-mark.ref{background:var(--amber);}
+  .rng-mark.top{background:var(--red);}
+  .rng-mark.bottom{background:var(--green);}
+  .rng-refs{font-family:var(--mono);font-size:10.5px;color:var(--text2);margin-top:4px;line-height:1.6;}
+  .rng-refs span{white-space:nowrap;} .rng-refs .top{color:var(--red);} .rng-refs .bottom{color:var(--green);}
   .rng-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);}
   .rng-desc{font-size:13px;color:var(--text2);margin-top:4px;line-height:1.5;}
   .rng-legend,.bars-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:8px;}
   .lg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px;vertical-align:-1px;}
   .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
   .lg-mark.ref{background:var(--amber);}
+  .lg-mark.top{background:var(--red);} .lg-mark.bottom{background:var(--green);}
   .bar-row{display:grid;grid-template-columns:62px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:4px 0;font-size:12px;}
   .bar-row.cur{border-top:1px dashed var(--border2);margin-top:4px;padding-top:8px;}
   .bar-label{font-family:var(--mono);color:var(--text2);}
@@ -181,6 +192,7 @@
 <div class="layout">
   <aside class="side">
     <h2>Lista raportów</h2>
+    <div class="pills" id="pills"></div>
     <div id="list"></div>
   </aside>
   <main id="report"></main>
@@ -190,7 +202,8 @@
   Raporty powstają w GitHub Actions (workflow „Raport”) z danych z gałęzi <code>data</code> (Coinalyze, TradingView) i <code>ema</code> (Binance, Orange Pi)
   i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>.
   „Kopiuj dla AI” kopiuje cały raport jako tekst (wykresy zamienione na liczby, źródła i metody na końcu) — wklej go w dowolnego asystenta AI.
-  „Link dla AI” kopiuje adres tej wersji; stały adres najnowszego raportu: <code id="latest-md"></code>.
+  „Link dla AI” kopiuje adres tej wersji. Stałe adresy najnowszych raportów (tekst dla AI) — dziennego: <code id="latest-md"></code>,
+  tygodniowego: <code id="latest-weekly-md"></code>, miesięcznego: <code id="latest-monthly-md"></code>.
 </div>
 <div class="tip" id="tip"></div>
 
@@ -238,11 +251,19 @@ function fmt(v, g) {
   if (g === 'fund') return v.toFixed(1) + '%';
   if (g === 'ratio') return v.toFixed(3) + '×';
   if (g === 'pair') return v < 1 ? v.toFixed(5) : v.toPrecision(4);
-  if (g === 'price') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toPrecision(4));
+  if (g === 'price' || g === 'usd') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toPrecision(4));
+  if (g === 'x') return v.toFixed(2) + '×';
+  if (g === 'z' || g === 'num') return v.toFixed(2);
+  if (g === 'yield') return v.toFixed(2) + '%';
+  if (g === 'pp') return (v > 0 ? '+' : '') + v.toFixed(2) + ' pp';
   return String(+v.toPrecision(5));
 }
 
-const KIND = {test: 'test', morning: 'rano', evening: 'wieczór', manual: 'na żądanie', daily: 'dzienny'};
+const KIND = {test: 'test', morning: 'rano', evening: 'wieczór', manual: 'na żądanie', daily: 'dzienny',
+  weekly: 'tydzień', monthly: 'miesiąc'};
+const GROUPS = [['all', 'Wszystkie'], ['daily', 'Dzienne'], ['weekly', 'Tygodniowe'], ['monthly', 'Miesięczne']];
+const groupOf = k => (k === 'weekly' || k === 'monthly') ? k : 'daily';
+let FILTER = 'all';
 const kindBadge = k => k ? `<span class="kind ${esc(k)}">${esc(KIND[k] || k)}</span>` : '';
 
 function setStatus(cls, txt) {
@@ -278,7 +299,12 @@ function renderList() {
     el.innerHTML = '<div class="empty-list">Brak raportów. Uruchom na GitHubie: <b>Actions → Raport → Run workflow</b>.</div>';
     return;
   }
-  el.innerHTML = INDEX.map(r => `
+  document.getElementById('pills').innerHTML = GROUPS
+    .filter(([g]) => g === 'all' || INDEX.some(r => groupOf(r.kind) === g))
+    .map(([g, label]) => `<button class="pill ${FILTER === g ? 'on' : ''}" data-g="${g}">${label}</button>`).join('');
+  const shown = INDEX.filter(r => FILTER === 'all' || !r.kind || groupOf(r.kind) === FILTER);
+  if (!shown.length) { el.innerHTML = '<div class="empty-list">Brak raportów tego rodzaju.</div>'; return; }
+  el.innerHTML = shown.map(r => `
     <a class="rep-item ${current && r.id === current.id ? 'on' : ''}" href="?id=${encodeURIComponent(r.id)}" data-id="${esc(r.id)}">
       <div class="t">${esc(r.title)} ${kindBadge(r.kind)}</div>
       <div class="d">${dt(r.created)}</div>
@@ -290,6 +316,12 @@ document.getElementById('list').addEventListener('click', e => {
   e.preventDefault();
   history.pushState(null, '', '?id=' + encodeURIComponent(a.dataset.id) + (qs.get('data') ? '&data=' + encodeURIComponent(qs.get('data')) : ''));
   openReport(a.dataset.id);
+});
+document.getElementById('pills').addEventListener('click', e => {
+  const b = e.target.closest('.pill');
+  if (!b) return;
+  FILTER = b.dataset.g;
+  renderList();
 });
 addEventListener('popstate', () => openReport(new URLSearchParams(location.search).get('id') || (INDEX[0] || {}).id));
 
@@ -319,23 +351,31 @@ function chartBlock(b, i) {
 }
 function rangesBlock(b) {
   const items = b.items || [];
-  let hasRef = false, hasMark = false;
+  let hasRef = false, hasMark = false, hasTop = false, hasBottom = false;
+  const CYC = {top: 1, bottom: 1};
   const rows = items.map(it => {
     const marks = (it.marks || []).map(m => {
-      if (m.kind === 'ref') hasRef = true; else hasMark = true;
-      return `<div class="rng-mark ${m.kind === 'ref' ? 'ref' : ''}" style="left:${+m.pos}%" data-note="${esc(m.label)}"></div>`;
+      if (m.kind === 'ref') hasRef = true; else if (m.kind === 'top') hasTop = true;
+      else if (m.kind === 'bottom') hasBottom = true; else hasMark = true;
+      const cls = m.kind === 'ref' || CYC[m.kind] ? m.kind : '';
+      return `<div class="rng-mark ${cls}" style="left:${+m.pos}%" data-note="${esc(m.label)}"></div>`;
     }).join('');
+    // szczyty / dna cykli: wypisane pod paskiem (czytelne też w PDF)
+    const refs = (it.marks || []).filter(m => CYC[m.kind]).map(m => `<span class="${m.kind}">${esc(m.label)}</span>`).join(' · ');
     return `<div class="rng">
       <div class="rng-head"><span class="rng-label">${esc(it.label)}</span>
         <span class="rng-val">${esc(it.value)}<span class="rng-sub">${esc(it.sub || '')}</span></span></div>
       ${it.pos == null ? '' : `<div class="rng-track">${marks}<div class="rng-dot" style="left:${+it.pos}%" data-note="dziś: ${esc(it.value)}"></div></div>
       <div class="rng-ends"><span>${esc(it.min || '')}</span><span>${esc(it.max || '')}</span></div>`}
+      ${refs ? `<div class="rng-refs">${refs}</div>` : ''}
       ${it.note ? `<div class="rng-desc">${esc(it.note)}</div>` : ''}
     </div>`;
   }).join('');
-  const marksLegend = [...new Set(items.flatMap(it => (it.marks || []).filter(m => m.kind !== 'ref').map(m => m.label)))];
+  const marksLegend = [...new Set(items.flatMap(it => (it.marks || []).filter(m => !m.kind).map(m => m.label)))];
   return rows + `<div class="rng-legend"><span><span class="lg-dot"></span>dziś</span>
     ${hasRef ? '<span><span class="lg-mark ref"></span>ostatni altseason</span>' : ''}
+    ${hasTop ? '<span><span class="lg-mark top"></span>szczyty poprzednich cykli</span>' : ''}
+    ${hasBottom ? '<span><span class="lg-mark bottom"></span>dna poprzednich cykli</span>' : ''}
     ${hasMark ? marksLegend.map(l => `<span><span class="lg-mark"></span>${esc(l)}</span>`).join('') : ''}</div>`;
 }
 function barsBlock(b) {
@@ -484,7 +524,8 @@ async function openReport(id) {
 }
 
 async function init() {
-  document.getElementById('latest-md').textContent = new URL(`${BASE}latest.md`, location.href).href;
+  for (const [id, name] of [['latest-md', 'latest.md'], ['latest-weekly-md', 'latest-weekly.md'], ['latest-monthly-md', 'latest-monthly.md']])
+    document.getElementById(id).textContent = new URL(`${BASE}${name}`, location.href).href;
   const wanted = qs.get('id');
   try {
     const idx = await getJSON('index.json', true);
