@@ -159,7 +159,7 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
-        <button class="pill" id="lvl-btn" title="Pokaż poziomy z config.yaml (tryb Wartości)">Poziomy</button>
+        <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
       </div>
     </div>
   </div>
@@ -217,7 +217,7 @@ const TILE_SECTIONS = [
   ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap']],
   ['Dominacja', ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
   ['Pary', ['ethbtc']],
-  ['Dźwignia i stosunki', ['oi_others_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
+  ['Dźwignia i stosunki', ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
 ];
 const BUILTIN_PRESETS = [
   {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
@@ -228,6 +228,7 @@ const BUILTIN_PRESETS = [
   {name: 'Dźwignia: OI / kapitalizacja', series: ['lev_btc', 'lev_alts', 'lev_others'], mode: 'val'},
   {name: 'Dominacja: BTC.D vs OI BTC.D', series: ['btc_d', 'oi_btc_dom'], mode: 'val'},
   {name: 'OI OTHERS / OI BTC (zrównanie = 1.0) + TOTAL3', series: ['oi_others_vs_btc', 'total3'], mode: 'val'},
+  {name: 'Alty: lewar vs kapitał (OI OTHERS / OI BTC + Alty / BTC)', series: ['oi_others_vs_btc', 'alts_vs_btc'], mode: 'val'},
   {name: 'OI OTHERS vs OI BTC (wartości)', series: ['oi_btc', 'oi_others'], mode: 'val'},
   {name: 'Podział rynku: BTC.D + ETH.D + Stablecoiny.D + Alty.D (= 100%)', series: ['btc_d', 'eth_d', 'stable_d', 'alts_d'], mode: 'val'},
   {name: 'Altseason: ETH/BTC + OTHERS.D + BTC.D', series: ['ethbtc', 'others_d', 'btc_d'], mode: 'val'},
@@ -251,12 +252,14 @@ function parseHash() {
   if (h.get('r')) o.res = h.get('r');
   if (h.get('z')) o.range = +h.get('z');
   if (h.get('log')) o.log = h.get('log') === '1';
+  if (h.get('lines')) o.levels = h.get('lines') !== '0';
   return o;
 }
 function persist() {
   store.set('view', S);
   const h = new URLSearchParams({s: S.series.join(','), m: S.mode, r: S.res, z: S.range});
   if (S.log) h.set('log', '1');
+  if (!S.levels) h.set('lines', '0');
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -434,7 +437,8 @@ function syncControls() {
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
   const val = S.mode === 'val';
   const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
-  const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !(META.levels || []).length;
+  const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
+  const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
   document.querySelector('#res-pills [data-val="1h"]').disabled = !DATA['1h'] && DATA._1hFailed;
 }
 
@@ -496,6 +500,10 @@ function drawChart(resetRange) {
       for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
         series.createPriceLine({price: +lv.level, color: c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
           axisLabelVisible: true, title: lv.label || ''});
+      }
+      for (const ln of ((META.ref_lines || {})[id] || [])) {        // the same level lines as in the report
+        series.createPriceLine({price: +ln.value, color: ln.color || c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dotted,
+          axisLabelVisible: true, title: ln.label || ''});
       }
     }
     mounted.push({id, series});
