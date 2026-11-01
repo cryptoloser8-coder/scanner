@@ -60,8 +60,10 @@ DAY = 86400
 KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny — zamknięcie dnia",
                "evening": "Raport wieczorny — krypto dziś",
                "daily": "Raport dzienny", "manual": "Raport na żądanie",
-               "weekly": "Raport tygodniowy", "monthly": "Raport miesięczny"}
+               "weekly": "Raport tygodniowy", "monthly": "Raport miesięczny",
+               "yearly": "Raport roczny", "halving": "Raport po halvingu"}
 PERIODIC = ("weekly", "monthly")        # osobne listy w index.json (przycinanie) i osobne latest-<kind>.md
+SPECIAL = ("yearly", "halving")         # rzadkie (special.py): osobne grupy, bez przycinania, latest-<kind>.md
 DEFAULTS = {"notify": True, "keep": 120, "keep_periodic": 60,
             "page_url": "https://cryptoloser8-coder.github.io/scanner/raporty.html"}
 
@@ -677,6 +679,14 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
     L = layout(cfg)
     d = Data(data_dir)
     ema = _read(os.path.join(ema_dir, "ema.json")) if ema_dir else None
+    import cycle as C
+    C.configure(cfg or {})                              # halvingi: kod + config.yaml cycle.halvings
+    if kind in SPECIAL:
+        import special
+        if kind == "yearly":
+            y = datetime.fromtimestamp(now, timezone.utc).year - 1           # ostatni pełny rok
+            return special.build_yearly(d, ema, y, cfg or {}, os.path.join(ema_dir, "hist") if ema_dir else None, now)
+        return special.build_halving(d, ema, cfg or {}, now)
     if kind in PERIODIC:
         import periodic
         return periodic.build(d, ema, kind, now, cfg, macro)
@@ -851,12 +861,13 @@ def to_markdown(rep, page_url=""):
 
 
 def group_of(kind):
-    return kind if kind in PERIODIC else "daily"
+    return kind if kind in PERIODIC + SPECIAL else "daily"
 
 
 def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     """Write reports/<id>.json (+ .md for AI), update index.json (newest first) and the stable latest files.
-    Daily reports (all kinds except weekly/monthly): at most `keep`, latest.md/.json.
+    Daily reports (all kinds except weekly/monthly/yearly/halving): at most `keep`, latest.md/.json.
+    Yearly and halving: never pruned, latest-yearly.md/.json and latest-halving.md/.json.
     Weekly and monthly: at most `keep_periodic` of each, latest-weekly.md/.json and latest-monthly.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
@@ -866,7 +877,7 @@ def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     for it in items:
         g = group_of(it.get("kind"))
         count[g] = count.get(g, 0) + 1
-        if count[g] <= (keep if g == "daily" else keep_periodic):
+        if g in SPECIAL or count[g] <= (keep if g == "daily" else keep_periodic):
             kept.append(it)
             continue
         for ext in ("json", "md"):
@@ -1042,7 +1053,7 @@ def main(argv=None):
 def macro_for(kind, cfg):
     """Kalendarz makro dla raportu (None = wyłączony). Tygodniowy i miesięczny sięgają dalej wstecz i naprzód."""
     st = econ.settings(cfg)
-    if not st.get("enabled", True):
+    if not st.get("enabled", True) or kind in SPECIAL:
         return None
     c = cfg
     if kind in PERIODIC:

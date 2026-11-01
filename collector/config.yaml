@@ -123,6 +123,11 @@ schedule:
       timezone: UTC
       monthday: 1
       kind: monthly
+    - scan_at: "00:05"       # raport roczny — 1 stycznia, razem z miesięcznym za grudzień (jeden skan, dwa raporty)
+      timezone: UTC
+      monthday: 1
+      month: 1
+      kind: yearly
   skip_regular_minutes: 60   # zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany
 
 # ─────────────────────────────────────────────────────────────
@@ -320,4 +325,8 @@ cycle:
   # dno bieżącego cyklu uznane przez nas (decyzja 01.11.2026) — reguła potwierdziłaby je dopiero po halvingu 2028;
   # od tego dnia raporty liczą akumulację. Gdy cena zamknie się poniżej tego dna, wpis przestaje działać (wraca bessa).
   bottoms: ["2026-06-30"]
-  next_halving_estimate: "2028-04-15"   # szacunek daty halvingu — tylko do okna szczytu w raporcie miesięcznym
+  next_halving_estimate: "2028-04-15"   # szacunek daty halvingu — okno szczytu w raporcie miesięcznym; bot przypomina
+                                        # przed tą datą (30, 7, 1 dzień), co zrobić po halvingu
+  # halvingi po 2024 (dzień UTC z eksploratora bloków) — dopisz po halvingu, potem /raport_teraz halving;
+  # 2012, 2016, 2020 i 2024 są w kodzie (cycle.py)
+  halvings: []

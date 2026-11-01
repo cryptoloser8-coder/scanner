@@ -25,7 +25,8 @@ log = logging.getLogger("cycle")
 DAY = 86400
 CM_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
 CM_METRICS = {"cm_mvrv_btc": "CapMVRVCur", "cm_mcap_btc": "CapMrktCurUSD"}
-HALVINGS = ("2012-11-28", "2016-07-09", "2020-05-11", "2024-04-19")
+HALVINGS_BASE = ("2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20")   # dni UTC (2024: blok 840 000, 00:09 UTC)
+HALVINGS = HALVINGS_BASE      # + daty z config.yaml cycle.halvings (configure) — kolejne halvingi bez zmiany kodu
 DEFAULTS = {
     "enabled": True,
     "coinmetrics": True,
@@ -35,7 +36,8 @@ DEFAULTS = {
     "ref_tops": 3,      # linie: tyle ostatnich zakończonych szczytów…
     "ref_bottoms": 2,   # …i den
     "bottoms": [],      # dna bieżącego cyklu uznane ręcznie (zanim reguła potwierdzi je po halvingu), np. ["2026-06-30"]
-    "next_halving_estimate": "2028-04-15",   # szacunek (co 210 000 bloków ≈ 4 lata) — tylko do szacunku okna szczytu
+    "next_halving_estimate": "2028-04-15",   # szacunek (co 210 000 bloków ≈ 4 lata) — okno szczytu, przypomnienia bota
+    "halvings": [],     # kolejne halvingi (dzień UTC, RRRR-MM-DD) dopisywane po fakcie, np. ["2028-04-17"]
 }
 TOP_COLOR, BOTTOM_COLOR = "#e05252", "#4caf7d"
 
@@ -44,6 +46,20 @@ def ccfg(cfg):
     out = dict(DEFAULTS)
     out.update({k: v for k, v in (cfg.get("cycle") or {}).items() if v is not None})
     return out
+
+
+def configure(cfg):
+    """Lista halvingów = stałe z kodu + config.yaml cycle.halvings (posortowane, bez powtórzeń). Wołane przy starcie
+    skanu, raportu i bota; zwraca listę."""
+    global HALVINGS
+    extra = []
+    for h in ccfg(cfg or {}).get("halvings") or ():
+        try:
+            extra.append(datetime.strptime(str(h)[:10], "%Y-%m-%d").strftime("%Y-%m-%d"))
+        except ValueError:
+            continue
+    HALVINGS = tuple(sorted(set(HALVINGS_BASE) | set(extra)))
+    return HALVINGS
 
 
 def day_of(iso):
@@ -363,6 +379,7 @@ def compute(store, cfg):
 
 def run(store, cfg, now, session=None):
     """→ (info, error or None)."""
+    configure(cfg)
     c = ccfg(cfg)
     info, err = {}, None
     if c.get("coinmetrics"):

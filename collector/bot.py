@@ -50,12 +50,12 @@ def _registry():
     return [
         Cmd("pomoc", "Lista komend", h_pomoc, aliases=("help", "start")),
         Cmd("status", "Stan systemu: świeżość danych, następny skan i raport", h_status),
-        Cmd("raport", "Linki do ostatnich raportów: dziennego, tygodniowego i miesięcznego", h_raport),
+        Cmd("raport", "Linki do ostatnich raportów: dziennego, tygodniowego, miesięcznego, rocznego i po halvingu", h_raport),
         Cmd("fiby", "Setupy Fibo ze statusem", h_fiby, aliases=("lista",)),
         Cmd("skan", "Uruchom skan OI/TOTAL teraz (~40 min)", h_skan, admin=True),
-        Cmd("raport_teraz", "Zbuduj raport z obecnych danych (skan: najpierw skan, ~45 min; tydzień / miesiąc: "
-            "raport tygodniowy / miesięczny za ostatni pełny okres)", h_raport_teraz, admin=True,
-            usage="[skan|tydzień|miesiąc]"),
+        Cmd("raport_teraz", "Zbuduj raport z obecnych danych (skan: najpierw skan, ~45 min; tydzień / miesiąc / rok: "
+            "za ostatni pełny okres; halving: po ostatnim halvingu z config.yaml)", h_raport_teraz, admin=True,
+            usage="[skan|tydzień|miesiąc|rok|halving]"),
         Cmd("usun_raport", "Usuń raport z historii (ID z adresu raportu: ?id=…; kilka po przecinku)", h_usun_raport,
             admin=True, usage="ID"),
         Cmd("cisza", "Wycisz alerty rynkowe (domyślnie 8h; off = włącz)", h_cisza, admin=True, usage="[8h|30m|2d|off]"),
@@ -266,7 +266,7 @@ def h_raport(ctx, msg, args):
     reps = (idx or {}).get("reports") or []
     if not reps:
         return "Nie ma jeszcze raportów."
-    periodic = ("weekly", "monthly")
+    periodic = ("weekly", "monthly", "yearly", "halving")
     r = next((x for x in reps if x.get("kind") not in periodic), reps[0])
     lines = [f"📊 <b>{html.escape(r['title'])}</b>, {ctx.t(r['created'], '%d.%m.%Y %H:%M')}"]
     if r.get("summary"):
@@ -293,14 +293,16 @@ def h_skan(ctx, msg, args):
 
 
 PERIOD_ARGS = {"tydzien": "weekly", "tydzień": "weekly", "tyg": "weekly", "weekly": "weekly",
-               "miesiac": "monthly", "miesiąc": "monthly", "mies": "monthly", "monthly": "monthly"}
+               "miesiac": "monthly", "miesiąc": "monthly", "mies": "monthly", "monthly": "monthly",
+               "rok": "yearly", "roczny": "yearly", "yearly": "yearly", "halving": "halving"}
 
 
 def h_raport_teraz(ctx, msg, args):
     kind = PERIOD_ARGS.get(args.strip().lower())
     if kind:
         ok, err = ctx.gh.dispatch("report.yml", {"kind": kind})
-        okt = f"📊 Raport {_kind_title(kind)} (ostatni pełny okres) w przygotowaniu — link za 1–2 min."
+        okt = (f"📊 Raport {_kind_title(kind)} (ostatni halving z config.yaml → cycle.halvings) w przygotowaniu — link za 1–2 min."
+               if kind == "halving" else f"📊 Raport {_kind_title(kind)} (ostatni pełny okres) w przygotowaniu — link za 1–2 min.")
     elif args.strip().lower().startswith("skan"):
         ok, err = ctx.gh.dispatch("oi-monitor.yml", {"mode": "run", "report": "manual"})
         okt = "🔄 Skan + raport uruchomione — link przyjdzie za ok. 45 min."
@@ -396,7 +398,8 @@ def _report_url(ctx, rid):
 
 def _kind_title(kind):
     names = {"morning": "poranny (zamknięcie dnia)", "evening": "wieczorny (krypto dziś)", "manual": "na żądanie",
-             "test": "testowy", "daily": "dzienny", "weekly": "tygodniowy", "monthly": "miesięczny"}
+             "test": "testowy", "daily": "dzienny", "weekly": "tygodniowy", "monthly": "miesięczny",
+             "yearly": "roczny", "halving": "po halvingu"}
     return " i ".join(names.get(k, k) for k in str(kind or "").split(",") if k)
 
 
@@ -523,6 +526,38 @@ def watch_tick(ctx):
     return out
 
 
+HALVING_REMIND_DAYS = (30, 7, 1, 0, -3)     # przypomnienia: tyle dni przed szacowaną datą halvingu (−3 = 3 dni po)
+
+
+def halving_tick(ctx):
+    """Przypomnienia dla admina przed cycle.next_halving_estimate: co zrobić po halvingu (data w config, raport, szacunek
+    kolejnego). Milknie, gdy w cycle.halvings jest już halving blisko szacunku (±120 dni)."""
+    import cycle as C
+    C.configure(ctx.cfg)
+    est = C.ccfg(ctx.cfg).get("next_halving_estimate")
+    try:
+        t = C.day_of(str(est))
+    except ValueError:
+        return []
+    if any(abs(C.day_of(h) - t) <= 120 * 86400 for h in C.HALVINGS):
+        return []
+    left = (t - (ctx.now - ctx.now % 86400)) // 86400
+    sent = ctx.st.setdefault("halving_reminders", [])
+    due = [d for d in HALVING_REMIND_DAYS if left <= d and f"{est}:{d}" not in sent]
+    if not due:
+        return []
+    for d in HALVING_REMIND_DAYS:
+        if left <= d:
+            sent.append(f"{est}:{d}")
+    block = 210000 * (len(C.HALVINGS) + 1)
+    steps = ("Po halvingu: 1) dopisz dzień UTC w config.yaml → cycle.halvings (np. [\"RRRR-MM-DD\"]); "
+             "2) /raport_teraz halving; 3) ustaw cycle.next_halving_estimate na kolejny (+ ok. 4 lata). "
+             "Listę kontrolną zawiera sam raport.")
+    when = (f"za ok. {left} dni" if left > 0 else "według szacunku dziś" if left == 0 else f"według szacunku {-left} dni temu")
+    return [f"⏳ Halving BTC (blok {block:,}) {when} — szacunek z config.yaml: {ctx.t(t, '%d.%m.%Y')}. ".replace(",", " ")
+            + "Dokładną datę podaje eksplorator bloków. " + steps]
+
+
 def report_health(ctx):
     hst = ctx.st.setdefault("health_state", {})
     hrs = float(ctx.tgcfg.get("health_reminder_hours", 12) or 12)
@@ -540,7 +575,7 @@ def tick(ctx):
     sync_commands(ctx)
     poll(ctx)
     schedule_tick(ctx)
-    sysmsgs = watch_tick(ctx) + report_health(ctx)
+    sysmsgs = watch_tick(ctx) + halving_tick(ctx) + report_health(ctx)
     for m in sysmsgs:
         ctx.tg.post("system", m)
     return sysmsgs

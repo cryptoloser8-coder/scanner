@@ -6,7 +6,8 @@ Times are wall-clock times in `timezone` (default Europe/Warsaw); summer/winter 
                   then the same GitHub run builds the report and posts the link.
                   An entry may have its own `timezone` (e.g. {scan_at: "16:05", timezone: America/New_York}
                   = always 5 min after the US close, whatever the summer/winter time in Poland and the US).
-                  `weekday` (1 = Monday … 7 = Sunday) and `monthday` (1–31) limit an entry to those days — checked
+                  `weekday` (1 = Monday … 7 = Sunday), `monthday` (1–31) and `month` (1–12; e.g. monthday 1 +
+                  month 1 = 1 January, the yearly report) limit an entry to those days — checked
                   in the entry's own timezone, e.g. {scan_at: "00:05", timezone: UTC, weekday: 1, kind: weekly}
                   = right after the weekly candle closes. Report entries at the same moment are merged into one
                   scan with kinds joined by a comma ("weekly,monthly").
@@ -55,11 +56,13 @@ def events_on(sc, day):
     for r in sc["reports"]:
         h, m = _hm(r["scan_at"])
         rz = ZoneInfo(r["timezone"]) if r.get("timezone") else z
-        wd, md = r.get("weekday"), r.get("monthday")
+        wd, md, mo = r.get("weekday"), r.get("monthday"), r.get("month")
         for d in (day - timedelta(days=1), day, day + timedelta(days=1)):
             if wd is not None and d.isoweekday() != int(wd):
                 continue
             if md is not None and d.day != int(md):
+                continue
+            if mo is not None and d.month != int(mo):
                 continue
             at = datetime(d.year, d.month, d.day, h, m, tzinfo=rz).astimezone(z)
             if at.date() == day:                       # the event of this local (Polish) day

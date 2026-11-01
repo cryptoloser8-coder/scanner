@@ -17,7 +17,6 @@ import report as R
 DAY = 86400
 WEEK = 7 * DAY
 PERIODIC = ("weekly", "monthly")
-HALVINGS = ("2012-11-28", "2016-07-09", "2020-05-11", "2024-04-19")
 MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień",
           "październik", "listopad", "grudzień"]
 DAYS_SHORT = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -395,7 +394,7 @@ def cycle_blocks(d, t_end, cfg=None):
     out = [{"type": "section", "title": "Gdzie jesteśmy w cyklu BTC"}]
     v = px[max(px)]
     t_ath = max(px, key=px.get)
-    halv = [C.day_of(h) for h in HALVINGS]
+    halv = [C.day_of(h) for h in C.HALVINGS]
     h_now = max(h for h in halv if h <= t_end)
     rp = close(d.pts("1d", "rprice_btc"), t_end)
     items = [{"label": "Cena BTC (zamknięcie)", "value": R.fmt_price(v), "sub": R.utc(max(px), "%d.%m.%Y"), "zone": None, "note": ""},
@@ -593,7 +592,7 @@ def projection_block(px, phs, t_end, cc):
         rows.append(["Kolejny szczyt cyklu", "poprzedni szczyt + (szczyt → szczyt)", span(t2t), window(last_top, t2t)])
         peaks.append((last_top + min(t2t) * DAY, last_top + max(t2t) * DAY))
     # szczyt: halving → szczyt
-    halv = [C.day_of(h) for h in HALVINGS]
+    halv = [C.day_of(h) for h in C.HALVINGS]
     h2t = [(t - h) // DAY for h in halv for t in tops if h >= since and h < t < h + C.TOP_WINDOW_DAYS * DAY]
     try:
         nh = C.day_of(str(cc.get("next_halving_estimate") or ""))
