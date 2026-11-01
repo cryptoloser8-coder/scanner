@@ -47,9 +47,10 @@ jobs:
 
       - name: Pobierz dane (gałęzie data, ema, reports)
         run: |
-          git clone -q --depth 1 --branch data    "$REMOTE" data-branch
-          git clone -q --depth 1 --branch ema     "$REMOTE" ema-branch    || mkdir -p ema-branch
-          git clone -q --depth 1 --branch reports "$REMOTE" reports-branch 2>/dev/null || mkdir -p reports-branch
+          bash collector/fetch_branch.sh data    data-branch    "$REMOTE"
+          bash collector/fetch_branch.sh ema     ema-branch     "$REMOTE" || mkdir -p ema-branch
+          # reports: błąd pobrania = błąd kroku (dawniej pusty katalog → nadpisanie wszystkich raportów)
+          bash collector/fetch_branch.sh reports reports-branch "$REMOTE"
           rm -rf reports-branch/.git
 
       - name: Zbuduj raport

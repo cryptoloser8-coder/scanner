@@ -39,7 +39,8 @@ jobs:
       - name: Pobierz dotychczasowe dane (gałąź data)
         env:
           REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
-        run: git clone -q --depth 1 --branch data "$REMOTE" data-branch 2>/dev/null || mkdir -p data-branch
+        # błąd pobrania = błąd kroku (dawniej pusty katalog → force-push nadpisywał historię)
+        run: bash collector/fetch_branch.sh data data-branch "$REMOTE"
 
       - name: Zbierz dane i wyślij alerty
         env:
@@ -54,6 +55,9 @@ jobs:
         if: always() && hashFiles('data-branch/meta.json') != ''
         env:
           REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          # bezpiecznik (collector/guard.py) blokuje publikację, która traci historię;
+          # backfill celowo przelicza historię → bez blokady
+          PUBLISH_ALLOW_SHRINK: ${{ inputs.mode == 'backfill' && '1' || '0' }}
         run: bash collector/publish.sh data-branch "$REMOTE"
 
   # raport zaraz po świeżych danych (harmonogram w config.yaml → schedule, uruchamia Orange Pi)

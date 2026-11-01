@@ -1,0 +1,57 @@
+name: Sonda
+
+# Jednorazowe sprawdzenie, od kiedy źródła mają dane do wydłużenia naszych serii
+# (collector/probe.py). Nie zmienia danych ani produkcji — wynik trafia na gałąź probe-github
+# (probe.md / probe.json) i do podsumowania tego uruchomienia.
+# Uruchamianie: Actions → Sonda → Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Tylko wybrane źródła (puste = wszystkie): coinalyze tradingview coinmetrics bitmex binance vision"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: collector/requirements.txt
+
+      - run: pip install -r collector/requirements.txt
+
+      - name: Sprawdź źródła
+        env:
+          COINALYZE_API_KEY: ${{ secrets.COINALYZE_API_KEY }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -n "$ONLY" ]; then
+            # shellcheck disable=SC2086
+            python collector/probe.py github --out probe-out --only $ONLY
+          else
+            python collector/probe.py github --out probe-out
+          fi
+          cat probe-out/probe.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Opublikuj wynik (gałąź probe-github)
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          DATA_BRANCH: probe-github
+          GIT_AUTHOR_NAME: probe-bot
+          GIT_AUTHOR_EMAIL: probe-bot@users.noreply.github.com
+        run: bash collector/publish.sh probe-out "$REMOTE"

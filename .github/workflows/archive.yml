@@ -1,0 +1,57 @@
+name: Archiwum
+
+# Co tydzień pakuje gałęzie data, ema i reports (cała historia danych + raporty)
+# do jednego pliku .tar.xz i zapisuje go jako GitHub Release „archiwum-RRRR-MM-DD”.
+# Wydania nie znikają przy force-pushu gałęzi danych — to kopia na wypadek awarii
+# (druga kopia: codzienne archiwum na Orange Pi, collector/backup.py).
+# Odtworzenie: claude/dane.md w projekcie (sekcja „Kopie i odtworzenie”).
+
+on:
+  schedule:
+    - cron: "23 3 * * 0"     # niedziela 03:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pobierz gałęzie danych
+        run: |
+          mkdir -p snap
+          for b in data ema reports; do
+            bash collector/fetch_branch.sh "$b" "snap/$b" "$REMOTE"
+            rm -rf "snap/$b/.git"
+          done
+          du -sh snap/*
+
+      - name: Spakuj
+        id: pack
+        run: |
+          D="$(date -u +%Y-%m-%d)"
+          F="scanner-dane-$D.tar.xz"
+          tar -C snap -cJf "$F" data ema reports
+          sha256sum "$F" > "$F.sha256"
+          ls -la "$F"
+          echo "date=$D" >> "$GITHUB_OUTPUT"
+          echo "file=$F" >> "$GITHUB_OUTPUT"
+
+      - name: Zapisz jako wydanie (Release)
+        run: |
+          TAG="archiwum-${{ steps.pack.outputs.date }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.pack.outputs.file }}" "${{ steps.pack.outputs.file }}.sha256" --clobber
+          else
+            gh release create "$TAG" "${{ steps.pack.outputs.file }}" "${{ steps.pack.outputs.file }}.sha256" \
+              --title "Archiwum danych ${{ steps.pack.outputs.date }}" \
+              --notes "Kopia gałęzi data, ema i reports (cała historia danych i raporty). Automat — workflow Archiwum." \
+              --latest=false
+          fi
