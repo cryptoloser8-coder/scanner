@@ -204,6 +204,7 @@
   „Kopiuj dla AI” kopiuje cały raport jako tekst (wykresy zamienione na liczby, źródła i metody na końcu) — wklej go w dowolnego asystenta AI.
   „Link dla AI” kopiuje adres tej wersji. Stałe adresy najnowszych raportów (tekst dla AI) — dziennego: <code id="latest-md"></code>,
   tygodniowego: <code id="latest-weekly-md"></code>, miesięcznego: <code id="latest-monthly-md"></code>.
+  Usunięcie raportu z historii (admin): <code>/usun_raport ID</code> na Telegramie albo Actions → Raport → pole „delete” (ID jest przy dacie raportu).
 </div>
 <div class="tip" id="tip"></div>
 
@@ -485,7 +486,7 @@ async function openReport(id) {
     <div class="rep-head">
       <div>
         <h2>${esc(rep.title)} ${kindBadge(rep.kind)}</h2>
-        <div class="rep-meta">${dt(rep.created)} · dane OI/TOTAL: ${dt(src.data_updated)} · EMA/Fibo: ${dt(src.ema_updated)}</div>
+        <div class="rep-meta">${dt(rep.created)} · dane OI/TOTAL: ${dt(src.data_updated)} · EMA/Fibo: ${dt(src.ema_updated)} · ID: ${esc(rep.id)}</div>
         ${rep.summary ? `<div class="rep-summary">${esc(rep.summary)}</div>` : ''}
       </div>
       <div class="actions">
