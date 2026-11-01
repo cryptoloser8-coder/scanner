@@ -156,6 +156,18 @@ def test_raport_teraz_weekly_monthly(tmp_path):
     assert "tygodniowy" in c.api.sent[0]["text"] and "miesięczny" in c.api.sent[1]["text"]
 
 
+def test_usun_raport(tmp_path):
+    c = ctx_for(tmp_path, [msg("/usun_raport https://x.io/raporty.html?id=r1"), msg("/usun_raport xyz"),
+                           msg("/usun_raport 20261101-1600-monthly"), msg("/usun_raport 20261101-1600-monthly", user="222")])
+    c.fetch = lambda branch, name: {"reports": [{"id": "20261101-1600-monthly", "title": "Raport miesięczny — październik 2026",
+                                                 "created": 1793548800, "kind": "monthly"}]}
+    B.poll(c)
+    t = [x["text"] for x in c.api.sent]
+    assert "Podaj ID" in t[0] and "Podaj ID" in t[1]
+    assert "Usuwam z historii: Raport miesięczny — październik 2026" in t[2]
+    assert c.gh.calls == [("report.yml", {"kind": "manual", "delete": "20261101-1600-monthly"})]   # nie-admin: bez akcji
+
+
 def test_dispatch_failure_is_reported(tmp_path):
     c = ctx_for(tmp_path, [msg("/skan")], gh=FakeGH(ok=False))
     B.poll(c)

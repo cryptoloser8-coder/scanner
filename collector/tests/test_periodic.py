@@ -93,6 +93,13 @@ def test_period_weekly_and_monthly():
     assert P.month_start(ts(2026, 3, 10), 3) == ts(2025, 12, 1)
 
 
+def test_month_return_wraps_year():
+    px = [[ts(2020, 11, 30), 100.0], [ts(2020, 12, 31), 110.0], [ts(2021, 1, 31), 99.0]]
+    assert round(P.month_return(px, 2021, 0), 6) == 10.0          # grudzień 2020
+    assert round(P.month_return(px, 2020, 13), 6) == -10.0        # styczeń 2021
+    assert P.month_return(px, 2021, 2) is None
+
+
 def test_weekly_mas_and_closes():
     pts = [[ts(2020, 1, 5) + i * DAY, 100.0 + i] for i in range(7 * 210)]
     t_end = pts[-1][0]
@@ -142,8 +149,11 @@ def test_build_monthly(tmp_path):
     assert secs == ["Miesiąc w liczbach", "Gdzie jesteśmy w cyklu BTC", "Struktura rynku", "Derywaty w miesiącu", "Makro USA"]
     by = {b.get("title"): b for b in rep["blocks"]}
     assert by["Zamknięcie miesiąca i zmiany"]["cols"][2:5] == ["1 mies.", "3 mies.", "12 mies."]
-    seas = by["Październik w historii BTC"]
-    assert seas["rows"][0][0] == "2026" and seas["rows"][-1][0] == "2011"
+    seas = by["Październik w historii BTC — z miesiącem przed i po"]
+    assert seas["cols"] == ["Rok", "Wrzesień", "Październik (ten miesiąc)", "Listopad"]
+    assert seas["rows"][0][0] == "Mediana" and seas["rows"][1][0] == "Lat na plus"
+    assert seas["rows"][1][2].endswith("z 15")
+    assert seas["rows"][2][0] == "2026" and seas["rows"][2][3] == "—" and seas["rows"][-1][0] == "2011"
     cyc = by["Obecny cykl na tle poprzednich"]
     assert cyc["rows"][-1][0].startswith("2024") and len(cyc["rows"]) >= 3
     rng = by["Wskaźniki cyklu na tle trzech ostatnich cykli"]["items"]
@@ -263,3 +273,29 @@ def test_bot_kind_title():
     import bot
     assert bot._kind_title("weekly,monthly") == "tygodniowy i miesięczny"
     assert bot._kind_title("morning") == "poranny"
+
+
+def test_delete_report_and_latest(tmp_path):
+    out = str(tmp_path / "rep")
+
+    def rep(i, kind):
+        return {"id": f"2026110{i}-0100-{kind}", "kind": kind, "title": f"{kind} {i}", "created": 1000 + i,
+                "summary": "", "blocks": []}
+    report.save(out, rep(1, "monthly"), md="monthly 1")
+    report.save(out, rep(2, "morning"), md="daily 2")
+    report.save(out, rep(3, "monthly"), md="monthly 3")
+    assert open(os.path.join(out, "latest-monthly.md")).read() == "monthly 3"
+    # usunięcie najnowszego miesięcznego → latest-monthly wraca do poprzedniego, dzienny bez zmian
+    args = ["delete", "--out", out, "--config", str(tmp_path / "brak.yaml")]
+    assert report.main(args + ["--id", "20261103-0100-monthly"]) == 0
+    idx = json.load(open(os.path.join(out, "index.json")))
+    assert [r["id"] for r in idx["reports"]] == ["20261102-0100-morning", "20261101-0100-monthly"]
+    assert not os.path.exists(os.path.join(out, "reports", "20261103-0100-monthly.json"))
+    assert not os.path.exists(os.path.join(out, "reports", "20261103-0100-monthly.md"))
+    assert open(os.path.join(out, "latest-monthly.md")).read() == "monthly 1"
+    assert json.load(open(os.path.join(out, "latest-monthly.json")))["id"] == "20261101-0100-monthly"
+    assert open(os.path.join(out, "latest.md")).read() == "daily 2"
+    # ostatni z grupy → stałe pliki grupy znikają; nieznane id → kod 1
+    assert report.main(args + ["--id", "20261101-0100-monthly"]) == 0
+    assert not os.path.exists(os.path.join(out, "latest-monthly.md"))
+    assert report.main(args + ["--id", "nie-ma"]) == 1

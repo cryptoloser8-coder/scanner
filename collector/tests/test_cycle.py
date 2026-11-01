@@ -87,6 +87,35 @@ def test_net_liquidity_units_and_sanity(tmp_path):
     assert "net_liq" not in bad.series["1d"] and "podejrzana" in info["net_liq"]
 
 
+def test_fred_already_in_usd(tmp_path):
+    """TradingView podaje serie FRED już w USD (01.11.2026: WALCL 6,75e12) — bez mnożenia przez jednostki."""
+    st = Store(str(tmp_path))
+    weeks = [t_of("2026-01-07") + i * 7 * D for i in range(20)]
+    st.put("1d", "fed_assets", {t: 6.7456e12 for t in weeks})
+    st.put("1d", "fed_tga", {t: 9.997e11 for t in weeks})
+    st.put("1d", "fed_rrp", {t: 4.375e9 for t in range(weeks[0], weeks[-1] + 1, D)})
+    st.put("1d", "fred_m2", {t_of("2026-09-01"): 2.34139e13})
+    info = C.compute(st, {})
+    nl = st.series["1d"]["net_liq"]
+    assert abs(nl[weeks[-1]] - (6.7456e12 - 9.997e11 - 4.375e9)) < 1e7 and "net_liq" not in info
+    assert abs(st.series["1d"]["m2"][t_of("2026-09-01")] - 2.34139e13) < 1e8
+
+
+def test_mvrv_z_expanding_std():
+    """Odchylenie liczone od początku do danego dnia: dawny szczyt nie jest zaniżany przez późniejsze kapitalizacje."""
+    days = [t_of("2015-01-01") + i * D for i in range(400)]
+    mc = {t: 1e9 * (1 + i / 100) for i, t in enumerate(days)}
+    mc[days[100]] = 5e9                                                 # wczesny szczyt
+    mc.update({t: 1e11 for t in days[300:]})                            # później dużo większy rynek
+    mv = {t: 2.0 for t in days}
+    z = C.zscore_expanding(mc, mv)
+    assert days[10] not in z and z[days[100]] > 5                       # z odchyleniem z całej historii byłoby < 0,1
+    import statistics
+    first = days[31]
+    caps = [mc[t] for t in days[:32]]
+    assert abs(z[first] - (mc[first] / 2) / statistics.pstdev(caps)) < 1e-6
+
+
 class Resp:
     def __init__(self, js, status=200):
         self.status_code, self._js, self.text = status, js, ""
