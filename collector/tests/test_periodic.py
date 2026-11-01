@@ -265,7 +265,7 @@ def test_main_make_several_kinds_and_notify(tmp_path, monkeypatch):
     assert report.main(["make", "--kind", "weekly,monthly"] + args) == 0
     ids = json.load(open(made))["ids"]
     assert [i.split("-")[-1] for i in ids] == ["weekly", "monthly"]
-    assert report.main(["make", "--kind", "yearly"] + args) == 2
+    assert report.main(["make", "--kind", "decade"] + args) == 2
     sent = []
 
     class FakeTg:
