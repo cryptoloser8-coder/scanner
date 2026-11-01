@@ -5,7 +5,8 @@ name: Raport
 # i wysyła na Telegram powiadomienie z linkiem (do wątku grupy, jeśli ustawiony).
 # Uruchamianie:
 #   - automatycznie: OI Monitor po skanie (harmonogram w config.yaml → schedule, wyzwala Orange Pi),
-#   - z Telegrama: /raport_teraz,
+#   - z Telegrama: /raport_teraz (także /raport_teraz tydzień | miesiąc),
+# Rodzaje weekly / monthly = raport tygodniowy / miesięczny za ostatni pełny okres (kilka naraz: "weekly,monthly").
 #   - ręcznie: Actions → Raport → Run workflow.
 
 on:
@@ -14,7 +15,7 @@ on:
       kind:
         description: "Rodzaj raportu"
         type: choice
-        options: [manual, morning, evening, test]
+        options: [manual, weekly, monthly, "weekly,monthly", morning, evening, test]
         default: manual
   workflow_call:
     inputs:

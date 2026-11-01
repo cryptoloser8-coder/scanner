@@ -11,7 +11,7 @@ on:
       report:
         description: "Po skanie zbuduj raport (none = bez raportu). Uruchamia to Orange Pi wg harmonogramu."
         type: choice
-        options: [none, morning, evening, manual, test]
+        options: [none, morning, evening, weekly, monthly, "weekly,monthly", manual, test]
         default: none
 
 permissions:
