@@ -213,7 +213,7 @@ const GROUPS = [
   ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
 ];
 const TILE_SECTIONS = [
-  ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total']],
+  ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance']],
   ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap']],
   ['Dominacja', ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
   ['Pary', ['ethbtc']],
@@ -230,6 +230,7 @@ const BUILTIN_PRESETS = [
   {name: 'OI OTHERS / OI BTC (zrównanie = 1.0) + TOTAL3', series: ['oi_others_vs_btc', 'total3'], mode: 'val'},
   {name: 'Alty: lewar vs kapitał (OI OTHERS / OI BTC + Alty / BTC)', series: ['oi_others_vs_btc', 'alts_vs_btc'], mode: 'val'},
   {name: 'OI OTHERS vs OI BTC (wartości)', series: ['oi_btc', 'oi_others'], mode: 'val'},
+  {name: 'OI BTC: wszystkie giełdy vs sam Binance (Binance od 09.2020)', series: ['oi_btc', 'oi_btc_binance'], mode: 'val'},
   {name: 'Podział rynku: BTC.D + ETH.D + Stablecoiny.D + Alty.D (= 100%)', series: ['btc_d', 'eth_d', 'stable_d', 'alts_d'], mode: 'val'},
   {name: 'Altseason: ETH/BTC + OTHERS.D + BTC.D', series: ['ethbtc', 'others_d', 'btc_d'], mode: 'val'},
   {name: 'OTHERS vs TOTAL3 (% zmiana)', series: ['others', 'total3'], mode: 'pct'},

@@ -456,7 +456,9 @@ function drawChart(resetRange) {
   }
   let leftUsed = false;
   if (S.px && L.length) {
-    const id = pxId(g), arr = agg(pts(res, id), iv, 'last');
+    // cena od początku likwidacji/fundingu (historia ceny sięga 2009, ale tu jest tłem dla tych danych)
+    const t0 = Math.min(L[0][0], ...fundIds(g).map(f => (pts(res, f)[0] || [Infinity])[0]));
+    const id = pxId(g), arr = agg(pts(res, id).filter(p => p[0] >= t0), iv, 'last');
     if (arr.length) {
       const sp = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left',
         priceFormat: {type: 'custom', minMove: .01, formatter: price}, lastValueVisible: true, priceLineVisible: false}, 0);

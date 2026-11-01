@@ -256,7 +256,7 @@ function renderTiles() {
   const cls = pctAbove >= 70 ? 'warn' : pctAbove >= 50 ? 'pos' : 'neg';
   const sel = C.find(c => c.s === S.coin);
   document.getElementById('tiles').innerHTML = `
-    <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Powyżej ~70% rynek jest szeroko rozgrzany, poniżej ~30% słaby. Historia liczona na zamknięciach dni, tylko z coinów, które są dziś na Binance.">i</span></div>
+    <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Powyżej ~70% rynek jest szeroko rozgrzany, poniżej ~30% słaby. Historia liczona na zamknięciach dni${DATA.breadth_delisted ? ', także z coinów wycofanych już z Binance' : ', tylko z coinów, które są dziś na Binance'}.">i</span></div>
       <div class="tile-val ${cls}">${pctAbove.toFixed(0)}%</div>
       <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.toFixed(0)}%` : ''}${b30 != null ? ` · 30D ${b30.toFixed(0)}%` : ''}</div></div>
     <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>
@@ -381,7 +381,9 @@ async function refreshChart(resetRange) {
     if (br.length) setRange(br[0][0], br[br.length - 1][0]);
     const filling = DATA.pairs && DATA.history_full != null && DATA.history_full < DATA.pairs;
     document.getElementById('chart-hint').textContent = 'Szerokość rynku: % coinów (z co najmniej ' + DATA.min_days + ' dniami historii w danym dniu), które zamknęły dzień nad swoją EMA200. ' +
-      'Liczone z coinów notowanych dziś na Binance, więc dawniejsze lata nie obejmują coinów wycofanych z giełdy, a liczba coinów w starszych latach jest mniejsza (widać ją w legendzie). Linie: 30%, 50%, 70%.' +
+      (DATA.breadth_delisted
+        ? `Liczone także z ${DATA.breadth_delisted} coinów wycofanych już z Binance (w dniach, gdy były notowane), więc bez błędu przeżywalności; liczba coinów w danym dniu jest w legendzie. Linie: 30%, 50%, 70%.`
+        : 'Liczone z coinów notowanych dziś na Binance, więc dawniejsze lata nie obejmują coinów wycofanych z giełdy, a liczba coinów w starszych latach jest mniejsza (widać ją w legendzie). Linie: 30%, 50%, 70%.') +
       (filling ? ` Trwa uzupełnianie starszej historii: ${DATA.history_full} z ${DATA.pairs} par gotowe.` : '');
     updateLegend();
     return;
