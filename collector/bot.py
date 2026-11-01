@@ -50,11 +50,12 @@ def _registry():
     return [
         Cmd("pomoc", "Lista komend", h_pomoc, aliases=("help", "start")),
         Cmd("status", "Stan systemu: świeżość danych, następny skan i raport", h_status),
-        Cmd("raport", "Link do ostatniego raportu", h_raport),
+        Cmd("raport", "Linki do ostatnich raportów: dziennego, tygodniowego i miesięcznego", h_raport),
         Cmd("fiby", "Setupy Fibo ze statusem", h_fiby, aliases=("lista",)),
         Cmd("skan", "Uruchom skan OI/TOTAL teraz (~40 min)", h_skan, admin=True),
-        Cmd("raport_teraz", "Zbuduj raport z obecnych danych (z dopiskiem skan: najpierw skan, ~45 min)",
-            h_raport_teraz, admin=True, usage="[skan]"),
+        Cmd("raport_teraz", "Zbuduj raport z obecnych danych (skan: najpierw skan, ~45 min; tydzień / miesiąc: "
+            "raport tygodniowy / miesięczny za ostatni pełny okres)", h_raport_teraz, admin=True,
+            usage="[skan|tydzień|miesiąc]"),
         Cmd("cisza", "Wycisz alerty rynkowe (domyślnie 8h; off = włącz)", h_cisza, admin=True, usage="[8h|30m|2d|off]"),
         Cmd("fib", "Dodaj setup Fibo", h_fib, admin=True, usage="COIN SZCZYT DOŁEK [long|short] [opis]"),
         Cmd("usun", "Usuń setup Fibo", h_usun, admin=True, usage="ID", aliases=("usuń", "del")),
@@ -263,11 +264,16 @@ def h_raport(ctx, msg, args):
     reps = (idx or {}).get("reports") or []
     if not reps:
         return "Nie ma jeszcze raportów."
-    r = reps[0]
+    periodic = ("weekly", "monthly")
+    r = next((x for x in reps if x.get("kind") not in periodic), reps[0])
     lines = [f"📊 <b>{html.escape(r['title'])}</b>, {ctx.t(r['created'], '%d.%m.%Y %H:%M')}"]
     if r.get("summary"):
         lines.append(html.escape(r["summary"]))
     lines.append(f"<a href=\"{_report_url(ctx, r['id'])}\">Otwórz raport</a>")
+    for kind in periodic:
+        x = next((x for x in reps if x.get("kind") == kind), None)
+        if x and x is not r:
+            lines.append(f"🗓 <a href=\"{_report_url(ctx, x['id'])}\">{html.escape(x['title'])}</a>")
     return "\n".join(lines)
 
 
@@ -284,8 +290,16 @@ def h_skan(ctx, msg, args):
     return "🔄 Skan uruchomiony — nowe dane za ok. 40 min (/status)." if ok else f"⚠️ Nie udało się: {html.escape(err)}"
 
 
+PERIOD_ARGS = {"tydzien": "weekly", "tydzień": "weekly", "tyg": "weekly", "weekly": "weekly",
+               "miesiac": "monthly", "miesiąc": "monthly", "mies": "monthly", "monthly": "monthly"}
+
+
 def h_raport_teraz(ctx, msg, args):
-    if args.strip().lower().startswith("skan"):
+    kind = PERIOD_ARGS.get(args.strip().lower())
+    if kind:
+        ok, err = ctx.gh.dispatch("report.yml", {"kind": kind})
+        okt = f"📊 Raport {_kind_title(kind)} (ostatni pełny okres) w przygotowaniu — link za 1–2 min."
+    elif args.strip().lower().startswith("skan"):
         ok, err = ctx.gh.dispatch("oi-monitor.yml", {"mode": "run", "report": "manual"})
         okt = "🔄 Skan + raport uruchomione — link przyjdzie za ok. 45 min."
     else:
@@ -357,8 +371,9 @@ def _report_url(ctx, rid):
 
 
 def _kind_title(kind):
-    return {"morning": "poranny", "evening": "wieczorny (po sesji w USA)", "manual": "na żądanie",
-            "test": "testowy", "daily": "dzienny"}.get(kind, kind or "")
+    names = {"morning": "poranny", "evening": "wieczorny (po sesji w USA)", "manual": "na żądanie",
+             "test": "testowy", "daily": "dzienny", "weekly": "tygodniowy", "monthly": "miesięczny"}
+    return " i ".join(names.get(k, k) for k in str(kind or "").split(",") if k)
 
 
 def reply(ctx, msg, text):

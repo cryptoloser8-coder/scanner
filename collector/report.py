@@ -1,6 +1,6 @@
 """Reports: build a report from the `data` and `ema` branches, publish it on the `reports` branch.
 
-  python collector/report.py make   --data DIR --ema DIR --out DIR [--kind test]
+  python collector/report.py make   --data DIR --ema DIR --out DIR [--kind test|morning|…|weekly,monthly]
   python collector/report.py notify --out DIR [--page URL]
 
 All numbers are computed here (code); the page only renders them. A future AI comment
@@ -27,6 +27,11 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
 Layout v2 (31.10.2026): Rynek (range bars) → Alty (table vs past peaks, OI OTHERS/OI BTC and Alty/BTC with levels,
 OI OTHERS + OI BTC, market breadth) → Derywaty (OI vs price, funding bars) → Likwidacje (7 days) → EMA200 (coins near it).
 Thresholds and levels: config.yaml → reports: (see LAYOUT).
+
+Weekly and monthly reports (kind weekly / monthly, poprawka 30): built by periodic.py right after the weekly
+(Monday 00:00 UTC) / monthly (1st 00:00 UTC) candle closes; own pruning (`keep_periodic`) and stable
+latest-weekly.md/.json, latest-monthly.md/.json. `make --kind weekly,monthly` builds several reports in one run;
+`notify` posts a link for each report listed in --made (written by make).
 """
 import argparse
 import json
@@ -48,8 +53,10 @@ log = logging.getLogger("report")
 HOUR = 3600
 DAY = 86400
 KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny", "evening": "Raport wieczorny (po sesji w USA)",
-               "daily": "Raport dzienny", "manual": "Raport na żądanie"}
-DEFAULTS = {"notify": True, "keep": 120,
+               "daily": "Raport dzienny", "manual": "Raport na żądanie",
+               "weekly": "Raport tygodniowy", "monthly": "Raport miesięczny"}
+PERIODIC = ("weekly", "monthly")        # osobne listy w index.json (przycinanie) i osobne latest-<kind>.md
+DEFAULTS = {"notify": True, "keep": 120, "keep_periodic": 60,
             "page_url": "https://cryptoloser8-coder.github.io/scanner/raporty.html"}
 
 
@@ -664,6 +671,9 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
     L = layout(cfg)
     d = Data(data_dir)
     ema = _read(os.path.join(ema_dir, "ema.json")) if ema_dir else None
+    if kind in PERIODIC:
+        import periodic
+        return periodic.build(d, ema, kind, now, cfg, macro)
 
     blocks = []
     warn = []
@@ -815,7 +825,7 @@ def to_markdown(rep, page_url=""):
                 tot = (r.get("long") or 0) + (r.get("short") or 0)
                 rows.append([r.get("label"), alerts.fmt_value(tot, "liq"), alerts.fmt_value(r.get("long"), "liq"),
                              alerts.fmt_value(r.get("short"), "liq"), f"{100 * r['long'] / tot:.0f}%" if tot else "—"])
-            L += _md_table(["Dzień (UTC)", "Suma", "Longi", "Shorty", "Udział longów"], rows)
+            L += _md_table([b.get("label_col") or "Dzień (UTC)", "Suma", "Longi", "Shorty", "Udział longów"], rows)
             if b.get("line"):
                 L.append(f"Próg — {b['line']['label']}.")
         if b.get("note"):
@@ -824,30 +834,43 @@ def to_markdown(rep, page_url=""):
     return "\n".join(L)
 
 
-def save(out_dir, rep, keep=120, md=None, page_url=""):
-    """Write reports/<id>.json (+ .md for AI), update index.json (newest first, at most `keep`) and latest.md/.json."""
+def group_of(kind):
+    return kind if kind in PERIODIC else "daily"
+
+
+def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
+    """Write reports/<id>.json (+ .md for AI), update index.json (newest first) and the stable latest files.
+    Daily reports (all kinds except weekly/monthly): at most `keep`, latest.md/.json.
+    Weekly and monthly: at most `keep_periodic` of each, latest-weekly.md/.json and latest-monthly.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
     items.insert(0, {k: rep[k] for k in ("id", "kind", "title", "created", "summary")})
     items.sort(key=lambda r: r.get("created") or 0, reverse=True)
-    for old in items[keep:]:
+    kept, count = [], {}
+    for it in items:
+        g = group_of(it.get("kind"))
+        count[g] = count.get(g, 0) + 1
+        if count[g] <= (keep if g == "daily" else keep_periodic):
+            kept.append(it)
+            continue
         for ext in ("json", "md"):
             try:
-                os.remove(os.path.join(out_dir, "reports", f"{old['id']}.{ext}"))
+                os.remove(os.path.join(out_dir, "reports", f"{it['id']}.{ext}"))
             except FileNotFoundError:
                 pass
-    items = items[:keep]
+    items = kept
     _write(os.path.join(out_dir, "reports", f"{rep['id']}.json"), rep)
     _write(os.path.join(out_dir, "index.json"), {"updated": rep["created"], "reports": items})
-    if md is not None and items and items[0]["id"] == rep["id"]:
-        for path in (os.path.join(out_dir, "reports", f"{rep['id']}.md"), os.path.join(out_dir, "latest.md")):
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(md)
-        _write(os.path.join(out_dir, "latest.json"), rep)
-    elif md is not None:
+    if md is not None:
         with open(os.path.join(out_dir, "reports", f"{rep['id']}.md"), "w", encoding="utf-8") as f:
             f.write(md)
-    if md is not None:
+        g = group_of(rep["kind"])
+        newest = next((it for it in items if group_of(it.get("kind")) == g), None)
+        if newest and newest["id"] == rep["id"]:
+            name = "latest" if g == "daily" else f"latest-{g}"
+            with open(os.path.join(out_dir, f"{name}.md"), "w", encoding="utf-8") as f:
+                f.write(md)
+            _write(os.path.join(out_dir, f"{name}.json"), rep)
         backfill_md(out_dir, items, page_url)
     return items
 
@@ -904,27 +927,30 @@ def main(argv=None):
     ap.add_argument("--data", default="data-branch", help="katalog z gałęzią data")
     ap.add_argument("--ema", default="ema-branch", help="katalog z gałęzią ema")
     ap.add_argument("--out", default="reports-branch", help="katalog z gałęzią reports")
-    ap.add_argument("--kind", default="test", choices=sorted(KIND_TITLES))
+    ap.add_argument("--kind", default="test",
+                    help="rodzaj raportu: " + ", ".join(sorted(KIND_TITLES)) + "; kilka po przecinku (np. weekly,monthly)")
+    ap.add_argument("--made", default="made-reports.json", help="plik z listą zbudowanych raportów (make → notify)")
     ap.add_argument("--config", default=os.path.join(here, "config.yaml"))
     ap.add_argument("--page", default=os.environ.get("REPORT_PAGE_URL", ""), help="adres raporty.html")
     a = ap.parse_args(argv)
     cfg = load_cfg(a.config)
+    page = a.page or cfg["page_url"]
 
     if a.cmd == "make":
-        macro = None
-        st = econ.settings(cfg)
-        if st.get("enabled", True):
-            try:
-                macro = {"events": econ.fetch(time.time(), cfg), "error": None}
-                log.info("Kalendarz makro: %d wydarzeń", len(macro["events"]))
-            except Exception as e:  # noqa: BLE001 — the report goes out without this section's data
-                log.warning("Kalendarz makro niedostępny: %s", e)
-                macro = {"events": [], "error": econ.short_error(e)}
-        rep = build(a.data, a.ema, a.kind, cfg=cfg, macro=macro)
-        page = a.page or cfg["page_url"]
-        save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page)
-        n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
-        log.info("Raport %s: %d bloków, %d pozycji", rep["id"], len(rep["blocks"]), n)
+        kinds = [k.strip() for k in str(a.kind).split(",") if k.strip()]
+        bad = [k for k in kinds if k not in KIND_TITLES]
+        if bad or not kinds:
+            log.error("Nieznany rodzaj raportu: %s", ", ".join(bad) or "(pusty)")
+            return 2
+        made = []
+        for kind in kinds:
+            rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro_for(kind, cfg))
+            save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page,
+                 keep_periodic=int(cfg["keep_periodic"]))
+            made.append(rep["id"])
+            n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
+            log.info("Raport %s: %d bloków, %d pozycji", rep["id"], len(rep["blocks"]), n)
+        _write(a.made, {"ids": made})
         return 0
 
     idx = _read(os.path.join(a.out, "index.json"), {}) or {}
@@ -938,8 +964,34 @@ def main(argv=None):
     if not tg.enabled:
         log.error("Brak TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID")
         return 1
-    ok = tg.post("report", notify_text(idx["reports"][0], a.page or cfg["page_url"]))
+    ids = (_read(a.made, {}) or {}).get("ids") or []
+    by_id = {r["id"]: r for r in idx["reports"]}
+    entries = [by_id[i] for i in ids if i in by_id] or idx["reports"][:1]
+    ok = True
+    for i, entry in enumerate(entries):
+        if i:
+            time.sleep(1.5)                 # Telegram: ~1 wiadomość/s na czat
+        ok = tg.post("report", notify_text(entry, page)) and ok
     return 0 if ok else 1
+
+
+def macro_for(kind, cfg):
+    """Kalendarz makro dla raportu (None = wyłączony). Tygodniowy i miesięczny sięgają dalej wstecz i naprzód."""
+    st = econ.settings(cfg)
+    if not st.get("enabled", True):
+        return None
+    c = cfg
+    if kind in PERIODIC:
+        import periodic
+        back, ahead = periodic.macro_window(kind)
+        c = dict(cfg, econ=dict(cfg.get("econ") or {}, days_back=back, days_ahead=ahead))
+    try:
+        events = econ.fetch(time.time(), c)
+        log.info("Kalendarz makro (%s): %d wydarzeń", kind, len(events))
+        return {"events": events, "error": None}
+    except Exception as e:  # noqa: BLE001 — the report goes out without this section's data
+        log.warning("Kalendarz makro niedostępny: %s", e)
+        return {"events": [], "error": econ.short_error(e)}
 
 
 if __name__ == "__main__":

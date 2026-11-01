@@ -6,6 +6,10 @@ Times are wall-clock times in `timezone` (default Europe/Warsaw); summer/winter 
                   then the same GitHub run builds the report and posts the link.
                   An entry may have its own `timezone` (e.g. {scan_at: "16:05", timezone: America/New_York}
                   = always 5 min after the US close, whatever the summer/winter time in Poland and the US).
+                  `weekday` (1 = Monday … 7 = Sunday) and `monthday` (1–31) limit an entry to those days — checked
+                  in the entry's own timezone, e.g. {scan_at: "00:05", timezone: UTC, weekday: 1, kind: weekly}
+                  = right after the weekly candle closes. Report entries at the same moment are merged into one
+                  scan with kinds joined by a comma ("weekly,monthly").
 A regular scan closer than `skip_regular_minutes` to a report scan is skipped (the report scan replaces it).
 An event is started once, at most `grace_minutes` late (report scans: `report_grace_minutes`),
 e.g. after the Pi was switched off for a while.
@@ -51,10 +55,20 @@ def events_on(sc, day):
     for r in sc["reports"]:
         h, m = _hm(r["scan_at"])
         rz = ZoneInfo(r["timezone"]) if r.get("timezone") else z
+        wd, md = r.get("weekday"), r.get("monthday")
         for d in (day - timedelta(days=1), day, day + timedelta(days=1)):
+            if wd is not None and d.isoweekday() != int(wd):
+                continue
+            if md is not None and d.day != int(md):
+                continue
             at = datetime(d.year, d.month, d.day, h, m, tzinfo=rz).astimezone(z)
             if at.date() == day:                       # the event of this local (Polish) day
-                reports.append({"at": at, "type": "report", "kind": str(r.get("kind") or "daily")})
+                kind = str(r.get("kind") or "daily")
+                same = next((x for x in reports if x["at"].timestamp() == at.timestamp()), None)
+                if same is None:
+                    reports.append({"at": at, "type": "report", "kind": kind})
+                elif kind not in same["kind"].split(","):
+                    same["kind"] += "," + kind
     skip = float(sc.get("skip_regular_minutes") or 0) * 60
     regular = []
     every = int(sc.get("scan_every_hours") or 0)

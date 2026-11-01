@@ -113,6 +113,16 @@ schedule:
     - scan_at: "16:05"       # 5 min po zamknięciu sesji w USA, liczone w czasie Nowego Jorku
       timezone: America/New_York   # → zwykle 22:05 PL, ok. 3 tygodnie w roku 21:05 PL; raport ok. 40 min później
       kind: evening
+    # raporty tygodniowy i miesięczny — zaraz po zamknięciu świecy (pon. / 1. dzień miesiąca 00:00 UTC = 01:00 PL zimą,
+    # 02:00 latem); weekday: 1 = poniedziałek … 7 = niedziela. Gdy 1. dzień miesiąca to poniedziałek — jeden skan, oba raporty.
+    - scan_at: "00:05"
+      timezone: UTC
+      weekday: 1
+      kind: weekly
+    - scan_at: "00:05"
+      timezone: UTC
+      monthday: 1
+      kind: monthly
   skip_regular_minutes: 60   # zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany
 
 # ─────────────────────────────────────────────────────────────
@@ -123,6 +133,7 @@ schedule:
 reports:
   notify: true
   keep: 120
+  keep_periodic: 60         # raporty tygodniowe i miesięczne: ile trzymać z każdego rodzaju (osobno od dziennych)
   page_url: https://cryptoloser8-coder.github.io/scanner/raporty.html
   # ── układ raportu (poprawka 19); brak wpisu = wartość domyślna z report.py ──
   range_years: 2            # paski zakresu (Rynek, funding): min–maks. z ostatnich N lat
