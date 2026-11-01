@@ -50,6 +50,8 @@
   .kind.evening{background:rgba(91,156,246,.15);color:var(--blue);}
   .kind.weekly{background:rgba(77,208,225,.15);color:#4dd0e1;}
   .kind.monthly{background:rgba(255,138,101,.15);color:#ff8a65;}
+  .kind.yearly{background:rgba(186,104,200,.18);color:#ce93d8;}
+  .kind.halving{background:rgba(255,193,7,.15);color:#ffc107;}
   .pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
   .pill{font-size:10.5px;padding:3px 8px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;}
   .pill:hover{color:var(--text);}
@@ -274,9 +276,9 @@ function fmt(v, g) {
 }
 
 const KIND = {test: 'test', morning: 'rano', evening: 'wieczór', manual: 'na żądanie', daily: 'dzienny',
-  weekly: 'tydzień', monthly: 'miesiąc'};
-const GROUPS = [['all', 'Wszystkie'], ['daily', 'Dzienne'], ['weekly', 'Tygodniowe'], ['monthly', 'Miesięczne']];
-const groupOf = k => (k === 'weekly' || k === 'monthly') ? k : 'daily';
+  weekly: 'tydzień', monthly: 'miesiąc', yearly: 'rok', halving: 'halving'};
+const GROUPS = [['all', 'Wszystkie'], ['daily', 'Dzienne'], ['weekly', 'Tygodniowe'], ['monthly', 'Miesięczne'], ['special', 'Roczne i halving']];
+const groupOf = k => (k === 'weekly' || k === 'monthly') ? k : (k === 'yearly' || k === 'halving') ? 'special' : 'daily';
 let FILTER = 'all';
 const kindBadge = k => k ? `<span class="kind ${esc(k)}">${esc(KIND[k] || k)}</span>` : '';
 
