@@ -100,6 +100,17 @@ def test_month_return_wraps_year():
     assert P.month_return(px, 2021, 2) is None
 
 
+def test_slow_series_compared_with_earlier_reading(tmp_path):
+    now = ts(2026, 11, 1, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    d = report.Data(data)
+    d.res["1d"]["m2"] = [[ts(2026, m, 1), 2.0e13 + m * 1e11] for m in range(1, 10)]     # odczyty do 09.2026
+    d.catalog["m2"] = {"name": "M2 USA", "group": "macro", "fmt": "usd"}
+    end = ts(2026, 11, 1)
+    rows = P.change_table(d, None, ["m2"], end - DAY, ts(2026, 10, 1), end, [("1 mies.", ts(2026, 9, 30))], "t", "d")[0]["rows"]
+    assert rows[0][0] == "M2 USA (odczyt za 09.2026)" and rows[0][2] == "▲+0.5%"       # 09 vs 08, nie 09 vs 09
+
+
 def test_weekly_mas_and_closes():
     pts = [[ts(2020, 1, 5) + i * DAY, 100.0 + i] for i in range(7 * 210)]
     t_end = pts[-1][0]
@@ -165,7 +176,8 @@ def test_build_monthly(tmp_path):
     rng = by["Wskaźniki cyklu na tle trzech ostatnich cykli"]["items"]
     mayer = [it for it in rng if it["label"] == "Mayer Multiple"][0]
     assert {m["kind"] for m in mayer["marks"]} == {"top", "bottom"}
-    assert mayer["marks"][0]["label"] == "szczyt 12.2017: 1.80×"
+    import re
+    assert re.match(r"^szczyt \d\d\.\d{4}: \d+\.\d\d×$", mayer["marks"][0]["label"])     # liczone z danych, nie z meta
     liq = by["Likwidacje — ostatnie 12 miesięcy"]
     assert liq["rows"][-1]["label"] == "10.2026" and liq["rows"][-1]["long"] == 31 * 2e8
     fund = by["Funding — średnia miesiąca na tle historii"]["rows"]

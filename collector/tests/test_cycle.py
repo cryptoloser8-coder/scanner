@@ -74,6 +74,15 @@ def test_manual_bottom_starts_accumulation():
     assert C.phases(px, ["zła data"])[-1]["phase"] == "bear"
 
 
+def test_ref_lines_with_manual_bottom():
+    px = synthetic_px()
+    mayer = {t: 1.0 + (t % 1000) / 1e6 for t in px}
+    lines = C.ref_lines_from({"px_btc": px, "mayer_btc": mayer}, {"cycle": {"bottoms": ["2026-06-30"], "ref_bottoms": 3}})
+    labels = [x["label"] for x in lines["mayer_btc"]]
+    assert labels[-3:] == ["dno 12.2018", "dno 11.2022", "dno 06.2026 (uznane)"]
+    assert "dno 06.2026 (uznane)" not in [x["label"] for x in C.ref_lines_from({"px_btc": px, "mayer_btc": mayer}, {})["mayer_btc"]]
+
+
 def test_compute_indicators_and_ref_lines(tmp_path):
     st = Store(str(tmp_path))
     px = synthetic_px()
