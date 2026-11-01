@@ -155,10 +155,12 @@ def change_table(d, ema, sids, t_end, start, end, horizons, title_, desc, note="
             continue
         name, f = label_fmt(d, sid)
         name = (labels or {}).get(sid, name)
+        shift = 0
         if sid in SLOW:
             last_t = max(p[0] for p in pts if p[0] <= t_end)
             name += f" (odczyt za {R.utc(last_t, '%m.%Y')})"
-        row = [name, fv(v, f)] + [chg(v, close(pts, tb, sid), f) for _, tb in horizons]
+            shift = t_end - last_t          # porównanie z odczytem o tyle samo wcześniejszym (nie z tym samym odczytem)
+        row = [name, fv(v, f)] + [chg(v, close(pts, tb - shift, sid), f) for _, tb in horizons]
         if rng:
             w = [x[1] for x in in_period(pts, start, end)]
             row.append(f"{fv(min(w), f)} – {fv(max(w), f)}" if w else "—")
@@ -473,8 +475,9 @@ def cycle_blocks(d, t_end, cfg=None):
                             "samo dni po szczycie cyklu co dziś. Cykl = okres między halvingami.",
                     "note": "Szczyt = najwyższe zamknięcie dnia w 2 latach po halvingu; dno = najniższe między szczytem a "
                             "następnym halvingiem. Liczone z dziennych zamknięć ceny BTC (od 2009)."})
-    # wskaźniki cyklu na tle poprzednich szczytów i den
-    ref = d.meta.get("ref_lines") or {}
+    # wskaźniki cyklu na tle poprzednich szczytów i den (liczone tu z danych i configu — jak meta.ref_lines)
+    ref = C.ref_lines_from({sid: dict(d.pts("1d", sid)) for sid in ("px_btc", "mvrv_btc", "mvrvz_btc", "mayer_btc",
+                                                                     "p200w_btc", "picycle_btc", "ssr")}, cfg or {})
     items = []
     for sid in ("mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"):
         since = RANGE_FROM["ssr" if sid == "ssr" else "default"]

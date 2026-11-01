@@ -206,9 +206,16 @@ def phases(px, manual_bottoms=()):
 
 def ref_lines(store, cfg):
     """{sid: [{"value", "label", "color"}]} — wartości wskaźników przy poprzednich szczytach i dnach."""
+    return ref_lines_from(store.series["1d"], cfg)
+
+
+def ref_lines_from(s, cfg):
+    """Jak ref_lines, z serii {sid: {t: v}} (także raport miesięczny — bez czekania na skan po zmianie configu).
+    Dno uznane ręcznie (cycle.bottoms), którego reguła jeszcze nie potwierdziła, ma dopisek „(uznane)”."""
     c = ccfg(cfg)
-    s = store.series["1d"]
-    tops, bottoms = cycle_extremes(s.get("px_btc") or {}, c.get("bottoms") or ())
+    px = s.get("px_btc") or {}
+    tops, bottoms = cycle_extremes(px, c.get("bottoms") or ())
+    rule_bottoms = {t for t, _ in cycle_extremes(px)[1]}
     tops, bottoms = tops[-int(c["ref_tops"]):], bottoms[-int(c["ref_bottoms"]):]
     out = {}
     for sid in ("mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"):
@@ -220,7 +227,8 @@ def ref_lines(store, cfg):
                     continue           # wcześniej stablecoinów było za mało, żeby SSR był porównywalny
                 v = ser.get(t)
                 if v is not None:
-                    lines.append({"value": round(v, 3), "label": f"{word} {mmyy(t)}", "color": col})
+                    tag = " (uznane)" if word == "dno" and t not in rule_bottoms else ""
+                    lines.append({"value": round(v, 3), "label": f"{word} {mmyy(t)}{tag}", "color": col})
         if sid == "picycle_btc":
             lines.append({"value": 1.0, "label": "przecięcie średnich", "color": "#ffc107"})
         if sid == "mvrv_btc":
