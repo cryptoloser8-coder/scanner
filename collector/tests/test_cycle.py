@@ -42,6 +42,38 @@ def test_cycle_extremes_use_halvings_and_confirmation():
     assert [C.mmyy(t) for t, _ in tops2][-1] == "11.2021"
 
 
+def test_phases_bear_acc_bull():
+    px = synthetic_px()
+    ph = C.phases(px)
+    seq = [(p["phase"], C.mmyy(p["from"]), C.mmyy(p["to"]) if p["to"] else None) for p in ph]
+    assert seq[:3] == [("bear", "06.2011", "11.2011"), ("acc", "11.2011", seq[1][2]), ("bull", seq[1][2], "12.2013")]
+    # akumulacja kończy się pierwszym zamknięciem powyżej poprzedniego szczytu
+    brk = ph[1]["to"]
+    assert px[brk] > 30 and all(px[t] <= 30 for t in px if ph[1]["from"] < t < brk)
+    assert seq[-1] == ("bear", "10.2025", None)                         # dno 2026 jeszcze niepotwierdzone → bessa trwa
+    assert [p["phase"] for p in ph].count("bull") == 4
+    # bez potwierdzonego szczytu 10.2025: po akumulacji 2022–2024 trwa hossa
+    px2 = dict(px)
+    for t in [t for t in px2 if t > t_of("2025-10-06")]:
+        px2[t] = 100000
+    assert C.phases(px2)[-1]["phase"] == "bull" and C.phases(px2)[-1]["to"] is None
+
+
+def test_manual_bottom_starts_accumulation():
+    px = synthetic_px()
+    ph = C.phases(px, ["2026-06-28"])                                   # ±10 dni → najniższe zamknięcie 30.06
+    assert (ph[-2]["phase"], C.mmyy(ph[-2]["to"])) == ("bear", "06.2026")
+    assert ph[-1]["phase"] == "acc" and ph[-1]["to"] is None and C.mmyy(ph[-1]["from"]) == "06.2026"
+    assert ph[-1]["confirmed"] is False and all("confirmed" not in p for p in ph[:-1])
+    _, bottoms = C.cycle_extremes(px, ["2026-06-30"])
+    assert C.mmyy(bottoms[-1][0]) == "06.2026"
+    # później zamknięcie poniżej uznanego dna → wpis nie działa, bessa trwa
+    px2 = dict(px)
+    px2[t_of("2026-10-31")] = 50000
+    assert C.phases(px2, ["2026-06-30"])[-1]["phase"] == "bear"
+    assert C.phases(px, ["zła data"])[-1]["phase"] == "bear"
+
+
 def test_compute_indicators_and_ref_lines(tmp_path):
     st = Store(str(tmp_path))
     px = synthetic_px()

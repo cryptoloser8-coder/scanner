@@ -154,6 +154,12 @@ def test_build_monthly(tmp_path):
     assert seas["rows"][0][0] == "Mediana" and seas["rows"][1][0] == "Lat na plus"
     assert seas["rows"][1][2].endswith("z 15")
     assert seas["rows"][2][0] == "2026" and seas["rows"][2][3] == "—" and seas["rows"][-1][0] == "2011"
+    chart = by["Cena BTC i fazy cyklu — od 2011"]
+    assert chart["bands"] and {b["label"].split(" ")[0] for b in chart["bands"]} <= {"hossa", "bessa", "akumulacja"}
+    facts = {it["label"]: it for it in by["Stan na zamknięcie miesiąca"]["items"]}
+    assert "dzień" in facts["Faza cyklu"]["value"]
+    assert "Fazy kolejnych cykli — czas trwania i zmiana ceny" in by
+    assert "Tło wykresu (okresy):" in report.to_markdown(rep)
     cyc = by["Obecny cykl na tle poprzednich"]
     assert cyc["rows"][-1][0].startswith("2024") and len(cyc["rows"]) >= 3
     rng = by["Wskaźniki cyklu na tle trzech ostatnich cykli"]["items"]
@@ -170,6 +176,36 @@ def test_build_monthly(tmp_path):
     assert [r[2] for r in res["rows"]] == ["Fed Interest Rate Decision"]
     plan = [b for b in rep["blocks"] if str(b.get("title", "")).startswith("Plan —")][0]
     assert [r[2] for r in plan["rows"]] == ["Non Farm Payrolls"]       # miesięczny: tylko ★★★
+
+
+def test_monthly_accumulation_and_projection(tmp_path):
+    now = ts(2026, 11, 1, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    import cycle as C
+    from test_cycle import synthetic_px                     # szczyt 10.2025 potwierdzony, dno 2026 jeszcze nie
+    px = synthetic_px()
+    f1d = os.path.join(data, "1d.json")
+    js = json.load(open(f1d))
+    js["series"]["px_btc"] = sorted([t, v] for t, v in px.items())
+    _w(f1d, js)
+    top = [p for p in C.phases(px) if p["phase"] == "bear"][-1]["from"]
+    after = {t: v for t, v in px.items() if t > top}
+    t_lo = min(after, key=after.get)
+    iso = datetime.fromtimestamp(t_lo, timezone.utc).strftime("%Y-%m-%d")
+    rep = report.build(data, ema, "monthly", now=now, cfg={"cycle": {"bottoms": [iso]}}, macro=None)
+    by = {b.get("title"): b for b in rep["blocks"]}
+    facts = {it["label"]: it for it in by["Stan na zamknięcie miesiąca"]["items"]}
+    assert facts["Faza cyklu"]["value"].startswith("Akumulacja") and "od dna" in facts["Faza cyklu"]["sub"]
+    assert "niepotwierdzona" in facts["Faza cyklu"]["value"]
+    bands = by["Cena BTC i fazy cyklu — od 2011"]["bands"]
+    assert bands[-1]["label"] == "akumulacja niepotwierdzona (trwa)" and bands[-1]["color"] == "#b39ddb"
+    rows = by["Fazy kolejnych cykli — czas trwania i zmiana ceny"]["rows"]
+    assert rows[-1][1].endswith("(niepotwierdzona)") and rows[-2][3].endswith("(dno niepotwierdzone)")
+    proj = by["Okno szacunkowe kolejnych etapów cyklu"]
+    assert proj["rows"][0][0].startswith("Koniec akumulacji") and "Łączne okno szczytu" in proj["desc"]
+    # dno z configu, poniżej którego cena później zamknęła się → ostrzeżenie, bessa
+    rep2 = report.build(data, ema, "monthly", now=now, cfg={"cycle": {"bottoms": ["2026-02-01"]}}, macro=None)
+    assert any("nie obowiązuje" in (b.get("text") or "") for b in rep2["blocks"])
 
 
 def test_build_without_macro_and_stale_data(tmp_path):
