@@ -1,0 +1,169 @@
+{
+ "where": "pi",
+ "at": "2026-11-01 10:23 UTC",
+ "seconds": 27,
+ "rows": [
+  {
+   "source": "binance",
+   "item": "funding BTCUSDT",
+   "status": "ok",
+   "first": "2026-11-01",
+   "last": "2026-11-01",
+   "n": null,
+   "note": "pierwsza stawka 0.00010000"
+  },
+  {
+   "source": "binance",
+   "item": "funding ETHUSDT",
+   "status": "ok",
+   "first": "2026-11-01",
+   "last": "2026-11-01",
+   "n": null,
+   "note": "pierwsza stawka 0.00001499"
+  },
+  {
+   "source": "binance",
+   "item": "funding SOLUSDT",
+   "status": "ok",
+   "first": "2026-11-01",
+   "last": "2026-11-01",
+   "n": null,
+   "note": "pierwsza stawka 0.00010000"
+  },
+  {
+   "source": "vision",
+   "item": "futures UM metrics BTCUSDT",
+   "status": "ok",
+   "first": "2020-09-01",
+   "last": "2026-10-31",
+   "n": 2252,
+   "note": "kolumny: create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio | 1. wiersz: 2020-09-01 00:00:00,BTCUSDT,39080.23100000,456144339.23360443,1.17547937,1.23012681,1.35731217,0.78373373"
+  },
+  {
+   "source": "vision",
+   "item": "futures UM metrics ETHUSDT",
+   "status": "ok",
+   "first": "2021-12-01",
+   "last": "2026-10-31",
+   "n": 1796,
+   "note": ""
+  },
+  {
+   "source": "vision",
+   "item": "futures UM metrics SOLUSDT",
+   "status": "ok",
+   "first": "2021-12-01",
+   "last": "2026-10-31",
+   "n": 1796,
+   "note": ""
+  },
+  {
+   "source": "vision",
+   "item": "spot — pary w archiwum (także zdelistowane)",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": 3745,
+   "note": "w tym */USDT: 757"
+  },
+  {
+   "source": "vision",
+   "item": "spot LUNAUSDT 1d",
+   "status": "błąd",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "AttributeError: 'NoneType' object has no attribute 'group'"
+  },
+  {
+   "source": "bitmex",
+   "item": "funding XBTUSD",
+   "status": "błąd",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "RuntimeError: HTTP 403 <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n<HTML><HEAD><META"
+  },
+  {
+   "source": "bitmex",
+   "item": "funding ETHUSD",
+   "status": "błąd",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "RuntimeError: HTTP 403 <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n<HTML><HEAD><META"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "btc PriceUSD",
+   "status": "ok",
+   "first": "2010-07-18",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 0.08584"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "btc CapMrktCurUSD",
+   "status": "ok",
+   "first": "2010-07-18",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 295959.152"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "btc CapRealUSD",
+   "status": "błąd",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "RuntimeError: HTTP 403 {\"error\":{\"type\":\"forbidden\",\"message\":\"Requested metric 'CapRealUSD' with frequency '1d' for asset 'btc' is not availab"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "btc CapMVRVCur",
+   "status": "ok",
+   "first": "2010-07-18",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 146.0383322"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "btc SplyCur",
+   "status": "ok",
+   "first": "2009-01-03",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 0"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "eth PriceUSD",
+   "status": "ok",
+   "first": "2015-08-08",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 1.19999"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "eth CapMrktCurUSD",
+   "status": "ok",
+   "first": "2015-08-08",
+   "last": "2026-10-31",
+   "n": null,
+   "note": "pierwsza wartość 86768712.5207460052"
+  },
+  {
+   "source": "coinmetrics",
+   "item": "eth CapRealUSD",
+   "status": "błąd",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "RuntimeError: HTTP 403 {\"error\":{\"type\":\"forbidden\",\"message\":\"Requested metric 'CapRealUSD' with frequency '1d' for asset 'eth' is not availab"
+  }
+ ]
+}
