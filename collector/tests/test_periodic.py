@@ -147,6 +147,10 @@ def test_build_weekly(tmp_path):
     assert [r[2] for r in plan["rows"]] == ["ISM Manufacturing PMI", "Non Farm Payrolls"]
     assert by["Rynki i płynność — zamknięcie tygodnia"]["rows"][0][0] == "Płynność netto Fed"
     assert "Cena BTC" in rep["summary"]
+    cyc = [r[0] for r in by["Wskaźniki cyklu — zamknięcie tygodnia"]["rows"]]
+    assert "Pi Cycle" not in cyc and cyc                       # Pi Cycle tylko w zakładce
+    alts = {r[0]: r for r in by["Lewar, kapitał i szerokość — zamknięcie tygodnia"]["rows"]}
+    assert alts["Szerokość rynku (% nad EMA200)"][1] == "20%"
     md = report.to_markdown(rep)
     assert "| Tydzień od (UTC) | Suma |" in md and "## Cykl BTC w tygodniu" in md
 
@@ -288,7 +292,7 @@ def test_macro_window_wider_for_periodic(monkeypatch):
         return []
     monkeypatch.setattr(report.econ, "fetch", fake_fetch)
     report.macro_for("monthly", {"econ": {"countries": ["US"]}})
-    assert seen["econ"]["days_back"] == 33 and seen["econ"]["days_ahead"] == 37 and seen["econ"]["countries"] == ["US"]
+    assert seen["econ"]["days_back"] == 63 and seen["econ"]["days_ahead"] == 38 and seen["econ"]["countries"] == ["US"]
     report.macro_for("morning", {"econ": {"days_back": 5}})
     assert seen["econ"] == {"days_back": 5}
     assert report.macro_for("weekly", {"econ": {"enabled": False}}) is None
@@ -347,3 +351,22 @@ def test_delete_report_and_latest(tmp_path):
     assert report.main(args + ["--id", "20261101-0100-monthly"]) == 0
     assert not os.path.exists(os.path.join(out, "latest-monthly.md"))
     assert report.main(args + ["--id", "nie-ma"]) == 1
+
+
+def test_formats_z_and_breadth():
+    assert P.chg(0.84, 0.91, "z") == "▼-0.07" and P.chg(1.0, 0.83, "z") == "▲+0.17"
+    assert P.fv(20.49, "pct0") == "20%" and P.chg(20.49, 25.07, "pct0") == "▼-4.6 pp"
+
+
+def test_plan_starts_at_build_time(tmp_path):
+    # raport z ręki w niedzielę 08.11: okres 26.10–01.11, plan od 08.11 (nie od 02.11, które już minęło)
+    now = ts(2026, 11, 8, 15, 0)
+    data, ema = make_dirs(tmp_path, now)
+    evs = [{"date": "2026-11-03T14:00:00.000Z", "country": "US", "importance": 1, "title": "Past Event"},
+           {"date": "2026-11-10T13:30:00.000Z", "country": "US", "importance": 1, "title": "CPI YoY",
+            "forecast": 3.0, "previous": 2.9, "unit": "%"},
+           {"date": "2026-11-16T13:30:00.000Z", "country": "US", "importance": 1, "title": "Too Far"}]
+    rep = report.build(data, ema, "weekly", now=now, cfg={}, macro={"events": evs, "error": None})
+    assert rep["period"]["start"] == ts(2026, 10, 26)
+    plan = [b for b in rep["blocks"] if str(b.get("title", "")).startswith("Plan —")][0]
+    assert plan["title"].endswith("08.11–14.11.2026") and [r[2] for r in plan["rows"]] == ["CPI YoY"]

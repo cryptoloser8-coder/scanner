@@ -1,4 +1,5 @@
 """Offline tests: cykl BTC i makro (cycle.py), dzienne symbole TradingView (main.collect_tv)."""
+import json
 import math
 import os
 import sys
@@ -81,6 +82,21 @@ def test_ref_lines_with_manual_bottom():
     labels = [x["label"] for x in lines["mayer_btc"]]
     assert labels[-3:] == ["dno 12.2018", "dno 11.2022", "dno 06.2026 (uznane)"]
     assert "dno 06.2026 (uznane)" not in [x["label"] for x in C.ref_lines_from({"px_btc": px, "mayer_btc": mayer}, {})["mayer_btc"]]
+
+
+def test_cycle_marks_for_oi_page():
+    px = synthetic_px()
+    m = C.cycle_marks(px, {"cycle": {"bottoms": ["2026-06-30"]}})
+    assert m["phases"] == C.phases(px, ["2026-06-30"]) and m["phases"][-1]["confirmed"] is False
+    kinds = [(e["kind"], C.mmyy(e["t"])) for e in m["events"]]
+    assert [k for k in kinds if k[0] == "halving"] == [("halving", "11.2012"), ("halving", "07.2016"),
+                                                       ("halving", "05.2020"), ("halving", "04.2024")]
+    assert [e["t"] for e in m["events"]] == sorted(e["t"] for e in m["events"])
+    bots = [e for e in m["events"] if e["kind"] == "bottom"]
+    assert bots[-1]["label"] == "dno 06.2026 (uznane)" and bots[-1]["manual"] and "manual" not in bots[-2]
+    assert sum(1 for e in m["events"] if e["kind"] == "top") == 5
+    assert C.cycle_marks({}, {}) == {}
+    json.dumps(m)                                      # trafia do meta.json
 
 
 def test_compute_indicators_and_ref_lines(tmp_path):
