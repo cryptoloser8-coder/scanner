@@ -250,3 +250,14 @@ liq_alerts: []
 #    window_hours: 24
 #    usd: 5.0e8
 #    cooldown_hours: 24
+
+# ─────────────────────────────────────────────────────────────
+#  ARCHIWUM — kopie danych na wypadek awarii (poprawka 27)
+#  Orange Pi raz na dobę pakuje gałęzie data, ema, reports + stan Pi (~/.ema-monitor)
+#  do ~/scanner-archive/scanner-RRRR-MM-DD.tar.xz (collector/backup.py, uruchamia ema_cron.sh).
+#  Dodatkowo GitHub co tydzień zapisuje to samo jako wydanie „archiwum-RRRR-MM-DD” (workflow Archiwum).
+# ─────────────────────────────────────────────────────────────
+backup:
+  dir: ~/scanner-archive
+  keep_daily: 14       # ostatnie 14 dni + na zawsze plik z 1. dnia każdego miesiąca
+  hour_utc: 2          # kopia po 02:00 UTC (03:00/04:00 PL)
