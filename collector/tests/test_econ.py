@@ -107,7 +107,7 @@ def test_fetch_params_headers_and_errors():
 
 
 def test_report_with_macro_section(tmp_path):
-    rep = report.build(str(tmp_path / "nic"), str(tmp_path / "nic2"), "evening", now=int(ts(2026, 10, 30, 21, 45)),
+    rep = report.build(str(tmp_path / "nic"), str(tmp_path / "nic2"), "manual", now=int(ts(2026, 10, 30, 21, 45)),
                        macro={"events": EVENTS, "error": None})
     titles = [b.get("title") for b in rep["blocks"]]
     assert "Dane makro z USA" in titles

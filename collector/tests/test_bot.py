@@ -309,7 +309,7 @@ def test_watchdog():
 
 
 def test_report_kinds():
-    assert report.KIND_TITLES["morning"] == "Raport poranny" and "USA" in report.KIND_TITLES["evening"]
+    assert "zamknięcie dnia" in report.KIND_TITLES["morning"] and "krypto dziś" in report.KIND_TITLES["evening"]
     rep = report.build("/nonexistent", "/nonexistent", "evening", now=NOW)
     assert rep["id"].endswith("-evening") and not any(b["title"] == "O tym raporcie" for b in rep["blocks"])
 

@@ -324,7 +324,7 @@ def test_timetable_weekly_monthly():
 def test_bot_kind_title():
     import bot
     assert bot._kind_title("weekly,monthly") == "tygodniowy i miesięczny"
-    assert bot._kind_title("morning") == "poranny"
+    assert bot._kind_title("morning") == "poranny (zamknięcie dnia)"
 
 
 def test_delete_report_and_latest(tmp_path):
