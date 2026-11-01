@@ -149,6 +149,13 @@ def test_admin_actions(tmp_path):
     assert "włączone" in t[8] and c.st["mute_until"] is None and "Składnia" in t[9]
 
 
+def test_raport_teraz_weekly_monthly(tmp_path):
+    c = ctx_for(tmp_path, [msg("/raport_teraz tydzień"), msg("/raport_teraz miesiac")])
+    B.poll(c)
+    assert c.gh.calls == [("report.yml", {"kind": "weekly"}), ("report.yml", {"kind": "monthly"})]
+    assert "tygodniowy" in c.api.sent[0]["text"] and "miesięczny" in c.api.sent[1]["text"]
+
+
 def test_dispatch_failure_is_reported(tmp_path):
     c = ctx_for(tmp_path, [msg("/skan")], gh=FakeGH(ok=False))
     B.poll(c)
