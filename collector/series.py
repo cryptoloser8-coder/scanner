@@ -91,6 +91,61 @@ PALETTE = ["#5b9cf6", "#e05252", "#ffd54f", "#ba68c8", "#4dd0e1", "#aed581",
            "#ff8a65", "#90a4ae", "#f06292", "#9575cd"]
 
 
+# ── cykl BTC i makro USA (poprawka 29, collector/cycle.py) — dzienne ─────────────
+LINES_NOTE = (" Linie: wartość przy szczytach (czerwone) i dnach (zielone) ceny BTC w poprzednich cyklach "
+              "(cykl = okres między halvingami), wyliczone z danych.")
+CYCLE_CATALOG = {
+    "rprice_btc": dict(name="Realized price BTC", group="price", color="#ffb74d", fmt="usd",
+                       desc="Średnia cena, po której monety BTC ostatnio się ruszały (cena ÷ MVRV, Coin Metrics). "
+                            "Cena BTC poniżej realized price = przeciętny posiadacz jest na stracie."),
+    "mvrv_btc": dict(name="MVRV BTC", group="cycle", color="#ff7043", fmt="x",
+                     desc="Kapitalizacja BTC ÷ realized cap (Coin Metrics Community, od 2010). Ile razy rynek jest "
+                          "wyceniany powyżej średniej ceny, po której monety ostatnio się ruszały. 1,0 = cena równa "
+                          "realized price." + LINES_NOTE),
+    "mvrvz_btc": dict(name="MVRV-Z BTC", group="cycle", color="#ec407a", fmt="z", axis="z",
+                      desc="(Kapitalizacja − realized cap) ÷ odchylenie standardowe kapitalizacji z całej historii "
+                           "(Coin Metrics). Wysoko = rynek daleko nad średnią ceną zakupu, okolice zera i niżej = "
+                           "pod nią. Liczone z całej historii, więc dawne wartości lekko się zmieniają z czasem."
+                           + LINES_NOTE),
+    "mayer_btc": dict(name="Mayer Multiple", group="cycle", color="#ffd54f", fmt="x",
+                      desc="Cena BTC ÷ średnia 200-dniowa (cena od 2009: TradingView INDEX:BTCUSD + Coinalyze). "
+                           "Powyżej 1 = cena nad średnią z ostatnich 200 dni." + LINES_NOTE),
+    "p200w_btc": dict(name="Cena / średnia 200W", group="cycle", color="#aed581", fmt="x",
+                      desc="Cena BTC ÷ średnia z 200 tygodni (1400 dni). 1,0 = cena równa średniej 200-tygodniowej."
+                           + LINES_NOTE),
+    "picycle_btc": dict(name="Pi Cycle", group="cycle", color="#4fc3f7", fmt="x",
+                        desc="Średnia 111-dniowa ÷ (2 × średnia 350-dniowa) ceny BTC. 1,0 = przecięcie tych średnich "
+                             "(sygnał Pi Cycle Top)." + LINES_NOTE),
+    "ssr": dict(name="SSR (BTC ÷ stablecoiny)", group="cycle", color="#26a69a", fmt="x", axis="ssr",
+                desc="Kapitalizacja BTC ÷ kapitał w stablecoinach (TradingView). Nisko = dużo stablecoinów względem "
+                     "BTC, wysoko = mało. Przed 2020 stablecoinów było niewiele, więc porównuj od 2020 (linie też od "
+                     "2020)." + LINES_NOTE),
+    "net_liq": dict(name="Płynność netto Fed", group="macro", color="#90caf9", fmt="usd", axis="usd_macro",
+                    desc="Aktywa Fed (WALCL) − konto Skarbu USA w Fed (TGA, WTREGEN) − reverse repo (RRPONTSYD), "
+                         "w USD (FRED przez TradingView; tygodniowe dane uzupełnione do dziennych). Rośnie = więcej "
+                         "pieniądza w systemie finansowym."),
+    "m2": dict(name="M2 USA", group="macro", color="#b0bec5", fmt="usd", axis="usd_macro",
+               desc="Podaż pieniądza M2 w USA (FRED M2SL, miesięcznie, wyrównana sezonowo), w USD."),
+    "dxy": dict(name="Dolar (DXY)", group="macro", color="#a5d6a7", fmt="num",
+                desc="Indeks dolara wobec koszyka walut (TradingView TVC:DXY). Rośnie = mocniejszy dolar."),
+    "spx": dict(name="S&P 500", group="macro", color="#ce93d8", fmt="num",
+                desc="Indeks S&P 500 (TradingView SP:SPX), zamknięcie sesji w USA."),
+    "ndx": dict(name="Nasdaq 100", group="macro", color="#9fa8da", fmt="num",
+                desc="Indeks Nasdaq 100 (TradingView), spółki technologiczne, zamknięcie sesji w USA."),
+    "vix": dict(name="VIX", group="macro", color="#ef9a9a", fmt="num", pane="low",
+                desc="Oczekiwana zmienność S&P 500 na 30 dni z opcji (TradingView TVC:VIX). Wysoko = strach na "
+                     "giełdzie w USA."),
+    "us10y": dict(name="Rentowność 10L USA", group="macro", color="#ffcc80", fmt="yield", axis="yield", pane="low",
+                  desc="Rentowność 10-letnich obligacji USA w % (TradingView TVC:US10Y)."),
+    "yc_10y2y": dict(name="Krzywa 10L − 2L", group="macro", color="#ffab91", fmt="pp", axis="yield", pane="low",
+                     desc="Rentowność 10-letnich minus 2-letnich obligacji USA, w punktach procentowych. Poniżej 0 = "
+                          "odwrócona krzywa rentowności."),
+    "gold": dict(name="Złoto", group="macro", color="#ffe082", fmt="usd",
+                 desc="Cena złota w USD za uncję (TradingView TVC:GOLD)."),
+}
+CATALOG.update(CYCLE_CATALOG)
+
+
 def catalog_with_watchlist(watchlist, liq=None):
     """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series."""
     cat = dict(CATALOG)

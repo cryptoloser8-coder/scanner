@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 import coingecko  # noqa: E402
+import cycle as C  # noqa: E402
 import history as H  # noqa: E402
 import liquidations as L  # noqa: E402
 import series as S  # noqa: E402
@@ -209,7 +210,19 @@ def collect_tv(tv, store, cfg, now, backfill):
         except Exception as e:  # noqa: BLE001
             log.error("TV %s: %s", symbol, e)
             errors.append(f"{symbol}: {e}")
-    if errors and len(errors) == len(cfg["tradingview"]["symbols"]):
+    # tylko dzienne (makro USA, poprawka 29): pierwszy raz pełna historia
+    daily_syms = cfg["tradingview"].get("daily_symbols") or {}
+    for sid, symbol in daily_syms.items():
+        try:
+            last_d = store.last_t("1d", sid)
+            nd = 20000 if (backfill or last_d is None) else min(5000, (now - last_d) // DAY + 5)
+            bars_d = tv.bars(symbol, "1D", nd)
+            store.put("1d", sid, {t - t % DAY: v for t, v in bars_d})
+            log.info("TV %s: %d×1D", symbol, len(bars_d))
+        except Exception as e:  # noqa: BLE001
+            log.error("TV %s: %s", symbol, e)
+            errors.append(f"{symbol}: {e}")
+    if errors and len(errors) == len(cfg["tradingview"]["symbols"]) + len(daily_syms):
         raise RuntimeError("; ".join(errors[:3]))
     return errors
 
@@ -220,7 +233,7 @@ def _iso(t):
 
 # ── main run ─────────────────────────────────────────────────
 def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None,
-        vision_session=None):
+        vision_session=None, cm_session=None):
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
@@ -277,6 +290,15 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     for res in ("1h", "1d"):
         S.derived(store.series[res])
 
+    # cykl BTC (Coin Metrics + wskaźniki z ceny) i makro USA (poprawka 29) — po serii pochodnych (SSR)
+    cyc_lines = {}
+    if (cfg.get("cycle") or {}).get("enabled"):
+        c_info, c_err = C.run(store, cfg, now, session=cm_session)
+        info["cycle"] = c_info
+        if (cfg["cycle"].get("coinmetrics", True)):
+            results["Coin Metrics"] = c_err
+        cyc_lines = C.ref_lines(store, cfg)
+
     # system messages → admin (private); market alerts → group thread (one message per run, unless muted)
     system = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
     market = []
@@ -311,7 +333,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "catalog": catalog,
         "levels": cfg["levels"],
         # reference lines from the report (config reports.lines) — drawn in oi.html too, one source for both
-        "ref_lines": report_lines(cfg),
+        "ref_lines": {**cyc_lines, **report_lines(cfg)},
         "watchlist": [w.upper() for w in cfg["watchlist"]],
         "exchanges": cfg["coinalyze"]["exchanges"],
         "health": {k: (v or "ok") for k, v in results.items()},

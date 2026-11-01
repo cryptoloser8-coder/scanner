@@ -73,6 +73,19 @@ tradingview:
     others_d: "CRYPTOCAP:OTHERS.D"   # dominacja OTHERS
     ethbtc: "BINANCE:ETHBTC"         # cena ETH w BTC
     usdt_d: "CRYPTOCAP:USDT.D"
+  # tylko świece dzienne (makro USA, poprawka 29; pierwszy raz cała historia)
+  daily_symbols:
+    dxy: "TVC:DXY"             # indeks dolara
+    spx: "SP:SPX"              # S&P 500
+    ndx: "NASDAQ:NDX"          # Nasdaq 100
+    vix: "TVC:VIX"             # zmienność S&P 500
+    us10y: "TVC:US10Y"         # rentowność 10-letnich obligacji USA
+    us02y: "TVC:US02Y"         # 2-letnich (do krzywej 10L − 2L)
+    gold: "TVC:GOLD"           # złoto
+    fed_assets: "FRED:WALCL"   # aktywa Fed (mln USD) ┐
+    fed_tga: "FRED:WTREGEN"    # konto Skarbu (mln USD) ├ płynność netto Fed
+    fed_rrp: "FRED:RRPONTSYD"  # reverse repo (mld USD) ┘
+    fred_m2: "FRED:M2SL"       # M2 (mld USD, miesięcznie)
 
 telegram:
   enabled: true
@@ -281,3 +294,15 @@ history:
     oi_btc_binance: BTCUSDT
     oi_eth_binance: ETHUSDT
   vision_max_minutes: 25     # limit czasu na archiwum w jednym skanie (resztę dobierze następny)
+
+# ─────────────────────────────────────────────────────────────
+#  CYKL BTC i MAKRO (poprawka 29, collector/cycle.py) — serie do nakładania w zakładce OI & TOTAL
+#  MVRV z Coin Metrics Community (bez klucza), Mayer / 200W / Pi Cycle z ceny BTC, SSR z TradingView,
+#  płynność netto Fed i M2 z FRED (przez TradingView). Linie poziomów: wartości przy poprzednich
+#  szczytach i dnach (cykl = okres między halvingami), liczone z danych.
+# ─────────────────────────────────────────────────────────────
+cycle:
+  enabled: true
+  coinmetrics: true
+  ref_tops: 3          # linie dla tylu ostatnich szczytów…
+  ref_bottoms: 2       # …i den
