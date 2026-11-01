@@ -69,6 +69,8 @@ ALWAYS_EXCLUDE = {
     "ARS", "MXN", "COP", "CZK", "KGST", "PAXG", "XAUT",
     # wrapped / staked copies of other coins (would double-count BTC, ETH, SOL…)
     "WBTC", "WBETH", "BETH", "BNSOL", "STETH", "WSTETH", "CBBTC",
+    # stablecoins / fiat seen only among pairs delisted from Binance (archive, delisted.py)
+    "PAX", "USDSB", "SUSD", "UST", "USTC", "BKRW", "BIDR", "IDRT", "NGN", "RUB", "BVND", "VAI", "GYEN",
 }
 LEVERAGED = ("UP", "DOWN", "BULL", "BEAR")
 HIST_VERSION = 2          # bump → chart files are rewritten on the next run (not only after 00:00 UTC)
@@ -330,12 +332,29 @@ def compute(candles, sym_base, prices, vols, cfg, rules):
     return rows, excluded, series
 
 
-def breadth(series, cfg, now):
-    """% of coins (with ≥ min_days of history at that day) closing above their EMA, per day."""
+def delisted_series(delisted, cfg):
+    """delisted.json {symbol: {"b": base, "c": [[t, close]...]}} → {"D:<symbol>": (times, closes, emas)}
+    for pairs no longer on Binance (only those with ≥ min_days, after the same exclusions)."""
+    period, min_days = int(cfg["period"]), int(cfg["min_days"])
+    excl = ALWAYS_EXCLUDE | {e.upper() for e in cfg.get("exclude") or []}
+    out = {}
+    for sym, rec in (delisted or {}).items():
+        cs = rec.get("c") or []
+        if rec.get("b") in excl or len(cs) < min_days:
+            continue
+        times = [t for t, _ in cs]
+        closes = [c for _, c in cs]
+        out["D:" + sym] = (times, closes, ema_series(closes, period))
+    return out
+
+
+def breadth(series, cfg, now, extra=None):
+    """% of coins (with ≥ min_days of history at that day) closing above their EMA, per day.
+    extra = series of delisted pairs (counted on the days they were trading)."""
     min_days = int(cfg["min_days"])
     start = now - now % DAY - int(cfg["breadth_days"]) * DAY if int(cfg.get("breadth_days") or 0) else 0
     cnt, above = {}, {}
-    for times, closes, emas in series.values():
+    for times, closes, emas in list(series.values()) + list((extra or {}).values()):
         for i in range(min_days - 1, len(times)):
             t = times[i]
             if t < start:
@@ -467,11 +486,27 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
 
     # once per UTC day: universe, candles, volumes
     daily_due = st.get("daily_day") != today or not st.get("symbols")
+    dpath = os.path.join(state_dir, "delisted.json")
+    delisted = _read(dpath, {})
+    delisted_changed = False
     if daily_due:
         sym_base = universe(cl.exchange_info(), cfg)
+        old_base = st.get("symbols") or {}
         st["symbols"] = sym_base
+        excl = ALWAYS_EXCLUDE | {e.upper() for e in cfg.get("exclude") or []}
         for k in [k for k in candles if k not in sym_base]:
+            # pair gone from Binance → keep its history for market breadth (no survivorship bias)
+            b = old_base.get(k) or (k[:-len(cfg["quote"])] if k.endswith(cfg["quote"]) else None)
+            if b and b not in excl and candles[k]:
+                d = {t: c for t, c in (delisted.get(k) or {}).get("c") or []}
+                d.update({t: c for t, c in candles[k]})
+                delisted[k] = {"b": b, "c": [[t, c] for t, c in sorted(d.items())], "src": "ema_monitor",
+                               "gone": today}
+                delisted_changed = True
             del candles[k]
+        for k in [k for k in delisted if k in sym_base]:     # pair is back on the exchange
+            del delisted[k]
+            delisted_changed = True
         for k in [k for k in hld if k not in sym_base]:
             del hld[k]
             hl_changed = True
@@ -594,7 +629,17 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
                 tg.post("market", "\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
 
     above = sum(1 for r in rows if r["d"] >= 0)
-    br = breadth(series, cfg, now) if daily_due or backfilled or not st.get("breadth") else st["breadth"]
+    try:
+        d_mtime = int(os.path.getmtime(dpath))
+    except OSError:
+        d_mtime = None
+    d_new = delisted_changed or d_mtime != st.get("delisted_mtime")      # e.g. after delisted.py
+    if daily_due or backfilled or d_new or not st.get("breadth"):
+        dser = delisted_series(delisted, cfg)
+        br = breadth(series, cfg, now, extra=dser)
+        st["breadth_delisted"] = len(dser)
+    else:
+        br = st["breadth"]
     st["breadth"] = br
     payload = {
         "updated": now, "daily_at": st.get("daily_day"), "period": int(cfg["period"]),
@@ -605,6 +650,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "rules": cfg["alerts"], "near_default": None,
         "mute_until": mute_until if alerts.is_muted(mute_until, now) else None,
         "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
+        # pairs delisted from Binance counted in the breadth history (0 = only coins trading today)
+        "breadth_delisted": int(st.get("breadth_delisted") or 0),
     }
     fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
                    "setups": F.publish_rows(setups, set(series)),
@@ -619,6 +666,12 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             _write(cpath, candles)
         if hl_changed:
             _write(hlpath, hld)
+        if delisted_changed:
+            _write(dpath, delisted)
+        try:
+            st["delisted_mtime"] = int(os.path.getmtime(dpath))
+        except OSError:
+            st["delisted_mtime"] = None
         due = daily_due or now - st.get("published_at", 0) >= float(cfg["publish_minutes"]) * 60 - 30
         if backfilled:
             st["hist_dirty"] = True              # EMA changed (longer warm-up) → rewrite chart files
@@ -673,7 +726,7 @@ def main(argv=None):
         # check uses a temporary copy of the state so it never disturbs the cron job
         import shutil
         tmp = tempfile.mkdtemp(prefix="ema-check-")
-        for fn in ("candles.json", "state.json"):
+        for fn in ("candles.json", "state.json", "delisted.json"):
             src = os.path.join(a.state, fn)
             if os.path.exists(src):
                 shutil.copy(src, tmp)

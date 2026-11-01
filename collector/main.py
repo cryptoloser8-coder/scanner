@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 import coingecko  # noqa: E402
+import history as H  # noqa: E402
 import liquidations as L  # noqa: E402
 import series as S  # noqa: E402
 from coinalyze import Coinalyze, build_universe  # noqa: E402
@@ -218,7 +219,8 @@ def _iso(t):
 
 
 # ── main run ─────────────────────────────────────────────────
-def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None):
+def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None,
+        vision_session=None):
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
@@ -248,14 +250,29 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
             log.exception("Likwidacje")
             results["Likwidacje"] = str(e)
 
+    tv = tv or TradingView()
     try:
-        tv_err = collect_tv(tv or TradingView(), store, cfg, now, backfill)
+        tv_err = collect_tv(tv, store, cfg, now, backfill)
         results["TradingView"] = None
         if tv_err:
             info["tradingview_partial"] = tv_err
     except Exception as e:  # noqa: BLE001
         log.exception("TradingView")
         results["TradingView"] = str(e)
+
+    # dłuższa historia istniejących serii (poprawka 28): cena i funding BTC/ETH sprzed startu Coinalyze,
+    # OI Binance z archiwum data.binance.vision — pobiera tylko braki (config `history`)
+    if (cfg.get("history") or {}).get("enabled"):
+        h_info, h_err = H.extend_all(store, cfg, now,
+                                     client=client if results.get("Coinalyze") is None else None,
+                                     tv=tv if results.get("TradingView") is None else None,
+                                     session=vision_session)
+        if h_info:
+            info["history"] = h_info
+        if (cfg["history"].get("vision_oi") or H.DEFAULTS["vision_oi"]):
+            results["Archiwum Binance"] = h_err.pop("archiwum Binance", None)
+        if h_err:
+            info["history_errors"] = h_err
 
     for res in ("1h", "1d"):
         S.derived(store.series[res])

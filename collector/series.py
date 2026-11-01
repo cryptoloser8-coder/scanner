@@ -12,6 +12,14 @@ CATALOG = {
                    desc="Open interest wszystkich perpetuali BTC (USDT, USDC i coin-margined) zsumowany z wybranych giełd, w USD."),
     "oi_eth": dict(name="OI ETH", group="oi", color="#8c9eff",
                    desc="Open interest wszystkich perpetuali ETH zsumowany z wybranych giełd, w USD."),
+    "oi_btc_binance": dict(name="OI BTC Binance", group="oi", color="#4dd0e1",
+                           desc="Open interest perpetuala BTCUSDT (USDT-M) tylko na Binance, w USD — z archiwum "
+                                "data.binance.vision, od 09.2020 (dłużej niż suma giełd z Coinalyze, która zaczyna "
+                                "się 09.2022). Odczyt z końca dnia (23:55 UTC). Binance to tylko część rynku — "
+                                "porównuj kształt, nie poziom z OI BTC."),
+    "oi_eth_binance": dict(name="OI ETH Binance", group="oi", color="#9575cd",
+                           desc="Open interest perpetuala ETHUSDT (USDT-M) tylko na Binance, w USD — z archiwum "
+                                "data.binance.vision, od 12.2021. Odczyt z końca dnia (23:55 UTC)."),
     "oi_alts": dict(name="OI ALTS", group="oi", color="#4caf7d",
                     desc="Open interest wszystkich coinów OPRÓCZ BTC (z ETH). Odpowiednik TOTAL2 po stronie derywatów."),
     "oi_others": dict(name="OI OTHERS", group="oi", color="#ce93d8",
@@ -139,7 +147,10 @@ def liq_catalog(watchlist, top, exchanges):
                  "alty, którym giełda skróciła okres do 4 h, mogą wychodzić zaniżone). "
                  "Neutralnie ok. 11% rocznie (0,01% na 8 h). Dodatni = longi płacą shortom; "
                  "utrzymujący się wysoki = przegrzanie longów, ujemny = przewaga shortów (często blisko dołków). "
-                 f"Kolory: żółty od {FUND_ZONES['yellow']}%, czerwony od {FUND_ZONES['red']}% (progi wstępne).")
+                 f"Kolory: żółty od {FUND_ZONES['yellow']}%, czerwony od {FUND_ZONES['red']}% (progi wstępne)."
+                 + (" Przed 22.09.2022 (Coinalyze nie ma wcześniejszego OI giełd) średnia ma wagi stałe: "
+                    "udziały giełd w OI z pierwszych 30 dni danych; Binance od 01.2020, OKX, Bybit i Deribit "
+                    "od 03–04.2020." if g in ("btc", "eth") else ""))
     for i, sym in enumerate(watchlist):
         cat[f"fund_{sym.lower()}"] = dict(
             name=f"Funding {sym.upper()}", group="fund", color=PALETTE[i % len(PALETTE)], zones=FUND_ZONES,
@@ -150,9 +161,11 @@ def liq_catalog(watchlist, top, exchanges):
             desc=f"Suma likwidacji (long + short) na {name} dla wszystkich śledzonych coinów, w USD. "
                  "Do porównania udziału giełd.")
     cat["px_btc"] = dict(name="Cena BTC", group="price", color="#f7931a",
-                         desc="Cena BTC (zamknięcie świecy perpa BTCUSDT na Binance, przez Coinalyze).")
+                         desc="Cena BTC (zamknięcie świecy perpa BTCUSDT na Binance, przez Coinalyze; "
+                              "przed 03.2020 — dzienny indeks TradingView INDEX:BTCUSD, od 2009).")
     cat["px_eth"] = dict(name="Cena ETH", group="price", color="#8c9eff",
-                         desc="Cena ETH (zamknięcie świecy perpa ETHUSDT na Binance, przez Coinalyze).")
+                         desc="Cena ETH (zamknięcie świecy perpa ETHUSDT na Binance, przez Coinalyze; "
+                              "przed 03.2020 — dzienny indeks TradingView INDEX:ETHUSD, od 2015).")
     return cat
 
 

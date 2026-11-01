@@ -244,7 +244,7 @@ def chart_block(d, title, sids, days=None, note="", log_scale=False, res="1d", c
     return {"type": "chart", "title": title, "note": note, "log": log_scale, "series": series}
 
 
-def breadth_peaks_note(breadth, level=90, days=730):
+def breadth_peaks_note(breadth, level=90, days=730, delisted=0):
     """Months with breadth ≥ level inside the chart window + years with such readings in the whole history."""
     last_t = breadth[-1][0]
     months, years = {}, set()
@@ -259,7 +259,8 @@ def breadth_peaks_note(breadth, level=90, days=730):
     hist = ", ".join(sorted(years)) if years else "brak"
     return (f"Odczyty ≥ {level}% na wykresie: {win}. Lata z takim odczytem w całej historii "
             f"(od {utc(breadth[0][0], '%m.%Y')}): {hist}. "
-            "Liczone tylko z coinów notowanych dziś, więc starsze lata są zawyżone.")
+            + (f"Liczone także z {delisted} coinów wycofanych już z Binance (bez błędu przeżywalności)."
+               if delisted else "Liczone tylko z coinów notowanych dziś, więc starsze lata są zawyżone."))
 
 
 def history_note(d, sid):
@@ -526,7 +527,7 @@ def alts_section(d, ema, L, refs, now):
                        "range": [0, 100], "lines": [{"value": 90, "label": "rozgrzanie altów", "color": "#e05252"}],
                        "desc": "Jaki odsetek coinów jest w trendzie wzrostowym (cena nad EMA200). Powyżej 90% = rynek altów rozgrzany, "
                                "tak było przy szczytach altów; blisko 0% = dno.",
-                       "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"]),
+                       "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"], delisted=int(ema.get("breadth_delisted") or 0)),
                        "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
     return blocks
@@ -717,7 +718,7 @@ SOURCES_MD = """## Źródła danych i metody
 - Open interest, funding, likwidacje, ceny perpetuali BTC i ETH: Coinalyze (https://coinalyze.net) — suma z Binance, Bybit, OKX, Hyperliquid i Deribit; likwidacje tylko z Binance, Bybit i OKX (dolne oszacowanie). OI w USD; „OI w coinach” = OI w USD / cena.
 - OTHERS w open interest = wszystkie śledzone coiny bez BTC i ETH (top coiny według OI).
 - Funding: stawka ważona open interest, przeliczona na % w skali roku; ok. 11% rocznie = poziom neutralny (0,01% na 8 h).
-- EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Historia szerokości liczona tylko z coinów notowanych dziś, więc starsze lata są zawyżone.
+- EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Czy historia szerokości obejmuje coiny wycofane już z Binance (bez błędu przeżywalności) — w opisie wykresu szerokości rynku.
 - Dane makro z USA: kalendarz ekonomiczny TradingView (https://www.tradingview.com/economic-calendar/) — publikacje o średniej (★★) i wysokiej (★★★) ważności według TradingView; wynik, prognoza (oczekiwanie rynku), poprzednia wartość.
 - Daty bez godziny = dzień UTC. Wszystkie liczby policzył program; raport nie zawiera interpretacji ani rekomendacji.
 """

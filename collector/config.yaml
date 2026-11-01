@@ -261,3 +261,23 @@ backup:
   dir: ~/scanner-archive
   keep_daily: 14       # ostatnie 14 dni + na zawsze plik z 1. dnia każdego miesiąca
   hour_utc: 2          # kopia po 02:00 UTC (03:00/04:00 PL)
+
+# ─────────────────────────────────────────────────────────────
+#  DŁUŻSZA HISTORIA istniejących serii (poprawka 28, collector/history.py)
+#  Każdy skan dobiera tylko braki; pierwsze pobranie z archiwum Binance ~4000 małych plików (~15 min, raz).
+#  - px_btc / px_eth przed 03.2020: dzienny indeks TradingView,
+#  - fund_btc / fund_eth przed 22.09.2022: funding z Coinalyze (od 2020) z wagami stałymi
+#    (udziały giełd w OI z pierwszych `funding_weight_days` dni danych OI),
+#  - oi_btc_binance / oi_eth_binance: OI perpetuali USDT-M na Binance z data.binance.vision (od 09.2020 / 12.2021).
+# ─────────────────────────────────────────────────────────────
+history:
+  enabled: true
+  price_symbols:
+    px_btc: "INDEX:BTCUSD"
+    px_eth: "INDEX:ETHUSD"
+  funding_groups: [btc, eth]
+  funding_weight_days: 30
+  vision_oi:
+    oi_btc_binance: BTCUSDT
+    oi_eth_binance: ETHUSDT
+  vision_max_minutes: 25     # limit czasu na archiwum w jednym skanie (resztę dobierze następny)
