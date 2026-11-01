@@ -211,6 +211,7 @@ async function getJSON(name) {
 // ── state ───────────────────────────────────────────────────
 const GROUPS = [
   ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
+  ['price', 'Cena'], ['cycle', 'Cykl BTC'], ['macro', 'Makro USA'],
 ];
 const TILE_SECTIONS = [
   ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance']],
@@ -218,6 +219,8 @@ const TILE_SECTIONS = [
   ['Dominacja', ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
   ['Pary', ['ethbtc']],
   ['Dźwignia i stosunki', ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
+  ['Cykl BTC', ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr']],
+  ['Makro USA', ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold']],
 ];
 const BUILTIN_PRESETS = [
   {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
@@ -234,6 +237,14 @@ const BUILTIN_PRESETS = [
   {name: 'Podział rynku: BTC.D + ETH.D + Stablecoiny.D + Alty.D (= 100%)', series: ['btc_d', 'eth_d', 'stable_d', 'alts_d'], mode: 'val'},
   {name: 'Altseason: ETH/BTC + OTHERS.D + BTC.D', series: ['ethbtc', 'others_d', 'btc_d'], mode: 'val'},
   {name: 'OTHERS vs TOTAL3 (% zmiana)', series: ['others', 'total3'], mode: 'pct'},
+  {name: 'Cykl BTC: cena + realized price (log)', series: ['px_btc', 'rprice_btc'], mode: 'val', log: true},
+  {name: 'Cykl BTC: cena + MVRV-Z', series: ['px_btc', 'mvrvz_btc'], mode: 'val', log: true},
+  {name: 'Cykl BTC: cena + Mayer + cena/200W', series: ['px_btc', 'mayer_btc', 'p200w_btc'], mode: 'val', log: true},
+  {name: 'Cykl BTC: cena + Pi Cycle', series: ['px_btc', 'picycle_btc'], mode: 'val', log: true},
+  {name: 'Płynność Fed vs TOTAL (% zmiana)', series: ['net_liq', 'total'], mode: 'pct'},
+  {name: 'Dolar (DXY) vs TOTAL (% zmiana)', series: ['dxy', 'total'], mode: 'pct'},
+  {name: 'S&P 500 i Nasdaq vs BTC (% zmiana)', series: ['spx', 'ndx', 'px_btc'], mode: 'pct'},
+  {name: 'Stablecoiny: SSR + Stablecoiny.D', series: ['ssr', 'stable_d'], mode: 'val'},
 ];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('oimon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -277,7 +288,27 @@ function fmt(v, group) {
   if (group === 'pct') return v.toFixed(2) + '%';
   if (group === 'ratio') return v.toFixed(3) + '×';
   if (group === 'pair') return Math.abs(v) < 1 ? v.toFixed(5) : v.toPrecision(4);
+  if (group === 'usd' || group === 'price') {
+    const a = Math.abs(v);
+    if (a >= 1e12) return '$' + (v / 1e12).toFixed(3) + 'T';
+    if (a >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+    if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    return '$' + (a >= 100 ? v.toLocaleString('en-US', {maximumFractionDigits: 0}) : v.toPrecision(4));
+  }
+  if (group === 'x') return v.toFixed(2) + '×';
+  if (group === 'z') return v.toFixed(2);
+  if (group === 'yield') return v.toFixed(2) + '%';
+  if (group === 'pp') return (v > 0 ? '+' : '') + v.toFixed(2) + ' pp';
+  if (group === 'num') return Math.abs(v) >= 1000 ? v.toLocaleString('en-US', {maximumFractionDigits: 0}) : v.toFixed(2);
   return String(v);
+}
+const fmtOf = c => c.fmt || c.group;
+// zmiana dla wartości, które bywają ujemne albo są już w % (MVRV-Z, rentowności): różnica zamiast %
+function chgFor(c, now, before) {
+  if (!['z', 'yield', 'pp'].includes(c.fmt)) return chg(now, before);
+  if (now == null || before == null) return '<span>—</span>';
+  const d = now - before;
+  return `<span class="${d > 0 ? 'pos' : d < 0 ? 'neg' : ''}">${d > 0 ? '+' : ''}${d.toFixed(2)}</span>`;
 }
 function chg(now, before) {
   if (now == null || !before) return '<span>—</span>';
@@ -346,8 +377,8 @@ function renderTiles() {
       const t = last[0], v = last[1];
       return `<div class="tile ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${c.color}">
         <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
-        <div class="tile-val">${fmt(v, c.group)}</div>
-        <div class="tile-chg"><span>1D ${chg(v, valueAt(d, t - 86400))}</span><span>7D ${chg(v, valueAt(d, t - 7 * 86400))}</span><span>30D ${chg(v, valueAt(d, t - 30 * 86400))}</span></div>
+        <div class="tile-val">${fmt(v, fmtOf(c))}</div>
+        <div class="tile-chg"><span>1D ${chgFor(c, v, valueAt(d, t - 86400))}</span><span>7D ${chgFor(c, v, valueAt(d, t - 7 * 86400))}</span><span>30D ${chgFor(c, v, valueAt(d, t - 30 * 86400))}</span></div>
         ${sparkline(d, c.color)}
       </div>`;
     }).join('');
@@ -453,7 +484,8 @@ function makeChart() {
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
     leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3},
+    // minBarSpacing: zakres ALL mieści całą historię (cena BTC od 2009 = ponad 6000 świec dziennych)
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3, minBarSpacing: 0.05},
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: {locale: 'pl-PL'},
   });
@@ -462,16 +494,33 @@ function makeChart() {
 }
 let lastCrosshair = null;
 
-function scaleFor(group, usdPresent, groups) {
-  if (S.mode !== 'val') return {pane: 0, scale: 'right'};
-  const lower = usdPresent ? 1 : 0;
-  // pairs (e.g. ETH/BTC ~0.03) need their own axis: take a free side of the lower pane, else an overlay scale
-  const pair = !groups.has('ratio') ? 'left' : !groups.has('pct') ? 'right' : 'pair';
-  return {
-    oi: {pane: 0, scale: 'right'}, mcap: {pane: 0, scale: 'left'},
-    pct: {pane: lower, scale: 'right'}, ratio: {pane: lower, scale: 'left'},
-    pair: {pane: lower, scale: pair},
-  }[group] || {pane: 0, scale: 'right'};
+// Osie w trybie Wartości: grupy z USD / cenami / makro → górny panel, wskaźniki (%, stosunki, pary, cykl) →
+// dolny panel (gdy górny jest zajęty). W każdym panelu 1. jednostka → prawa oś, 2. → lewa, kolejne → osobne skale
+// bez podziałki (wartość w legendzie). Jednostka = CAT.axis albo grupa (makro: każda seria osobno).
+const TOP_GROUPS = ['oi', 'mcap', 'price', 'macro'];
+const AXIS_ORDER = ['oi', 'mcap', 'price', 'pct', 'ratio', 'pair', 'cyc'];
+const axisKey = id => CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
+const isTop = id => TOP_GROUPS.includes(CAT[id].group) && CAT[id].pane !== 'low';
+function allocAxes(ids) {
+  const out = {};
+  if (S.mode !== 'val') { ids.forEach(id => { out[id] = {pane: 0, scale: 'right'}; }); return out; }
+  const topUsed = ids.some(isTop);
+  const byPane = [[], []];
+  for (const id of ids) {
+    const pane = isTop(id) || !topUsed ? 0 : 1, k = axisKey(id);
+    if (!byPane[pane].includes(k)) byPane[pane].push(k);
+  }
+  const rank = k => { const i = AXIS_ORDER.indexOf(k); return i < 0 ? 99 : i; };
+  const side = byPane.map(keys => {
+    const m = {};
+    keys.slice().sort((a, b) => rank(a) - rank(b)).forEach((k, i) => { m[k] = i === 0 ? 'right' : i === 1 ? 'left' : 'ov_' + k; });
+    return m;
+  });
+  for (const id of ids) {
+    const pane = isTop(id) || !topUsed ? 0 : 1;
+    out[id] = {pane, scale: side[pane][axisKey(id)]};
+  }
+  return out;
 }
 
 function drawChart(resetRange) {
@@ -483,17 +532,16 @@ function drawChart(resetRange) {
 
   const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
   document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
-  const usdPresent = ids.some(id => ['oi', 'mcap'].includes(CAT[id].group));
-  const groups = new Set(ids.map(id => CAT[id].group));
+  const axes = allocAxes(ids);
   const used = {};
   for (const id of ids) {
     const c = CAT[id];
-    const {pane, scale} = scaleFor(c.group, usdPresent, groups);
+    const {pane, scale} = axes[id];
     used[pane + ':' + scale] = true;
     const series = chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
       lastValueVisible: true, priceLineVisible: false,
-      priceFormat: S.mode === 'val' ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, c.group)}
+      priceFormat: S.mode === 'val' ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
         : {type: 'price', precision: 2, minMove: 0.01},
     }, pane);
     series.setData(pts(S.res, id).map(([t, v]) => ({time: t, value: v})));
@@ -503,25 +551,30 @@ function drawChart(resetRange) {
           axisLabelVisible: true, title: lv.label || ''});
       }
       for (const ln of ((META.ref_lines || {})[id] || [])) {        // the same level lines as in the report
-        series.createPriceLine({price: +ln.value, color: ln.color || c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dotted,
+        // kilka serii z liniami naraz → linie w kolorze swojej serii (inaczej nie wiadomo, czyje są)
+        const own = ids.filter(x => ((META.ref_lines || {})[x] || []).length).length > 1;
+        series.createPriceLine({price: +ln.value, color: own ? c.color : (ln.color || c.color), lineWidth: 1, lineStyle: LWC.LineStyle.Dotted,
           axisLabelVisible: true, title: ln.label || ''});
       }
     }
-    mounted.push({id, series});
+    mounted.push({id, series, pane, scale});
   }
   // scales
   const mode = S.mode === 'pct' ? LWC.PriceScaleMode.Percentage : S.mode === 'idx' ? LWC.PriceScaleMode.IndexedTo100
     : (S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal);
   // LWC needs the same left/right axis visibility in every pane
   const sideUsed = side => Object.keys(used).some(k => k.endsWith(':' + side));
+  // log (tryb Wartości) — tylko górny panel z USD / cenami / makro; wskaźniki w dolnym zostają liniowe
+  const logTop = S.mode === 'val' && ids.some(isTop);
+  const modeFor = pane => (S.mode !== 'val' || (pane === 0 && logTop)) ? mode : LWC.PriceScaleMode.Normal;
   chart.panes().forEach((p, i) => {
     for (const side of ['left', 'right']) {
       const visible = sideUsed(side);
-      const isUsd = S.mode === 'val' && i === 0 && usdPresent;
-      p.priceScale(side).applyOptions({visible, mode: (S.mode !== 'val' || isUsd) ? mode : LWC.PriceScaleMode.Normal,
-        scaleMargins: {top: .12, bottom: .08}});
+      p.priceScale(side).applyOptions({visible, mode: modeFor(i), scaleMargins: {top: .12, bottom: .08}});
     }
   });
+  for (const m of mounted.filter(m => String(m.scale).startsWith('ov_')))
+    m.series.priceScale().applyOptions({mode: modeFor(m.pane), scaleMargins: {top: .12, bottom: .08}});
   if (chart.panes().length > 1) {
     const total = document.getElementById('chart').clientHeight;
     chart.panes()[1].setHeight(Math.round(total * .3));
@@ -555,7 +608,7 @@ function updateLegend(param) {
       if (first && v != null) extra = ' ' + chg(v, first[1]);
     }
     return `<div class="lg-row"><span class="swatch" style="--c:${c.color}"></span><span class="lg-name" data-tip="${id}">${esc(c.name)}</span>` +
-      `<span class="lg-val">${fmt(v, c.group)}${extra}</span><span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;
+      `<span class="lg-val">${fmt(v, fmtOf(c))}${extra}</span><span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;
   });
   const lg = document.getElementById('legend');
   lg.innerHTML = rows.join('');
@@ -611,7 +664,11 @@ function setUpdated() {
 
 async function boot() {
   try {
+    // cena BTC/ETH (px_*) jest w pliku zakładki likwidacji — pobierana równolegle, bez niej reszta działa
+    const lqP = getJSON('liq_1d.json').catch(() => null);
     [META, DATA['1d']] = await Promise.all([getJSON('meta.json'), getJSON('1d.json')]);
+    const lq = await lqP;
+    for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_')) DATA['1d'].series[id] = arr;
   } catch (e) {
     setStatus('error', 'Brak danych');
     const b = document.getElementById('banner');

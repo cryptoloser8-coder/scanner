@@ -345,7 +345,7 @@ function makeChart() {
     layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3, fixLeftEdge: true, fixRightEdge: true},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3, fixLeftEdge: true, fixRightEdge: true, minBarSpacing: 0.05},
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: {locale: 'pl-PL'},
   });
