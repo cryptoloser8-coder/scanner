@@ -31,6 +31,17 @@ INTRADAY_KEEP_HOURS = 1490   # Coinalyze keeps 1500–2000 intraday points
 OVERLAP_HOURS = 3            # re-fetch recent hours (late / partial candles)
 
 
+def report_lines(cfg):
+    """{series id: [{"value", "label", "color"}]} — the level lines of the report charts (config reports.lines)."""
+    try:
+        import report
+        lay = report.layout(cfg.get("reports") or {})
+        return {sid: report.lines_for(lay, sid) for sid in lay.get("lines") or {}}
+    except Exception as e:  # noqa: BLE001 — lines are optional decoration
+        log.warning("Linie poziomów z raportu: %s", e)
+        return {}
+
+
 def load_config(path):
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
@@ -282,6 +293,8 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "updated": now,
         "catalog": catalog,
         "levels": cfg["levels"],
+        # reference lines from the report (config reports.lines) — drawn in oi.html too, one source for both
+        "ref_lines": report_lines(cfg),
         "watchlist": [w.upper() for w in cfg["watchlist"]],
         "exchanges": cfg["coinalyze"]["exchanges"],
         "health": {k: (v or "ok") for k, v in results.items()},
