@@ -106,9 +106,12 @@ def chg(v, before, f):
     return R.fmt_chg(R.pct_change(v, before))
 
 
-def close(pts, t):
-    """Wartość z dnia t (albo ostatnia wcześniejsza, najwyżej 3 dni)."""
-    return R.at(pts, t, 3 * DAY)
+SLOW = {"m2": 62 * DAY}         # serie miesięczne: ostatni odczyt bywa sprzed ~2 miesięcy (M2 z opóźnieniem)
+
+
+def close(pts, t, sid=None):
+    """Wartość z dnia t (albo ostatnia wcześniejsza, najwyżej 3 dni; serie wolne — dłużej)."""
+    return R.at(pts, t, SLOW.get(sid, 3 * DAY))
 
 
 def in_period(pts, start, end):
@@ -146,12 +149,15 @@ def change_table(d, ema, sids, t_end, start, end, horizons, title_, desc, note="
     rows = []
     for sid in sids:
         pts = pts_of(d, sid, ema)
-        v = close(pts, t_end)
+        v = close(pts, t_end, sid)
         if v is None:
             continue
         name, f = label_fmt(d, sid)
         name = (labels or {}).get(sid, name)
-        row = [name, fv(v, f)] + [chg(v, close(pts, tb), f) for _, tb in horizons]
+        if sid in SLOW:
+            last_t = max(p[0] for p in pts if p[0] <= t_end)
+            name += f" (odczyt za {R.utc(last_t, '%m.%Y')})"
+        row = [name, fv(v, f)] + [chg(v, close(pts, tb, sid), f) for _, tb in horizons]
         if rng:
             w = [x[1] for x in in_period(pts, start, end)]
             row.append(f"{fv(min(w), f)} – {fv(max(w), f)}" if w else "—")
@@ -457,30 +463,49 @@ def cycle_blocks(d, t_end):
     return out
 
 
+def month_return(px, y, m):
+    """Zwrot BTC w miesiącu (y, m): zamknięcie miesiąca ÷ zamknięcie poprzedniego − 1, w %; None gdy brak danych."""
+    while m < 1:
+        m, y = m + 12, y - 1
+    while m > 12:
+        m, y = m - 12, y + 1
+    a = _ts(datetime(y, m, 1))
+    b = month_start(a + 32 * DAY)
+    v0, v1 = close(px, a - DAY), close(px, b - DAY)
+    return (v1 / v0 - 1) * 100 if v0 and v1 else None
+
+
 def seasonality(d, start, end):
-    """Zwrot BTC w tym samym miesiącu w kolejnych latach."""
-    px = d.pts("1d", "px_btc")
-    m = _dt(start).month
-    rows, rets = [], []
-    for y in range(2011, _dt(start).year + 1):
-        a, b = month_start(_ts(datetime(y, m, 1))), month_start(_ts(datetime(y, m, 1)) + 32 * DAY)
-        v0, v1 = close(px, a - DAY), close(px, b - DAY)
-        if v0 and v1:
-            r = (v1 / v0 - 1) * 100
-            rets.append((y, r))
-    if len(rets) < 3:
+    """Zwrot BTC w tym miesiącu oraz w miesiącu poprzednim i następnym — w kolejnych latach od 2011."""
+    px = [p for p in d.pts("1d", "px_btc") if p[0] < end]          # bez danych z nowego miesiąca
+    y_now, m = _dt(start).year, _dt(start).month
+    offs = (-1, 0, 1)
+    names = [MONTHS[(m - 1 + k) % 12] for k in offs]
+    rows_y = []
+    for y in range(2011, y_now + 1):
+        rets = [month_return(px, y, m + k) for k in offs]
+        if rets[1] is not None:
+            rows_y.append((y, rets))
+    hist = [r for y, r in rows_y if y != y_now]
+    if len(hist) < 3:
         return []
-    cur = rets[-1] if rets[-1][0] == _dt(start).year else None
-    hist = [r for y, r in rets if not cur or y != cur[0]]
-    up = sum(1 for r in hist if r > 0)
-    rows = [[str(y), f"{r:+.1f}%"] for y, r in reversed(rets)]
-    name = MONTHS[m - 1]
-    return [{"type": "table", "title": f"{name.capitalize()} w historii BTC", "cols": ["Rok", "Zwrot BTC w miesiącu"],
-             "rows": rows, "plain": False,
-             "desc": f"Zwrot BTC w miesiącu „{name}” w kolejnych latach (zamknięcie miesiąca do zamknięcia "
-                     f"poprzedniego). Wcześniejsze lata: mediana "
-                     f"{statistics.median(hist):+.1f}%, na plus w {up} z {len(hist)} lat.",
-             "note": "Cena BTC: TradingView INDEX:BTCUSD (do 03.2020) i Coinalyze. Statystyka z kilkunastu lat — mała próba."}]
+
+    def col(i):
+        return [r[i] for r in hist if r[i] is not None]
+    pct = lambda x: "—" if x is None else f"{x:+.1f}%"  # noqa: E731
+    med = ["Mediana"] + [pct(statistics.median(col(i))) if col(i) else "—" for i in range(3)]
+    ups = ["Lat na plus"] + [f"{sum(1 for x in col(i) if x > 0)} z {len(col(i))}" if col(i) else "—" for i in range(3)]
+    rows = [med, ups] + [[str(y)] + [pct(x) for x in r] for y, r in reversed(rows_y)]
+    prev_lbl = names[0] + (" (rok wcześniej)" if m == 1 else "")
+    next_lbl = names[2] + (" (rok później)" if m == 12 else "")
+    return [{"type": "table", "title": f"{names[1].capitalize()} w historii BTC — z miesiącem przed i po",
+             "cols": ["Rok", prev_lbl.capitalize(), names[1].capitalize() + " (ten miesiąc)", next_lbl.capitalize()],
+             "rows": rows, "left": [0],
+             "desc": f"Zwrot BTC w miesiącu „{names[1]}” w kolejnych latach, obok miesiąc przed nim („{names[0]}”) i po nim "
+                     f"(„{names[2]}”) — co działo się historycznie wokół tego miesiąca. Dwa pierwsze wiersze: mediana i "
+                     f"liczba lat na plus z lat wcześniejszych (bez {y_now}).",
+             "note": "Zwrot = zamknięcie miesiąca ÷ zamknięcie poprzedniego − 1. Cena BTC: TradingView INDEX:BTCUSD (do 03.2020) "
+                     "i Coinalyze. Statystyka z kilkunastu lat — mała próba."}]
 
 
 # ── budowa ───────────────────────────────────────────────────
@@ -525,9 +550,10 @@ def build(d, ema, kind, now, cfg, macro):
         blocks += liq_block(d, "weekly", mondays, lambda a: R.utc(a, "%d.%m"), start, end, end - 104 * WEEK)
         blocks += ema_crosses(ema, start, end, float(L["ema_min_volume"]))
         blocks += macro_blocks(macro, start, end, end + WEEK, cfg, 0, "miniony tydzień")
-        blocks += change_table(d, ema, MACRO_SIDS, t_end, start, end, hz, "Rynki i płynność — zamknięcie tygodnia",
+        blocks += change_table(d, ema, [x for x in MACRO_SIDS if x != "m2"], t_end, start, end, hz,
+                               "Rynki i płynność — zamknięcie tygodnia",
                                "Dolar, giełda w USA, strach (VIX), obligacje, złoto i płynność Fed. Dane dzienne z TradingView "
-                               "(płynność Fed tygodniowa, M2 miesięczne).")
+                               "(płynność Fed: odczyty tygodniowe; M2 — w raporcie miesięcznym).")
         blocks += [{"type": "section", "title": "Cykl BTC w tygodniu"}]
         blocks += change_table(d, ema, ["mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"], t_end,
                                start, end, hz, "Wskaźniki cyklu — zamknięcie tygodnia",

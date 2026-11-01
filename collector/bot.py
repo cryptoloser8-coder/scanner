@@ -56,6 +56,8 @@ def _registry():
         Cmd("raport_teraz", "Zbuduj raport z obecnych danych (skan: najpierw skan, ~45 min; tydzień / miesiąc: "
             "raport tygodniowy / miesięczny za ostatni pełny okres)", h_raport_teraz, admin=True,
             usage="[skan|tydzień|miesiąc]"),
+        Cmd("usun_raport", "Usuń raport z historii (ID z adresu raportu: ?id=…; kilka po przecinku)", h_usun_raport,
+            admin=True, usage="ID"),
         Cmd("cisza", "Wycisz alerty rynkowe (domyślnie 8h; off = włącz)", h_cisza, admin=True, usage="[8h|30m|2d|off]"),
         Cmd("fib", "Dodaj setup Fibo", h_fib, admin=True, usage="COIN SZCZYT DOŁEK [long|short] [opis]"),
         Cmd("usun", "Usuń setup Fibo", h_usun, admin=True, usage="ID", aliases=("usuń", "del")),
@@ -342,6 +344,28 @@ def h_usun(ctx, msg, args):
         return "❓ Podaj id, np. /usun 3 (lista: /fiby)"
     _, cfg_setups = ctx.fib_cfg()
     return F.delete_setup(ctx.st.setdefault("fib_user", []), cfg_setups, m.group(1))
+
+
+REPORT_ID = re.compile(r"^\d{8}-\d{4}-[a-z,]+$")
+
+
+def h_usun_raport(ctx, msg, args):
+    ids = [x for x in re.split(r"[\s,]+", args.strip()) if x]
+    ids = [x.split("id=")[-1] for x in ids]                       # można wkleić cały link
+    if not ids or not all(REPORT_ID.match(x) for x in ids):
+        return "❓ Podaj ID raportu z jego adresu (…raporty.html?id=<b>20261101-1600-monthly</b>), np. /usun_raport 20261101-1600-monthly"
+    idx = ctx.fetch("reports", "index.json")
+    known = {r.get("id"): r for r in (idx or {}).get("reports") or []}
+    if idx is not None:
+        missing = [x for x in ids if x not in known]
+        if missing:
+            return "❓ Nie ma takiego raportu: " + ", ".join(html.escape(x) for x in missing)
+    ok, err = ctx.gh.dispatch("report.yml", {"kind": "manual", "delete": ",".join(ids)})
+    if not ok:
+        return f"⚠️ Nie udało się: {html.escape(err)}"
+    names = [html.escape(known[x]["title"]) + f" ({ctx.t(known[x]['created'], '%d.%m %H:%M')})" if x in known else x
+             for x in ids]
+    return "🗑 Usuwam z historii: " + "; ".join(names) + ". Zniknie ze strony za 1–2 min."
 
 
 def h_watek(ctx, msg, args):

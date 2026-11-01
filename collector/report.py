@@ -2,6 +2,7 @@
 
   python collector/report.py make   --data DIR --ema DIR --out DIR [--kind test|morning|…|weekly,monthly]
   python collector/report.py notify --out DIR [--page URL]
+  python collector/report.py delete --out DIR --id ID[,ID…]     — usuwa raporty z historii
 
 All numbers are computed here (code); the page only renders them. A future AI comment
 goes into a "text" block and only interprets the facts that are already in the file.
@@ -875,6 +876,45 @@ def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     return items
 
 
+def delete(out_dir, ids, page_url=""):
+    """Usuń raporty o podanych id: pliki reports/<id>.json/.md, wpis w index.json; stałe latest*.md/.json
+    przełączone na najnowszy pozostały raport tej samej grupy (dzienne / tygodniowe / miesięczne). → usunięte id."""
+    idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
+    items = idx.get("reports") or []
+    gone = [it for it in items if it.get("id") in ids]
+    if not gone:
+        return []
+    items = [it for it in items if it.get("id") not in ids]
+    for it in gone:
+        for ext in ("json", "md"):
+            try:
+                os.remove(os.path.join(out_dir, "reports", f"{it['id']}.{ext}"))
+            except FileNotFoundError:
+                pass
+    _write(os.path.join(out_dir, "index.json"), {"updated": idx.get("updated"), "reports": items})
+    for g in {group_of(it.get("kind")) for it in gone}:
+        name = "latest" if g == "daily" else f"latest-{g}"
+        newest = next((it for it in items if group_of(it.get("kind")) == g), None)
+        rep = _read(os.path.join(out_dir, "reports", f"{newest['id']}.json")) if newest else None
+        if rep is None:
+            for ext in ("md", "json"):
+                try:
+                    os.remove(os.path.join(out_dir, f"{name}.{ext}"))
+                except FileNotFoundError:
+                    pass
+            continue
+        md_path = os.path.join(out_dir, "reports", f"{rep['id']}.md")
+        if os.path.exists(md_path):
+            with open(md_path, encoding="utf-8") as f:
+                md = f.read()
+        else:
+            md = to_markdown(rep, page_url)
+        with open(os.path.join(out_dir, f"{name}.md"), "w", encoding="utf-8") as f:
+            f.write(md)
+        _write(os.path.join(out_dir, f"{name}.json"), rep)
+    return [it["id"] for it in gone]
+
+
 def backfill_md(out_dir, items, page_url=""):
     """Reports made before the AI text version existed get their .md built from their saved JSON."""
     made = 0
@@ -923,7 +963,8 @@ def main(argv=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description="Raporty: zbuduj i opublikuj / powiadom.")
-    ap.add_argument("cmd", choices=["make", "notify"])
+    ap.add_argument("cmd", choices=["make", "notify", "delete"])
+    ap.add_argument("--id", default="", help="delete: id raportu (kilka po przecinku)")
     ap.add_argument("--data", default="data-branch", help="katalog z gałęzią data")
     ap.add_argument("--ema", default="ema-branch", help="katalog z gałęzią ema")
     ap.add_argument("--out", default="reports-branch", help="katalog z gałęzią reports")
@@ -935,6 +976,13 @@ def main(argv=None):
     a = ap.parse_args(argv)
     cfg = load_cfg(a.config)
     page = a.page or cfg["page_url"]
+
+    if a.cmd == "delete":
+        ids = [x.strip() for x in str(a.id).split(",") if x.strip()]
+        gone = delete(a.out, ids, page)
+        for i in ids:
+            log.info("%s: %s", i, "usunięty" if i in gone else "BRAK takiego raportu")
+        return 0 if gone and len(gone) == len(ids) else 1
 
     if a.cmd == "make":
         kinds = [k.strip() for k in str(a.kind).split(",") if k.strip()]

@@ -29,7 +29,8 @@ HALVINGS = ("2012-11-28", "2016-07-09", "2020-05-11", "2024-04-19")
 DEFAULTS = {
     "enabled": True,
     "coinmetrics": True,
-    # jednostki serii FRED w TradingView → USD (WALCL i WTREGEN w mln, RRPONTSYD i M2SL w mld)
+    # jednostki serii FRED → USD, gdy źródło podaje je w mln / mld (WALCL i WTREGEN w mln, RRPONTSYD i M2SL w mld).
+    # TradingView podaje je już w USD (sprawdzone 01.11.2026) — wtedy mnożnik jest pomijany (patrz to_usd).
     "units": {"fed_assets": 1e6, "fed_tga": 1e6, "fed_rrp": 1e9, "fred_m2": 1e9},
     "ref_tops": 3,      # linie: tyle ostatnich zakończonych szczytów…
     "ref_bottoms": 2,   # …i den
@@ -192,6 +193,30 @@ class _Out(dict):
         return super().pop(sid, default)
 
 
+def in_usd(series):
+    """Czy seria (aktywa Fed, M2 — zawsze ponad 100 mld USD) jest już w USD, a nie w mln / mld."""
+    return bool(series) and max(abs(v) for v in series.values()) >= 1e11
+
+
+def to_usd(series, unit, usd):
+    return dict(series) if usd else {t: v * unit for t, v in series.items()}
+
+
+def zscore_expanding(mc, mv):
+    """MVRV Z-Score = (kapitalizacja − realized cap) ÷ odchylenie standardowe kapitalizacji od początku danych
+    do danego dnia (jak Glassnode / LookIntoBitcoin; odchylenie z całej historii zaniżałoby dawne szczyty)."""
+    out, n, mean, m2 = {}, 0, 0.0, 0.0
+    for t in sorted(t for t in mv if t in mc and mv[t] > 0):
+        x = mc[t]
+        n += 1
+        d = x - mean
+        mean += d / n
+        m2 += d * (x - mean)
+        if n > 30 and m2 > 0:
+            out[t] = (x - x / mv[t]) / math.sqrt(m2 / n)
+    return out
+
+
 def compute(store, cfg):
     """Wylicza serie cyklu i makro w store.series['1d'] (po S.derived). → info."""
     c = ccfg(cfg)
@@ -211,13 +236,9 @@ def compute(store, cfg):
         if px:
             s["rprice_btc"] = {t: px[t] / mv[t] for t in mv if t in px and mv[t] > 0}
         if mc:
-            common = sorted(t for t in mv if t in mc and mv[t] > 0)
-            caps = [mc[t] for t in common]
-            if len(caps) > 30:
-                mean = sum(caps) / len(caps)
-                sd = math.sqrt(sum((x - mean) ** 2 for x in caps) / len(caps))
-                if sd > 0:
-                    s["mvrvz_btc"] = {t: (mc[t] - mc[t] / mv[t]) / sd for t in common}
+            z = zscore_expanding(mc, mv)
+            if z:
+                s["mvrvz_btc"] = z
     tot, t2, st = s.get("total") or {}, s.get("total2") or {}, s.get("stable_mcap") or {}
     if tot and t2 and st:
         s["ssr"] = {t: (tot[t] - t2[t]) / st[t] for t in st if t in tot and t in t2 and st[t] > 0}
@@ -229,9 +250,10 @@ def compute(store, cfg):
     fa, tga, rrp = (s.get(k) or {} for k in ("fed_assets", "fed_tga", "fed_rrp"))
     if fa and tga and rrp:
         start = max(min(fa), min(tga), min(rrp))
-        A, T, R = (dict(daily(x, ffill_days=14)) for x in (fa, tga, rrp))
-        nl = {t: A[t] * units["fed_assets"] - T[t] * units["fed_tga"] - R[t] * units["fed_rrp"]
-              for t in A if t >= start and t in T and t in R}
+        usd = in_usd(fa)                                       # jedna skala dla całej grupy (RRP bywa bliskie 0)
+        A, T, R = (dict(daily(to_usd(x, units[k], usd), ffill_days=14))
+                   for x, k in ((fa, "fed_assets"), (tga, "fed_tga"), (rrp, "fed_rrp")))
+        nl = {t: A[t] - T[t] - R[t] for t in A if t >= start and t in T and t in R}
         last = nl[max(nl)] if nl else None
         if last is not None and 1e12 < last < 3e13:          # sanity: kilka bln USD
             s["net_liq"] = nl
@@ -240,7 +262,13 @@ def compute(store, cfg):
             s.pop("net_liq", None)
     m2 = s.get("fred_m2") or {}
     if m2:
-        s["m2"] = {t: v * units["fred_m2"] for t, v in m2.items()}
+        m2u = to_usd(m2, units["fred_m2"], in_usd(m2))
+        last = m2u[max(m2u)]
+        if 1e12 < last < 1e14:                                 # sanity: kilkanaście–kilkadziesiąt bln USD
+            s["m2"] = m2u
+        else:
+            info["m2"] = f"pominięta — podejrzana wartość {last!r} (sprawdź jednostki cycle.units)"
+            s.pop("m2", None)
     info["series"] = sorted(k for k in ("mvrv_btc", "rprice_btc", "mvrvz_btc", "mayer_btc", "p200w_btc",
                                         "picycle_btc", "ssr", "yc_10y2y", "net_liq", "m2") if s.get(k))
     return info
