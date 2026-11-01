@@ -22,6 +22,8 @@ MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec"
           "październik", "listopad", "grudzień"]
 DAYS_SHORT = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
 PHASE_NAMES = {"bull": "hossa", "bear": "bessa", "acc": "akumulacja"}
+# wskaźniki cyklu w raportach; Pi Cycle tylko w zakładce (nie przeciął się przy szczytach 11.2021 i 10.2025)
+REPORT_CYCLE_SIDS = ("mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "ssr")
 RANGE_FROM = {"default": 1483228800, "ssr": 1577836800}      # 01.01.2017 (3 ostatnie cykle), SSR: 01.01.2020
 
 
@@ -63,7 +65,7 @@ def title(kind, start, end):
 
 
 # ── formatowanie ─────────────────────────────────────────────
-DIFF_FMTS = ("pct", "yield", "pp", "z", "fund")
+DIFF_FMTS = ("pct", "pct0", "yield", "pp", "z", "fund")
 
 
 def fmt_of(d, sid):
@@ -80,6 +82,8 @@ def fv(v, f):
         return R.fmt_price(v)
     if f == "pct":
         return f"{v:.2f}%"
+    if f == "pct0":
+        return f"{v:.0f}%"
     if f == "fund":
         return f"{v:+.1f}%/r"
     if f == "pair":
@@ -102,6 +106,12 @@ def fv(v, f):
 def chg(v, before, f):
     if v is None or before is None:
         return "—"
+    if f == "z":                     # MVRV-Z: różnica z dwoma miejscami (jak wartość)
+        x = v - before
+        return ("▲" if x > 0 else "▼" if x < 0 else "•") + f"{x:+.2f}"
+    if f == "pct0":                  # szerokość rynku: wartość w całych %, różnica z jednym miejscem
+        x = v - before
+        return ("▲" if x > 0 else "▼" if x < 0 else "•") + f"{x:+.1f} pp"
     if f in DIFF_FMTS:
         return R.fmt_chg(v - before, " pp" if f in ("pct", "yield", "pp", "fund") else "")
     return R.fmt_chg(R.pct_change(v, before))
@@ -134,7 +144,7 @@ def pts_of(d, sid, ema=None):
     return d.pts("1d", sid)
 
 
-EXTRA = {"breadth": ("Szerokość rynku (% nad EMA200)", "pct"), "binance_share": ("Udział Binance w OI BTC", "pct"),
+EXTRA = {"breadth": ("Szerokość rynku (% nad EMA200)", "pct0"), "binance_share": ("Udział Binance w OI BTC", "pct"),
          "stable_mcap": ("Kapitał w stablecoinach", "mcap"), "stable_d": ("Udział stablecoinów", "pct"),
          "alts_vs_btc": ("Kapitał: Alty / BTC", "ratio")}
 
@@ -331,7 +341,9 @@ def _pl_day(ts):
     return f"{DAYS_SHORT[dt.weekday()]} {dt.strftime('%d.%m')}"
 
 
-def macro_blocks(macro, start, end, plan_end, cfg, plan_min_imp, word):
+def macro_blocks(macro, start, end, plan_from, plan_end, cfg, plan_min_imp, word):
+    """Wyniki ★★★ z okresu [start, end) i plan na [plan_from, plan_end) — plan od chwili budowy raportu
+    (raport z ręki w środku tygodnia/miesiąca nie pokazuje publikacji, które już były)."""
     head = {"type": "section", "title": "Makro USA"}
     if macro is None:
         return [head]
@@ -354,15 +366,16 @@ def macro_blocks(macro, start, end, plan_end, cfg, plan_min_imp, word):
                     "note": "Prognoza = oczekiwanie rynku przed publikacją. Godziny w czasie polskim. Wystąpienia nie mają liczb."})
     else:
         out.append({"type": "text", "title": "", "text": f"Brak publikacji ★★★ — {word}."})
-    nxt = econ._sorted([e for e in evs if end <= e["_ts"] < plan_end and (e.get("importance") or 0) >= plan_min_imp])
+    nxt = econ._sorted([e for e in evs if plan_from <= e["_ts"] < plan_end and (e.get("importance") or 0) >= plan_min_imp])
     stars = "★★ i ★★★" if plan_min_imp <= 0 else "★★★"
     if nxt:
-        out.append({"type": "table", "title": f"Plan — {stars}, {R.utc(end, '%d.%m')}–{R.utc(plan_end - DAY, '%d.%m.%Y')}",
+        out.append({"type": "table", "title": f"Plan — {stars}, {R.utc(plan_from, '%d.%m')}–{R.utc(plan_end - DAY, '%d.%m.%Y')}",
                     "cols": ["Dzień", "Godz. PL", "Publikacja", "Ważność", "Prognoza", "Poprzednio"],
                     "rows": [[_pl_day(e["_ts"]), econ.pl_hm(e["_ts"]), econ._name(e), econ.STARS.get(e.get("importance"), ""),
                               econ.fmt_num(e.get("forecast"), e), econ.fmt_num(e.get("previous"), e)] for e in nxt],
                     "plain": True, "left": [2],
-                    "desc": "Co i kiedy wyjdzie w nowym okresie (według kalendarza TradingView; terminy i prognozy mogą się zmienić).",
+                    "desc": "Co i kiedy wyjdzie w USA od chwili raportu (według kalendarza TradingView; terminy i prognozy mogą się "
+                            "zmienić).",
                     "note": "Godziny w czasie polskim."})
     return out
 
@@ -476,10 +489,9 @@ def cycle_blocks(d, t_end, cfg=None):
                     "note": "Szczyt = najwyższe zamknięcie dnia w 2 latach po halvingu; dno = najniższe między szczytem a "
                             "następnym halvingiem. Liczone z dziennych zamknięć ceny BTC (od 2009)."})
     # wskaźniki cyklu na tle poprzednich szczytów i den (liczone tu z danych i configu — jak meta.ref_lines)
-    ref = C.ref_lines_from({sid: dict(d.pts("1d", sid)) for sid in ("px_btc", "mvrv_btc", "mvrvz_btc", "mayer_btc",
-                                                                     "p200w_btc", "picycle_btc", "ssr")}, cfg or {})
+    ref = C.ref_lines_from({sid: dict(d.pts("1d", sid)) for sid in ("px_btc",) + REPORT_CYCLE_SIDS}, cfg or {})
     items = []
-    for sid in ("mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"):
+    for sid in REPORT_CYCLE_SIDS:
         since = RANGE_FROM["ssr" if sid == "ssr" else "default"]
         pts = [p for p in d.pts("1d", sid) if since <= p[0] <= t_end]
         val = close(pts, t_end)
@@ -498,8 +510,9 @@ def cycle_blocks(d, t_end, cfg=None):
                     "desc": "Pasek = zakres wskaźnika od 2017 (SSR od 2020 — wcześniej stablecoinów było za mało). Kropka = "
                             "zamknięcie miesiąca; czerwone znaczniki = wartości przy szczytach poprzednich cykli, zielone = "
                             "przy dnach (wyznaczone z danych).",
-                    "note": "MVRV i realized price: Coin Metrics Community; Mayer, cena/200W, Pi Cycle — z ceny BTC; SSR — "
-                            "TradingView. Opis każdego wskaźnika pod paskiem."})
+                    "note": "MVRV i realized price: Coin Metrics Community; Mayer, cena/200W — z ceny BTC; SSR — TradingView. "
+                            "Opis każdego wskaźnika pod paskiem. Pi Cycle (nie przeciął się przy szczytach 11.2021 i "
+                            "10.2025) — tylko w zakładce OI & TOTAL."})
     return out
 
 
@@ -689,6 +702,7 @@ def build(d, ema, kind, now, cfg, macro):
     L = R.layout(cfg)
     start, end = period(kind, now)
     t_end = end - DAY
+    plan_from = max(end, int(now) - int(now) % DAY)      # plan makro: od dnia budowy (raport z ręki w środku okresu)
     blocks, warn = [], []
     if d.updated and d.updated < end:
         warn.append(f"dane OI/TOTAL z {R.pl_time(d.updated)} — sprzed zamknięcia okresu")
@@ -725,13 +739,13 @@ def build(d, ema, kind, now, cfg, macro):
         mondays = list(range(start - 104 * WEEK, end + 1, WEEK))
         blocks += liq_block(d, "weekly", mondays, lambda a: R.utc(a, "%d.%m"), start, end, end - 104 * WEEK)
         blocks += ema_crosses(ema, start, end, float(L["ema_min_volume"]))
-        blocks += macro_blocks(macro, start, end, end + WEEK, cfg, 0, "miniony tydzień")
+        blocks += macro_blocks(macro, start, end, plan_from, plan_from + WEEK, cfg, 0, "miniony tydzień")
         blocks += change_table(d, ema, [x for x in MACRO_SIDS if x != "m2"], t_end, start, end, hz,
                                "Rynki i płynność — zamknięcie tygodnia",
                                "Dolar, giełda w USA, strach (VIX), obligacje, złoto i płynność Fed. Dane dzienne z TradingView "
                                "(płynność Fed: odczyty tygodniowe; M2 — w raporcie miesięcznym).")
         blocks += [{"type": "section", "title": "Cykl BTC w tygodniu"}]
-        blocks += change_table(d, ema, ["mvrv_btc", "mvrvz_btc", "mayer_btc", "p200w_btc", "picycle_btc", "ssr"], t_end,
+        blocks += change_table(d, ema, list(REPORT_CYCLE_SIDS), t_end,
                                start, end, hz, "Wskaźniki cyklu — zamknięcie tygodnia",
                                "Skrót; pełne porównanie z poprzednimi cyklami jest w raporcie miesięcznym i w zakładce OI & TOTAL.",
                                rng=False)
@@ -788,7 +802,8 @@ def build(d, ema, kind, now, cfg, macro):
         n_months = (_dt(end).year - 2022) * 12 + _dt(end).month - 10      # od 10.2022 (pierwszy pełny miesiąc likwidacji)
         starts = [month_start(end, k) for k in range(max(n_months, 13), -1, -1)]
         blocks += liq_block(d, "monthly", starts, lambda a: R.utc(a, "%m.%Y"), start, end, _ts(datetime(2022, 10, 1)))
-        blocks += macro_blocks(macro, start, end, month_start(end + 32 * DAY), cfg, 1, "miniony miesiąc")
+        blocks += macro_blocks(macro, start, end, plan_from, max(month_start(plan_from + 32 * DAY), plan_from + WEEK),
+                               cfg, 1, "miniony miesiąc")
         blocks += change_table(d, ema, MACRO_SIDS, t_end, start, end, hz, "Rynki i płynność — zamknięcie miesiąca",
                                "Dolar, giełda w USA, strach (VIX), obligacje, złoto, płynność Fed i M2.")
 
@@ -809,5 +824,6 @@ def build(d, ema, kind, now, cfg, macro):
 
 
 def macro_window(kind):
-    """Zakres kalendarza makro dla raportu: (dni wstecz, dni naprzód)."""
-    return (9, 9) if kind == "weekly" else (33, 37)
+    """Zakres kalendarza makro dla raportu: (dni wstecz, dni naprzód). Wstecz z zapasem na raport z ręki pod koniec
+    okresu (okres raportu zaczyna się wtedy do 13 dni / 62 dni wcześniej)."""
+    return (15, 9) if kind == "weekly" else (63, 38)

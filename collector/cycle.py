@@ -204,6 +204,29 @@ def phases(px, manual_bottoms=()):
     return out
 
 
+def cycle_marks(px, cfg):
+    """Fazy cyklu i ważne dni do tła wykresów w oi.html (meta.cycle_marks) — te same reguły co raport miesięczny.
+    → {"phases": [{"phase", "from", "to", "confirmed"?}], "events": [{"t", "kind": halving|top|bottom, "label",
+    "value"?, "manual"?}]}; "to": None = faza trwa."""
+    if not px:
+        return {}
+    manual = ccfg(cfg).get("bottoms") or ()
+    phs = phases(px, manual)
+    tops, bottoms = cycle_extremes(px, manual)
+    rule_bottoms = {t for t, _ in cycle_extremes(px)[1]}
+    last = max(px)
+    events = [{"t": day_of(h), "kind": "halving", "label": f"halving {mmyy(day_of(h))}"}
+              for h in HALVINGS if day_of(h) <= last]
+    events += [{"t": t, "kind": "top", "label": f"szczyt {mmyy(t)}", "value": round(v, 2)} for t, v in tops]
+    for t, v in bottoms:
+        ev = {"t": t, "kind": "bottom", "label": f"dno {mmyy(t)}", "value": round(v, 2)}
+        if t not in rule_bottoms:
+            ev["label"] += " (uznane)"
+            ev["manual"] = True
+        events.append(ev)
+    return {"phases": [dict(p) for p in phs], "events": sorted(events, key=lambda e: e["t"])}
+
+
 def ref_lines(store, cfg):
     """{sid: [{"value", "label", "color"}]} — wartości wskaźników przy poprzednich szczytach i dnach."""
     return ref_lines_from(store.series["1d"], cfg)

@@ -291,13 +291,14 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         S.derived(store.series[res])
 
     # cykl BTC (Coin Metrics + wskaźniki z ceny) i makro USA (poprawka 29) — po serii pochodnych (SSR)
-    cyc_lines = {}
+    cyc_lines, cyc_marks = {}, {}
     if (cfg.get("cycle") or {}).get("enabled"):
         c_info, c_err = C.run(store, cfg, now, session=cm_session)
         info["cycle"] = c_info
         if (cfg["cycle"].get("coinmetrics", True)):
             results["Coin Metrics"] = c_err
         cyc_lines = C.ref_lines(store, cfg)
+        cyc_marks = C.cycle_marks(store.series["1d"].get("px_btc") or {}, cfg)   # tło faz cyklu w oi.html
 
     # system messages → admin (private); market alerts → group thread (one message per run, unless muted)
     system = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
@@ -334,6 +335,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "levels": cfg["levels"],
         # reference lines from the report (config reports.lines) — drawn in oi.html too, one source for both
         "ref_lines": {**cyc_lines, **report_lines(cfg)},
+        "cycle_marks": cyc_marks,
         "watchlist": [w.upper() for w in cfg["watchlist"]],
         "exchanges": cfg["coinalyze"]["exchanges"],
         "health": {k: (v or "ok") for k, v in results.items()},

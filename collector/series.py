@@ -109,13 +109,17 @@ CYCLE_CATALOG = {
                            + LINES_NOTE),
     "mayer_btc": dict(name="Mayer Multiple", group="cycle", color="#ffd54f", fmt="x",
                       desc="Cena BTC ÷ średnia 200-dniowa (cena od 2009: TradingView INDEX:BTCUSD + Coinalyze). "
-                           "Powyżej 1 = cena nad średnią z ostatnich 200 dni." + LINES_NOTE),
+                           "Miara trendu, nie wyceny: pokazuje, jak daleko cena odjechała od średniej z ostatnich 200 dni "
+                           "(powyżej 1 = nad średnią). W danych od 2013 sama wartość prawie nie wiązała się z wynikiem BTC "
+                           "w kolejnym roku (inaczej niż MVRV i cena / średnia 200W)." + LINES_NOTE),
     "p200w_btc": dict(name="Cena / średnia 200W", group="cycle", color="#aed581", fmt="x",
                       desc="Cena BTC ÷ średnia z 200 tygodni (1400 dni). 1,0 = cena równa średniej 200-tygodniowej."
                            + LINES_NOTE),
     "picycle_btc": dict(name="Pi Cycle", group="cycle", color="#4fc3f7", fmt="x",
                         desc="Średnia 111-dniowa ÷ (2 × średnia 350-dniowa) ceny BTC. 1,0 = przecięcie tych średnich "
-                             "(sygnał Pi Cycle Top)." + LINES_NOTE),
+                             "(sygnał Pi Cycle Top). Przecięcia: 04.2013, 12.2013, 12.2017, 04.2021; przy szczytach "
+                             "11.2021 i 10.2025 — brak (przy szczycie 11.2021: 0,57; w cyklu 2024–2025 maks. 0,65). "
+                             "Wskaźnik ułożony w 2019 pod szczyty 2013 i 2017; w raportach go nie ma." + LINES_NOTE),
     "ssr": dict(name="SSR (BTC ÷ stablecoiny)", group="cycle", color="#26a69a", fmt="x", axis="ssr",
                 desc="Kapitalizacja BTC ÷ kapitał w stablecoinach (TradingView). Nisko = dużo stablecoinów względem "
                      "BTC, wysoko = mało. Przed 2020 stablecoinów było niewiele, więc porównuj od 2020 (linie też od "
