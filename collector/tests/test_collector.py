@@ -654,3 +654,34 @@ def test_report_lines_in_meta_from_config():
     assert lines["oi_others_vs_btc"] == [{"value": 0.7, "label": "test", "color": "#4caf7d"}]
     assert [ln["value"] for ln in lines["alts_vs_btc"]] == [0.28, 0.38, 0.47]       # default from report.LAYOUT
     assert M.report_lines({})["oi_others_vs_btc"][-1]["label"] == "zrównanie z BTC"
+
+
+class FakeOHLC(FakeCoinalyze):
+    """Coinalyze z high/low: low godzinowy zależy od godziny doby, dzienny low = close − 500."""
+    def price_ohlc_history(self, symbols, interval, frm, to, progress=None):
+        base = self.price_history(symbols, interval, frm, to)
+        if interval == "1hour":
+            return {s: {t: (c + 50, c - (t // H % 24) * 10, c) for t, c in h.items()} for s, h in base.items()}
+        return {s: {t: (c + 800, c - 500, c) for t, c in h.items()} for s, h in base.items()}
+
+
+def test_price_wicks_hourly_daily_and_upgrade(tmp_path):
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    store, _, _ = main.run(d, _liq_cfg(), now=NOW, backfill=True, coinalyze=FakeOHLC(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    h, dd = store.series["1h"], store.series["1d"]
+    t = NOW - NOW % H
+    assert h["px_btc"][t] == 100000 and h["px_btc_lo"][t] == 100000 - (t // H % 24) * 10 and h["px_btc_hi"][t] == 100050
+    day = t - t % D - D                                    # pełny dzień w danych godzinowych → min z godzin
+    assert dd["px_btc_lo"][day] == 100000 - 230 and dd["px_btc_hi"][day] == 100050
+    old = min(dd["px_btc_lo"])                             # starsze dni — z historii dziennej
+    assert dd["px_btc_lo"][old] == 100000 - 500 and len(dd["px_btc_lo"]) > 300
+    # stan sprzed poprawki: bez knotów dziennych → pierwszy zwykły skan pobiera je raz
+    f = os.path.join(d, "liq_1d.json")
+    js = json.load(open(f))
+    for k in ("px_btc_hi", "px_btc_lo", "px_eth_hi", "px_eth_lo"):
+        js["series"].pop(k, None)
+    json.dump(js, open(f, "w"))
+    store2, _, res = main.run(d, _liq_cfg(), now=NOW + 2 * H, coinalyze=FakeOHLC(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert res["Likwidacje"] is None and len(store2.series["1d"]["px_btc_lo"]) > 300
+    assert store2.series["1d"]["px_eth_lo"][old] == 4000 - 500

@@ -126,3 +126,52 @@ def test_morning_only_plan_high(tmp_path):
     assert morning[1]["title"] == "Zaplanowane — dziś, 02.11.2026"
     assert [r[1] for r in morning[1]["rows"]] == ["ISM Manufacturing PMI (Oct)"] and "★★★" in morning[1]["desc"]
     assert today.coins_cfg({}) == ["BTC", "ETH", "SOL", "BNB", "DOGE", "HYPE"]
+
+
+def test_morning_shows_releases_after_evening_report(tmp_path):
+    data, ema = make_dirs(tmp_path)
+    night = [{"title": "Midterm Elections", "country": "US", "date": "2026-11-03T00:00:00.000Z", "importance": 1},
+             {"title": "Fed Speech", "country": "US", "date": "2026-11-02T23:00:00.000Z", "importance": 0},
+             {"title": "JOLTs Job Openings", "country": "US", "date": "2026-11-03T15:00:00.000Z", "importance": 1,
+              "forecast": 7.2, "previous": 7.1, "scale": "M"}]
+    evs = EVENTS[:2] + night
+    # wieczorny 02.11 22:50 PL: wybory jeszcze w planie, z datą PL (inny dzień niż w USA)
+    plan = report.econ.block(evs, NOW, {}, results=False, plan_importance="high")[-1]
+    assert plan["rows"][0][:2] == ["03.11 01:00", "Midterm Elections"]
+    # poranny 03.11 07:00 PL: ★★★ po raporcie wieczornym (21:50 UTC), z datą; ISM sprzed raportu pominięty
+    morning_now = ts(2026, 11, 3, 6, 0)
+    rep = report.build(data, ema, "morning", now=morning_now, cfg={},
+                       macro={"events": evs, "error": None, "since": NOW})
+    by = by_title(rep)
+    tab = by["Po raporcie wieczornym"]
+    assert [r[:3] for r in tab["rows"]] == [["03.11 01:00", "Midterm Elections", "—"]]
+    assert "02.11 22:50" in tab["desc"]
+    titles = [b.get("title") for b in rep["blocks"]]
+    assert titles.index("Po raporcie wieczornym") < titles.index("Zaplanowane — dziś, 03.11.2026")
+    # bez raportu wieczornego → od 00:00 UTC poprzedniego dnia (ISM też)
+    rep2 = report.build(data, ema, "morning", now=morning_now, cfg={}, macro={"events": evs, "error": None})
+    rows2 = by_title(rep2)["Od wczoraj"]["rows"]
+    assert [r[1] for r in rows2] == ["ISM Manufacturing PMI (Oct)", "Midterm Elections"]
+    # nic w nocy → brak tabeli
+    rep3 = report.build(data, ema, "morning", now=morning_now, cfg={},
+                        macro={"events": EVENTS, "error": None, "since": NOW})
+    assert "Po raporcie wieczornym" not in [b.get("title") for b in rep3["blocks"]]
+
+
+def test_last_created(tmp_path):
+    _w(os.path.join(tmp_path, "index.json"), {"reports": [
+        {"id": "a", "kind": "evening", "created": NOW}, {"id": "b", "kind": "morning", "created": NOW + 8 * H},
+        {"id": "c", "kind": "evening", "created": NOW - DAY}]})
+    assert report.last_created(str(tmp_path), "evening", NOW + 9 * H) == NOW
+    assert report.last_created(str(tmp_path), "evening", NOW + 40 * H) is None
+    assert report.last_created(str(tmp_path / "nie-ma"), "evening", NOW) is None
+
+
+def test_evening_skips_releases_already_in_morning(tmp_path):
+    data, ema = make_dirs(tmp_path)
+    evs = EVENTS + [{"title": "Midterm Elections", "country": "US", "date": "2026-11-02T00:00:00.000Z", "importance": 1}]
+    rep = report.build(data, ema, "evening", now=NOW, cfg={}, macro={"events": evs, "error": None})
+    assert [r[1] for r in by_title(rep)["Publikacje ★★★ i zmiana BTC"]["rows"]] == ["Midterm Elections", "ISM Manufacturing PMI (Oct)"]
+    rep2 = report.build(data, ema, "evening", now=NOW, cfg={},
+                        macro={"events": evs, "error": None, "since": T0 + 6 * H})   # poranny o 07:00 PL
+    assert [r[1] for r in by_title(rep2)["Publikacje ★★★ i zmiana BTC"]["rows"]] == ["ISM Manufacturing PMI (Oct)"]
