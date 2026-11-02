@@ -162,6 +162,10 @@ class Coinalyze:
         """Close price → {symbol: {t: close}}."""
         return self.history("/ohlcv-history", symbols, interval, frm, to, "c", progress=progress)
 
+    def price_ohlc_history(self, symbols, interval, frm, to, progress=None):
+        """High, low, close → {symbol: {t: (high, low, close)}} (knoty — najwyższa / najniższa cena w świecy)."""
+        return self.history("/ohlcv-history", symbols, interval, frm, to, ("h", "l", "c"), progress=progress)
+
 
 def _chunks(seq, n):
     seq = list(seq)

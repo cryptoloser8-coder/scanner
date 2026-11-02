@@ -56,7 +56,7 @@ def usd(v):
 
 
 # ── sekcje ───────────────────────────────────────────────────
-def market_section(d, ema, t0):
+def market_section(d, ema, t0, now):
     rows = []
     for sid in MARKET:
         last = now_at(d, sid)
@@ -65,8 +65,9 @@ def market_section(d, ema, t0):
             continue
         name, f = P.label_fmt(d, sid)
         f = f or "num"
-        day = [v for t, v in d.pts("1h", sid) if t >= t0] + [base]
-        rows.append([name, P.fv(last[1], f), P.chg(last[1], base, f), f"{P.fv(min(day), f)} – {P.fv(max(day), f)}"])
+        lo, hi, _ = P.period_range(d, sid, d.pts("1h", sid), t0, now + DAY, res="1h")
+        lo, hi = min(lo, base), max(hi, base)
+        rows.append([name, P.fv(last[1], f), P.chg(last[1], base, f), f"{P.fv(lo, f)} – {P.fv(hi, f)}"])
     bn = R.breadth_now(ema)
     b0 = R.at(R.breadth_series(ema), t0 - DAY, DAY)                 # szerokość na zamknięciu doby (świeca z wczoraj)
     if bn is not None:
@@ -79,7 +80,7 @@ def market_section(d, ema, t0):
              "cols": ["Wskaźnik", "Teraz", "Od 00:00 UTC", "Zakres dziś"], "rows": rows,
              "desc": "Co zmieniło się od zamknięcia dziennej świecy. Pełne tło (2 lata, szczyty, cykl) jest w raporcie porannym.",
              "note": f"Świece 1 h (ostatnia od {pl(last_t)} PL, niedokończona). Zakres = najniższe i najwyższe zamknięcie godziny "
-                     "dziś. Dla wartości w % różnica w punktach procentowych. Szerokość rynku: coiny Binance z ceną nad EMA200 "
+                     "dziś; dla cen BTC i ETH — najniższa i najwyższa cena (knoty). Dla wartości w % różnica w punktach procentowych. Szerokość rynku: coiny Binance z ceną nad EMA200 "
                      "teraz vs na zamknięciu dnia."}]
 
 
@@ -215,25 +216,19 @@ def movers_section(ema, t0, L):
     return out
 
 
-def macro_section(d, macro, t0, now, cfg):
-    """Publikacje ★★★ z USA od 00:00 UTC i zmiana BTC wokół nich. Brak publikacji (np. weekend) → sekcji nie ma."""
-    if macro is None:
-        return []
-    if macro.get("error"):
-        return [{"type": "section", "title": "Makro z USA dziś"},
-                {"type": "text", "title": "", "text": f"Kalendarz ekonomiczny niedostępny ({macro['error']})."}]
+def macro_rows(d, events, t_from, now, cfg, with_date=False):
+    """Publikacje ★★★ z USA z okna (t_from, now] → wiersze tabeli z wynikiem i zmianą BTC w 2 h po publikacji.
+    with_date → godzina z datą (raport poranny: publikacje z nocy)."""
     countries = [c.upper() for c in econ.settings(cfg)["countries"] or []]
     evs = []
-    for e in macro.get("events") or []:
+    for e in events or []:
         try:
             ts = econ._ts(e)
         except (ValueError, TypeError):
             continue
-        if (e.get("importance") or 0) >= 1 and t0 <= ts <= now and \
+        if (e.get("importance") or 0) >= 1 and t_from <= ts <= now and \
                 (not countries or str(e.get("country") or "").upper() in countries):
             evs.append(dict(e, _ts=ts))
-    if not evs:
-        return []
     px = d.pts("1h", "px_btc")
     rows = []
     for e in econ._sorted(evs):
@@ -241,20 +236,60 @@ def macro_section(d, macro, t0, now, cfg):
         a, b = R.at(px, h - HOUR, HOUR), R.at(px, h + HOUR, HOUR)          # zamknięcie o pełnej godzinie → +2 h
         if b is not None and (not px or px[-1][0] < h + HOUR):
             b = None
-        rows.append([econ.pl_hm(e["_ts"]), econ._name(e), econ.fmt_num(e.get("actual"), e), econ.fmt_num(e.get("forecast"), e),
+        rows.append([econ.pl_dhm(e["_ts"]) if with_date else econ.pl_hm(e["_ts"]), econ._name(e),
+                     econ.fmt_num(e.get("actual"), e), econ.fmt_num(e.get("forecast"), e),
                      econ.diff_text(e), R.fmt_chg(R.pct_change(b, a)) if a and b else "—"])
+    return rows
+
+
+MACRO_COLS = ["Godz. PL", "Publikacja", "Wynik", "Prognoza", "Wynik − prognoza", "BTC (2 h)"]
+MACRO_NOTE = ("BTC (2 h) = zmiana ceny od pełnej godziny przed publikacją do zamknięcia drugiej godziny (świece 1 h; "
+              "inne wydarzenia w tym czasie też się liczą; „—”, gdy te 2 h jeszcze nie minęły). Kalendarz: TradingView, "
+              "wysoka ważność. Wydarzenia bez liczb (wybory, wystąpienia) mają „—” w wyniku. Godziny w czasie polskim.")
+
+
+def macro_section(d, macro, t0, now, cfg):
+    """Publikacje ★★★ z USA od 00:00 UTC i zmiana BTC wokół nich. Brak publikacji (np. weekend) → sekcji nie ma."""
+    if macro is None:
+        return []
+    if macro.get("error"):
+        return [{"type": "section", "title": "Makro z USA dziś"},
+                {"type": "text", "title": "", "text": f"Kalendarz ekonomiczny niedostępny ({macro['error']})."}]
+    since = macro.get("since")                         # raport poranny już pokazał publikacje do swojej godziny
+    frm = max(t0, since + 1) if since else t0
+    rows = macro_rows(d, macro.get("events"), frm, now, cfg)
+    if not rows:
+        return []
     return [{"type": "section", "title": "Makro z USA dziś"},
-            {"type": "table", "title": "Publikacje ★★★ i zmiana BTC", "left": [1],
-             "cols": ["Godz. PL", "Publikacja", "Wynik", "Prognoza", "Wynik − prognoza", "BTC (2 h)"], "rows": rows,
-             "desc": "Najważniejsze dane z USA z dziś i jak w tym czasie zmieniła się cena BTC.",
-             "note": "BTC (2 h) = zmiana ceny od pełnej godziny przed publikacją do zamknięcia drugiej godziny (świece 1 h; "
-                     "inne wydarzenia w tym czasie też się liczą). Kalendarz: TradingView, wysoka ważność. Godziny w czasie polskim."}]
+            {"type": "table", "title": "Publikacje ★★★ i zmiana BTC", "left": [1], "cols": MACRO_COLS, "rows": rows,
+             "desc": "Najważniejsze dane z USA z dziś i jak w tym czasie zmieniła się cena BTC. Te, które były już "
+                     "w raporcie porannym, pomijamy; publikacje po tym raporcie trafią do porannego.",
+             "note": MACRO_NOTE}]
+
+
+def night_block(d, macro, since, now, cfg):
+    """Raport poranny: publikacje ★★★ od raportu wieczornego (np. w nocy czasu polskiego). Brak → nic.
+    since=None (nie było raportu wieczornego) → od 00:00 UTC poprzedniego dnia."""
+    if not macro or macro.get("error"):
+        return []
+    if since:
+        frm, when = since + 1, "po raporcie wieczornym (" + econ.pl_dhm(since) + ")"
+    else:
+        frm = day_start(now) - DAY
+        when = "od " + econ.pl_dhm(frm) + " (nie było raportu wieczornego)"
+    rows = macro_rows(d, macro.get("events"), frm, now, cfg, with_date=True)
+    if not rows:
+        return []
+    return [{"type": "table", "title": "Po raporcie wieczornym" if since else "Od wczoraj", "left": [1],
+             "cols": MACRO_COLS, "rows": rows,
+             "desc": f"Najważniejsze dane z USA, które wyszły {when}, i jak w tym czasie zmieniła się cena BTC.",
+             "note": MACRO_NOTE}]
 
 
 def build(d, ema, now, cfg, macro, L, head_blocks, ema_upd):
     t0 = day_start(now)
     blocks = list(head_blocks)
-    blocks += market_section(d, ema, t0)
+    blocks += market_section(d, ema, t0, now)
     blocks += coins_section(d, ema, coins_cfg(cfg), t0, now, L)
     blocks += liq_section(d, t0, now)
     blocks += movers_section(ema, t0, L)

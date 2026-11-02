@@ -154,9 +154,24 @@ def label_fmt(d, sid):
     return d.name(sid), fmt_of(d, sid)
 
 
+WICKS = {"px_btc": ("px_btc_lo", "px_btc_hi"), "px_eth": ("px_eth_lo", "px_eth_hi")}   # knoty (low / high) cen
+
+
+def period_range(d, sid, pts, start, end, res="1d"):
+    """(min, max, z_knotów) w [start, end): dla cen BTC/ETH najniższa i najwyższa cena w trakcie świec (knoty, jak na
+    wykresie świecowym), dla reszty — zamknięcia. Brak knotów w części okresu → zamknięcia też się liczą."""
+    w = [x[1] for x in in_period(pts, start, end)]
+    if sid in WICKS:
+        lo = [x[1] for x in in_period(d.pts(res, WICKS[sid][0]), start, end)]
+        hi = [x[1] for x in in_period(d.pts(res, WICKS[sid][1]), start, end)]
+        if lo and hi:
+            return min(lo + w), max(hi + w), True
+    return (min(w), max(w), False) if w else (None, None, False)
+
+
 def change_table(d, ema, sids, t_end, start, end, horizons, title_, desc, note="", rng=True, labels=None):
     """Wiersze: zamknięcie okresu, zmiany do wcześniejszych zamknięć, zakres okresu z zamknięć dziennych."""
-    rows = []
+    rows, wicks = [], False
     for sid in sids:
         pts = pts_of(d, sid, ema)
         v = close(pts, t_end, sid)
@@ -171,15 +186,18 @@ def change_table(d, ema, sids, t_end, start, end, horizons, title_, desc, note="
             shift = t_end - last_t          # porównanie z odczytem o tyle samo wcześniejszym (nie z tym samym odczytem)
         row = [name, fv(v, f)] + [chg(v, close(pts, tb - shift, sid), f) for _, tb in horizons]
         if rng:
-            w = [x[1] for x in in_period(pts, start, end)]
-            row.append(f"{fv(min(w), f)} – {fv(max(w), f)}" if w else "—")
+            lo, hi, wick = period_range(d, sid, pts, start, end)
+            wicks = wicks or wick
+            row.append(f"{fv(lo, f)} – {fv(hi, f)}" if lo is not None else "—")
         rows.append(row)
     if not rows:
         return []
     cols = ["Wskaźnik", "Zamknięcie"] + [h for h, _ in horizons] + (["Zakres w okresie"] if rng else [])
     note = note or ("Zmiany do zamknięć wcześniejszych okresów; dla wartości w % (dominacje, rentowności, funding) "
-                    "różnica w punktach procentowych." + (" Zakres = najniższe i najwyższe zamknięcie dnia w okresie."
-                                                           if rng else ""))
+                    "różnica w punktach procentowych." + (" Zakres = najniższe i najwyższe zamknięcie dnia w okresie"
+                                                           + ("; dla cen BTC i ETH — najniższa i najwyższa cena w trakcie "
+                                                              "dnia (knoty, Binance perp przez Coinalyze), jak na wykresie "
+                                                              "świecowym." if wicks else ".") if rng else ""))
     return [{"type": "table", "title": title_, "cols": cols, "rows": rows, "left": [0], "desc": desc, "note": note}]
 
 
@@ -399,8 +417,11 @@ def cycle_blocks(d, t_end, cfg=None):
     rp = close(d.pts("1d", "rprice_btc"), t_end)
     items = [{"label": "Cena BTC (zamknięcie)", "value": R.fmt_price(v), "sub": R.utc(max(px), "%d.%m.%Y"), "zone": None, "note": ""},
              {"label": "Od szczytu (ATH)", "value": f"{(v / px[t_ath] - 1) * 100:+.1f}%",
-              "sub": f"ATH {R.fmt_price(px[t_ath])} ({R.utc(t_ath, '%d.%m.%Y')}), {(t_end - t_ath) // DAY} dni temu",
-              "zone": None, "note": ""},
+              "sub": f"ATH {R.fmt_price(px[t_ath])} ({R.utc(t_ath, '%d.%m.%Y')}, zamknięcie dnia), {(t_end - t_ath) // DAY} dni temu"
+              + (lambda w: f"; najwyższa cena (knot) {R.fmt_price(w[1])} ({R.utc(w[0], '%d.%m.%Y')})" if w else "")(
+                  max((p for p in d.pts("1d", "px_btc_hi") if p[0] <= t_end), key=lambda p: p[1], default=None)),
+              "zone": None, "note": "Fazy i szczyty cyklu liczymy z zamknięć dziennych; knot = najwyższa cena w trakcie dnia "
+                                    "(Binance perp przez Coinalyze, od 2020)."},
              {"label": "Od halvingu", "value": f"{(t_end - h_now) // DAY} dni",
               "sub": f"halving {R.utc(h_now, '%d.%m.%Y')}", "zone": None, "note": ""}]
     if rp:

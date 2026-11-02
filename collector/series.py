@@ -228,6 +228,16 @@ def liq_catalog(watchlist, top, exchanges):
     return cat
 
 
+def daily_extreme_from_hourly(hourly, day_from, fn=max):
+    """Day value = max (fn=max) or min (fn=min) of the hourly values of that UTC day — daily high / low. {t_day: v}."""
+    out = {}
+    for t, v in hourly.items():
+        d = t - t % DAY
+        if d >= day_from:
+            out[d] = v if d not in out else fn(out[d], v)
+    return out
+
+
 def daily_sum_from_hourly(hourly, day_from):
     """Day value = sum of the hourly values of that UTC day. {t_day: v}."""
     out = {}

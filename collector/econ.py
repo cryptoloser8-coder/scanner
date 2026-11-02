@@ -4,9 +4,10 @@
   → {"status": "ok", "result": [{"title", "country", "date" (UTC ISO), "importance" (-1 low, 0 medium, 1 high),
                                   "actual", "forecast", "previous", "unit", "scale", "period", "source", …}]}
 
-Only medium and high importance (≈ 2 and 3 stars). A report shows the releases of the last US day that had any
-(evening report: today's results; morning report: the same results again as a reminder; Monday morning: Friday)
-and the plan of the next US day with scheduled releases (evening: tomorrow; morning: today; Friday evening: Monday).
+Only medium and high importance (≈ 2 and 3 stars). Each ★★★ release appears once, in the first report after it:
+evening „Krypto dziś" — releases since 00:00 UTC (minus those already in the morning report), morning — releases
+after the evening report (e.g. at night in Poland; today.night_block) + the plan of the next US day.
+Weekly/monthly: results of the period and the plan (block with results=True).
 All numbers come from the calendar; nothing is interpreted.
 """
 import logging
@@ -145,6 +146,10 @@ def pl_hm(ts):
     return datetime.fromtimestamp(ts, ZoneInfo("Europe/Warsaw")).strftime("%H:%M")
 
 
+def pl_dhm(ts):
+    return datetime.fromtimestamp(ts, ZoneInfo("Europe/Warsaw")).strftime("%d.%m %H:%M")
+
+
 def _when(day, now_ts):
     ny_today = datetime.fromtimestamp(now_ts, ZoneInfo(NY)).date()
     if day == ny_today:
@@ -156,11 +161,17 @@ def _when(day, now_ts):
     return WEEKDAYS[day.weekday()]
 
 
+def _pl_time(ts, day):
+    """Godzina PL; z datą, gdy w Polsce to już inny dzień niż dzień w USA (np. 19:00 w Nowym Jorku = 01:00 PL)."""
+    pl = datetime.fromtimestamp(ts, ZoneInfo("Europe/Warsaw"))
+    return pl.strftime("%H:%M") if pl.date() == day else pl.strftime("%d.%m %H:%M")
+
+
 def _name(ev):
     return f"{ev.get('title', '')}" + (f" ({ev['period']})" if ev.get("period") else "")
 
 
-def block(events, now_ts, cfg=None, error=None, results=True, plan_importance=None):
+def block(events, now_ts, cfg=None, error=None, results=True, plan_importance=None, before_plan=None):
     """Report blocks for the 'Dane makro z USA' section: last day's results + next day's plan.
     results=False → only the plan (morning report); plan_importance="high" → plan only with ★★★."""
     head = {"type": "section", "title": "Dane makro z USA"}
@@ -182,20 +193,21 @@ def block(events, now_ts, cfg=None, error=None, results=True, plan_importance=No
                             "Wystąpienia (np. przemówienia z Fed) nie mają liczb."})
     elif results:
         out.append({"type": "text", "title": "", "text": "Brak publikacji o średniej i wysokiej ważności w ostatnich dniach."})
+    out += before_plan or []
     pcfg = cfg
     if plan_importance:
         pcfg = dict(cfg or {}, econ=dict((cfg or {}).get("econ") or {}, min_importance=plan_importance))
     stars = "★★★" if plan_importance == "high" else "★★ i ★★★"
     nday, nevs = next_day(events or [], now_ts, pcfg)
     if nevs:
-        rows = [[pl_hm(ev["_ts"]), _name(ev), STARS.get(ev.get("importance"), ""),
+        rows = [[_pl_time(ev["_ts"], nday), _name(ev), STARS.get(ev.get("importance"), ""),
                  fmt_num(ev.get("forecast"), ev), fmt_num(ev.get("previous"), ev)] for ev in nevs]
         out.append({"type": "table", "title": f"Zaplanowane — {_when(nday, now_ts)}, {nday.strftime('%d.%m.%Y')}",
                     "cols": ["Godz. PL", "Publikacja", "Ważność", "Prognoza", "Poprzednio"],
                     "rows": rows, "plain": True, "left": [1],
                     "desc": f"Co i o której wyjdzie w najbliższym dniu z publikacjami {stars} "
                             + ("— najważniejsze dane z USA, zwykle ruszają też krypto. Wyniki z wczoraj były w raporcie "
-                               "wieczornym." if plan_importance == "high" else
+                               "wieczornym, a to, co wyszło później — w tabeli wyżej." if plan_importance == "high" else
                                "(wieczorem — jutro, rano — dziś, w piątek wieczorem — poniedziałek)."),
                     "note": "Godziny w czasie polskim, według kalendarza TradingView; terminy i prognozy mogą się jeszcze zmienić."})
     else:

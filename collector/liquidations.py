@@ -202,6 +202,13 @@ def oi_weights(oi_hist, fallback, step, ffill_steps):
 
 
 # ── collection ───────────────────────────────────────────────
+def price_ohlc(client, symbols, interval, frm, to):
+    """{symbol: {t: (high, low, close)}}; klient bez high/low (starsze testy) → (close, close, close)."""
+    if hasattr(client, "price_ohlc_history"):
+        return client.price_ohlc_history(symbols, interval, frm, to)
+    return {s: {t: (v, v, v) for t, v in h.items()} for s, h in client.price_history(symbols, interval, frm, to).items()}
+
+
 def collect_liq(client, store, cfg, now, backfill=False):
     st = store.state
     lcfg = cfg.get("liquidations") or {}
@@ -244,7 +251,7 @@ def collect_liq(client, store, cfg, now, backfill=False):
     lh = client.liquidation_history(symbols, "1hour", start, now, progress=prog("likwidacje 1h"))
     fh = client.funding_history(symbols, "1hour", start, now, progress=prog("funding 1h"))
     psyms = {sid: sym for sid, sym in (lcfg.get("price_symbols") or {}).items()}
-    ph = client.price_history(sorted(set(psyms.values())), "1hour", start, now) if psyms else {}
+    ph = price_ohlc(client, sorted(set(psyms.values())), "1hour", start, now) if psyms else {}
     oi_h = client.oi_history(symbols, "1hour", start, now, progress=prog("OI 1h (wagi)")) if full else None
 
     unit = lcfg.get("funding_unit", "auto")
@@ -261,7 +268,8 @@ def collect_liq(client, store, cfg, now, backfill=False):
     for sid, pts in aggregate_funding(fh, w, groups, ts, HOUR, names, lcfg, unit).items():
         store.put("1h", sid, pts, replace_from=replace)
     for sid, sym in psyms.items():
-        store.put("1h", sid, {t: v for t, v in (ph.get(sym) or {}).items()}, replace_from=replace)
+        for i, suffix in ((2, ""), (0, "_hi"), (1, "_lo")):            # zamknięcie + knoty (high / low)
+            store.put("1h", sid + suffix, {t: v[i] for t, v in (ph.get(sym) or {}).items()}, replace_from=replace)
     if full:
         # drop hourly leftovers older than the new window
         for sid in list(store.series["1h"]):
@@ -279,7 +287,7 @@ def collect_liq(client, store, cfg, now, backfill=False):
         ld = client.liquidation_history(symbols, "daily", d0, now, progress=prog("likwidacje 1d"))
         fd = client.funding_history(symbols, "daily", d0, now, progress=prog("funding 1d"))
         od = client.oi_history(symbols, "daily", d0, now, progress=prog("OI 1d (wagi)"))
-        pd = client.price_history(sorted(set(psyms.values())), "daily", d0, now) if psyms else {}
+        pd = price_ohlc(client, sorted(set(psyms.values())), "daily", d0, now) if psyms else {}
         daily = aggregate_liq(ld, groups, days, DAY)
         daily.update(aggregate_liq_by_exchange(ld, sym_base, names, days, DAY))
         # first day with real data for both BTC and ETH (earlier = a handful of markets)
@@ -287,12 +295,22 @@ def collect_liq(client, store, cfg, now, backfill=False):
                      and daily["liq_eth_long"][t] + daily["liq_eth_short"][t] > 0), default=None)
         daily.update(aggregate_funding(fd, oi_weights(od, {}, DAY, 3), groups, days, DAY, names, lcfg, unit))
         for sid, sym in psyms.items():
-            daily[sid] = dict(pd.get(sym) or {})
+            for i, suffix in ((2, ""), (0, "_hi"), (1, "_lo")):
+                daily[sid + suffix] = {t: v[i] for t, v in (pd.get(sym) or {}).items()}
         for sid, pts in daily.items():
             pts = {t: v for t, v in pts.items() if first is not None and t >= first}
             store.put("1d", sid, pts, replace_from=0)
         if first:
             log.info("Likwidacje 1d: pełne dane od %s", _iso(first))
+    # knoty dzienne (high / low ceny) — jednorazowo cała historia, gdy jeszcze ich nie ma (pierwszy skan po poprawce 37)
+    if psyms and not full and any(not store.series["1d"].get(sid + "_lo") for sid in psyms):
+        d0 = int(datetime.strptime(str(cfg.get("coinalyze", {}).get("daily_history_start", "2019-01-01")),
+                                   "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+        pd = price_ohlc(client, sorted(set(psyms.values())), "daily", d0, now)
+        for sid, sym in psyms.items():
+            for i, suffix in ((0, "_hi"), (1, "_lo")):
+                store.put("1d", sid + suffix, {t: v[i] for t, v in (pd.get(sym) or {}).items()})
+        log.info("Knoty dzienne cen: %s", {sid: len(pd.get(sym) or {}) for sid, sym in psyms.items()})
     # Coinalyze liquidation history before the OI history start (09.2022) covers only a fraction
     # of the market (median ~$1–6M/day vs $100M+ later) → keep daily data from the OI start on.
     # Funding is not cut: fund_btc / fund_eth before that date come from history.py (fixed weights).
@@ -311,6 +329,12 @@ def collect_liq(client, store, cfg, now, backfill=False):
     for sid in list(store.series["1h"]):
         if sid.startswith("liq_"):
             store.put("1d", sid, S.daily_sum_from_hourly(store.get("1h", sid), day_from))
+        elif sid.startswith("px_") and sid.endswith(("_hi", "_lo")):
+            hh = store.get("1h", sid)                   # knoty: tylko pełne dni w danych godzinowych
+            full_from = min(hh) if hh else now_h
+            full_from = full_from if full_from % DAY == 0 else floor(full_from, DAY) + DAY
+            store.put("1d", sid, S.daily_extreme_from_hourly(hh, max(floor(start, DAY), full_from),
+                                                             max if sid.endswith("_hi") else min))
         elif sid.startswith(("fund_", "px_")):
             store.put("1d", sid, S.daily_from_hourly(store.get("1h", sid), floor(start, DAY)))
 

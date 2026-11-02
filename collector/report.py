@@ -720,8 +720,12 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
     if macro is not None:
         # rano: tylko plan ★★★ na dziś (wyniki z wczoraj były w raporcie wieczornym)
         morning = kind == "morning"
+        night = []
+        if morning:
+            import today                                   # publikacje po raporcie wieczornym (np. w nocy PL)
+            night = today.night_block(d, macro, macro.get("since"), now, cfg)
         blocks += econ.block(macro.get("events"), now, cfg, macro.get("error"),
-                             results=not morning, plan_importance="high" if morning else None)
+                             results=not morning, plan_importance="high" if morning else None, before_plan=night)
     if d.updated:
         blocks += alts_section(d, ema, L, refs, now)
         blocks += derivatives_section(d, L, alt_t)
@@ -1019,7 +1023,10 @@ def main(argv=None):
             return 2
         made = []
         for kind in kinds:
-            rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro_for(kind, cfg))
+            macro = macro_for(kind, cfg)
+            if kind in ("morning", "evening") and macro is not None:   # każda publikacja tylko w jednym raporcie
+                macro["since"] = last_created(a.out, "evening" if kind == "morning" else "morning", time.time())
+            rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro)
             save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page,
                  keep_periodic=int(cfg["keep_periodic"]))
             made.append(rep["id"])
@@ -1048,6 +1055,14 @@ def main(argv=None):
             time.sleep(1.5)                 # Telegram: ~1 wiadomość/s na czat
         ok = tg.post("report", notify_text(entry, page)) and ok
     return 0 if ok else 1
+
+
+def last_created(out_dir, kind, now, max_age=30 * HOUR):
+    """Czas utworzenia ostatniego raportu danego rodzaju (z index.json), jeśli nie starszy niż max_age; inaczej None."""
+    idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
+    ts = [int(r.get("created") or 0) for r in idx.get("reports") or [] if r.get("kind") == kind]
+    ts = [t for t in ts if 0 < now - t <= max_age]
+    return max(ts) if ts else None
 
 
 def macro_for(kind, cfg):

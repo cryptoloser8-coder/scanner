@@ -62,6 +62,11 @@ def year_numbers(d, ema, y):
         if v is None or not yr:
             continue
         hi, lo = max(yr, key=lambda p: p[1]), min(yr, key=lambda p: p[1])
+        if sid in P.WICKS:                                # ceny: knoty (najwyższa / najniższa cena w trakcie dnia)
+            wl = [p for p in d.pts("1d", P.WICKS[sid][0]) if a <= p[0] < b]
+            wh = [p for p in d.pts("1d", P.WICKS[sid][1]) if a <= p[0] < b]
+            if wl and wh:
+                lo, hi = min(wl + [lo], key=lambda p: p[1]), max(wh + [hi], key=lambda p: p[1])
         dd = f"{max_dd([v0] + [p[1] for p in yr] if v0 else [p[1] for p in yr]):.0f}%" \
             if f not in ("pct", "pct0") else "—"
         rows.append([name, P.fv(v, f), P.fv(v0, f), P.chg(v, v0, f),
@@ -71,7 +76,9 @@ def year_numbers(d, ema, y):
              "cols": ["Wskaźnik", "Koniec roku", "Rok wcześniej", "Zmiana r/r", "Najwyżej w roku", "Najniżej w roku",
                       "Największy spadek od szczytu w roku"], "rows": rows,
              "desc": "Zamknięcie świecy rocznej (31.12, 24:00 UTC) i zmiana do zamknięcia poprzedniego roku.",
-             "note": "Najwyżej / najniżej = zamknięcia dzienne. Dla wartości w % zmiana w punktach procentowych."}]
+             "note": "Najwyżej / najniżej = zamknięcia dzienne; dla cen BTC i ETH — najwyższa i najniższa cena w trakcie dnia "
+                     "(knoty, Binance perp przez Coinalyze). Największy spadek liczony z zamknięć dziennych. Dla wartości w % "
+                     "zmiana w punktach procentowych."}]
 
 
 def btc_years(d, y):
