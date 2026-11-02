@@ -719,10 +719,18 @@ document.getElementById('legend').addEventListener('click', e => {
 });
 
 // ── refresh ─────────────────────────────────────────────────
+// 1H: główne serie z 1h.json + ceny BTC/ETH (px_*) z pliku zakładki likwidacji — jak przy 1D
+async function load1h() {
+  const lqP = getJSON('liq_1h.json').catch(() => null);
+  const d = await getJSON('1h.json');
+  const lq = await lqP;
+  for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_')) d.series[id] = arr;
+  return d;
+}
 async function ensureRes() {
   if (S.res === '1h' && !DATA['1h']) {
     setStatus('stale', 'Ładowanie danych 1H…');
-    try { DATA['1h'] = await getJSON('1h.json'); }
+    try { DATA['1h'] = await load1h(); }
     catch (e) { DATA._1hFailed = true; S.res = '1d'; }
     setUpdated();
   }
@@ -780,7 +788,7 @@ async function boot() {
   setUpdated();
   renderTiles();
   await refresh(true);
-  if (!DATA['1h']) getJSON('1h.json').then(d => { DATA['1h'] = d; renderTiles(); renderPicker(); }).catch(() => { DATA._1hFailed = true; });
+  if (!DATA['1h']) load1h().then(d => { DATA['1h'] = d; renderTiles(); renderPicker(); }).catch(() => { DATA._1hFailed = true; });
 }
 if (!LWC) {
   setStatus('error', 'Błąd ładowania biblioteki wykresów');
