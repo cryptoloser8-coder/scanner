@@ -52,6 +52,7 @@
   .kind.monthly{background:rgba(255,138,101,.15);color:#ff8a65;}
   .kind.yearly{background:rgba(186,104,200,.18);color:#ce93d8;}
   .kind.halving{background:rgba(255,193,7,.15);color:#ffc107;}
+  .kind.adhoc{background:rgba(247,147,26,.16);color:#f7931a;}
   .pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
   .pill{font-size:10.5px;padding:3px 8px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;}
   .pill:hover{color:var(--text);}
@@ -218,7 +219,7 @@
   i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>.
   „Kopiuj dla AI” kopiuje cały raport jako tekst (wykresy zamienione na liczby, źródła i metody na końcu) — wklej go w dowolnego asystenta AI.
   „Link dla AI” kopiuje adres tej wersji. Stałe adresy najnowszych raportów (tekst dla AI) — dziennego: <code id="latest-md"></code>,
-  tygodniowego: <code id="latest-weekly-md"></code>, miesięcznego: <code id="latest-monthly-md"></code>.
+  tygodniowego: <code id="latest-weekly-md"></code>, miesięcznego: <code id="latest-monthly-md"></code>, specjalnego: <code id="latest-adhoc-md"></code>.
   Usunięcie raportu z historii (admin): <code>/usun_raport ID</code> na Telegramie albo Actions → Raport → pole „delete” (ID jest przy dacie raportu).
 </div>
 <div class="tip" id="tip"></div>
@@ -265,6 +266,7 @@ function fmt(v, g) {
   }
   if (g === 'pct') return v.toFixed(2) + '%';
   if (g === 'fund') return v.toFixed(1) + '%';
+  if (g === 'chg') return (v > 0 ? '+' : '') + v.toFixed(1) + '%';
   if (g === 'ratio') return v.toFixed(3) + '×';
   if (g === 'pair') return v < 1 ? v.toFixed(5) : v.toPrecision(4);
   if (g === 'price' || g === 'usd') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toPrecision(4));
@@ -276,9 +278,9 @@ function fmt(v, g) {
 }
 
 const KIND = {test: 'test', morning: 'rano', evening: 'wieczór', manual: 'na żądanie', daily: 'dzienny',
-  weekly: 'tydzień', monthly: 'miesiąc', yearly: 'rok', halving: 'halving'};
-const GROUPS = [['all', 'Wszystkie'], ['daily', 'Dzienne'], ['weekly', 'Tygodniowe'], ['monthly', 'Miesięczne'], ['special', 'Roczne i halving']];
-const groupOf = k => (k === 'weekly' || k === 'monthly') ? k : (k === 'yearly' || k === 'halving') ? 'special' : 'daily';
+  weekly: 'tydzień', monthly: 'miesiąc', yearly: 'rok', halving: 'halving', adhoc: 'specjalny'};
+const GROUPS = [['all', 'Wszystkie'], ['daily', 'Dzienne'], ['weekly', 'Tygodniowe'], ['monthly', 'Miesięczne'], ['special', 'Roczne i halving'], ['adhoc', 'Specjalne']];
+const groupOf = k => (k === 'weekly' || k === 'monthly' || k === 'adhoc') ? k : (k === 'yearly' || k === 'halving') ? 'special' : 'daily';
 let FILTER = 'all';
 const kindBadge = k => k ? `<span class="kind ${esc(k)}">${esc(KIND[k] || k)}</span>` : '';
 
@@ -370,7 +372,7 @@ function fitTables() {
 }
 addEventListener('resize', () => requestAnimationFrame(fitTables));
 function chartBlock(b, i) {
-  const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
+  const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1 && b.series.some(x => x.scale === 'left')) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
   return `<div class="chart-legend">${lg}</div>
     <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>
     ${(b.bands || []).length ? `<div class="chart-bands">${[...new Map(b.bands.map(x => [x.color + x.label.replace(' (trwa)', ''), x])).values()]
@@ -440,10 +442,13 @@ const DARK = {layout: {textColor: '#888'}, grid: {vertLines: {color: 'rgba(255,2
 const LIGHT = {layout: {textColor: '#444'}, grid: {vertLines: {color: 'rgba(0,0,0,.06)'}, horzLines: {color: 'rgba(0,0,0,.06)'}},
   rightPriceScale: {borderColor: 'rgba(0,0,0,.2)'}, leftPriceScale: {borderColor: 'rgba(0,0,0,.2)'}, timeScale: {borderColor: 'rgba(0,0,0,.2)'}};
 
+const DAY0 = 86400 * 1000;                     // oś dni: dzień N = DAY0 + N dni (czas tylko do rysowania)
+const dayOf = t => Math.round((t - DAY0) / 86400);
 function drawChart(b, i) {
   const el = document.getElementById('chart-' + i);
   if (!el) return;
   const hasLeft = b.series.some(s => s.scale === 'left');
+  const days = b.x === 'days';                 // oś w dniach (np. cykle nałożone od wspólnego dnia 0)
   const chart = LWC.createChart(el, {
     autoSize: true,
     layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11},
@@ -451,9 +456,10 @@ function drawChart(b, i) {
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)', mode: b.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal,
       scaleMargins: b.log ? {top: 0.06, bottom: 0.04} : {top: 0.2, bottom: 0.1}},
     leftPriceScale: {visible: hasLeft, borderColor: 'rgba(255,255,255,.1)'},
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 2, minBarSpacing: 0.05},
+    timeScale: Object.assign({borderColor: 'rgba(255,255,255,.1)', rightOffset: 2, minBarSpacing: 0.05},
+      days ? {tickMarkFormatter: t => 'dzień ' + dayOf(t)} : {}),
     crosshair: {mode: LWC.CrosshairMode.Normal},
-    localization: {locale: 'pl-PL'},
+    localization: Object.assign({locale: 'pl-PL'}, days ? {timeFormatter: t => 'dzień ' + dayOf(t)} : {}),
     handleScroll: false, handleScale: false,
   });
   // tło w kolorach okresów (np. fazy cyklu): pola na ukrytej osi 0–1, pełna wysokość wykresu
@@ -475,13 +481,13 @@ function drawChart(b, i) {
   }
   for (const s of b.series) {
     const ser = chart.addSeries(LWC.LineSeries, {
-      color: s.color, lineWidth: 2, priceScaleId: s.scale === 'left' ? 'left' : 'right',
+      color: s.color, lineWidth: s.width || 2, priceScaleId: s.scale === 'left' ? 'left' : 'right',
       priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)},
       lastValueVisible: true, priceLineVisible: false,
     });
     if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
     if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
-    ser.setData(s.data.map(([t, v]) => ({time: t, value: v})));
+    ser.setData(s.data.map(([t, v]) => ({time: days ? DAY0 + t * 86400 : t, value: v})));
     if (s === b.series[0]) for (const l of (b.lines || [])) {
       ser.createPriceLine({price: +l.value, color: l.color || '#888', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
         axisLabelVisible: true, title: ''});
@@ -571,7 +577,7 @@ async function openReport(id) {
 }
 
 async function init() {
-  for (const [id, name] of [['latest-md', 'latest.md'], ['latest-weekly-md', 'latest-weekly.md'], ['latest-monthly-md', 'latest-monthly.md']])
+  for (const [id, name] of [['latest-md', 'latest.md'], ['latest-weekly-md', 'latest-weekly.md'], ['latest-monthly-md', 'latest-monthly.md'], ['latest-adhoc-md', 'latest-adhoc.md']])
     document.getElementById(id).textContent = new URL(`${BASE}${name}`, location.href).href;
   const wanted = qs.get('id');
   try {
