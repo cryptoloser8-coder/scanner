@@ -122,6 +122,8 @@ Raporty powstają same według harmonogramu (sekcja `schedule:` w `config.yaml`,
 
 Raporty rzadkie (`collector/special.py`): **roczny** — 1 stycznia po zamknięciu świecy rocznej (wpis w `schedule.reports` z `monthday: 1`, `month: 1`), ręcznie `/raport_teraz rok`; **po halvingu** — ręcznie: po halvingu dopisz dzień UTC w `cycle.halvings` w `config.yaml`, potem `/raport_teraz halving` (bot przypomina przed `cycle.next_halving_estimate`). Oba trzymane bez limitu, stałe adresy `latest-yearly.md`, `latest-halving.md`.
 
+**Raporty specjalne** (`collector/adhoc/`, poprawka 39): jednorazowe analizy zamawiane, gdy na rynku dzieje się coś nietypowego (np. BTC blisko zejścia pod EMA200 po pierwszym wybiciu po bessie) — bez harmonogramu. Każdy plik `collector/adhoc/<nazwa>.py` to jeden raport (`TITLE` + `build(...)`, opis w `adhoc/__init__.py`); pierwszy blok raportu mówi, dlaczego powstał. Budowa z ostatnich danych (1–2 min): `/raport_specjalny NAZWA` (lista: `/raport_specjalny`) albo Actions → Raport → pole „special”. Trzymane bez limitu, filtr „Specjalne” na stronie, stały adres `latest-adhoc.md`. Dostępne: `btc_ema200` — BTC przy EMA200 po pierwszym wybiciu po bessie.
+
 Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data` i `ema`, publikuje go na gałęzi **`reports`**
 (`index.json` + `reports/<id>.json`) i wysyła na Telegram powiadomienie z linkiem `raporty.html?id=…`. Trwa ok. 1 minuty.
 
@@ -148,6 +150,7 @@ Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data
 | `/fiby` | każdy | setupy Fibo ze statusem |
 | `/skan` | admin | skan OI/TOTAL teraz (~40 min) |
 | `/raport_teraz [skan]` | admin | raport z obecnych danych (1–2 min); `skan` = najpierw świeży skan (~45 min) |
+| `/raport_specjalny [NAZWA]` | admin | raport specjalny z `collector/adhoc/` (1–2 min); bez nazwy = lista |
 | `/cisza [8h\|30m\|2d\|off]` | admin | wycisza alerty rynkowe (raporty i awarie dalej przychodzą) |
 | `/fib COIN SZCZYT DOŁEK [long\|short] [opis]` | admin | dodaje setup Fibo |
 | `/usun ID` | admin | usuwa setup Fibo |

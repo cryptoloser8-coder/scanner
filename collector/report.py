@@ -35,6 +35,11 @@ Weekly and monthly reports (kind weekly / monthly, poprawka 30): built by period
 latest-weekly.md/.json, latest-monthly.md/.json. `make --kind weekly,monthly` builds several reports in one run;
 `notify` posts a link for each report listed in --made (written by make).
 
+Special reports (kind "adhoc", poprawka 39): one-off analyses ordered when something unusual happens on the market
+(no schedule). One file per report in collector/adhoc/ (see adhoc/__init__.py); `make --kind adhoc:NAME`,
+Telegram /raport_specjalny NAME, Actions → Raport → field "special". Never pruned; latest-adhoc.md/.json.
+Chart option "x": "days" — x axis in days (data [[day, value]]), e.g. cycles overlaid from a common day 0.
+
 Morning vs evening (poprawka 35): morning = "zamknięcie dnia" (this layout; macro: only today's ★★★ plan),
 evening = "krypto dziś" (today.py: only what moved since the 00:00 UTC daily close, no 2-year background).
 """
@@ -64,6 +69,8 @@ KIND_TITLES = {"test": "Raport testowy", "morning": "Raport poranny — zamknię
                "yearly": "Raport roczny", "halving": "Raport po halvingu"}
 PERIODIC = ("weekly", "monthly")        # osobne listy w index.json (przycinanie) i osobne latest-<kind>.md
 SPECIAL = ("yearly", "halving")         # rzadkie (special.py): osobne grupy, bez przycinania, latest-<kind>.md
+ADHOC = "adhoc"                         # raporty specjalne (collector/adhoc/): kind "adhoc:<nazwa>" przy budowie
+NEVER_PRUNED = SPECIAL + (ADHOC,)
 DEFAULTS = {"notify": True, "keep": 120, "keep_periodic": 60,
             "page_url": "https://cryptoloser8-coder.github.io/scanner/raporty.html"}
 
@@ -681,6 +688,9 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
     ema = _read(os.path.join(ema_dir, "ema.json")) if ema_dir else None
     import cycle as C
     C.configure(cfg or {})                              # halvingi: kod + config.yaml cycle.halvings
+    if kind.startswith(ADHOC + ":"):
+        import adhoc
+        return adhoc.build(kind.split(":", 1)[1], d, ema, cfg or {}, now)
     if kind in SPECIAL:
         import special
         if kind == "yearly":
@@ -802,6 +812,23 @@ def _md_series(s, lines):
     return out
 
 
+def _md_days_series(s):
+    """Chart series on a day axis ([[day, value]]) as numbers: values on chosen days + extremes."""
+    pts = s.get("data") or []
+    if not pts:
+        return []
+    g = s.get("fmt", "")
+    f = (lambda x: f"{x:+.1f}%") if g == "chg" else (lambda x: fmt_val(x, g))  # noqa: E731
+    by = dict(pts)
+    marks = [f"dzień {k}: {f(by[k])}" for k in (0, 30, 60, 90, 120, 180, 270, 365) if k in by]
+    if pts[-1][0] not in (0, 30, 60, 90, 120, 180, 270, 365):
+        marks.append(f"dzień {pts[-1][0]} (ostatni): {f(pts[-1][1])}")
+    hi = max(pts, key=lambda p: p[1])
+    lo = min(pts, key=lambda p: p[1])
+    return [f"- **{s.get('name')}**: " + "; ".join(marks) + ".",
+            f"  Maks. {f(hi[1])} (dzień {hi[0]}), min. {f(lo[1])} (dzień {lo[0]})."]
+
+
 def to_markdown(rep, page_url=""):
     """The whole report as plain markdown — to paste into any AI agent (charts turned into numbers)."""
     src = rep.get("sources") or {}
@@ -843,6 +870,9 @@ def to_markdown(rep, page_url=""):
                     L.append(f"  {it['note']}")
         elif t == "table":
             L += _md_table(b.get("cols") or [], b.get("rows") or [])
+        elif t == "chart" and b.get("x") == "days":
+            for s_ in b.get("series") or []:
+                L += _md_days_series(s_)
         elif t == "chart":
             for i, s_ in enumerate(b.get("series") or []):
                 L += _md_series(s_, b.get("lines") if i == 0 else None)
@@ -865,13 +895,13 @@ def to_markdown(rep, page_url=""):
 
 
 def group_of(kind):
-    return kind if kind in PERIODIC + SPECIAL else "daily"
+    return kind if kind in PERIODIC + NEVER_PRUNED else "daily"
 
 
 def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     """Write reports/<id>.json (+ .md for AI), update index.json (newest first) and the stable latest files.
     Daily reports (all kinds except weekly/monthly/yearly/halving): at most `keep`, latest.md/.json.
-    Yearly and halving: never pruned, latest-yearly.md/.json and latest-halving.md/.json.
+    Yearly, halving and special (adhoc): never pruned, latest-yearly / latest-halving / latest-adhoc .md/.json.
     Weekly and monthly: at most `keep_periodic` of each, latest-weekly.md/.json and latest-monthly.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
@@ -881,7 +911,7 @@ def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     for it in items:
         g = group_of(it.get("kind"))
         count[g] = count.get(g, 0) + 1
-        if g in SPECIAL or count[g] <= (keep if g == "daily" else keep_periodic):
+        if g in NEVER_PRUNED or count[g] <= (keep if g == "daily" else keep_periodic):
             kept.append(it)
             continue
         for ext in ("json", "md"):
@@ -969,7 +999,8 @@ def backfill_md(out_dir, items, page_url=""):
 
 def notify_text(entry, page_url):
     link = f"{page_url}?id={entry['id']}"
-    lines = [f"📊 <b>Nowy raport: {entry['title']}</b>", pl_time(entry["created"])]
+    head = f"🔎 <b>{entry['title']}</b>" if entry.get("kind") == ADHOC else f"📊 <b>Nowy raport: {entry['title']}</b>"
+    lines = [head, pl_time(entry["created"])]
     if entry.get("summary"):
         lines.append(entry["summary"])
     lines += ["", f'<a href="{link}">Otwórz raport</a>']
@@ -1000,7 +1031,8 @@ def main(argv=None):
     ap.add_argument("--ema", default="ema-branch", help="katalog z gałęzią ema")
     ap.add_argument("--out", default="reports-branch", help="katalog z gałęzią reports")
     ap.add_argument("--kind", default="test",
-                    help="rodzaj raportu: " + ", ".join(sorted(KIND_TITLES)) + "; kilka po przecinku (np. weekly,monthly)")
+                    help="rodzaj raportu: " + ", ".join(sorted(KIND_TITLES)) + ", adhoc:<nazwa> (raport specjalny, "
+                         "collector/adhoc/); kilka po przecinku (np. weekly,monthly)")
     ap.add_argument("--made", default="made-reports.json", help="plik z listą zbudowanych raportów (make → notify)")
     ap.add_argument("--config", default=os.path.join(here, "config.yaml"))
     ap.add_argument("--page", default=os.environ.get("REPORT_PAGE_URL", ""), help="adres raporty.html")
@@ -1017,7 +1049,9 @@ def main(argv=None):
 
     if a.cmd == "make":
         kinds = [k.strip() for k in str(a.kind).split(",") if k.strip()]
-        bad = [k for k in kinds if k not in KIND_TITLES]
+        import adhoc
+        bad = [k for k in kinds if k not in KIND_TITLES
+               and not (k.startswith(ADHOC + ":") and k.split(":", 1)[1] in adhoc.catalog())]
         if bad or not kinds:
             log.error("Nieznany rodzaj raportu: %s", ", ".join(bad) or "(pusty)")
             return 2
@@ -1068,7 +1102,7 @@ def last_created(out_dir, kind, now, max_age=30 * HOUR):
 def macro_for(kind, cfg):
     """Kalendarz makro dla raportu (None = wyłączony). Tygodniowy i miesięczny sięgają dalej wstecz i naprzód."""
     st = econ.settings(cfg)
-    if not st.get("enabled", True) or kind in SPECIAL:
+    if not st.get("enabled", True) or kind in SPECIAL or kind.startswith(ADHOC + ":"):
         return None
     c = cfg
     if kind in PERIODIC:

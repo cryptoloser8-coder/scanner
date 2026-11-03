@@ -27,6 +27,7 @@ import requests
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import adhoc  # noqa: E402  (raporty specjalne: lista z collector/adhoc/)
 import alerts  # noqa: E402
 import fib as F  # noqa: E402
 import timetable as TT  # noqa: E402
@@ -50,12 +51,15 @@ def _registry():
     return [
         Cmd("pomoc", "Lista komend", h_pomoc, aliases=("help", "start")),
         Cmd("status", "Stan systemu: świeżość danych, następny skan i raport", h_status),
-        Cmd("raport", "Linki do ostatnich raportów: dziennego, tygodniowego, miesięcznego, rocznego i po halvingu", h_raport),
+        Cmd("raport", "Linki do ostatnich raportów: dziennego, tygodniowego, miesięcznego, rocznego, po halvingu i specjalnego",
+            h_raport),
         Cmd("fiby", "Setupy Fibo ze statusem", h_fiby, aliases=("lista",)),
         Cmd("skan", "Uruchom skan OI/TOTAL teraz (~40 min)", h_skan, admin=True),
         Cmd("raport_teraz", "Zbuduj raport z obecnych danych (skan: najpierw skan, ~45 min; tydzień / miesiąc / rok: "
             "za ostatni pełny okres; halving: po ostatnim halvingu z config.yaml)", h_raport_teraz, admin=True,
             usage="[skan|tydzień|miesiąc|rok|halving]"),
+        Cmd("raport_specjalny", "Raport specjalny — jednorazowa analiza sytuacji na rynku z ostatnich danych "
+            "(bez nazwy: lista dostępnych)", h_raport_specjalny, admin=True, usage="[NAZWA]"),
         Cmd("usun_raport", "Usuń raport z historii (ID z adresu raportu: ?id=…; kilka po przecinku)", h_usun_raport,
             admin=True, usage="ID"),
         Cmd("cisza", "Wycisz alerty rynkowe (domyślnie 8h; off = włącz)", h_cisza, admin=True, usage="[8h|30m|2d|off]"),
@@ -266,7 +270,7 @@ def h_raport(ctx, msg, args):
     reps = (idx or {}).get("reports") or []
     if not reps:
         return "Nie ma jeszcze raportów."
-    periodic = ("weekly", "monthly", "yearly", "halving")
+    periodic = ("weekly", "monthly", "yearly", "halving", "adhoc")
     r = next((x for x in reps if x.get("kind") not in periodic), reps[0])
     lines = [f"📊 <b>{html.escape(r['title'])}</b>, {ctx.t(r['created'], '%d.%m.%Y %H:%M')}"]
     if r.get("summary"):
@@ -312,6 +316,21 @@ def h_raport_teraz(ctx, msg, args):
     return okt if ok else f"⚠️ Nie udało się: {html.escape(err)}"
 
 
+def h_raport_specjalny(ctx, msg, args):
+    cat = adhoc.catalog()
+    name = (args.strip().lower().split() or [""])[0]
+    if not name:
+        if not cat:
+            return "Nie ma jeszcze raportów specjalnych (pliki w collector/adhoc/)."
+        return "\n".join(["🔎 <b>Raporty specjalne</b> — zbuduj: /raport_specjalny NAZWA"]
+                         + [f"• <code>{html.escape(k)}</code> — {html.escape(v)}" for k, v in cat.items()])
+    if name not in cat:
+        return f"❓ Nie ma raportu specjalnego „{html.escape(name)}”. Lista: /raport_specjalny"
+    ok, err = ctx.gh.dispatch("report.yml", {"special": name})
+    return (f"🔎 Raport specjalny „{html.escape(cat[name])}” w przygotowaniu (z ostatnich danych) — link za 1–2 min."
+            if ok else f"⚠️ Nie udało się: {html.escape(err)}")
+
+
 def h_cisza(ctx, msg, args):
     a = args.strip().lower()
     if a in ("off", "0", "wył", "wyl", "stop", "koniec"):
@@ -348,7 +367,7 @@ def h_usun(ctx, msg, args):
     return F.delete_setup(ctx.st.setdefault("fib_user", []), cfg_setups, m.group(1))
 
 
-REPORT_ID = re.compile(r"^\d{8}-\d{4}-[a-z,]+$")
+REPORT_ID = re.compile(r"^\d{8}-\d{4}-[a-z0-9_,-]+$")
 
 
 def h_usun_raport(ctx, msg, args):
@@ -399,7 +418,7 @@ def _report_url(ctx, rid):
 def _kind_title(kind):
     names = {"morning": "poranny (zamknięcie dnia)", "evening": "wieczorny (krypto dziś)", "manual": "na żądanie",
              "test": "testowy", "daily": "dzienny", "weekly": "tygodniowy", "monthly": "miesięczny",
-             "yearly": "roczny", "halving": "po halvingu"}
+             "yearly": "roczny", "halving": "po halvingu", "adhoc": "specjalny"}
     return " i ".join(names.get(k, k) for k in str(kind or "").split(",") if k)
 
 
