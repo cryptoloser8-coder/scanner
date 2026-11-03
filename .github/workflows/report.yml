@@ -9,6 +9,8 @@ name: Raport
 # Rodzaje weekly / monthly = raport tygodniowy / miesięczny za ostatni pełny okres (kilka naraz: "weekly,monthly").
 #   - ręcznie: Actions → Raport → Run workflow.
 # Usuwanie raportu z historii: pole „delete” (ID z adresu raportu) albo /usun_raport ID na Telegramie.
+# Raport specjalny (jednorazowa analiza, collector/adhoc/<nazwa>.py): pole „special” = nazwa
+# (np. btc_ema200) albo /raport_specjalny NAZWA na Telegramie; pole „kind” jest wtedy pomijane.
 
 on:
   workflow_dispatch:
@@ -22,12 +24,19 @@ on:
         description: "Usuń raport(y) z historii zamiast budować nowy: ID z adresu raportu (?id=…), kilka po przecinku"
         type: string
         default: ""
+      special:
+        description: "Raport specjalny: nazwa pliku z collector/adhoc/ bez .py (np. btc_ema200); puste = zwykły raport"
+        type: string
+        default: ""
   workflow_call:
     inputs:
       kind:
         type: string
         default: manual
       delete:
+        type: string
+        default: ""
+      special:
         type: string
         default: ""
 
@@ -66,7 +75,10 @@ jobs:
         if: inputs.delete == ''
         env:
           KIND: ${{ inputs.kind || 'manual' }}
-        run: python collector/report.py make --kind "$KIND" --data data-branch --ema ema-branch --out reports-branch
+          SPECIAL: ${{ inputs.special }}
+        run: |
+          if [ -n "$SPECIAL" ]; then KIND="adhoc:$SPECIAL"; fi
+          python collector/report.py make --kind "$KIND" --data data-branch --ema ema-branch --out reports-branch
 
       - name: Usuń raport(y) z historii
         if: inputs.delete != ''
