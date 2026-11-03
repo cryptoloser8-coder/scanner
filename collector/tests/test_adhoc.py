@@ -60,16 +60,26 @@ def test_build_btc_ema200(tmp_path):
     assert rep["kind"] == "adhoc" and rep["topic"] == "btc_ema200" and rep["id"].endswith("-adhoc-btc_ema200")
     assert rep["title"].startswith("Raport specjalny: ") and rep["summary"].startswith("BTC $")
     assert rep["blocks"][0]["title"] == "Dlaczego ten raport" and "EMA200" in rep["blocks"][0]["text"]
+    assert rep["blocks"][1]["title"] == "Jak czytać ten raport"
     secs = [b["title"] for b in rep["blocks"] if b["type"] == "section"]
-    assert secs == ["Teraz", "Jak było w poprzednich cyklach", "Tło: teraz i na początku poprzednich zejść", "Na co patrzeć"]
-    days = [b for b in rep["blocks"] if b.get("x") == "days"][0]
-    assert len(days["series"]) >= 4 and all(s["data"][0][0] == 0 for s in days["series"])
+    assert secs[0] == "Teraz" and secs[-1] == "Na co patrzeć" and any(x.startswith("Poprzedni cykl") for x in secs)
+    days = [b for b in rep["blocks"] if b.get("x") == "days"]
+    assert len(days) == 3 and all(s["data"][0][0] == 0 for b in days for s in b["series"])
+    charts = [b for b in rep["blocks"] if b["type"] == "chart"]
+    assert any(b.get("markers") for b in charts) and any(b.get("bands") for b in charts)
+    for b in charts:                                          # znaczniki posortowane (wymóg Lightweight Charts)
+        ts_ = [m["t"] for m in b.get("markers") or []]
+        assert ts_ == sorted(ts_)
+    prev = next(b for b in rep["blocks"] if b["title"] == "Każde zejście pod EMA200 w poprzednim cyklu")
+    assert prev["rows"] and all(len(r) == len(prev["cols"]) for r in prev["rows"])
+    macro = next(b for b in rep["blocks"] if b["title"].startswith("Tło makro"))
+    assert macro["rows"][-1][0] == "teraz"
     ep = next(b for b in rep["blocks"] if b["title"].startswith("Dłuższe zejścia"))
     assert ep["rows"] and all(len(r) == len(ep["cols"]) for r in ep["rows"])
     cyc = next(b for b in rep["blocks"] if b["title"].startswith("Akumulacja po dnie"))
     assert len(cyc["rows"]) >= 3 and all(len(r) == len(cyc["cols"]) for r in cyc["rows"])
     md = report.to_markdown(rep)
-    assert "dzień 0:" in md and "Dlaczego ten raport" in md
+    assert "dzień 0:" in md and "Dlaczego ten raport" in md and "Znaczniki na wykresie" in md
     json.dumps(rep)                                                                   # da się zapisać
     data2, ema2 = make_dirs(tmp_path / "plain")                                       # gładka cena: obecny cykl nad EMA
     rep2 = report.build(data2, ema2, "adhoc:btc_ema200", now=now, cfg=CFG)
