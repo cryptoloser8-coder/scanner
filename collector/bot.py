@@ -27,7 +27,6 @@ import requests
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import adhoc  # noqa: E402  (raporty specjalne: lista z collector/adhoc/)
 import alerts  # noqa: E402
 import fib as F  # noqa: E402
 import timetable as TT  # noqa: E402
@@ -317,7 +316,11 @@ def h_raport_teraz(ctx, msg, args):
 
 
 def h_raport_specjalny(ctx, msg, args):
-    cat = adhoc.catalog()
+    try:                       # import tu, nie na górze: niepełne wgranie katalogu adhoc/ nie może zatrzymać całego bota
+        import adhoc
+        cat = adhoc.catalog()
+    except Exception as e:  # noqa: BLE001
+        return f"⚠️ Raporty specjalne niedostępne (collector/adhoc/): {html.escape(str(e))[:150]}"
     name = (args.strip().lower().split() or [""])[0]
     if not name:
         if not cat:

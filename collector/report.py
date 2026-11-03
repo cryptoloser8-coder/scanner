@@ -23,6 +23,7 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                                                  "marks": [{"pos", "label", "kind"}], "note"}]}  — range bars
   {"type": "bars", "title", "note", "rows": [{"label", "long", "short", "text", "current"}],
                    "parts": [{"key", "name", "color"}], "line": {"value", "label"}}         — horizontal stacked bars
+  chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text"}] — on the first series;
   chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
          optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
 
@@ -812,6 +813,9 @@ def _md_series(s, lines):
     return out
 
 
+MARK_MD = {"down": "↓ zamknięcie pod EMA200", "up": "↑ zamknięcie nad EMA200"}
+
+
 def _md_days_series(s):
     """Chart series on a day axis ([[day, value]]) as numbers: values on chosen days + extremes."""
     pts = s.get("data") or []
@@ -876,6 +880,10 @@ def to_markdown(rep, page_url=""):
         elif t == "chart":
             for i, s_ in enumerate(b.get("series") or []):
                 L += _md_series(s_, b.get("lines") if i == 0 else None)
+            if b.get("markers"):
+                L.append("Znaczniki na wykresie: " + "; ".join(
+                    f"{utc(m['t'], '%d.%m.%Y')} {MARK_MD.get(m.get('shape'), '•')}{(' ' + m['text']) if m.get('text') else ''}"
+                    for m in b["markers"]) + ".")
             if b.get("bands"):
                 L.append("Tło wykresu (okresy): " + "; ".join(
                     f"{bd['label']} {utc(bd['from'], '%d.%m.%Y')}–{utc(bd['to'], '%d.%m.%Y')}" for bd in b["bands"]) + ".")
