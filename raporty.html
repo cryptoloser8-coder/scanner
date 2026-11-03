@@ -488,6 +488,12 @@ function drawChart(b, i) {
     if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
     if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
     ser.setData(s.data.map(([t, v]) => ({time: days ? DAY0 + t * 86400 : t, value: v})));
+    if (s === b.series[0] && (b.markers || []).length && LWC.createSeriesMarkers) {   // strzałki / punkty na pierwszej serii
+      const SH = {up: 'arrowUp', down: 'arrowDown'};
+      LWC.createSeriesMarkers(ser, b.markers.map(m => ({time: days ? DAY0 + m.t * 86400 : m.t,
+        position: m.pos === 'below' ? 'belowBar' : 'aboveBar', color: m.color || '#888', shape: SH[m.shape] || 'circle',
+        text: m.text || '', size: m.text ? 1 : .6})));
+    }
     if (s === b.series[0]) for (const l of (b.lines || [])) {
       ser.createPriceLine({price: +l.value, color: l.color || '#888', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
         axisLabelVisible: true, title: ''});
