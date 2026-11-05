@@ -30,7 +30,7 @@ def make_dirs(tmp_path, now):
           "ethbtc": [[t, 0.03] for t in days],
           "oi_others_vs_btc": [[t, peak.get(i, 0.6 + (0.1 if i == 700 else 0) - (0.05 if i == 650 else 0))]
                                for i, t in enumerate(days)],
-          "oi_others": [[t, 1.8e10] for t in days], "oi_btc": [[t, 2.4e10] for t in days],
+          "oi_others": [[t, 1.8e10] for t in days], "oi_btc": [[t, 2.4e10 * (1.05 if i == 799 else 1)] for i, t in enumerate(days)],
           "oi_eth": [[t, 1.4e10] for t in days]}
     h1 = {"total": [[t, 2.4e12] for t in hours], "btc_d": [[t, 60.5] for t in hours],
           "oi_btc": [[t, 2.4e10 * (1.05 if t == hours[-1] else 1)] for t in hours]}
@@ -38,7 +38,8 @@ def make_dirs(tmp_path, now):
              "liq_total_short": [[t, 5e7] for t in days],
              "fund_btc": [[t, 10.0] for t in days], "fund_eth": [[t, -5.0] for t in days],
              "fund_others": [[t, 40.0 if i == 300 else 8.0] for i, t in enumerate(days)],
-             "px_btc": [[t, 77000.0] for t in days], "px_eth": [[t, 2200.0] for t in days]}
+             "px_btc": [[t, 77000.0 * (0.98 if i == 799 else 1)] for i, t in enumerate(days)],
+             "px_eth": [[t, 2200.0] for t in days]}
     liq1h = {"liq_total_long": [[t, 1e6] for t in hours], "liq_total_short": [[t, 5e5] for t in hours],
              "fund_btc": [[t, 25.0] for t in hours],
              "px_btc": [[t, 77000.0 * (0.98 if t == hours[-1] else 1)] for t in hours]}
@@ -92,9 +93,9 @@ def test_build_layout_v2(tmp_path):
     oi_chart = by["Lewar: OI OTHERS / OI BTC — cała historia"]
     assert [l["value"] for l in oi_chart["lines"]] == [0.60, 0.85, 0.95, 1.00]
     assert by["Kapitał: Alty / BTC — od 2020"]["lines"]
-    # Derywaty: OI in coins, not dollars (24h: OI $ +5%, price −2% → OI in coins +7.1%)
+    # Derywaty: OI in coins, not dollars (doba UTC — last closed day: OI $ +5%, price −2% → OI in coins +7.1%)
     oi_rows = by["Open interest i cena — BTC i ETH"]["rows"]
-    btc24 = next(r for r in oi_rows if r[0] == "BTC" and r[1] == "24 h")
+    btc24 = next(r for r in oi_rows if r[0] == "BTC" and r[1] == "doba " + report.utc(now - DAY, "%d.%m"))
     assert btc24[2] == "▼-2.0%" and btc24[3] == "▲+7.1%" and btc24[5].startswith("nowe shorty")
     # Likwidacje: 7 full days + last 24 h, "big day" line from 2-year percentile
     bars = by["Likwidacje — ostatnie 7 dni (doba UTC)"]
