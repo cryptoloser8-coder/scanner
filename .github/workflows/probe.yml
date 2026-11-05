@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = wszystkie): coinalyze tradingview coinmetrics bitmex binance vision"
+        description: "Tylko wybrane źródła (puste = wszystkie): coinalyze tradingview coinmetrics bitmex binance vision cvd"
         type: string
         default: ""
 
