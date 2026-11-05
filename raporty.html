@@ -134,6 +134,16 @@
   .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
   .lg-mark.ref{background:var(--amber);}
   .lg-mark.top{background:var(--red);} .lg-mark.bottom{background:var(--green);}
+  .dbar-grp{padding:4px 0;border-bottom:1px solid var(--border2);}
+  .dbar-grp:last-of-type{border-bottom:0;}
+  .dbar-row{display:grid;grid-template-columns:62px 34px minmax(0,1fr) 170px;gap:8px;align-items:center;padding:2px 0;font-size:12px;}
+  .dbar-part{font-size:11px;color:var(--text2);}
+  .dbar-track{position:relative;height:14px;}
+  .dbar-band{position:absolute;top:2px;bottom:2px;background:var(--text2);opacity:.13;border-radius:2px;}
+  .dbar-zero{position:absolute;top:-2px;bottom:-2px;left:50%;width:1px;background:var(--text2);opacity:.6;}
+  .dbar-fill{position:absolute;top:3px;bottom:3px;border-radius:2px;}
+  .lg-band{display:inline-block;width:16px;height:9px;background:var(--text2);opacity:.25;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+  @media (max-width:600px){.dbar-row{grid-template-columns:44px 30px minmax(0,1fr) 118px;gap:5px;}.dbar-row .bar-text{font-size:10px;}}
   .bar-row{display:grid;grid-template-columns:62px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:4px 0;font-size:12px;}
   .bar-row.cur{border-top:1px dashed var(--border2);margin-top:4px;padding-top:8px;}
   .bar-label{font-family:var(--mono);color:var(--text2);}
@@ -266,6 +276,10 @@ function fmt(v, g) {
   }
   if (g === 'pct') return v.toFixed(2) + '%';
   if (g === 'fund') return v.toFixed(1) + '%';
+  if (g === 'flow') {
+    const t = a >= 1e9 ? (a / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(0) + 'M' : Math.round(a).toLocaleString('pl-PL');
+    return (v < 0 ? '-' : '+') + '$' + t;
+  }
   if (g === 'chg') return (v > 0 ? '+' : '') + v.toFixed(1) + '%';
   if (g === 'ratio') return v.toFixed(3) + '×';
   if (g === 'pair') return v < 1 ? v.toFixed(5) : v.toPrecision(4);
@@ -372,7 +386,7 @@ function fitTables() {
 }
 addEventListener('resize', () => requestAnimationFrame(fitTables));
 function chartBlock(b, i) {
-  const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1 && b.series.some(x => x.scale === 'left')) ? (s.scale === 'left' ? ' (lewa oś)' : ' (prawa oś)') : ''}</span>`).join('');
+  const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1 && b.series.some(x => x.scale === 'left')) ? (s.scale === 'left' ? ' (lewa oś)' : s.scale === 'hidden' ? ' (bez osi)' : ' (prawa oś)') : ''}</span>`).join('');
   return `<div class="chart-legend">${lg}</div>
     <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>
     ${(b.bands || []).length ? `<div class="chart-bands">${[...new Map(b.bands.map(x => [x.color + x.label.replace(' (trwa)', ''), x])).values()]
@@ -423,6 +437,25 @@ function barsBlock(b) {
   return body + `<div class="bars-legend">${parts.map(p => `<span><span class="lg-dot" style="background:${esc(p.color)};border-radius:2px"></span>${esc(p.name)}</span>`).join('')}
     ${b.line && b.line.value ? `<span><span class="lg-mark ref" style="height:11px"></span>${esc(b.line.label)}</span>` : ''}</div>`;
 }
+function dbarsBlock(b) {
+  // słupki w obie strony od zera; szary pas = zwykły zakres (np. z 2 lat); skala osobno dla każdej części (spot / perp)
+  const rows = b.rows || [], parts = b.parts || [];
+  const mx = {};
+  for (const p of parts) mx[p.key] = Math.max(1e-9, ...rows.flatMap(r => [Math.abs(+r[p.key] || 0),
+    ...((r[p.key + '_band'] || []).map(x => Math.abs(+x)))])) * 1.08;
+  const X = (p, v) => 50 + 50 * Math.max(-1, Math.min(1, v / mx[p.key]));
+  const body = rows.map(r => `<div class="dbar-grp">${parts.map((p, j) => {
+    const v = +r[p.key], bd = r[p.key + '_band'];
+    const x = X(p, isFinite(v) ? v : 0), col = v >= 0 ? (b.pos_color || '#4caf7d') : (b.neg_color || '#e05252');
+    return `<div class="dbar-row"><span class="bar-label">${j === 0 ? esc(r.label) : ''}</span><span class="dbar-part">${esc(p.name)}</span>
+      <div class="dbar-track">${bd ? `<div class="dbar-band" style="left:${X(p, bd[0])}%;width:${X(p, bd[1]) - X(p, bd[0])}%"></div>` : ''}
+        <div class="dbar-zero"></div>${isFinite(v) ? `<div class="dbar-fill" style="left:${Math.min(50, x)}%;width:${Math.abs(x - 50)}%;background:${col}"></div>` : ''}</div>
+      <span class="bar-text">${esc(r[p.key + '_text'] || '')}</span></div>`;
+  }).join('')}</div>`).join('');
+  return body + `<div class="bars-legend"><span><span class="lg-dot" style="background:${esc(b.pos_color || '#4caf7d')};border-radius:2px"></span>${esc(b.pos_label || 'przewaga kupna')}</span>
+    <span><span class="lg-dot" style="background:${esc(b.neg_color || '#e05252')};border-radius:2px"></span>${esc(b.neg_label || 'przewaga sprzedaży')}</span>
+    ${b.band_label ? `<span><span class="lg-band"></span>${esc(b.band_label)}</span>` : ''}</div>`;
+}
 function renderBlock(b, i) {
   let body = '';
   if (b.type === 'text') body = `<p class="text">${esc(b.text)}</p>`;
@@ -431,6 +464,7 @@ function renderBlock(b, i) {
   else if (b.type === 'chart') body = (b.series || []).length ? chartBlock(b, i) : '<p class="text">Brak danych do wykresu.</p>';
   else if (b.type === 'ranges') body = rangesBlock(b);
   else if (b.type === 'bars') body = barsBlock(b);
+  else if (b.type === 'dbars') body = dbarsBlock(b);
   else if (b.type === 'section') return `<h2 class="sec">${esc(b.title)}</h2>`;
   else return '';
   return `<section class="block ${b.title === 'Uwaga' ? 'warn' : ''}">
@@ -481,10 +515,11 @@ function drawChart(b, i) {
   }
   for (const s of b.series) {
     const ser = chart.addSeries(LWC.LineSeries, {
-      color: s.color, lineWidth: s.width || 2, priceScaleId: s.scale === 'left' ? 'left' : 'right',
+      color: s.color, lineWidth: s.width || 2, priceScaleId: s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right',
       priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)},
-      lastValueVisible: true, priceLineVisible: false,
+      lastValueVisible: s.scale !== 'hidden', priceLineVisible: false,
     });
+    if (s.scale === 'hidden') chart.priceScale('hidden').applyOptions({scaleMargins: {top: 0.08, bottom: 0.08}});
     if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
     if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
     ser.setData(s.data.map(([t, v]) => ({time: days ? DAY0 + t * 86400 : t, value: v})));

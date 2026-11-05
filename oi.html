@@ -224,6 +224,7 @@ async function getJSON(name) {
 const GROUPS = [
   ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
   ['price', 'Cena'], ['cycle', 'Cykl BTC'], ['macro', 'Makro USA'],
+  ['cvd', 'CVD (kupno − sprzedaż)'], ['vol', 'Wolumen'],
 ];
 const TILE_SECTIONS = [
   ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance']],
@@ -233,6 +234,8 @@ const TILE_SECTIONS = [
   ['Dźwignia i stosunki', ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
   ['Cykl BTC', ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr']],
   ['Makro USA', ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold']],
+  ['CVD — kupno − sprzedaż „po rynku”, spot i perp (kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu)', ['cvd_btc_spot', 'cvd_btc_perp', 'cvd_eth_spot', 'cvd_eth_perp', 'cvd_sol_spot',
+    'cvd_sol_perp', 'cvd_bnb_spot', 'cvd_bnb_perp', 'cvd_xrp_spot', 'cvd_xrp_perp', 'cvd_doge_spot', 'cvd_doge_perp']],
 ];
 const BUILTIN_PRESETS = [
   {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
@@ -257,6 +260,11 @@ const BUILTIN_PRESETS = [
   {name: 'Dolar (DXY) vs TOTAL (% zmiana)', series: ['dxy', 'total'], mode: 'pct'},
   {name: 'S&P 500 i Nasdaq vs BTC (% zmiana)', series: ['spx', 'ndx', 'px_btc'], mode: 'pct'},
   {name: 'Stablecoiny: SSR + Stablecoiny.D', series: ['ssr', 'stable_d'], mode: 'val'},
+  {name: 'BTC: cena + CVD spot i perp', series: ['px_btc', 'cvd_btc_spot', 'cvd_btc_perp'], mode: 'val'},
+  {name: 'ETH: cena + CVD spot i perp', series: ['px_eth', 'cvd_eth_spot', 'cvd_eth_perp'], mode: 'val'},
+  {name: 'SOL: cena + CVD spot i perp', series: ['px_sol', 'cvd_sol_spot', 'cvd_sol_perp'], mode: 'val'},
+  {name: 'BTC: OI + CVD spot i perp', series: ['oi_btc', 'cvd_btc_spot', 'cvd_btc_perp'], mode: 'val'},
+  {name: 'BTC: wolumen spot vs perp', series: ['cvd_btc_spot_vol', 'cvd_btc_perp_vol'], mode: 'val'},
 ];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('oimon.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -308,6 +316,10 @@ function fmt(v, group) {
     if (a >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
     if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
     return '$' + (a >= 100 ? v.toLocaleString('en-US', {maximumFractionDigits: 0}) : v.toPrecision(4));
+  }
+  if (group === 'flow') {                       // CVD: kwota ze znakiem
+    const a = Math.abs(v), t = a >= 1e9 ? (a / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : (a / 1e3).toFixed(0) + 'k';
+    return (v < 0 ? '-' : '+') + '$' + t;
   }
   if (group === 'x') return v.toFixed(2) + '×';
   if (group === 'z') return v.toFixed(2);
@@ -366,6 +378,13 @@ function valueAt(arr, t) { // last value at/before t (binary search)
   return best >= 0 ? arr[best][1] : null;
 }
 function available(sid) { return pts('1d', sid).length > 0 || pts('1h', sid).length > 0; }
+// CVD: serie z deltą na świecę (CAT.cum) rysowane jako suma narastająca od chwili `from`
+function cumulate(arr, from) {
+  const out = []; let run = 0;
+  for (const [t, v] of arr) if (t >= from) { run += v; out.push([t, run]); }
+  return out;
+}
+const sumSince = (arr, from) => arr.reduce((a, p) => a + (p[0] >= from ? p[1] : 0), 0);
 
 // ── tiles ───────────────────────────────────────────────────
 function sparkline(arr, color) {
@@ -389,6 +408,17 @@ function renderTiles() {
       const c = CAT[id], d = pts('1d', id), h = pts('1h', id);
       const last = (h.length && (!d.length || h[h.length - 1][0] >= d[d.length - 1][0])) ? h[h.length - 1] : d[d.length - 1];
       const t = last[0], v = last[1];
+      if (c.cum) {                                // CVD: suma z 24 h (godziny albo ostatnia doba), 7 i 30 dni; wykres narastająco
+        const tEnd = d.length ? d[d.length - 1][0] : t;
+        const v24 = h.length ? sumSince(h, h[h.length - 1][0] - 23 * 3600) : (d.length ? d[d.length - 1][1] : null);
+        const sg = x => `<span class="${x > 0 ? 'pos' : x < 0 ? 'neg' : ''}">${fmt(x, 'flow')}</span>`;
+        return `<div class="tile ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${c.color}">
+        <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
+        <div class="tile-val">${sg(v24)}<span style="font-size:10px;color:var(--text3)"> 24 h</span></div>
+        <div class="tile-chg"><span>7D ${sg(sumSince(d, tEnd - 6 * 86400))}</span><span>30D ${sg(sumSince(d, tEnd - 29 * 86400))}</span></div>
+        ${sparkline(cumulate(d, tEnd - 89 * 86400), c.color)}
+      </div>`;
+      }
       return `<div class="tile ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${c.color}">
         <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
         <div class="tile-val">${fmt(v, fmtOf(c))}</div>
@@ -592,9 +622,23 @@ const TOP_GROUPS = ['oi', 'mcap', 'price', 'macro'];
 const AXIS_ORDER = ['oi', 'mcap', 'price', 'pct', 'ratio', 'pair', 'cyc'];
 const axisKey = id => CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
 const isTop = id => TOP_GROUPS.includes(CAT[id].group) && CAT[id].pane !== 'low';
+const isCum = id => !!(CAT[id] || {}).cum;
+let cumPane = -1;                                  // panel z CVD w trybach % zmiana / Index 100 (tam zawsze wartości)
 function allocAxes(ids) {
   const out = {};
-  if (S.mode !== 'val') { ids.forEach(id => { out[id] = {pane: 0, scale: 'right'}; }); return out; }
+  cumPane = -1;
+  if (S.mode !== 'val') {
+    const other = ids.some(id => !isCum(id)), keys = [];
+    ids.forEach(id => {
+      if (!isCum(id)) { out[id] = {pane: 0, scale: 'right'}; return; }
+      const k = axisKey(id);
+      if (!keys.includes(k)) keys.push(k);
+      cumPane = other ? 1 : 0;
+      const i = keys.indexOf(k);
+      out[id] = {pane: cumPane, scale: i === 0 ? 'right' : i === 1 ? 'left' : 'ov_' + k};
+    });
+    return out;
+  }
   const topUsed = ids.some(isTop);
   const byPane = [[], []];
   for (const id of ids) {
@@ -614,6 +658,9 @@ function allocAxes(ids) {
   return out;
 }
 
+// dane serii do wykresu: CVD = suma narastająca od początku wybranego zakresu (przyciski 1T/1M/…; ALL = od początku)
+let cumFrom = 0;
+function seriesData(id) { return isCum(id) ? cumulate(pts(S.res, id), cumFrom) : pts(S.res, id); }
 function drawChart(resetRange) {
   if (!chart) makeChart();
   const prevRange = chart.timeScale().getVisibleRange();
@@ -623,6 +670,8 @@ function drawChart(resetRange) {
   while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
 
   const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
+  const endAll = Math.max(0, ...ids.map(id => { const a = pts(S.res, id); return a[a.length - 1][0]; }));
+  cumFrom = S.range > 0 ? endAll - S.range * 86400 : 0;
   document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
   const axes = allocAxes(ids);
   const used = {};
@@ -636,10 +685,10 @@ function drawChart(resetRange) {
     const series = chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
       lastValueVisible: true, priceLineVisible: false,
-      priceFormat: S.mode === 'val' ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
+      priceFormat: S.mode === 'val' || c.cum ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
         : {type: 'price', precision: 2, minMove: 0.01},
     }, pane);
-    series.setData(pts(S.res, id).map(([t, v]) => ({time: t, value: v})));
+    series.setData(seriesData(id).map(([t, v]) => ({time: t, value: v})));
     if (S.mode === 'val' && S.levels) {
       for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
         series.createPriceLine({price: +lv.level, color: c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
@@ -661,7 +710,8 @@ function drawChart(resetRange) {
   const sideUsed = side => Object.keys(used).some(k => k.endsWith(':' + side));
   // log (tryb Wartości) — tylko górny panel z USD / cenami / makro; wskaźniki w dolnym zostają liniowe
   const logTop = S.mode === 'val' && ids.some(isTop);
-  const modeFor = pane => (S.mode !== 'val' || (pane === 0 && logTop)) ? mode : LWC.PriceScaleMode.Normal;
+  const modeFor = pane => pane === cumPane ? LWC.PriceScaleMode.Normal
+    : (S.mode !== 'val' || (pane === 0 && logTop)) ? mode : LWC.PriceScaleMode.Normal;
   chart.panes().forEach((p, i) => {
     for (const side of ['left', 'right']) {
       const visible = sideUsed(side);
@@ -675,7 +725,7 @@ function drawChart(resetRange) {
     chart.panes()[1].setHeight(Math.round(total * .3));
   }
   // range
-  const all = mounted.flatMap(m => { const a = pts(S.res, m.id); return a.length ? [a[0][0], a[a.length - 1][0]] : []; });
+  const all = mounted.flatMap(m => { const a = seriesData(m.id); return a.length ? [a[0][0], a[a.length - 1][0]] : []; });
   if (all.length) {
     const end = Math.max(...all), start = Math.min(...all);
     if (resetRange || !prevRange) {
@@ -696,9 +746,9 @@ function updateLegend(param) {
     const c = CAT[id];
     let v = null;
     if (lastCrosshair) { const d = param.seriesData.get(series); v = d && d.value; }
-    if (v == null) { const a = pts(S.res, id); v = a.length ? a[a.length - 1][1] : null; }
+    if (v == null) { const a = seriesData(id); v = a.length ? a[a.length - 1][1] : null; }
     let extra = '';
-    if (S.mode !== 'val') {
+    if (S.mode !== 'val' && !c.cum) {
       const vr = chart.timeScale().getVisibleRange();
       const a = pts(S.res, id);
       const first = vr ? a.find(p => p[0] >= vr.from) : null;
@@ -721,10 +771,11 @@ document.getElementById('legend').addEventListener('click', e => {
 // ── refresh ─────────────────────────────────────────────────
 // 1H: główne serie z 1h.json + ceny BTC/ETH (px_*) z pliku zakładki likwidacji — jak przy 1D
 async function load1h() {
-  const lqP = getJSON('liq_1h.json').catch(() => null);
+  const lqP = getJSON('liq_1h.json').catch(() => null), cvP = getJSON('cvd_1h.json').catch(() => null);
   const d = await getJSON('1h.json');
-  const lq = await lqP;
+  const lq = await lqP, cv = await cvP;
   for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_')) d.series[id] = arr;
+  Object.assign(d.series, (cv && cv.series) || {});            // CVD i wolumen spot / perp (poprawka 44)
   return d;
 }
 async function ensureRes() {
@@ -770,10 +821,11 @@ function setUpdated() {
 async function boot() {
   try {
     // cena BTC/ETH (px_*) jest w pliku zakładki likwidacji — pobierana równolegle, bez niej reszta działa
-    const lqP = getJSON('liq_1d.json').catch(() => null);
+    const lqP = getJSON('liq_1d.json').catch(() => null), cvP = getJSON('cvd_1d.json').catch(() => null);
     [META, DATA['1d']] = await Promise.all([getJSON('meta.json'), getJSON('1d.json')]);
-    const lq = await lqP;
+    const lq = await lqP, cv = await cvP;
     for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_')) DATA['1d'].series[id] = arr;
+    Object.assign(DATA['1d'].series, (cv && cv.series) || {});
   } catch (e) {
     setStatus('error', 'Brak danych');
     const b = document.getElementById('banner');
