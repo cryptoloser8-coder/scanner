@@ -1,0 +1,1753 @@
+{
+ "where": "github",
+ "at": "2026-11-05 18:11 UTC",
+ "seconds": 741,
+ "rows": [
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance (BTCFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-08-04",
+   "last": "2026-11-04",
+   "n": 1189,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-04; bv w 100% dni; bv÷v rok: mediana 0.506, 0.260–0.760; wolumen dnia $59.5 mln (jedn. base); delta dnia $8.1 mln; CVD 30 dni −$13.1 mln, 365 dni $1.96 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance (BTCUD.A, USD)",
+   "status": "ok",
+   "first": "2025-12-04",
+   "last": "2026-11-04",
+   "n": 336,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-12-04; bv w 100% dni; bv÷v rok: mediana 0.536, 0.079–0.956; wolumen dnia $404 tys. (jedn. base); delta dnia $151 tys.; CVD 30 dni −$1.1 mln, 365 dni $25.3 mln; 1h: 2018 świec od 2026-08-12 22:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance (BTCUSD.A, USDT)",
+   "status": "ok",
+   "first": "2017-08-17",
+   "last": "2026-11-04",
+   "n": 3367,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.493, 0.380–0.615; wolumen dnia $1.78 mld (jedn. base); delta dnia $142.6 mln; CVD 30 dni $753.1 mln, 365 dni −$8.86 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance (BTCUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2018-12-15",
+   "last": "2026-11-04",
+   "n": 2718,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.484, 0.404–0.621; wolumen dnia $422.0 mln (jedn. base); delta dnia −$2.2 mln; CVD 30 dni −$95.6 mln, 365 dni −$4.08 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bitfinex (BTCUSD.F, USD)",
+   "status": "ok",
+   "first": "2017-01-07",
+   "last": "2026-11-04",
+   "n": 3589,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.488, 0.169–0.763; wolumen dnia $99.6 mln (jedn. base); delta dnia $42.8 mln; CVD 30 dni $26.6 mln, 365 dni −$1.02 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bitfinex (BTCUSDT.F, USDT)",
+   "status": "ok",
+   "first": "2019-03-11",
+   "last": "2026-11-04",
+   "n": 2796,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.482, 0.179–0.798; wolumen dnia $114.0 mln (jedn. base); delta dnia $12.7 mln; CVD 30 dni $98.3 mln, 365 dni −$455.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bitstamp (BTCUSD.B, USD)",
+   "status": "ok",
+   "first": "2017-01-07",
+   "last": "2026-11-04",
+   "n": 3589,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.506, 0.259–0.659; wolumen dnia $206.9 mln (jedn. base); delta dnia $20.9 mln; CVD 30 dni −$97.4 mln, 365 dni −$583.2 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bitstamp (BTCUSDC.B, USDC)",
+   "status": "ok",
+   "first": "2020-10-21",
+   "last": "2026-11-04",
+   "n": 2206,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-10-21; bv w 100% dni; bv÷v rok: mediana 0.574, 0.188–0.990; wolumen dnia $1.5 mln (jedn. base); delta dnia −$695 tys.; CVD 30 dni −$1.4 mln, 365 dni $113.6 mln; 1h: 2018 świec od 2026-08-11 13:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bitstamp (BTCUSDT.B, USDT)",
+   "status": "ok",
+   "first": "2021-06-15",
+   "last": "2026-11-04",
+   "n": 1969,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-15; bv w 100% dni; bv÷v rok: mediana 0.460, 0.035–0.950; wolumen dnia $463 tys. (jedn. base); delta dnia −$103 tys.; CVD 30 dni −$722 tys., 365 dni −$49.9 mln; 1h: 2018 świec od 2026-08-04 22:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bybit (sBTCUSD.6, USD)",
+   "status": "ok",
+   "first": "2026-04-16",
+   "last": "2026-11-04",
+   "n": 203,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2026-04-16; bv w 100% dni; bv÷v rok: mediana 0.458, 0.007–0.993; wolumen dnia $24 tys. (jedn. base); delta dnia $13 tys.; CVD 30 dni −$5.4 mln, 365 dni −$17.0 mln; 1h: 2012 świec od 2026-08-07 15:00, bv w 2012"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bybit (sBTCUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2021-12-09",
+   "last": "2026-11-04",
+   "n": 1792,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.490, 0.355–0.651, dokładnie 0,5: 0% dni; wolumen dnia $54.3 mln (jedn. base); delta dnia −$2.1 mln; CVD 30 dni −$39.2 mln, 365 dni −$310.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Bybit (sBTCUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-07-05",
+   "last": "2026-11-04",
+   "n": 1949,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.496, 0.443–0.559; wolumen dnia $1.35 mld (jedn. base); delta dnia $38.4 mln; CVD 30 dni −$145.4 mln, 365 dni −$1.62 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Coinbase (BTCUSD.C, USD)",
+   "status": "ok",
+   "first": "2017-01-01",
+   "last": "2026-11-04",
+   "n": 3595,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.493, 0.360–0.628; wolumen dnia $1.06 mld (jedn. base); delta dnia $38.2 mln; CVD 30 dni −$807.7 mln, 365 dni −$1.81 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Coinbase (BTCUSDT.C, USDT)",
+   "status": "ok",
+   "first": "2021-05-04",
+   "last": "2026-11-04",
+   "n": 2011,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-05-04; bv w 100% dni; bv÷v rok: mediana 0.503, 0.199–0.822; wolumen dnia $2.3 mln (jedn. base); delta dnia −$354 tys.; CVD 30 dni $5.8 mln, 365 dni −$70.4 mln; 1h: 2018 świec od 2026-08-13 15:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Kraken (BTCUSD.K, USD)",
+   "status": "ok",
+   "first": "2017-01-09",
+   "last": "2026-11-04",
+   "n": 3586,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.496, 0.308–0.705; wolumen dnia $361.1 mln (jedn. base); delta dnia $57.6 mln; CVD 30 dni −$201.4 mln, 365 dni −$310.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Kraken (BTCUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2020-01-08",
+   "last": "2026-11-04",
+   "n": 2493,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-01-08; bv w 100% dni; bv÷v rok: mediana 0.500, 0.216–0.890; wolumen dnia $22.0 mln (jedn. base); delta dnia $877 tys.; CVD 30 dni −$22.6 mln, 365 dni −$127.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Kraken (BTCUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2019-12-19",
+   "last": "2026-11-04",
+   "n": 2513,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-12-20; bv w 100% dni; bv÷v rok: mediana 0.492, 0.171–0.837; wolumen dnia $9.9 mln (jedn. base); delta dnia −$321 tys.; CVD 30 dni $26.1 mln, 365 dni −$15.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance (BTCUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-08",
+   "last": "2026-11-04",
+   "n": 1032,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-08; bv w 100% dni; bv÷v rok: mediana 0.497, 0.464–0.541; wolumen dnia $4.77 mld (jedn. base); delta dnia $153.6 mln; CVD 30 dni −$823.9 mln, 365 dni −$4.55 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance (BTCUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2019-09-12",
+   "last": "2026-11-04",
+   "n": 2611,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-09-12; bv w 100% dni; bv÷v rok: mediana 0.498, 0.460–0.555; wolumen dnia $20.16 mld (jedn. base); delta dnia $560.6 mln; CVD 30 dni −$2.88 mld, 365 dni −$10.29 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance (BTCUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2020-08-15",
+   "last": "2026-11-04",
+   "n": 2273,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-08-15; bv w 100% dni; bv÷v rok: mediana 0.485, 0.334–0.594; wolumen dnia $1.30 mld (jedn. quote); delta dnia $119 tys.; CVD 30 dni −$1.56 mld, 365 dni −$10.52 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Bybit (BTCPERP.6, USDC)",
+   "status": "ok",
+   "first": "2022-01-14",
+   "last": "2026-11-04",
+   "n": 1756,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-25; bv w 100% dni; bv÷v rok: mediana 0.496, 0.284–0.649; wolumen dnia $64.9 mln (jedn. base); delta dnia −$2.5 mln; CVD 30 dni −$41.4 mln, 365 dni $2.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Bybit (BTCUSD.6, USD)",
+   "status": "ok",
+   "first": "2020-04-04",
+   "last": "2026-11-04",
+   "n": 2406,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-04-04; bv w 100% dni; bv÷v rok: mediana 0.493, 0.318–0.691; wolumen dnia $484.8 mln (jedn. quote); delta dnia −$32.1 mln; CVD 30 dni −$179.7 mln, 365 dni −$2.44 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Bybit (BTCUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2020-04-04",
+   "last": "2026-11-04",
+   "n": 2406,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-04-04; bv w 100% dni; bv÷v rok: mediana 0.499, 0.442–0.576; wolumen dnia $8.15 mld (jedn. base); delta dnia $247.6 mln; CVD 30 dni −$1.34 mld, 365 dni −$3.67 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Deribit (BTC-PERPETUAL.2, USD)",
+   "status": "ok",
+   "first": "2019-03-12",
+   "last": "2026-11-04",
+   "n": 2795,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-06; bv w 100% dni; bv÷v rok: mediana 0.502, 0.354–0.610; wolumen dnia $2.88 mld (jedn. quote); delta dnia $21.6 mln; CVD 30 dni $147.9 mln, 365 dni −$365.2 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Deribit (BTC_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2022-03-10",
+   "last": "2026-11-04",
+   "n": 1701,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-03-10; bv w 100% dni; bv÷v rok: mediana 0.499, 0.325–0.701; wolumen dnia $6.05 mld (jedn. base); delta dnia $67.5 mln; CVD 30 dni −$21.1 mln, 365 dni −$23.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Hyperliquid (BTC.H, USD)",
+   "status": "ok",
+   "first": "2023-02-26",
+   "last": "2026-11-04",
+   "n": 1348,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.499, 0.387–0.575; wolumen dnia $5.90 mld (jedn. base); delta dnia $34.4 mln; CVD 30 dni −$1.39 mld, 365 dni −$7.11 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp OKX (BTCUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2020-03-28",
+   "last": "2026-11-04",
+   "n": 2413,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-28; bv w 100% dni; bv÷v rok: mediana 0.499, 0.462–0.561; wolumen dnia $11.65 mld (jedn. base); delta dnia $294.9 mln; CVD 30 dni −$2.44 mld, 365 dni −$2.30 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp OKX (BTCUSD_PERP.3, USD)",
+   "status": "ok",
+   "first": "2020-01-10",
+   "last": "2026-11-04",
+   "n": 2414,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-01-10; bv w 100% dni; bv÷v rok: mediana 0.495, 0.402–0.592; wolumen dnia $782.6 mln (jedn. quote); delta dnia $22.2 mln; CVD 30 dni −$353.4 mln, 365 dni −$2.95 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance (ETHFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-08-04",
+   "last": "2026-11-04",
+   "n": 1189,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-04; bv w 100% dni; bv÷v rok: mediana 0.508, 0.219–0.702; wolumen dnia $19.4 mln (jedn. base); delta dnia $3.7 mln; CVD 30 dni −$3.1 mln, 365 dni $1.05 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance (ETHUD.A, USD)",
+   "status": "ok",
+   "first": "2026-03-03",
+   "last": "2026-11-04",
+   "n": 247,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2026-03-03; bv w 100% dni; bv÷v rok: mediana 0.555, 0.142–0.989; wolumen dnia $154 tys. (jedn. base); delta dnia $102 tys.; CVD 30 dni −$918 tys., 365 dni $7.5 mln; 1h: 2018 świec od 2026-08-11 21:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance (ETHUSD.A, USDT)",
+   "status": "ok",
+   "first": "2017-08-17",
+   "last": "2026-11-04",
+   "n": 3367,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.494, 0.378–0.624; wolumen dnia $829.6 mln (jedn. base); delta dnia $6.1 mln; CVD 30 dni −$221.0 mln, 365 dni −$4.61 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance (ETHUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2018-12-15",
+   "last": "2026-11-04",
+   "n": 2718,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.497, 0.394–0.616; wolumen dnia $297.6 mln (jedn. base); delta dnia −$13.0 mln; CVD 30 dni $44.1 mln, 365 dni −$1.39 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bitfinex (ETHUSD.F, USD)",
+   "status": "ok",
+   "first": "2017-01-07",
+   "last": "2026-11-04",
+   "n": 3589,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.499, 0.055–0.859; wolumen dnia $46.8 mln (jedn. base); delta dnia $10.9 mln; CVD 30 dni −$795.8 mln, 365 dni −$1.55 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bitfinex (ETHUSDT.F, USDT)",
+   "status": "ok",
+   "first": "2019-03-11",
+   "last": "2026-11-04",
+   "n": 2796,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.508, 0.166–0.816; wolumen dnia $26.9 mln (jedn. base); delta dnia −$56 tys.; CVD 30 dni $164.0 mln, 365 dni $160.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bitstamp (ETHUSD.B, USD)",
+   "status": "ok",
+   "first": "2017-08-18",
+   "last": "2026-11-04",
+   "n": 3366,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.526, 0.340–0.951; wolumen dnia $36.2 mln (jedn. base); delta dnia $3.8 mln; CVD 30 dni −$43.5 mln, 365 dni $959.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bitstamp (ETHUSDC.B, USDC)",
+   "status": "ok",
+   "first": "2020-10-21",
+   "last": "2026-11-04",
+   "n": 2206,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-10-21; bv w 100% dni; bv÷v rok: mediana 0.482, 0.068–0.863; wolumen dnia $496 tys. (jedn. base); delta dnia −$140 tys.; CVD 30 dni −$1.5 mln, 365 dni −$6.8 mln; 1h: 2012 świec od 2026-08-08 12:00, bv w 2012"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bitstamp (ETHUSDT.B, USDT)",
+   "status": "ok",
+   "first": "2021-06-15",
+   "last": "2026-11-04",
+   "n": 1969,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-15; bv w 100% dni; bv÷v rok: mediana 0.433, 0.012–1.000; wolumen dnia $137 tys. (jedn. base); delta dnia −$105 tys.; CVD 30 dni −$304 tys., 365 dni −$12.4 mln; 1h: 2010 świec od 2026-07-11 14:00, bv w 2010"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bybit (sETHUSD.6, USD)",
+   "status": "ok",
+   "first": "2026-04-16",
+   "last": "2026-11-04",
+   "n": 203,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2026-04-16; bv w 100% dni; bv÷v rok: mediana 0.483, 0.000–1.000; wolumen dnia $63 tys. (jedn. base); delta dnia $60 tys.; CVD 30 dni −$157 tys., 365 dni −$7.5 mln; 1h: 1986 świec od 2026-07-08 18:00, bv w 1986"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bybit (sETHUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2021-12-09",
+   "last": "2026-11-04",
+   "n": 1792,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.483, 0.238–0.758; wolumen dnia $25.4 mln (jedn. base); delta dnia $722 tys.; CVD 30 dni −$25.3 mln, 365 dni −$239.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Bybit (sETHUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-07-05",
+   "last": "2026-11-04",
+   "n": 1949,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.498, 0.359–0.582; wolumen dnia $371.4 mln (jedn. base); delta dnia −$19.3 mln; CVD 30 dni $16.3 mln, 365 dni −$248.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Coinbase (ETHUSD.C, USD)",
+   "status": "ok",
+   "first": "2017-01-01",
+   "last": "2026-11-04",
+   "n": 3595,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.500, 0.358–0.665; wolumen dnia $456.0 mln (jedn. base); delta dnia −$28.0 mln; CVD 30 dni −$462.2 mln, 365 dni −$306.2 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Coinbase (ETHUSDT.C, USDT)",
+   "status": "ok",
+   "first": "2021-05-04",
+   "last": "2026-11-04",
+   "n": 2011,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-05-04; bv w 100% dni; bv÷v rok: mediana 0.489, 0.123–0.810; wolumen dnia $3.9 mln (jedn. base); delta dnia $1.1 mln; CVD 30 dni $19.5 mln, 365 dni −$66.3 mln; 1h: 2018 świec od 2026-08-13 12:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Kraken (ETHUSD.K, USD)",
+   "status": "ok",
+   "first": "2017-01-08",
+   "last": "2026-11-04",
+   "n": 3586,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.502, 0.248–0.797; wolumen dnia $111.9 mln (jedn. base); delta dnia $11.9 mln; CVD 30 dni −$141.5 mln, 365 dni $234.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Kraken (ETHUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2020-01-08",
+   "last": "2026-11-04",
+   "n": 2493,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-01-08; bv w 100% dni; bv÷v rok: mediana 0.493, 0.092–0.903; wolumen dnia $11.7 mln (jedn. base); delta dnia $1.8 mln; CVD 30 dni −$18.9 mln, 365 dni −$35.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Kraken (ETHUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2019-12-19",
+   "last": "2026-11-04",
+   "n": 2513,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-12-19; bv w 100% dni; bv÷v rok: mediana 0.440, 0.066–0.872; wolumen dnia $6.0 mln (jedn. base); delta dnia $431 tys.; CVD 30 dni −$19.8 mln, 365 dni −$158.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance (ETHUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-08",
+   "last": "2026-11-04",
+   "n": 1032,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-08; bv w 100% dni; bv÷v rok: mediana 0.498, 0.469–0.541; wolumen dnia $3.31 mld (jedn. base); delta dnia $74.8 mln; CVD 30 dni −$667.2 mln, 365 dni −$3.42 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance (ETHUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2019-12-20",
+   "last": "2026-11-04",
+   "n": 2512,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-12-20; bv w 100% dni; bv÷v rok: mediana 0.499, 0.461–0.539; wolumen dnia $13.79 mld (jedn. base); delta dnia $371.8 mln; CVD 30 dni −$3.95 mld, 365 dni −$14.64 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance (ETHUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2020-08-18",
+   "last": "2026-11-04",
+   "n": 2270,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-08-18; bv w 100% dni; bv÷v rok: mediana 0.491, 0.395–0.625; wolumen dnia $647.0 mln (jedn. quote); delta dnia $39.2 mln; CVD 30 dni −$450.6 mln, 365 dni −$4.40 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Bybit (ETHPERP.6, USDC)",
+   "status": "ok",
+   "first": "2022-08-05",
+   "last": "2026-11-04",
+   "n": 1553,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-25; bv w 100% dni; bv÷v rok: mediana 0.500, 0.347–0.691; wolumen dnia $18.6 mln (jedn. base); delta dnia $770 tys.; CVD 30 dni −$11.7 mln, 365 dni −$3.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Bybit (ETHUSD.6, USD)",
+   "status": "ok",
+   "first": "2020-04-04",
+   "last": "2026-11-04",
+   "n": 2406,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-04-04; bv w 100% dni; bv÷v rok: mediana 0.495, 0.295–0.686; wolumen dnia $71.7 mln (jedn. quote); delta dnia $224 tys.; CVD 30 dni −$53.7 mln, 365 dni −$383.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Bybit (ETHUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2020-10-21",
+   "last": "2026-11-04",
+   "n": 2206,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-10-21; bv w 100% dni; bv÷v rok: mediana 0.499, 0.447–0.571; wolumen dnia $3.93 mld (jedn. base); delta dnia $81.8 mln; CVD 30 dni −$1.03 mld, 365 dni −$2.57 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Deribit (ETH-PERPETUAL.2, USD)",
+   "status": "ok",
+   "first": "2019-03-14",
+   "last": "2026-11-04",
+   "n": 2793,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-06; bv w 100% dni; bv÷v rok: mediana 0.498, 0.297–0.664; wolumen dnia $260.1 mln (jedn. quote); delta dnia $12.8 mln; CVD 30 dni −$38.8 mln, 365 dni −$156.3 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Deribit (ETH_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2022-03-14",
+   "last": "2026-11-04",
+   "n": 1697,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-03-14; bv w 100% dni; bv÷v rok: mediana 0.498, 0.327–0.585; wolumen dnia $2.32 mld (jedn. base); delta dnia $6.1 mln; CVD 30 dni −$11.5 mln, 365 dni −$61.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Hyperliquid (ETH.H, USD)",
+   "status": "ok",
+   "first": "2023-02-26",
+   "last": "2026-11-04",
+   "n": 1348,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.492, 0.373–0.593; wolumen dnia $2.02 mld (jedn. base); delta dnia $31.0 mln; CVD 30 dni −$871.3 mln, 365 dni −$6.52 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp OKX (ETHUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2020-03-28",
+   "last": "2026-11-04",
+   "n": 2413,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-28; bv w 100% dni; bv÷v rok: mediana 0.501, 0.460–0.538; wolumen dnia $11.23 mld (jedn. base); delta dnia $634.0 mln; CVD 30 dni −$2.00 mld, 365 dni $3.76 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp OKX (ETHUSD_PERP.3, USD)",
+   "status": "ok",
+   "first": "2020-01-10",
+   "last": "2026-11-04",
+   "n": 2414,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-28; bv w 100% dni; bv÷v rok: mediana 0.495, 0.352–0.702; wolumen dnia $524.8 mln (jedn. quote); delta dnia $59.9 mln; CVD 30 dni $24.9 mln, 365 dni −$879.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance (SOLFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-09-07",
+   "last": "2026-11-04",
+   "n": 1155,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-09-07; bv w 100% dni; bv÷v rok: mediana 0.508, 0.304–0.709; wolumen dnia $7.0 mln (jedn. base); delta dnia $1.5 mln; CVD 30 dni $4.3 mln, 365 dni $5.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance (SOLUD.A, USD)",
+   "status": "ok",
+   "first": "2026-03-03",
+   "last": "2026-11-04",
+   "n": 247,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2026-03-03; bv w 100% dni; bv÷v rok: mediana 0.631, 0.073–0.989; wolumen dnia $23 tys. (jedn. base); delta dnia $9 tys.; CVD 30 dni $442 tys., 365 dni $1.4 mln; 1h: 2015 świec od 2026-08-07 12:00, bv w 2015"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance (SOLUSD.A, USDT)",
+   "status": "ok",
+   "first": "2020-08-11",
+   "last": "2026-11-04",
+   "n": 2277,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-08-11; bv w 100% dni; bv÷v rok: mediana 0.500, 0.429–0.568; wolumen dnia $296.9 mln (jedn. base); delta dnia $22.9 mln; CVD 30 dni $71.5 mln, 365 dni −$11.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance (SOLUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2021-09-24",
+   "last": "2026-11-04",
+   "n": 1414,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-09-24; bv w 100% dni; bv÷v rok: mediana 0.501, 0.344–0.651; wolumen dnia $106.7 mln (jedn. base); delta dnia $6.0 mln; CVD 30 dni $15.5 mln, 365 dni $43.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bitfinex (SOLUSD.F, USD)",
+   "status": "ok",
+   "first": "2021-02-25",
+   "last": "2026-11-04",
+   "n": 2079,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-02-25; bv w 100% dni; bv÷v rok: mediana 0.500, 0.193–0.820; wolumen dnia $3.8 mln (jedn. base); delta dnia −$41 tys.; CVD 30 dni −$273 tys., 365 dni $25.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bitfinex (SOLUSDT.F, USDT)",
+   "status": "ok",
+   "first": "2021-02-25",
+   "last": "2026-11-04",
+   "n": 2079,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-02-25; bv w 100% dni; bv÷v rok: mediana 0.495, 0.200–0.873; wolumen dnia $5.2 mln (jedn. base); delta dnia $1.4 mln; CVD 30 dni $1.4 mln, 365 dni −$29.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bitstamp (SOLUSD.B, USD)",
+   "status": "ok",
+   "first": "2022-08-24",
+   "last": "2026-11-04",
+   "n": 1534,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-08-24; bv w 100% dni; bv÷v rok: mediana 0.513, 0.331–0.730; wolumen dnia $14.6 mln (jedn. base); delta dnia −$1.2 mln; CVD 30 dni $44.3 mln, 365 dni $223.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bitstamp (SOLUSDC.B, USDC)",
+   "status": "ok",
+   "first": "2025-08-12",
+   "last": "2026-11-04",
+   "n": 432,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-08-12; bv w 100% dni; bv÷v rok: mediana 0.470, 0.004–1.000; wolumen dnia $89 tys. (jedn. base); delta dnia −$41 tys.; CVD 30 dni −$1.9 mln, 365 dni −$3.2 mln; 1h: 1161 świec od 2026-07-09 12:00, bv w 1161"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bybit (sSOLUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2021-12-23",
+   "last": "2026-11-04",
+   "n": 1778,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.495, 0.292–0.733; wolumen dnia $15.8 mln (jedn. base); delta dnia $843 tys.; CVD 30 dni $8.5 mln, 365 dni −$6.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Bybit (sSOLUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-10-21",
+   "last": "2026-11-04",
+   "n": 1841,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.496, 0.316–0.617; wolumen dnia $92.2 mln (jedn. base); delta dnia −$9.1 mln; CVD 30 dni −$30.1 mln, 365 dni −$217.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Coinbase (SOLUSD.C, USD)",
+   "status": "ok",
+   "first": "2021-06-17",
+   "last": "2026-11-04",
+   "n": 1967,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-17; bv w 100% dni; bv÷v rok: mediana 0.502, 0.406–0.621; wolumen dnia $126.3 mln (jedn. base); delta dnia $479 tys.; CVD 30 dni $94.7 mln, 365 dni −$97.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Coinbase (SOLUSDT.C, USDT)",
+   "status": "ok",
+   "first": "2021-06-17",
+   "last": "2026-11-04",
+   "n": 1967,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-17; bv w 100% dni; bv÷v rok: mediana 0.491, 0.229–0.782; wolumen dnia $1.0 mln (jedn. base); delta dnia −$33 tys.; CVD 30 dni −$320 tys., 365 dni −$8.6 mln; 1h: 2018 świec od 2026-08-13 15:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Kraken (SOLUSD.K, USD)",
+   "status": "ok",
+   "first": "2021-06-17",
+   "last": "2026-11-04",
+   "n": 1967,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-17; bv w 100% dni; bv÷v rok: mediana 0.501, 0.260–0.664; wolumen dnia $32.3 mln (jedn. base); delta dnia $2.1 mln; CVD 30 dni −$33.3 mln, 365 dni −$106.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Kraken (SOLUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2024-12-16",
+   "last": "2026-11-04",
+   "n": 689,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-12-16; bv w 100% dni; bv÷v rok: mediana 0.489, 0.160–0.867; wolumen dnia $2.8 mln (jedn. base); delta dnia $29 tys.; CVD 30 dni −$1.4 mln, 365 dni −$20.3 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Kraken (SOLUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2022-10-13",
+   "last": "2026-11-04",
+   "n": 1484,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-10-13; bv w 100% dni; bv÷v rok: mediana 0.471, 0.082–0.783; wolumen dnia $3.8 mln (jedn. base); delta dnia $1.2 mln; CVD 30 dni $18 tys., 365 dni −$22.2 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance (SOLUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-08",
+   "last": "2026-11-04",
+   "n": 1032,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-08; bv w 100% dni; bv÷v rok: mediana 0.499, 0.443–0.540; wolumen dnia $406.0 mln (jedn. base); delta dnia $6.4 mln; CVD 30 dni −$100.5 mln, 365 dni −$554.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance (SOLUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2020-09-14",
+   "last": "2026-11-04",
+   "n": 2243,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-09-14; bv w 100% dni; bv÷v rok: mediana 0.496, 0.461–0.532; wolumen dnia $2.25 mld (jedn. base); delta dnia $12.2 mln; CVD 30 dni −$745.5 mln, 365 dni −$8.06 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance (SOLUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2021-09-02",
+   "last": "2026-11-04",
+   "n": 1890,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-09-02; bv w 100% dni; bv÷v rok: mediana 0.489, 0.382–0.563; wolumen dnia $76.4 mln (jedn. quote); delta dnia −$406 tys.; CVD 30 dni −$92.5 mln, 365 dni −$691.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Bybit (SOLPERP.6, USDC)",
+   "status": "ok",
+   "first": "2022-08-05",
+   "last": "2026-11-04",
+   "n": 1553,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-25; bv w 100% dni; bv÷v rok: mediana 0.497, 0.328–0.676; wolumen dnia $3.2 mln (jedn. base); delta dnia $370 tys.; CVD 30 dni −$5.1 mln, 365 dni −$4.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Bybit (SOLUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-06-29",
+   "last": "2026-11-04",
+   "n": 1955,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-29; bv w 100% dni; bv÷v rok: mediana 0.497, 0.448–0.558; wolumen dnia $816.6 mln (jedn. base); delta dnia −$2.9 mln; CVD 30 dni −$333.9 mln, 365 dni −$1.34 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Deribit (SOL_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2022-03-15",
+   "last": "2026-11-04",
+   "n": 1696,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-03-15; bv w 100% dni; bv÷v rok: mediana 0.497, 0.321–0.737; wolumen dnia $828.8 mln (jedn. base); delta dnia $5.6 mln; CVD 30 dni −$16.3 mln, 365 dni −$63.2 mln; 1h: 2018 świec od 2026-08-13 15:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Hyperliquid (SOL.H, USD)",
+   "status": "ok",
+   "first": "2023-03-04",
+   "last": "2026-11-04",
+   "n": 1342,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.492, 0.313–0.616; wolumen dnia $390.2 mln (jedn. base); delta dnia −$21.8 mln; CVD 30 dni −$292.6 mln, 365 dni −$2.17 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp OKX (SOLUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2021-01-22",
+   "last": "2026-11-04",
+   "n": 2113,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-01-22; bv w 100% dni; bv÷v rok: mediana 0.495, 0.448–0.563; wolumen dnia $1.35 mld (jedn. base); delta dnia $7.3 mln; CVD 30 dni −$582.0 mln, 365 dni −$2.96 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp OKX (SOLUSD_PERP.3, USD)",
+   "status": "ok",
+   "first": "2021-11-25",
+   "last": "2026-11-04",
+   "n": 1806,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-11-25; bv w 100% dni; bv÷v rok: mediana 0.489, 0.391–0.604; wolumen dnia $25.3 mln (jedn. quote); delta dnia −$177 tys.; CVD 30 dni −$29.5 mln, 365 dni −$173.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance (BNBFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-07-26",
+   "last": "2026-11-04",
+   "n": 1198,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-07-26; bv w 100% dni; bv÷v rok: mediana 0.497, 0.234–0.767; wolumen dnia $3.2 mln (jedn. base); delta dnia $684 tys.; CVD 30 dni −$2.6 mln, 365 dni $63.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance (BNBUD.A, USD)",
+   "status": "ok",
+   "first": "2026-03-03",
+   "last": "2026-11-04",
+   "n": 247,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2026-03-03; bv w 100% dni; bv÷v rok: mediana 0.575, 0.024–0.983; wolumen dnia $17 tys. (jedn. base); delta dnia −$2 tys.; CVD 30 dni −$724 tys., 365 dni −$1.4 mln; 1h: 2016 świec od 2026-07-31 14:00, bv w 2016"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance (BNBUSD.A, USDT)",
+   "status": "ok",
+   "first": "2017-11-06",
+   "last": "2026-11-04",
+   "n": 3286,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.491, 0.360–0.603; wolumen dnia $136.0 mln (jedn. base); delta dnia $1.6 mln; CVD 30 dni −$229.8 mln, 365 dni −$757.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance (BNBUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2018-12-15",
+   "last": "2026-11-04",
+   "n": 2718,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.497, 0.341–0.791; wolumen dnia $16.0 mln (jedn. base); delta dnia −$452 tys.; CVD 30 dni −$3.5 mln, 365 dni −$143.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Bitstamp (BNBUSD.B, USD)",
+   "status": "ok",
+   "first": "2025-12-21",
+   "last": "2026-11-04",
+   "n": 298,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-12-21; bv w 100% dni; bv÷v rok: mediana 0.629, 0.016–1.000; wolumen dnia $167 tys. (jedn. base); delta dnia $43 tys.; CVD 30 dni $3.6 mln, 365 dni $7.5 mln; 1h: 2017 świec od 2026-08-10 23:00, bv w 2017"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Bybit (sBNBUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2024-08-20",
+   "last": "2026-11-04",
+   "n": 807,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-08-20; bv w 100% dni; bv÷v rok: mediana 0.491, 0.076–0.968; wolumen dnia $178 tys. (jedn. base); delta dnia $133 tys.; CVD 30 dni $19 tys., 365 dni $54 tys.; 1h: 2018 świec od 2026-08-10 00:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Bybit (sBNBUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2022-03-10",
+   "last": "2026-11-04",
+   "n": 1701,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.487, 0.334–0.640; wolumen dnia $10.5 mln (jedn. base); delta dnia −$2.4 mln; CVD 30 dni $13.5 mln, 365 dni −$84.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Coinbase (BNBUSD.C, USD)",
+   "status": "ok",
+   "first": "2025-10-22",
+   "last": "2026-11-04",
+   "n": 379,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-10-22; bv w 100% dni; bv÷v rok: mediana 0.502, 0.114–0.882; wolumen dnia $1.5 mln (jedn. base); delta dnia $106 tys.; CVD 30 dni $7.8 mln, 365 dni $9.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Kraken (BNBUSD.K, USD)",
+   "status": "ok",
+   "first": "2025-04-22",
+   "last": "2026-11-04",
+   "n": 562,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-04-22; bv w 100% dni; bv÷v rok: mediana 0.515, 0.142–0.882; wolumen dnia $1.7 mln (jedn. base); delta dnia −$82 tys.; CVD 30 dni −$580 tys., 365 dni −$1.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Kraken (BNBUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2025-04-22",
+   "last": "2026-11-04",
+   "n": 562,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-04-22; bv w 100% dni; bv÷v rok: mediana 0.491, 0.026–0.959; wolumen dnia $225 tys. (jedn. base); delta dnia $119 tys.; CVD 30 dni −$286 tys., 365 dni −$2.8 mln; 1h: 2018 świec od 2026-08-13 09:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Kraken (BNBUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2025-04-23",
+   "last": "2026-11-04",
+   "n": 561,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-04-25; bv w 100% dni; bv÷v rok: mediana 0.518, 0.063–0.984; wolumen dnia $59 tys. (jedn. base); delta dnia −$14 tys.; CVD 30 dni $118 tys., 365 dni −$147 tys.; 1h: 2017 świec od 2026-08-08 13:00, bv w 2017"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance (BNBUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-08",
+   "last": "2026-11-04",
+   "n": 1032,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-08; bv w 100% dni; bv÷v rok: mediana 0.488, 0.420–0.554; wolumen dnia $112.5 mln (jedn. base); delta dnia −$4.1 mln; CVD 30 dni −$80.8 mln, 365 dni −$531.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance (BNBUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2020-02-10",
+   "last": "2026-11-04",
+   "n": 2460,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-02-10; bv w 100% dni; bv÷v rok: mediana 0.490, 0.449–0.532; wolumen dnia $552.4 mln (jedn. base); delta dnia −$24.6 mln; CVD 30 dni −$286.6 mln, 365 dni −$2.99 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance (BNBUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2020-08-21",
+   "last": "2026-11-04",
+   "n": 2267,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-08-21; bv w 100% dni; bv÷v rok: mediana 0.479, 0.366–0.578; wolumen dnia $66.8 mln (jedn. quote); delta dnia −$2.8 mln; CVD 30 dni −$88.4 mln, 365 dni −$711.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Bybit (BNBPERP.6, USDC)",
+   "status": "ok",
+   "first": "2022-09-30",
+   "last": "2026-11-04",
+   "n": 1497,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-25; bv w 100% dni; bv÷v rok: mediana 0.498, 0.169–0.854; wolumen dnia $157 tys. (jedn. base); delta dnia $8 tys.; CVD 30 dni −$42 tys., 365 dni $1.3 mln; 1h: 2017 świec od 2026-08-13 00:00, bv w 2017"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Bybit (BNBUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-06-29",
+   "last": "2026-11-04",
+   "n": 1955,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-29; bv w 100% dni; bv÷v rok: mediana 0.496, 0.419–0.612; wolumen dnia $55.3 mln (jedn. base); delta dnia −$5.4 mln; CVD 30 dni −$34.1 mln, 365 dni −$130.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Deribit (BNB_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2024-10-01",
+   "last": "2026-11-04",
+   "n": 765,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-01; bv w 100% dni; bv÷v rok: mediana 0.489, 0.005–1.000; wolumen dnia $337 tys. (jedn. base); delta dnia $89 tys.; CVD 30 dni $906 tys., 365 dni −$306 tys.; 1h: 2018 świec od 2026-07-28 21:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Hyperliquid (BNB.H, USD)",
+   "status": "ok",
+   "first": "2023-03-05",
+   "last": "2026-11-04",
+   "n": 1341,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.480, 0.272–0.733; wolumen dnia $20.5 mln (jedn. base); delta dnia −$109 tys.; CVD 30 dni −$7.7 mln, 365 dni −$79.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp OKX (BNBUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2022-12-23",
+   "last": "2026-11-04",
+   "n": 1413,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-12-23; bv w 100% dni; bv÷v rok: mediana 0.492, 0.404–0.563; wolumen dnia $79.2 mln (jedn. base); delta dnia $1.3 mln; CVD 30 dni −$45.8 mln, 365 dni −$469.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance (XRPFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-09-07",
+   "last": "2026-11-04",
+   "n": 1155,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-09-07; bv w 100% dni; bv÷v rok: mediana 0.500, 0.349–0.790; wolumen dnia $2.1 mln (jedn. base); delta dnia $64 tys.; CVD 30 dni $4.5 mln, 365 dni −$131.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance (XRPUSD.A, USDT)",
+   "status": "ok",
+   "first": "2018-05-04",
+   "last": "2026-11-04",
+   "n": 3107,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.483, 0.394–0.607; wolumen dnia $151.6 mln (jedn. base); delta dnia −$5.7 mln; CVD 30 dni $3.0 mln, 365 dni −$2.04 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance (XRPUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2018-12-15",
+   "last": "2026-11-04",
+   "n": 2428,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.512, 0.375–0.742; wolumen dnia $271.5 mln (jedn. base); delta dnia −$8.7 mln; CVD 30 dni $15.7 mln, 365 dni $951.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bitfinex (XRPUSD.F, USD)",
+   "status": "ok",
+   "first": "2017-05-19",
+   "last": "2026-11-04",
+   "n": 3457,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.492, 0.174–0.867; wolumen dnia $5.5 mln (jedn. base); delta dnia −$84 tys.; CVD 30 dni −$13.3 mln, 365 dni −$20.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bitfinex (XRPUSDT.F, USDT)",
+   "status": "ok",
+   "first": "2020-12-18",
+   "last": "2026-11-04",
+   "n": 2148,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-12-18; bv w 100% dni; bv÷v rok: mediana 0.502, 0.145–0.879; wolumen dnia $1.8 mln (jedn. base); delta dnia $765 tys.; CVD 30 dni $2.0 mln, 365 dni $12.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bitstamp (XRPUSD.B, USD)",
+   "status": "ok",
+   "first": "2017-01-01",
+   "last": "2026-11-04",
+   "n": 3594,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.511, 0.375–0.842; wolumen dnia $16.7 mln (jedn. base); delta dnia −$2.6 mln; CVD 30 dni −$37.9 mln, 365 dni $237.3 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bitstamp (XRPUSDC.B, USDC)",
+   "status": "ok",
+   "first": "2025-08-12",
+   "last": "2026-11-04",
+   "n": 450,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-08-13; bv w 100% dni; bv÷v rok: mediana 0.531, 0.001–1.000; wolumen dnia $24 tys. (jedn. base); delta dnia −$22 tys.; CVD 30 dni −$1.3 mln, 365 dni −$249 tys.; 1h: 2008 świec od 2026-07-22 05:00, bv w 2008"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bitstamp (XRPUSDT.B, USDT)",
+   "status": "ok",
+   "first": "2021-06-15",
+   "last": "2026-11-04",
+   "n": 1964,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-15; bv w 100% dni; bv÷v rok: mediana 0.382, 0.002–1.000; wolumen dnia $28 tys. (jedn. base); delta dnia −$1 tys.; CVD 30 dni −$1.1 mln, 365 dni −$7.6 mln; 1h: 1809 świec od 2026-07-08 19:00, bv w 1809"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bybit (sXRPUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2021-12-22",
+   "last": "2026-11-04",
+   "n": 1779,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.496, 0.261–0.689; wolumen dnia $4.3 mln (jedn. base); delta dnia −$699 tys.; CVD 30 dni $868 tys., 365 dni −$6.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Bybit (sXRPUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-07-20",
+   "last": "2026-11-04",
+   "n": 1934,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.493, 0.404–0.622; wolumen dnia $58.7 mln (jedn. base); delta dnia $772 tys.; CVD 30 dni $16.9 mln, 365 dni −$328.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Coinbase (XRPUSD.C, USD)",
+   "status": "ok",
+   "first": "2019-02-26",
+   "last": "2026-11-04",
+   "n": 1905,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.490, 0.419–0.587; wolumen dnia $96.5 mln (jedn. base); delta dnia −$5.4 mln; CVD 30 dni −$68.0 mln, 365 dni −$852.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Coinbase (XRPUSDT.C, USDT)",
+   "status": "ok",
+   "first": "2023-07-13",
+   "last": "2026-11-04",
+   "n": 1211,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-07-13; bv w 100% dni; bv÷v rok: mediana 0.489, 0.051–0.948; wolumen dnia $147 tys. (jedn. base); delta dnia $44 tys.; CVD 30 dni −$848 tys., 365 dni $5.8 mln; 1h: 2010 świec od 2026-07-25 11:00, bv w 2010"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Kraken (XRPUSD.K, USD)",
+   "status": "ok",
+   "first": "2017-05-18",
+   "last": "2026-11-04",
+   "n": 3456,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-05-01; bv w 100% dni; bv÷v rok: mediana 0.498, 0.336–0.675; wolumen dnia $53.9 mln (jedn. base); delta dnia $2.0 mln; CVD 30 dni −$11.7 mln, 365 dni −$111.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Kraken (XRPUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2024-12-16",
+   "last": "2026-11-04",
+   "n": 689,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-12-16; bv w 100% dni; bv÷v rok: mediana 0.497, 0.075–0.925; wolumen dnia $4.3 mln (jedn. base); delta dnia −$290 tys.; CVD 30 dni −$3.4 mln, 365 dni −$10.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Kraken (XRPUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2020-04-30",
+   "last": "2026-11-04",
+   "n": 2380,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-05-01; bv w 100% dni; bv÷v rok: mediana 0.488, 0.157–0.864; wolumen dnia $3.7 mln (jedn. base); delta dnia $765 tys.; CVD 30 dni −$1.9 mln, 365 dni −$6.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance (XRPUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-08",
+   "last": "2026-11-04",
+   "n": 1032,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-08; bv w 100% dni; bv÷v rok: mediana 0.496, 0.457–0.530; wolumen dnia $125.3 mln (jedn. base); delta dnia $1.6 mln; CVD 30 dni −$40.2 mln, 365 dni −$449.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance (XRPUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2020-01-07",
+   "last": "2026-11-04",
+   "n": 2494,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-01-07; bv w 100% dni; bv÷v rok: mediana 0.491, 0.444–0.532; wolumen dnia $971.5 mln (jedn. base); delta dnia $12.0 mln; CVD 30 dni −$443.2 mln, 365 dni −$6.19 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance (XRPUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2020-09-09",
+   "last": "2026-11-04",
+   "n": 2248,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-09-09; bv w 100% dni; bv÷v rok: mediana 0.489, 0.407–0.629; wolumen dnia $39.7 mln (jedn. quote); delta dnia −$1.5 mln; CVD 30 dni −$36.9 mln, 365 dni −$498.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Bybit (XRPPERP.6, USDC)",
+   "status": "ok",
+   "first": "2022-08-05",
+   "last": "2026-11-04",
+   "n": 1553,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-08-25; bv w 100% dni; bv÷v rok: mediana 0.494, 0.288–0.740; wolumen dnia $2.0 mln (jedn. base); delta dnia $1 tys.; CVD 30 dni −$788 tys., 365 dni −$129 tys.; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Bybit (XRPUSD.6, USD)",
+   "status": "ok",
+   "first": "2020-04-04",
+   "last": "2026-11-04",
+   "n": 2406,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-04-04; bv w 100% dni; bv÷v rok: mediana 0.488, 0.323–0.653; wolumen dnia $15.3 mln (jedn. quote); delta dnia −$343 tys.; CVD 30 dni −$14.4 mln, 365 dni −$204.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Bybit (XRPUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-05-13",
+   "last": "2026-11-04",
+   "n": 2002,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-05-13; bv w 100% dni; bv÷v rok: mediana 0.495, 0.414–0.545; wolumen dnia $452.0 mln (jedn. base); delta dnia $8.3 mln; CVD 30 dni −$244.1 mln, 365 dni −$2.08 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Deribit (XRP_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2022-03-16",
+   "last": "2026-11-04",
+   "n": 1695,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-03-16; bv w 100% dni; bv÷v rok: mediana 0.493, 0.129–0.734; wolumen dnia $30.2 mln (jedn. base); delta dnia $65 tys.; CVD 30 dni −$27.5 mln, 365 dni −$45.6 mln; 1h: 2018 świec od 2026-08-13 15:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Hyperliquid (XRP.H, USD)",
+   "status": "ok",
+   "first": "2023-06-17",
+   "last": "2026-11-04",
+   "n": 1237,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.492, 0.303–0.656; wolumen dnia $106.7 mln (jedn. base); delta dnia $2.8 mln; CVD 30 dni −$68.9 mln, 365 dni −$587.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp OKX (XRPUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2020-03-28",
+   "last": "2026-11-04",
+   "n": 2413,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-28; bv w 100% dni; bv÷v rok: mediana 0.491, 0.441–0.546; wolumen dnia $373.1 mln (jedn. base); delta dnia $13.3 mln; CVD 30 dni −$212.5 mln, 365 dni −$1.77 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp OKX (XRPUSD_PERP.3, USD)",
+   "status": "ok",
+   "first": "2020-01-06",
+   "last": "2026-11-04",
+   "n": 2414,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-03-28; bv w 100% dni; bv÷v rok: mediana 0.485, 0.321–0.660; wolumen dnia $6.8 mln (jedn. quote); delta dnia $114 tys.; CVD 30 dni −$7.6 mln, 365 dni −$69.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance (DOGEFDUSD.A, FDUSD)",
+   "status": "ok",
+   "first": "2023-09-07",
+   "last": "2026-11-04",
+   "n": 1155,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2023-09-07; bv w 100% dni; bv÷v rok: mediana 0.501, 0.213–0.758; wolumen dnia $1.5 mln (jedn. base); delta dnia $29 tys.; CVD 30 dni −$5.0 mln, 365 dni −$84.3 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance (DOGEUSD.A, USDT)",
+   "status": "ok",
+   "first": "2019-07-05",
+   "last": "2026-11-04",
+   "n": 2680,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-11-27; bv w 100% dni; bv÷v rok: mediana 0.488, 0.376–0.596, dokładnie 0,5: 0% dni; wolumen dnia $48.6 mln (jedn. base); delta dnia −$495 tys.; CVD 30 dni −$140.5 mln, 365 dni −$642.0 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance (DOGEUSDC.A, USDC)",
+   "status": "ok",
+   "first": "2024-03-07",
+   "last": "2026-11-04",
+   "n": 973,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-03-07; bv w 100% dni; bv÷v rok: mediana 0.497, 0.343–0.621; wolumen dnia $3.0 mln (jedn. base); delta dnia −$20 tys.; CVD 30 dni −$7.4 mln, 365 dni $27.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Bitfinex (DOGEUSD.F, USD)",
+   "status": "ok",
+   "first": "2021-04-21",
+   "last": "2026-11-04",
+   "n": 2024,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-04-21; bv w 100% dni; bv÷v rok: mediana 0.483, 0.144–0.816; wolumen dnia $68 tys. (jedn. base); delta dnia $8 tys.; CVD 30 dni −$33 tys., 365 dni −$3.0 mln; 1h: 2018 świec od 2026-08-13 11:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Bitfinex (DOGEUSDT.F, USDT)",
+   "status": "ok",
+   "first": "2021-04-21",
+   "last": "2026-11-04",
+   "n": 2024,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-04-21; bv w 100% dni; bv÷v rok: mediana 0.453, 0.022–0.995; wolumen dnia $18 tys. (jedn. base); delta dnia $6 tys.; CVD 30 dni −$266 tys., 365 dni −$631 tys.; 1h: 2014 świec od 2026-07-31 01:00, bv w 2014"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Bitstamp (DOGEUSD.B, USD)",
+   "status": "ok",
+   "first": "2022-12-22",
+   "last": "2026-11-04",
+   "n": 1414,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-12-22; bv w 100% dni; bv÷v rok: mediana 0.507, 0.362–0.687; wolumen dnia $6.7 mln (jedn. base); delta dnia $227 tys.; CVD 30 dni −$2.2 mln, 365 dni $91.1 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Bybit (sDOGEUSDC.6, USDC)",
+   "status": "ok",
+   "first": "2022-07-08",
+   "last": "2026-11-04",
+   "n": 1581,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-07-08; bv w 100% dni; bv÷v rok: mediana 0.496, 0.206–0.777; wolumen dnia $380 tys. (jedn. base); delta dnia $94 tys.; CVD 30 dni −$437 tys., 365 dni −$2.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Bybit (sDOGEUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-08-31",
+   "last": "2026-11-04",
+   "n": 1892,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-06; bv w 100% dni; bv÷v rok: mediana 0.482, 0.339–0.649; wolumen dnia $9.1 mln (jedn. base); delta dnia −$610 tys.; CVD 30 dni −$6.9 mln, 365 dni −$188.3 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Coinbase (DOGEUSD.C, USD)",
+   "status": "ok",
+   "first": "2021-06-03",
+   "last": "2026-11-04",
+   "n": 1981,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-03; bv w 100% dni; bv÷v rok: mediana 0.481, 0.387–0.596; wolumen dnia $8.7 mln (jedn. base); delta dnia −$436 tys.; CVD 30 dni −$8.9 mln, 365 dni −$257.5 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Coinbase (DOGEUSDT.C, USDT)",
+   "status": "ok",
+   "first": "2021-06-03",
+   "last": "2026-11-04",
+   "n": 1981,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-03; bv w 100% dni; bv÷v rok: mediana 0.500, 0.104–0.773; wolumen dnia $80 tys. (jedn. base); delta dnia −$2 tys.; CVD 30 dni −$337 tys., 365 dni $924 tys.; 1h: 2012 świec od 2026-08-03 18:00, bv w 2012"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Kraken (DOGEUSD.K, USD)",
+   "status": "ok",
+   "first": "2019-12-19",
+   "last": "2026-11-04",
+   "n": 2513,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2019-12-19; bv w 100% dni; bv÷v rok: mediana 0.471, 0.259–0.757; wolumen dnia $6.4 mln (jedn. base); delta dnia −$901 tys.; CVD 30 dni −$5.8 mln, 365 dni −$121.7 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Kraken (DOGEUSDC.K, USDC)",
+   "status": "ok",
+   "first": "2024-12-16",
+   "last": "2026-11-04",
+   "n": 689,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-12-16; bv w 100% dni; bv÷v rok: mediana 0.467, 0.104–0.956; wolumen dnia $146 tys. (jedn. base); delta dnia −$64 tys.; CVD 30 dni −$1.8 mln, 365 dni −$4.6 mln; 1h: 2017 świec od 2026-08-12 12:00, bv w 2017"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Kraken (DOGEUSDT.K, USDT)",
+   "status": "ok",
+   "first": "2021-04-08",
+   "last": "2026-11-04",
+   "n": 2037,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-04-09; bv w 100% dni; bv÷v rok: mediana 0.464, 0.069–0.923; wolumen dnia $326 tys. (jedn. base); delta dnia −$71 tys.; CVD 30 dni −$2.5 mln, 365 dni −$17.0 mln; 1h: 2018 świec od 2026-08-13 10:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance (DOGEUSDC_PERP.A, USDC)",
+   "status": "ok",
+   "first": "2024-01-18",
+   "last": "2026-11-04",
+   "n": 1022,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-01-18; bv w 100% dni; bv÷v rok: mediana 0.489, 0.415–0.546; wolumen dnia $37.8 mln (jedn. base); delta dnia −$352 tys.; CVD 30 dni −$25.0 mln, 365 dni −$312.6 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance (DOGEUSDT_PERP.A, USDT)",
+   "status": "ok",
+   "first": "2020-07-10",
+   "last": "2026-11-04",
+   "n": 2309,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-07-10; bv w 100% dni; bv÷v rok: mediana 0.487, 0.435–0.539; wolumen dnia $462.4 mln (jedn. base); delta dnia −$3.6 mln; CVD 30 dni −$455.2 mln, 365 dni −$4.34 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance (DOGEUSD_PERP.A, USD)",
+   "status": "ok",
+   "first": "2021-02-02",
+   "last": "2026-11-04",
+   "n": 2102,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-02-02; bv w 100% dni; bv÷v rok: mediana 0.482, 0.403–0.554; wolumen dnia $32.2 mln (jedn. quote); delta dnia −$1.1 mln; CVD 30 dni −$60.7 mln, 365 dni −$571.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Bybit (DOGEPERP.6, USDC)",
+   "status": "ok",
+   "first": "2024-04-26",
+   "last": "2026-11-04",
+   "n": 923,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-04-26; bv w 100% dni; bv÷v rok: mediana 0.491, 0.100–0.687; wolumen dnia $227 tys. (jedn. base); delta dnia −$4 tys.; CVD 30 dni −$15 tys., 365 dni −$5.1 mln; 1h: 2018 świec od 2026-08-13 15:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Bybit (DOGEUSD.6, USD)",
+   "status": "ok",
+   "first": "2025-03-05",
+   "last": "2026-11-04",
+   "n": 610,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2025-03-05; bv w 100% dni; bv÷v rok: mediana 0.479, 0.237–0.870; wolumen dnia $1.0 mln (jedn. quote); delta dnia −$109 tys.; CVD 30 dni −$2.5 mln, 365 dni −$24.2 mln; 1h: 2018 świec od 2026-08-13 12:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Bybit (DOGEUSDT.6, USDT)",
+   "status": "ok",
+   "first": "2021-06-02",
+   "last": "2026-11-04",
+   "n": 1982,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-06-02; bv w 100% dni; bv÷v rok: mediana 0.495, 0.426–0.576; wolumen dnia $142.4 mln (jedn. base); delta dnia $927 tys.; CVD 30 dni −$65.3 mln, 365 dni −$440.8 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Deribit (DOGE_USDC-PERPETUAL.2, USDC)",
+   "status": "ok",
+   "first": "2022-05-27",
+   "last": "2026-11-04",
+   "n": 1612,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2022-05-27; bv w 100% dni; bv÷v rok: mediana 0.492, 0.019–0.982; wolumen dnia $691 tys. (jedn. base); delta dnia −$111 tys.; CVD 30 dni −$1.9 mln, 365 dni −$4.4 mln; 1h: 2019 świec od 2026-08-09 20:00, bv w 2019"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Hyperliquid (DOGE.H, USD)",
+   "status": "ok",
+   "first": "2023-04-03",
+   "last": "2026-11-04",
+   "n": 1312,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2024-10-11; bv w 100% dni; bv÷v rok: mediana 0.477, 0.294–0.710; wolumen dnia $9.0 mln (jedn. base); delta dnia −$1.2 mln; CVD 30 dni −$3.7 mln, 365 dni −$181.4 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp OKX (DOGEUSDT_PERP.3, USDT)",
+   "status": "ok",
+   "first": "2020-07-10",
+   "last": "2026-11-04",
+   "n": 2309,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2020-07-10; bv w 100% dni; bv÷v rok: mediana 0.490, 0.444–0.538; wolumen dnia $285.2 mln (jedn. base); delta dnia $942 tys.; CVD 30 dni −$189.1 mln, 365 dni −$2.40 mld; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp OKX (DOGEUSD_PERP.3, USD)",
+   "status": "ok",
+   "first": "2021-02-02",
+   "last": "2026-11-04",
+   "n": 2102,
+   "note": "pola: btx,bv,c,h,l,o,tx,v; bv od 2021-02-02; bv w 100% dni; bv÷v rok: mediana 0.486, 0.335–0.658; wolumen dnia $16.8 mln (jedn. quote); delta dnia −$485 tys.; CVD 30 dni $11.5 mln, 365 dni −$182.9 mln; 1h: 2018 świec od 2026-08-13 16:00, bv w 2018"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance BTCFDUSD.A ↔ archiwum Binance spot/BTCFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.840"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance BTCUD.A ↔ archiwum Binance spot/BTCUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.987"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance BTCUSD.A ↔ archiwum Binance spot/BTCUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.306"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC spot Binance BTCUSDC.A ↔ archiwum Binance spot/BTCUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.521"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance BTCUSDC_PERP.A ↔ archiwum Binance um/BTCUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.469"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance BTCUSDT_PERP.A ↔ archiwum Binance um/BTCUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.364"
+  },
+  {
+   "source": "cvd",
+   "item": "BTC perp Binance BTCUSD_PERP.A ↔ archiwum Binance cm/BTCUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 100.000; v ÷ volume(coiny) 82321.038; bv ÷ taker_buy(kontrakty) 100.000; bv ÷ taker_buy(coiny) 82309.739; tx ÷ count 0.600"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance ETHFDUSD.A ↔ archiwum Binance spot/ETHFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.798"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance ETHUD.A ↔ archiwum Binance spot/ETHUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.998"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance ETHUSD.A ↔ archiwum Binance spot/ETHUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.225"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH spot Binance ETHUSDC.A ↔ archiwum Binance spot/ETHUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.581"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance ETHUSDC_PERP.A ↔ archiwum Binance um/ETHUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.409"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance ETHUSDT_PERP.A ↔ archiwum Binance um/ETHUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.000; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.000; tx ÷ count 0.266"
+  },
+  {
+   "source": "cvd",
+   "item": "ETH perp Binance ETHUSD_PERP.A ↔ archiwum Binance cm/ETHUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 10.000; v ÷ volume(coiny) 2451.595; bv ÷ taker_buy(kontrakty) 10.000; bv ÷ taker_buy(coiny) 2453.546; tx ÷ count 0.603"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance SOLFDUSD.A ↔ archiwum Binance spot/SOLFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.009; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.547"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance SOLUD.A ↔ archiwum Binance spot/SOLUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.010; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.963"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance SOLUSD.A ↔ archiwum Binance spot/SOLUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.009; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.273"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL spot Binance SOLUSDC.A ↔ archiwum Binance spot/SOLUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.009; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.517"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance SOLUSDC_PERP.A ↔ archiwum Binance um/SOLUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.009; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.166"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance SOLUSDT_PERP.A ↔ archiwum Binance um/SOLUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.009; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.009; tx ÷ count 0.144"
+  },
+  {
+   "source": "cvd",
+   "item": "SOL perp Binance SOLUSD_PERP.A ↔ archiwum Binance cm/SOLUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 10.000; v ÷ volume(coiny) 105.676; bv ÷ taker_buy(kontrakty) 10.000; bv ÷ taker_buy(coiny) 105.710; tx ÷ count 0.381"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance BNBFDUSD.A ↔ archiwum Binance spot/BNBFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.812"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance BNBUD.A ↔ archiwum Binance spot/BNBUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.993"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance BNBUSD.A ↔ archiwum Binance spot/BNBUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.478"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB spot Binance BNBUSDC.A ↔ archiwum Binance spot/BNBUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.807"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance BNBUSDC_PERP.A ↔ archiwum Binance um/BNBUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.442"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance BNBUSDT_PERP.A ↔ archiwum Binance um/BNBUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.001; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.001; tx ÷ count 0.264"
+  },
+  {
+   "source": "cvd",
+   "item": "BNB perp Binance BNBUSD_PERP.A ↔ archiwum Binance cm/BNBUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 10.000; v ÷ volume(coiny) 739.939; bv ÷ taker_buy(kontrakty) 10.000; bv ÷ taker_buy(coiny) 739.773; tx ÷ count 0.570"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance XRPFDUSD.A ↔ archiwum Binance spot/XRPFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.750; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.751; tx ÷ count 0.766"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance XRPUSD.A ↔ archiwum Binance spot/XRPUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.750; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.748; tx ÷ count 0.315"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP spot Binance XRPUSDC.A ↔ archiwum Binance spot/XRPUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.753; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.752; tx ÷ count 0.666"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance XRPUSDC_PERP.A ↔ archiwum Binance um/XRPUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.739; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.739; tx ÷ count 0.293"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance XRPUSDT_PERP.A ↔ archiwum Binance um/XRPUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 0.738; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 0.737; tx ÷ count 0.143"
+  },
+  {
+   "source": "cvd",
+   "item": "XRP perp Binance XRPUSD_PERP.A ↔ archiwum Binance cm/XRPUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 10.000; v ÷ volume(coiny) 1.338; bv ÷ taker_buy(kontrakty) 10.000; bv ÷ taker_buy(coiny) 1.338; tx ÷ count 0.472"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance DOGEFDUSD.A ↔ archiwum Binance spot/DOGEFDUSD",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 12.331; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 12.302; tx ÷ count 0.591"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance DOGEUSD.A ↔ archiwum Binance spot/DOGEUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 12.274; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 12.264; tx ÷ count 0.284"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE spot Binance DOGEUSDC.A ↔ archiwum Binance spot/DOGEUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 31,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 12.346; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 12.352; tx ÷ count 0.743"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance DOGEUSDC_PERP.A ↔ archiwum Binance um/DOGEUSDC",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 12.208; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 12.198; tx ÷ count 0.358"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance DOGEUSDT_PERP.A ↔ archiwum Binance um/DOGEUSDT",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(coiny) 1.000; v ÷ volume(quote) 12.195; bv ÷ taker_buy(coiny) 1.000; bv ÷ taker_buy(quote) 12.184; tx ÷ count 0.149"
+  },
+  {
+   "source": "cvd",
+   "item": "DOGE perp Binance DOGEUSD_PERP.A ↔ archiwum Binance cm/DOGEUSD_PERP",
+   "status": "ok",
+   "first": "2026-10-01",
+   "last": "2026-10-31",
+   "n": 30,
+   "note": "mediana Coinalyze ÷ Binance (1,000 = zgodne): v ÷ volume(kontrakty) 10.000; v ÷ volume(coiny) 0.082; bv ÷ taker_buy(kontrakty) 10.000; bv ÷ taker_buy(coiny) 0.082; tx ÷ count 0.443"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "BTC",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 28; spot z bv 17: wolumen dnia $5.54 mld, CVD 30 dni −$521.4 mln (największe: Binance BTCUSD.A, Bybit sBTCUSDT.6, Coinbase BTCUSD.C); perp z bv 11: wolumen dnia $62.20 mld, CVD 30 dni −$10.88 mld (największe: Binance BTCUSDT_PERP.A, OKX BTCUSDT_PERP.3, Bybit BTCUSDT.6)"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "ETH",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 28; spot z bv 17: wolumen dnia $2.24 mld, CVD 30 dni −$1.49 mld (największe: Binance ETHUSD.A, Coinbase ETHUSD.C, Bybit sETHUSDT.6); perp z bv 11: wolumen dnia $38.12 mld, CVD 30 dni −$9.06 mld (największe: Binance ETHUSDT_PERP.A, OKX ETHUSDT_PERP.3, Bybit ETHUSDT.6)"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "SOL",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 24; spot z bv 15: wolumen dnia $708.7 mln, CVD 30 dni $173.3 mln (największe: Binance SOLUSD.A, Coinbase SOLUSD.C, Binance SOLUSDC.A); perp z bv 9: wolumen dnia $6.15 mld, CVD 30 dni −$2.20 mld (największe: Binance SOLUSDT_PERP.A, OKX SOLUSDT_PERP.3, Deribit SOL_USDC-PERPETUAL.2)"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "BNB",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 19; spot z bv 11: wolumen dnia $169.5 mln, CVD 30 dni −$212.6 mln (największe: Binance BNBUSD.A, Binance BNBUSDC.A, Bybit sBNBUSDT.6); perp z bv 8: wolumen dnia $887.3 mln, CVD 30 dni −$542.5 mln (największe: Binance BNBUSDT_PERP.A, Binance BNBUSDC_PERP.A, OKX BNBUSDT_PERP.3)"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "XRP",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 25; spot z bv 15: wolumen dnia $670.9 mln, CVD 30 dni −$96.4 mln (największe: Binance XRPUSDC.A, Binance XRPUSD.A, Coinbase XRPUSD.C); perp z bv 10: wolumen dnia $2.12 mld, CVD 30 dni −$1.10 mld (największe: Binance XRPUSDT_PERP.A, Bybit XRPUSDT.6, OKX XRPUSDT_PERP.3)"
+  },
+  {
+   "source": "cvd-podsumowanie",
+   "item": "DOGE",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "rynków: 23; spot z bv 13: wolumen dnia $85.0 mln, CVD 30 dni −$182.1 mln (największe: Binance DOGEUSD.A, Bybit sDOGEUSDT.6, Coinbase DOGEUSD.C); perp z bv 10: wolumen dnia $987.7 mln, CVD 30 dni −$791.9 mln (największe: Binance DOGEUSDT_PERP.A, OKX DOGEUSDT_PERP.3, Bybit DOGEUSDT.6)"
+  },
+  {
+   "source": "cvd",
+   "item": "zużyte zapytania Coinalyze",
+   "status": "ok",
+   "first": null,
+   "last": null,
+   "n": null,
+   "note": "417"
+  }
+ ]
+}
