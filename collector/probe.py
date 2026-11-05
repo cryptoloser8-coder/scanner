@@ -15,7 +15,9 @@ Sprawdzane (dla serii, które już mamy):
   bitmex      — funding XBTUSD/ETHUSD (od 2016?),
   binance     — funding perpetuali BTCUSDT/ETHUSDT (od 2019?), tylko z Pi,
   vision      — archiwum data.binance.vision: dzienne metryki futures (OI, long/short) i lista par spot
-                (także zdelistowanych — szerokość rynku bez błędu przeżywalności).
+                (także zdelistowanych — szerokość rynku bez błędu przeżywalności),
+  cvd         — wolumen kupujących (bv) w Coinalyze dla BTC, ETH, SOL, BNB, XRP, DOGE: spot i perp, od kiedy,
+                historia 1h, zgodność z „taker buy volume” w archiwum Binance (do CVD spot vs perp).
 """
 import argparse
 import io
@@ -39,7 +41,7 @@ log = logging.getLogger("probe")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) scanner-probe"}
 START_2010 = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
 CHECKS = {
-    "github": ("coinalyze", "tradingview", "coinmetrics", "bitmex", "binance", "vision"),
+    "github": ("coinalyze", "tradingview", "coinmetrics", "bitmex", "binance", "vision", "cvd"),
     "pi": ("binance", "vision", "bitmex", "coinmetrics"),
 }
 
@@ -325,8 +327,340 @@ def check_vision(session=None, **_):
     return rows
 
 
+# ── CVD (wolumen kupujących / sprzedających) — spot vs perp ──
+# Coinalyze /ohlcv-history ma pola v (wolumen), bv (wolumen kupujących — agresorów), tx, btx (transakcje).
+# Delta = kupno − sprzedaż = 2·bv − v; CVD = suma narastająca delty. Sonda sprawdza, dla których rynków
+# są te pola, od kiedy, jak głęboka jest historia 1h i czy bv zgadza się z „taker buy volume” Binance
+# (archiwum data.binance.vision) — czyli czy naprawdę znaczy to, co myślimy.
+CVD_COINS = ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE")
+CVD_PERP_EXCHANGES = ("Binance", "Bybit", "OKX", "Hyperliquid", "Deribit", "BitMEX")   # jak OI (config)
+CVD_SPOT_EXCHANGES = ("Binance", "Coinbase", "Bybit", "OKX", "Kraken", "Bitstamp", "Bitfinex")
+CVD_QUOTES = ("USDT", "USD", "USDC", "FDUSD")
+CVD_1H_DAYS = 120
+DAY = 86400
+
+
+def _ex_codes(exchanges, wanted):
+    from coinalyze import _norm_name
+    wn = [_norm_name(w) for w in wanted]
+    out = {}
+    for ex in exchanges:
+        n = _norm_name(ex.get("name"))
+        if any(n and w and (n.startswith(w) or w.startswith(n)) for w in wn):
+            out[ex.get("code")] = ex.get("name")
+    return out
+
+
+def cvd_markets(exchanges, futures, spots, coins=CVD_COINS):
+    """→ list of market dicts {kind spot|perp, base, ex, sym, soe, quote, unit base|quote, bs (has_buy_sell_data)}."""
+    from coinalyze import norm_base
+    perp_ex = _ex_codes(exchanges, CVD_PERP_EXCHANGES)
+    spot_ex = _ex_codes(exchanges, CVD_SPOT_EXCHANGES)
+    out = []
+    for m in futures or []:
+        base = norm_base(m.get("base_asset"))
+        quote = str(m.get("quote_asset") or "").upper()
+        if not m.get("is_perpetual") or m.get("exchange") not in perp_ex or base not in coins:
+            continue
+        if quote not in CVD_QUOTES:
+            continue
+        unit = "quote" if "QUOTE" in str(m.get("oi_lq_vol_denominated_in") or "").upper() else "base"
+        out.append({"kind": "perp", "base": base, "ex": perp_ex[m["exchange"]], "sym": m["symbol"],
+                    "soe": m.get("symbol_on_exchange") or "", "quote": quote, "unit": unit,
+                    "margined": m.get("margined"), "bs": m.get("has_buy_sell_data")})
+    for m in spots or []:
+        base = norm_base(m.get("base_asset"))
+        quote = str(m.get("quote_asset") or "").upper()
+        if m.get("exchange") not in spot_ex or base not in coins or quote not in CVD_QUOTES:
+            continue
+        out.append({"kind": "spot", "base": base, "ex": spot_ex[m["exchange"]], "sym": m["symbol"],
+                    "soe": m.get("symbol_on_exchange") or "", "quote": quote, "unit": "base",
+                    "margined": None, "bs": m.get("has_buy_sell_data")})
+    return sorted(out, key=lambda x: (CVD_COINS.index(x["base"]) if x["base"] in CVD_COINS else 99,
+                                      x["kind"] != "spot", x["ex"], x["sym"]))
+
+
+def ohlcv_raw(client, syms, interval, frm, to, step, max_rounds=6, cap=CZ_CAP):
+    """Raw /ohlcv-history points → {symbol: {t: point dict}}; capped answers are followed backwards."""
+    out = {s: {} for s in syms}
+    ends = {s: int(to) for s in syms}
+    todo = list(syms)
+    for _ in range(max_rounds):
+        if not todo:
+            break
+        groups = {}
+        for s in todo:
+            groups.setdefault(ends[s], []).append(s)
+        nxt = []
+        for end, group in sorted(groups.items()):
+            for batch in _chunks_local(group, getattr(client, "batch", 18)):
+                data = client._batch_get("/ohlcv-history", {"interval": interval, "from": int(frm),
+                                                            "to": int(end)}, batch)
+                for r in data or []:
+                    s = r.get("symbol")
+                    if s not in out:
+                        continue
+                    pts = [p for p in (r.get("history") or []) if p.get("t") is not None]
+                    new = {int(p["t"]): p for p in pts if int(p["t"]) not in out[s]}
+                    out[s].update(new)
+                    if len(pts) >= cap and new:
+                        ends[s] = min(new) - step
+                        nxt.append(s)
+        todo = nxt
+    return out
+
+
+def _chunks_local(seq, n):
+    seq = list(seq)
+    for i in range(0, len(seq), max(1, int(n))):
+        yield seq[i:i + max(1, int(n))]
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _median(xs):
+    xs = sorted(xs)
+    if not xs:
+        return None
+    k = len(xs) // 2
+    return xs[k] if len(xs) % 2 else (xs[k - 1] + xs[k]) / 2
+
+
+def _usd(p, unit):
+    v, c = _num(p.get("v")), _num(p.get("c"))
+    if v is None:
+        return None
+    return v if unit == "quote" else (v * c if c is not None else None)
+
+
+def _delta_usd(p, unit):
+    v, bv, c = _num(p.get("v")), _num(p.get("bv")), _num(p.get("c"))
+    if v is None or bv is None:
+        return None
+    d = 2 * bv - v
+    return d if unit == "quote" else (d * c if c is not None else None)
+
+
+def cvd_stats(pts, now, unit="base"):
+    """Summary of one market's daily points: dates, fields, bv quality, last day and CVD 30 / 365 days (USD)."""
+    full = {t: p for t, p in pts.items() if t + DAY <= now}
+    ts = sorted(full)
+    res = {"n": len(ts), "first": ts[0] if ts else None, "last": ts[-1] if ts else None, "fields": [],
+           "bv_first": None, "bv_share": None, "ratio_med": None, "ratio_min": None, "ratio_max": None,
+           "half_share": None, "last_usd": None, "last_delta_usd": None, "cvd30": None, "cvd365": None,
+           "tx": False}
+    if not ts:
+        return res
+    fields = set()
+    for p in full.values():
+        fields.update(k for k, v in p.items() if v is not None)
+    res["fields"] = sorted(fields - {"t"})
+    res["tx"] = "tx" in fields and "btx" in fields
+    traded = [t for t in ts if (_num(full[t].get("v")) or 0) > 0]
+    with_bv = [t for t in traded if (_num(full[t].get("bv")) or 0) > 0]
+    res["bv_first"] = with_bv[0] if with_bv else None
+    if traded:
+        since = res["bv_first"] or traded[0]
+        span = [t for t in traded if t >= since]
+        res["bv_share"] = sum(1 for t in span if _num(full[t].get("bv")) is not None) / len(span)
+    year = [t for t in with_bv if t >= ts[-1] - 364 * DAY]
+    ratios = [_num(full[t]["bv"]) / _num(full[t]["v"]) for t in year]
+    if ratios:
+        res["ratio_med"], res["ratio_min"], res["ratio_max"] = _median(ratios), min(ratios), max(ratios)
+        res["half_share"] = sum(1 for r in ratios if abs(r - 0.5) < 1e-6) / len(ratios)
+    last = full[ts[-1]]
+    res["last_usd"] = _usd(last, unit)
+    res["last_delta_usd"] = _delta_usd(last, unit)
+
+    def cvd(days):
+        d = [_delta_usd(full[t], unit) for t in ts if t > ts[-1] - days * DAY]
+        d = [x for x in d if x is not None]
+        return sum(d) if d else None
+    res["cvd30"], res["cvd365"] = cvd(30), cvd(365)
+    return res
+
+
+def fmt_usd(x):
+    if x is None:
+        return "—"
+    a = abs(x)
+    s = "−" if x < 0 else ""
+    if a >= 1e9:
+        return f"{s}${a / 1e9:.2f} mld"
+    if a >= 1e6:
+        return f"{s}${a / 1e6:.1f} mln"
+    if a >= 1e3:
+        return f"{s}${a / 1e3:.0f} tys."
+    return f"{s}${a:.0f}"
+
+
+def _fmt_ratio(x, nd=3):
+    return "—" if x is None else f"{x:.{nd}f}"
+
+
+# data.binance.vision: miesięczne świece 1d. Kolumny: 0 open_time, 4 close, 5 volume, 7 quote/base volume,
+# 8 count, 9 taker buy (base albo kontrakty), 10 taker buy quote/base.
+VISION_KLINES = {"spot": "data/spot/monthly/klines/{s}/1d/{s}-1d-{m}.zip",
+                 "um": "data/futures/um/monthly/klines/{s}/1d/{s}-1d-{m}.zip",
+                 "cm": "data/futures/cm/monthly/klines/{s}/1d/{s}-1d-{m}.zip"}
+
+
+def parse_vision_klines(text):
+    """CSV (with or without header; spot open_time in ms or µs) → {day_t_seconds: [floats]}."""
+    out = {}
+    for line in text.splitlines():
+        parts = line.strip().split(",")
+        if len(parts) < 11:
+            continue
+        t = _num(parts[0])
+        if t is None:
+            continue                     # nagłówek
+        if t > 1e14:                     # µs (spot od 2025)
+            t /= 1e6
+        elif t > 1e11:                   # ms
+            t /= 1e3
+        out[int(t) // DAY * DAY] = [_num(x) for x in parts[:11]]
+    return out
+
+
+def _months_back(now, n):
+    d = datetime.fromtimestamp(now, timezone.utc)
+    y, m = d.year, d.month
+    out = []
+    for _ in range(n):
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+        out.append(f"{y:04d}-{m:02d}")
+    return out
+
+
+def vision_market(mk):
+    """Coinalyze Binance market → (archive kind, Binance symbol) or None."""
+    soe = (mk.get("soe") or "").upper()
+    if not soe or mk.get("ex", "").lower() != "binance":
+        return None
+    if mk["kind"] == "spot":
+        return "spot", soe
+    if soe.endswith("_PERP") or str(mk.get("margined") or "").upper().startswith("COIN"):
+        return "cm", soe
+    return "um", soe
+
+
+def vision_compare(session, mk, pts, now):
+    """Compare Coinalyze v / bv / tx with the Binance archive for the last available month."""
+    vm = vision_market(mk)
+    if not vm:
+        return None
+    kind, s = vm
+    item = f"{mk['base']} {mk['kind']} Binance {mk['sym']} ↔ archiwum Binance {kind}/{s}"
+    try:
+        rows = None
+        for month in _months_back(now, 2):
+            url = VISION_DL + VISION_KLINES[kind].format(s=s, m=month)
+            r = session.get(url, timeout=60, headers=UA)
+            if r.status_code == 200:
+                z = zipfile.ZipFile(io.BytesIO(r.content))
+                with z.open(z.namelist()[0]) as f:
+                    rows = parse_vision_klines(f.read().decode("utf-8", "replace"))
+                break
+        if not rows:
+            return row("cvd", item, "brak", note="brak pliku w archiwum za 2 ostatnie miesiące")
+        days = sorted(t for t in rows if t in pts)
+        if not days:
+            return row("cvd", item, "brak", note="brak wspólnych dni")
+
+        def med(field, col):
+            rs = []
+            for t in days:
+                a, b = _num(pts[t].get(field)), rows[t][col]
+                if a is not None and b:
+                    rs.append(a / b)
+            return _median(rs)
+        # v: kolumna 5 (spot/um: coiny; cm: kontrakty) albo 7 (spot/um: quote; cm: coiny)
+        # bv: kolumna 9 (spot/um: coiny; cm: kontrakty) albo 10 (spot/um: quote; cm: coiny)
+        names = {"spot": ("coiny", "quote"), "um": ("coiny", "quote"), "cm": ("kontrakty", "coiny")}[kind]
+        parts = [f"v ÷ volume({names[0]}) {_fmt_ratio(med('v', 5))}",
+                 f"v ÷ volume({names[1]}) {_fmt_ratio(med('v', 7))}",
+                 f"bv ÷ taker_buy({names[0]}) {_fmt_ratio(med('bv', 9))}",
+                 f"bv ÷ taker_buy({names[1]}) {_fmt_ratio(med('bv', 10))}",
+                 f"tx ÷ count {_fmt_ratio(med('tx', 8))}"]
+        return row("cvd", item, "ok", days[0], days[-1], len(days),
+                   "mediana Coinalyze ÷ Binance (1,000 = zgodne): " + "; ".join(parts))
+    except Exception as e:  # noqa: BLE001
+        return err_row("cvd", item, e)
+
+
+def check_cvd(session=None, client=None, now=None):
+    from coinalyze import Coinalyze
+    now = int(now or time.time())
+    s = session or requests.Session()
+    client = client or Coinalyze(os.environ.get("COINALYZE_API_KEY", ""), session=session)
+    rows = []
+    mk = cvd_markets(client.exchanges(), client.future_markets(), client._get("/spot-markets"))
+    with_bs = [m for m in mk if m["bs"] is not False]
+    for m in mk:
+        if m["bs"] is False:
+            rows.append(row("cvd", f"{m['base']} {m['kind']} {m['ex']} ({m['sym']})", "brak",
+                            note="has_buy_sell_data = false (bez zapytania)"))
+    syms = [m["sym"] for m in with_bs]
+    daily = ohlcv_raw(client, syms, "daily", START_2010, now, DAY) if syms else {}
+    hourly = ohlcv_raw(client, syms, "1hour", now - CVD_1H_DAYS * DAY, now, 3600, max_rounds=1) if syms else {}
+    stats = {}
+    for m in with_bs:
+        st = stats[m["sym"]] = cvd_stats(daily.get(m["sym"]) or {}, now, m["unit"])
+        h = hourly.get(m["sym"]) or {}
+        hb = [t for t, p in h.items() if _num(p.get("bv")) is not None]
+        item = f"{m['base']} {m['kind']} {m['ex']} ({m['sym']}, {m['quote']})"
+        if not st["n"]:
+            rows.append(row("cvd", item, "brak", note="brak świec dziennych"))
+            continue
+        note = [f"pola: {','.join(st['fields'])}",
+                f"bv od {iso(st['bv_first']) or '—'}",
+                f"bv w {st['bv_share'] * 100:.0f}% dni" if st["bv_share"] is not None else "bv: brak",
+                f"bv÷v rok: mediana {_fmt_ratio(st['ratio_med'])}, {_fmt_ratio(st['ratio_min'])}–"
+                f"{_fmt_ratio(st['ratio_max'])}" + (f", dokładnie 0,5: {st['half_share'] * 100:.0f}% dni"
+                                                    if st["half_share"] else ""),
+                f"wolumen dnia {fmt_usd(st['last_usd'])} (jedn. {m['unit']})",
+                f"delta dnia {fmt_usd(st['last_delta_usd'])}",
+                f"CVD 30 dni {fmt_usd(st['cvd30'])}, 365 dni {fmt_usd(st['cvd365'])}",
+                f"1h: {len(h)} świec" + (f" od {datetime.fromtimestamp(min(h), timezone.utc):%Y-%m-%d %H:%M}"
+                                         if h else "") + (f", bv w {len(hb)}" if h else "")]
+        status = "ok" if st["bv_first"] else "brak bv"
+        rows.append(row("cvd", item, status, st["first"], st["last"], st["n"], "; ".join(note)))
+    # porównanie z archiwum Binance (co znaczy bv, w jakich jednostkach jest v)
+    for m in with_bs:
+        r = vision_compare(s, m, daily.get(m["sym"]) or {}, now)
+        if r:
+            rows.append(r)
+    # podsumowanie na coin: spot vs perp
+    for coin in CVD_COINS:
+        part = {}
+        for kind in ("spot", "perp"):
+            ms = [m for m in with_bs if m["base"] == coin and m["kind"] == kind and stats.get(m["sym"], {}).get("bv_first")]
+            vol = [stats[m["sym"]]["last_usd"] for m in ms if stats[m["sym"]]["last_usd"] is not None]
+            c30 = [stats[m["sym"]]["cvd30"] for m in ms if stats[m["sym"]]["cvd30"] is not None]
+            top = sorted(ms, key=lambda m: -(stats[m["sym"]]["last_usd"] or 0))[:3]
+            part[kind] = (len(ms), sum(vol) if vol else None, sum(c30) if c30 else None,
+                          ", ".join(f"{m['ex']} {m['sym']}" for m in top))
+        n_all = sum(1 for m in mk if m["base"] == coin)
+        note = (f"rynków: {n_all}; spot z bv {part['spot'][0]}: wolumen dnia {fmt_usd(part['spot'][1])}, "
+                f"CVD 30 dni {fmt_usd(part['spot'][2])} (największe: {part['spot'][3] or '—'}); "
+                f"perp z bv {part['perp'][0]}: wolumen dnia {fmt_usd(part['perp'][1])}, "
+                f"CVD 30 dni {fmt_usd(part['perp'][2])} (największe: {part['perp'][3] or '—'})")
+        rows.append(row("cvd-podsumowanie", coin, "ok" if part["spot"][0] and part["perp"][0] else "niepełne",
+                        note=note))
+    rows.append(row("cvd", "zużyte zapytania Coinalyze", note=str(client.calls_made)))
+    return rows
+
+
 FUNCS = {"coinalyze": check_coinalyze, "tradingview": check_tradingview, "coinmetrics": check_coinmetrics,
-         "bitmex": check_bitmex, "binance": check_binance, "vision": check_vision}
+         "bitmex": check_bitmex, "binance": check_binance, "vision": check_vision, "cvd": check_cvd}
 
 
 def run(where, only=None, funcs=None, now=None):
