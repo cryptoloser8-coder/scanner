@@ -150,8 +150,8 @@ CYCLE_CATALOG = {
 CATALOG.update(CYCLE_CATALOG)
 
 
-def catalog_with_watchlist(watchlist, liq=None):
-    """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series."""
+def catalog_with_watchlist(watchlist, liq=None, cvd_coins=None):
+    """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series; cvd_coins — CVD."""
     cat = dict(CATALOG)
     for i, sym in enumerate(watchlist):
         sid = watch_id(sym)
@@ -160,6 +160,8 @@ def catalog_with_watchlist(watchlist, liq=None):
                             desc=f"Open interest perpetuali {sym.upper()} zsumowany z wybranych giełd, w USD.")
     if liq:
         cat.update(liq_catalog(watchlist, liq.get("top", 30), liq.get("exchanges", [])))
+    if cvd_coins:
+        cat.update(cvd_catalog(cvd_coins))
     return cat
 
 
@@ -352,3 +354,36 @@ def daily_from_hourly(hourly, day_from):
             last_t[d] = t
             out[d] = v
     return out
+
+
+# ── CVD: kupno − sprzedaż na spot i perp (poprawka 44, collector/cvd.py; pliki cvd_1h/1d.json) ──
+CVD_COLORS = {"BTC": ("#4fc3f7", "#ffb74d"), "ETH": ("#4db6ac", "#f48fb1"), "SOL": ("#80deea", "#ce93d8"),
+              "BNB": ("#fff176", "#ffcc80"), "XRP": ("#b0bec5", "#ef9a9a"), "DOGE": ("#c5e1a5", "#ffab91")}
+PX_COLORS = {"SOL": "#9c6ade", "BNB": "#f3ba2f", "XRP": "#b0bec5", "DOGE": "#c2a633"}
+
+
+def cvd_catalog(coins):
+    """Delta (rysowana narastająco od początku zakresu = CVD) i wolumen dla każdego coina; ceny coinów spoza BTC/ETH."""
+    cat = {}
+    what = {"spot": ("spot", "Binance, Coinbase, Bybit, Kraken, Bitstamp i Bitfinex (OKX spot niedostępny)",
+                     "Zakup prawdziwych coinów."),
+            "perp": ("perp", "Binance, Bybit, OKX, Hyperliquid i Deribit", "Kontrakty z dźwignią (perpetuale).")}
+    for i, coin in enumerate(coins):
+        cs = CVD_COLORS.get(coin, (PALETTE[i % len(PALETTE)], PALETTE[(i + 5) % len(PALETTE)]))
+        for j, kind in enumerate(("spot", "perp")):
+            nm, ex, txt = what[kind]
+            cat[f"cvd_{coin.lower()}_{kind}"] = dict(
+                name=f"CVD {coin} {nm}", group="cvd", color=cs[j], fmt="flow", cum=True, axis=f"cvd_{kind}",
+                desc=f"Kupno − sprzedaż „po rynku” (transakcje kupujących i sprzedających, którzy biorą cenę z arkusza) "
+                     f"na rynkach {nm} {coin}, w $. {txt} Na wykresie suma narastająca od początku wybranego zakresu "
+                     "(przyciski zakresu) — linia rośnie, gdy przeważają kupujący. Na kafelku: suma z 24 h, 7 i 30 dni. "
+                     f"Giełdy: {ex}; liczone pary do USD/USDT/USDC/FDUSD z co najmniej 1% wolumenu coina. "
+                     "Wolumen kupujących z Coinalyze od 05.2019 (perp: od startu rynku); skład giełd rośnie z czasem.")
+            cat[f"cvd_{coin.lower()}_{kind}_vol"] = dict(
+                name=f"Wolumen {coin} {nm}", group="vol", color=cs[j], fmt="usd", axis=f"vol_{kind}",
+                desc=f"Wolumen obrotu na rynkach {nm} {coin} w $ na świecę (te same rynki co CVD {coin} {nm}).")
+        if coin not in ("BTC", "ETH"):
+            cat[f"px_{coin.lower()}"] = dict(
+                name=f"Cena {coin}", group="price", color=PX_COLORS.get(coin, PALETTE[i % len(PALETTE)]), fmt="usd",
+                desc=f"Cena {coin} (zamknięcie świecy największego perpa {coin}USDT, zwykle Binance, przez Coinalyze).")
+    return cat

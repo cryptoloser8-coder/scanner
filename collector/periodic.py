@@ -269,6 +269,17 @@ def oi_rows(d, start, end, flat):
     return rows
 
 
+def cvd_weekly(d, start, end, cfg):
+    """CVD spot vs perp w tygodniu (poprawka 44) — bloki liczy cvd.py; brak danych lub błąd → pominięte."""
+    try:
+        import cvd
+        return cvd.weekly_blocks(d, start, end, cfg or {}) if cvd.enabled(cfg or {}) else []
+    except Exception as e:  # noqa: BLE001
+        import logging
+        logging.getLogger("periodic").warning("CVD w raporcie tygodniowym: %s", e)
+        return []
+
+
 def sums_by(pts_long, pts_short, starts):
     """Sumy long/short w przedziałach [starts[i], starts[i+1])."""
     sh = dict(pts_short)
@@ -756,6 +767,7 @@ def build(d, ema, kind, now, cfg, macro):
                            "desc": "Zmiana w tygodniu: cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; cena ↑ + OI ↓ = "
                                    "zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów. Funding w % rocznie (neutralnie ok. 11%).",
                            "note": "OI w coinach = OI w dolarach ÷ cena. Zmiana poniżej 1% = „bez zmian”."})
+        blocks += cvd_weekly(d, start, end, cfg)
         mondays = list(range(start - 104 * WEEK, end + 1, WEEK))
         blocks += liq_block(d, "weekly", mondays, lambda a: R.utc(a, "%d.%m"), start, end, end - 104 * WEEK)
         blocks += ema_crosses(ema, start, end, float(L["ema_min_volume"]))

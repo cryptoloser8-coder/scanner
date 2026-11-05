@@ -9,7 +9,7 @@ Bot co 2 godziny (GitHub Actions):
 
 ```
 main  ── oi.html, liq.html, raporty.html, collector/ (kod + config.yaml), .github/workflows/oi-monitor.yml, report.yml
-data  ── 1h.json, 1d.json, liq_1h.json, liq_1d.json, meta.json, state.json   (nadpisywane przy każdym uruchomieniu)
+data  ── 1h.json, 1d.json, liq_1h.json, liq_1d.json, cvd_1h.json, cvd_1d.json, meta.json, state.json   (nadpisywane przy każdym uruchomieniu)
 ```
 
 ## Konfiguracja (jednorazowo)

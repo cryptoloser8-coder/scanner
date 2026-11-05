@@ -3,6 +3,7 @@
 Files:
   1h.json / 1d.json          {"updated": ts, "series": {id: [[t, v], ...]}}  — read by oi.html
   liq_1h.json / liq_1d.json  same format, liquidations / funding / price  — read by liq.html
+  cvd_1h.json / cvd_1d.json  same format, CVD (kupno − sprzedaż) i wolumen spot / perp — read by oi.html (cvd.py)
   meta.json                  catalogue, levels, health — read by every tab
   state.json                 collector internals (universe, gap-fill values, alert state)
 """
@@ -12,8 +13,8 @@ import tempfile
 
 RESOLUTIONS = ("1h", "1d")
 # file prefix per series-id prefix (anything else goes to the main 1h/1d files)
-BUNDLES = {"liq_": "liq_", "fund_": "liq_", "px_": "liq_"}
-FILE_PREFIXES = ("", "liq_")
+BUNDLES = {"liq_": "liq_", "fund_": "liq_", "px_": "liq_", "cvd_": "cvd_"}
+FILE_PREFIXES = ("", "liq_", "cvd_")
 
 
 def bundle_of(sid):

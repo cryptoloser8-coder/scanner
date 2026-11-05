@@ -93,6 +93,9 @@ class Coinalyze:
     def future_markets(self):
         return self._get("/future-markets")
 
+    def spot_markets(self):
+        return self._get("/spot-markets")
+
     def _batch_get(self, path, params, batch):
         """One batch; on persistent failure log and skip it instead of aborting the run."""
         try:

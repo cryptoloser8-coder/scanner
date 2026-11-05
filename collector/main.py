@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 import coingecko  # noqa: E402
+import cvd as V  # noqa: E402
 import cycle as C  # noqa: E402
 import history as H  # noqa: E402
 import liquidations as L  # noqa: E402
@@ -73,7 +74,7 @@ def build_catalog(cfg):
     liq = None
     if liq_enabled(cfg):
         liq = {"top": int(cfg["liquidations"].get("top_alts", 30)), "exchanges": cfg["coinalyze"]["exchanges"]}
-    return S.catalog_with_watchlist(watch, liq)
+    return S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None)
 
 
 def floor(t, step):
@@ -262,6 +263,17 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         except Exception as e:  # noqa: BLE001
             log.exception("Likwidacje")
             results["Likwidacje"] = str(e)
+
+    # CVD spot vs perp (poprawka 44): kupno − sprzedaż z wolumenu Coinalyze
+    if V.enabled(cfg):
+        try:
+            if client is None:
+                raise RuntimeError("brak klienta Coinalyze")
+            info["cvd"] = V.collect(client, store, cfg, now, backfill)
+            results["CVD"] = None
+        except Exception as e:  # noqa: BLE001
+            log.exception("CVD")
+            results["CVD"] = str(e)
 
     tv = tv or TradingView()
     try:

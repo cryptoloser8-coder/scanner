@@ -59,6 +59,25 @@ liquidations:
   # Cena na wykresie (symbole Coinalyze; .A = Binance)
   price_symbols: {px_btc: BTCUSDT_PERP.A, px_eth: ETHUSDT_PERP.A}
 
+# ─────────────────────────────────────────────────────────────
+#  CVD — KUPNO vs SPRZEDAŻ, SPOT i PERP (poprawka 44; zakładka OI & TOTAL, raport poranny i tygodniowy)
+#  Coinalyze: wolumen (v) i wolumen kupujących „po rynku” (bv) z każdej świecy.
+#  Delta = kupno − sprzedaż = 2·bv − v, w $; CVD = suma narastająca delty.
+#  Rynki: wszystkie pary do USD/USDT/USDC/FDUSD na podanych giełdach, które mają co najmniej
+#  min_share wolumenu danego coina (osobno spot i perp, z ostatnich share_days dni; wybór raz dziennie).
+#  Koszt: ~90 zapytań na skan + ~150 raz dziennie. Pierwsze uruchomienie pobiera historię (~10 min dłużej).
+# ─────────────────────────────────────────────────────────────
+cvd:
+  enabled: true
+  coins: [BTC, ETH, SOL, BNB, XRP, DOGE]
+  # giełdy spot (OKX spot nie ma w Coinalyze); perp = te same giełdy co OI (coinalyze.exchanges)
+  spot_exchanges: [Binance, Coinbase, Bybit, Kraken, Bitstamp, Bitfinex]
+  quotes: [USDT, USD, USDC, FDUSD]
+  min_share: 0.01
+  share_days: 30
+  # historia dzienna od (Coinalyze ma wolumen kupujących od 01.05.2019)
+  history_start: "2019-05-01"
+
 tradingview:
   # Serie CRYPTOCAP z TradingView (te same wartości co na wykresach TV).
   symbols:

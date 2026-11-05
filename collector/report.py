@@ -23,12 +23,17 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                                                  "marks": [{"pos", "label", "kind"}], "note"}]}  — range bars
   {"type": "bars", "title", "note", "rows": [{"label", "long", "short", "text", "current"}],
                    "parts": [{"key", "name", "color"}], "line": {"value", "label"}}         — horizontal stacked bars
+  {"type": "dbars", "title", "note", "rows": [{"label", "<key>": value, "<key>_text", "<key>_band": [lo, hi]}],
+                    "parts": [{"key", "name"}], "band_label", "label_col"}   — bars both ways from zero (e.g. CVD % of volume),
+                    grey band = usual range; scale per part (poprawka 44)
+  chart series: "fmt": "flow" = signed $ (CVD), "scale": "hidden" = own scale without an axis (e.g. price behind CVD)
   chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text"}] — on the first series;
   chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
          optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
 
 Layout v2 (31.10.2026): Rynek (range bars) → Alty (table vs past peaks, OI OTHERS/OI BTC and Alty/BTC with levels,
-OI OTHERS + OI BTC, market breadth) → Derywaty (OI vs price, funding bars) → Likwidacje (7 days) → EMA200 (coins near it).
+OI OTHERS + OI BTC, market breadth) → Derywaty (OI vs price — doba UTC, funding bars) → CVD spot vs perp (cvd.py,
+poprawka 44) → Likwidacje (7 days) → EMA200 (coins near it).
 Thresholds and levels: config.yaml → reports: (see LAYOUT).
 
 Weekly and monthly reports (kind weekly / monthly, poprawka 30): built by periodic.py right after the weekly
@@ -136,6 +141,10 @@ def fmt_price(v):
 
 
 def fmt_val(v, group):
+    if group == "flow" and v is not None:                # CVD: kwota ze znakiem (+$1.40B / −$27M)
+        a = abs(v)
+        t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}k" if a >= 1e3 else f"{a:.0f}"
+        return ("-" if v < 0 else "+") + "$" + t
     return fmt_price(v) if group == "price" else alerts.fmt_value(v, group)
 
 
@@ -161,7 +170,7 @@ class Data:
         self.res = {"1h": {}, "1d": {}}
         self.updated = 0
         for res in self.res:
-            for prefix in ("", "liq_"):
+            for prefix in ("", "liq_", "cvd_"):
                 d = _read(os.path.join(data_dir, f"{prefix}{res}.json"), {}) or {}
                 self.updated = max(self.updated, d.get("updated") or 0)
                 for sid, pts in (d.get("series") or {}).items():
@@ -575,15 +584,16 @@ def oi_case(px_ch, oi_coin_ch, flat):
     return OI_CASES[(sgn(px_ch), sgn(oi_coin_ch))]
 
 
-def oi_price_rows(d, coin, flat):
+def oi_price_rows(d, coin, flat, now=None):
+    """Doba UTC (zamknięcie dnia, poprawka 44) i 7 pełnych dni — z zamknięć dziennych; bez `now`: ostatni punkt."""
     rows = []
     oi_sid, px_sid = f"oi_{coin.lower()}", f"px_{coin.lower()}"
-    for label, res, sec in (("24 h", "1h", DAY), ("7 dni", "1d", 7 * DAY)):
-        oi, px = d.pts(res, oi_sid), d.pts(res, px_sid)
-        if not oi or not px:
-            continue
-        t = min(oi[-1][0], px[-1][0])
-        tol = 3 * HOUR if res == "1h" else 2 * DAY
+    oi, px = d.pts("1d", oi_sid), d.pts("1d", px_sid)
+    if not oi or not px:
+        return rows
+    day = (int(now) - int(now) % DAY - DAY) if now else min(oi[-1][0], px[-1][0])   # ostatnia pełna doba UTC
+    for label, sec in ((f"doba {utc(day, '%d.%m')}", DAY), ("7 dni", 7 * DAY)):
+        t, tol = day, 2 * DAY
         o1, p1, o0, p0 = at(oi, t, tol), at(px, t, tol), at(oi, t - sec, tol), at(px, t - sec, tol)
         if None in (o1, p1, o0, p0) or not (o0 and p0 and p1):
             continue
@@ -594,9 +604,9 @@ def oi_price_rows(d, coin, flat):
     return rows
 
 
-def derivatives_section(d, L, alt_t):
+def derivatives_section(d, L, alt_t, now=None):
     flat = float(L["oi_flat_pct"])
-    rows = oi_price_rows(d, "BTC", flat) + oi_price_rows(d, "ETH", flat)
+    rows = oi_price_rows(d, "BTC", flat, now) + oi_price_rows(d, "ETH", flat, now)
     blocks = [{"type": "section", "title": "Derywaty"}]
     if rows:
         blocks.append({"type": "table", "title": "Open interest i cena — BTC i ETH",
@@ -604,6 +614,7 @@ def derivatives_section(d, L, alt_t):
                        "desc": "Kto napędza ruch ceny. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; "
                                "cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów.",
                        "note": "OI w coinach = OI w dolarach podzielone przez cenę — bez tego OI rósłby i spadał razem z ceną. "
+                               "Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni. "
                                f"Zmiana poniżej {flat:g}% = „bez zmian”."})
     years = int(L["range_years"])
     items = []
@@ -622,6 +633,16 @@ def derivatives_section(d, L, alt_t):
     blocks.append({"type": "ranges", "title": "Funding na tle ostatnich 2 lat", "items": items,
                    "note": "Pasek = zakres dziennych odczytów z ostatnich 2 lat. Szary znacznik = poziom neutralny."})
     return blocks
+
+
+def cvd_section(d, now, cfg):
+    """CVD spot vs perp (poprawka 44) — bloki liczy cvd.py; brak danych lub błąd → sekcja pominięta."""
+    try:
+        import cvd
+        return cvd.morning_blocks(d, now, cfg or {}) if cvd.enabled(cfg or {}) else []
+    except Exception as e:  # noqa: BLE001 — sekcja dodatkowa, raport ma powstać i bez niej
+        log.warning("CVD w raporcie: %s", e)
+        return []
 
 
 def liq_section(d, L):
@@ -739,7 +760,8 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
                              results=not morning, plan_importance="high" if morning else None, before_plan=night)
     if d.updated:
         blocks += alts_section(d, ema, L, refs, now)
-        blocks += derivatives_section(d, L, alt_t)
+        blocks += derivatives_section(d, L, alt_t, now)
+        blocks += cvd_section(d, now, cfg)
         blocks += liq_section(d, L)
     blocks += ema_near_section(ema, L)
 
@@ -887,6 +909,21 @@ def to_markdown(rep, page_url=""):
             if b.get("bands"):
                 L.append("Tło wykresu (okresy): " + "; ".join(
                     f"{bd['label']} {utc(bd['from'], '%d.%m.%Y')}–{utc(bd['to'], '%d.%m.%Y')}" for bd in b["bands"]) + ".")
+        elif t == "dbars":
+            parts = b.get("parts") or []
+            cols = [b.get("label_col") or ""] + [f"{p.get('name')} — przewaga kupujących (% wolumenu · $)" for p in parts]
+            if any(r.get(p["key"] + "_band") for r in b.get("rows") or [] for p in parts):
+                cols += [f"{p.get('name')} — zwykły zakres" for p in parts]
+            rows = []
+            for r in b.get("rows") or []:
+                row = [r.get("label")] + [r.get(p["key"] + "_text") or "—" for p in parts]
+                if len(cols) > 1 + len(parts):
+                    row += [("{:+.1f}% … {:+.1f}%".format(*r[p["key"] + "_band"]) if r.get(p["key"] + "_band") else "—")
+                            for p in parts]
+                rows.append(row)
+            L += _md_table(cols, rows)
+            if b.get("band_label"):
+                L.append(f"Szary pas na wykresie = {b['band_label']}.")
         elif t == "bars":
             rows = []
             for r in b.get("rows") or []:
@@ -1025,6 +1062,7 @@ def load_cfg(path):
     cfg.update(full.get("reports") or {})
     cfg["telegram"] = full.get("telegram") or {}
     cfg["cycle"] = full.get("cycle") or {}           # dna uznane ręcznie, szacunek halvingu (raport miesięczny)
+    cfg["cvd"] = full.get("cvd") or {}               # CVD spot vs perp (poprawka 44): poranny i tygodniowy
     cfg["telegram_enabled"] = cfg["telegram"].get("enabled", True)
     return cfg
 
