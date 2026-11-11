@@ -106,11 +106,11 @@ def chg(v, before, f):
     if v is None or before is None:
         return "—"
     if f == "z":                     # MVRV-Z: różnica z dwoma miejscami (jak wartość)
-        x = v - before
-        return ("▲" if x > 0 else "▼" if x < 0 else "•") + f"{x:+.2f}"
+        x = round(v - before, 2)
+        return "•0.00" if x == 0 else ("▲" if x > 0 else "▼") + f"{x:+.2f}"
     if f == "pct0":                  # szerokość rynku: wartość w całych %, różnica z jednym miejscem
-        x = v - before
-        return ("▲" if x > 0 else "▼" if x < 0 else "•") + f"{x:+.1f} pp"
+        x = round(v - before, 1)
+        return "•0.0 pp" if x == 0 else ("▲" if x > 0 else "▼") + f"{x:+.1f} pp"
     if f in DIFF_FMTS:
         return R.fmt_chg(v - before, " pp" if f in ("pct", "yield", "pp", "fund") else "")
     return R.fmt_chg(R.pct_change(v, before))

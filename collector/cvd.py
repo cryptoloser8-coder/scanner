@@ -330,7 +330,7 @@ def fmt_usd(v):
     if abs(v) < 0.5:
         return "$0"
     a = abs(v)
-    t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}k" if a >= 1e3 else f"{a:.0f}"
+    t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}K" if a >= 1e3 else f"{a:.0f}"
     return ("-" if v < 0 else "+") + "$" + t
 
 
@@ -374,8 +374,9 @@ def _example(rows_src):
             f"({abs(imbalance(w_s)):.1f}% wolumenu).")
 
 
-def morning_blocks(d, now, cfg):
-    """Raport poranny: tabela doba / 7 dni, słupki doby na tle 2 lat, wykres BTC 7 dni co godzinę."""
+def morning_blocks(d, now, cfg, table=True):
+    """Raport poranny: tabela doba / 7 dni, słupki doby na tle 2 lat, wykres BTC 7 dni co godzinę.
+    table=False (poprawka 45): tabela jest już w sekcji Derywaty, połączona z OI — tu tylko słupki i wykres."""
     if not has_data(d):
         return []
     from report import fmt_chg, utc
@@ -413,11 +414,14 @@ def morning_blocks(d, now, cfg):
                "desc": DESC_TABLE + (_example(first) if first else ""),
                "note": NOTE_MARKETS + f"Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni do {label}. "
                                       f"Przewaga poniżej {flat:g}% wolumenu = „bez wyraźnej przewagi”."}]
+    if not table:
+        blocks = blocks[:1] if (drows or btc_hour_chart(d, today)) else []
     if drows:
         blocks.append({"type": "dbars", "title": f"Przewaga kupujących w dobie {label} — % wolumenu", "rows": drows,
                        "parts": [{"key": "spot", "name": "spot"}, {"key": "perp", "name": "perp"}],
                        "band_label": "zwykły zakres: 80% dni z ostatnich 2 lat",
-                       "desc": "Słupek w prawo = więcej kupna, w lewo = więcej sprzedaży. Szary pas = zwykły zakres (bez 10% "
+                       "desc": ("" if table else "CVD = kupno − sprzedaż „po rynku”, tu jako % całego wolumenu doby. ") +
+                               "Słupek w prawo = więcej kupna, w lewo = więcej sprzedaży. Szary pas = zwykły zakres (bez 10% "
                                "najmocniejszych dni kupna i 10% sprzedaży z 2 lat) — słupek poza pasem = dzień nietypowy. "
                                "Skala osobna dla spot i perp (na perp przewagi są zwykle mniejsze, bo wolumen jest ogromny).",
                        "note": "Pas liczony z dziennych odczytów tej samej sumy rynków."})

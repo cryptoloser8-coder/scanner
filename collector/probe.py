@@ -18,6 +18,11 @@ Sprawdzane (dla serii, które już mamy):
                 (także zdelistowanych — szerokość rynku bez błędu przeżywalności),
   cvd         — wolumen kupujących (bv) w Coinalyze dla BTC, ETH, SOL, BNB, XRP, DOGE: spot i perp, od kiedy,
                 historia 1h, zgodność z „taker buy volume” w archiwum Binance (do CVD spot vs perp).
+
+Nowe źródła do sekcji Alty (poprawka 45) — uruchamiane tylko na życzenie (--only coingecko dexscreener):
+  coingecko   — ile coinów wpada do koszyków kapitalizacji ($1–10M, $10–100M, $100M–1B, > $1B), jakie mają obroty,
+                czy odpowiedź zawiera zmiany 24h/7D/30D, jak głęboka jest historia na darmowym kluczu i ile to zapytań,
+  dexscreener — trendujące narracje („metas”): czy API odpowiada z GitHuba i jakie pola zwraca.
 """
 import argparse
 import io
@@ -40,7 +45,7 @@ sys.path.insert(0, HERE)
 log = logging.getLogger("probe")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) scanner-probe"}
 START_2010 = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
-CHECKS = {
+CHECKS = {       # domyślny zestaw; coingecko i dexscreener tylko przez --only (nowe źródła, osobne pytanie)
     "github": ("coinalyze", "tradingview", "coinmetrics", "bitmex", "binance", "vision", "cvd"),
     "pi": ("binance", "vision", "bitmex", "coinmetrics"),
 }
@@ -661,6 +666,151 @@ def check_cvd(session=None, client=None, now=None):
 
 FUNCS = {"coinalyze": check_coinalyze, "tradingview": check_tradingview, "coinmetrics": check_coinmetrics,
          "bitmex": check_bitmex, "binance": check_binance, "vision": check_vision, "cvd": check_cvd}
+
+
+# ── CoinGecko: koszyki kapitalizacji altów ───────────────────
+CG = "https://api.coingecko.com/api/v3"
+CG_BUCKETS = (("> $1B", 1e9, float("inf")), ("$100M – $1B", 1e8, 1e9), ("$10M – $100M", 1e7, 1e8), ("$1M – $10M", 1e6, 1e7))
+CG_SKIP_CATEGORIES = ("stablecoins", "wrapped-tokens", "liquid-staking-tokens")
+CG_MAX_PAGES = 40                      # 40 × 250 = 10 000 coinów
+CG_VOL_LEVELS = (50e3, 250e3, 1e6)     # progi dziennego obrotu do filtra koszyków
+
+
+def _cg_get(session, path, params, sleep, calls):
+    key = os.environ.get("COINGECKO_API_KEY", "")
+    headers = dict(UA, **({"x-cg-demo-api-key": key} if key else {}))
+    for attempt in range(5):
+        calls[0] += 1
+        r = session.get(CG + path, params=params, headers=headers, timeout=60)
+        if r.status_code == 200:
+            sleep(2.5)                 # limit darmowego klucza: ok. 30 zapytań na minutę
+            return r.json()
+        if r.status_code == 429 or r.status_code >= 500:
+            sleep(min(20 * (attempt + 1), 65))
+            continue
+        raise RuntimeError(f"HTTP {r.status_code} {r.text[:120]}")
+    raise RuntimeError("zbyt wiele odpowiedzi 429 / 5xx")
+
+
+def cg_bucket_stats(coins, skip_ids=()):
+    """Lista z /coins/markets → statystyki koszyków (bez BTC, ETH i podanych id: stablecoiny, tokeny opakowane)."""
+    out = []
+    for name, lo, hi in CG_BUCKETS:
+        b = [c for c in coins if c.get("id") not in skip_ids and c.get("id") not in ("bitcoin", "ethereum")
+             and lo <= (c.get("market_cap") or 0) < hi]
+        vols = sorted((c.get("total_volume") or 0) for c in b)
+        ch = [c.get("price_change_percentage_24h_in_currency") for c in b]
+        ch = sorted(x for x in ch if x is not None)
+        out.append({"bucket": name, "n": len(b), "vol_median": _median(vols) if vols else None,
+                    "vol_ok": {lvl: sum(1 for v in vols if v >= lvl) for lvl in CG_VOL_LEVELS},
+                    "chg24_median": _median(ch) if ch else None,
+                    "with_7d": sum(1 for c in b if c.get("price_change_percentage_7d_in_currency") is not None),
+                    "with_30d": sum(1 for c in b if c.get("price_change_percentage_30d_in_currency") is not None),
+                    "sample": [c.get("id") for c in b[:1] + b[len(b) // 2:len(b) // 2 + 1]]})
+    return out
+
+
+def check_coingecko(session=None, sleep=time.sleep, max_pages=CG_MAX_PAGES, **_):
+    s = session or requests.Session()
+    calls = [0]
+    rows = [row("coingecko", "klucz API", "ok" if os.environ.get("COINGECKO_API_KEY") else "brak",
+                note="sekret COINGECKO_API_KEY (darmowy klucz demo)" if os.environ.get("COINGECKO_API_KEY")
+                else "bez klucza — niższe limity; dodaj COINGECKO_API_KEY do kroku sondy")]
+    coins, last_page = [], 0
+    try:
+        for page in range(1, max_pages + 1):
+            got = _cg_get(s, "/coins/markets", {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 250,
+                                                "page": page, "price_change_percentage": "24h,7d,30d"}, sleep, calls)
+            if not got:
+                break
+            coins += got
+            last_page = page
+            if (got[-1].get("market_cap") or 0) < CG_BUCKETS[-1][1]:       # cała reszta poniżej $1M
+                break
+    except Exception as e:  # noqa: BLE001
+        rows.append(err_row("coingecko", f"lista coinów (po {last_page} stronach)", e))
+    if not coins:
+        return rows
+    skip = set()
+    for cat in CG_SKIP_CATEGORIES:
+        try:
+            got = _cg_get(s, "/coins/markets", {"vs_currency": "usd", "category": cat, "order": "market_cap_desc",
+                                                "per_page": 250, "page": 1}, sleep, calls)
+            skip |= {c["id"] for c in got or []}
+            rows.append(row("coingecko", f"kategoria {cat}", "ok", n=len(got or []), note="pomijane w koszykach (pierwsze 250)"))
+        except Exception as e:  # noqa: BLE001
+            rows.append(err_row("coingecko", f"kategoria {cat}", e))
+    below = next((i for i, c in enumerate(coins) if (c.get("market_cap") or 0) < CG_BUCKETS[-1][1]), None)
+    rows.append(row("coingecko", "lista coinów", "ok", n=len(coins),
+                    note=f"{last_page} stron po 250; kapitalizacja spada poniżej $1M na pozycji "
+                         f"{below + 1 if below is not None else '> ' + str(len(coins))}; pola zmian 24h/7D/30D w odpowiedzi: "
+                         f"{'tak' if 'price_change_percentage_7d_in_currency' in coins[0] else 'NIE'}"))
+    stats = cg_bucket_stats(coins, skip)
+    for st in stats:
+        vo = ", ".join(f"≥ {fmt_usd(lvl)}: {n}" for lvl, n in st["vol_ok"].items())
+        rows.append(row("coingecko", f"koszyk {st['bucket']}", "ok" if st["n"] else "brak", n=st["n"],
+                        note=f"obrót 24h mediana {fmt_usd(st['vol_median']) if st['vol_median'] is not None else '—'}; coinów z obrotem {vo}; "
+                             f"mediana zmiany 24h {st['chg24_median']:+.1f}%; ze zmianą 7D {st['with_7d']}, 30D {st['with_30d']}"
+                        if st["n"] and st["chg24_median"] is not None else "brak coinów"))
+    # głębokość historii na darmowym kluczu: po 2 coiny z każdego koszyka (pierwszy i środkowy)
+    for st in stats:
+        for cid in st["sample"]:
+            for days in ("max", "365"):
+                try:
+                    h = _cg_get(s, f"/coins/{cid}/market_chart", {"vs_currency": "usd", "days": days, "interval": "daily"},
+                                sleep, calls)
+                    pr, mc = h.get("prices") or [], h.get("market_caps") or []
+                    rows.append(row("coingecko", f"historia {cid} ({st['bucket']}, days={days})", "ok" if pr else "brak",
+                                    pr[0][0] if pr else None, pr[-1][0] if pr else None, len(pr),
+                                    note=f"kapitalizacja w historii: {'tak' if any(x[1] for x in mc) else 'NIE'}"))
+                    break
+                except Exception as e:  # noqa: BLE001
+                    rows.append(err_row("coingecko", f"historia {cid} (days={days})", e))
+    pages = last_page
+    rows.append(row("coingecko", "koszt w zapytaniach", "ok", n=calls[0],
+                    note=f"ta sonda: {calls[0]} zapytań. Zapis listy raz na dobę = {pages} zapytań/dzień ≈ {pages * 30}/miesiąc; "
+                         f"co 2 h = {pages * 12}/dzień ≈ {pages * 360}/miesiąc (darmowy klucz: 10 000/miesiąc — sprawdź w panelu CoinGecko)"))
+    return rows
+
+
+# ── DexScreener: narracje („metas”) ──────────────────────────
+DS = "https://api.dexscreener.com"
+
+
+def check_dexscreener(session=None, **_):
+    s = session or requests.Session()
+    rows = []
+    try:
+        metas = _get(s, DS + "/metas/trending/v1").json()
+        metas = metas if isinstance(metas, list) else (metas.get("metas") or metas.get("data") or [])
+    except Exception as e:  # noqa: BLE001
+        return [err_row("dexscreener", "trendujące narracje", e)]
+    if not metas:
+        return [row("dexscreener", "trendujące narracje", "brak")]
+    keys = sorted(metas[0].keys())
+    rows.append(row("dexscreener", "trendujące narracje", "ok", n=len(metas), note="pola: " + ", ".join(keys)))
+
+    def chg(m):
+        c = m.get("marketCapChange")
+        return c.get("h24") if isinstance(c, dict) else None
+    for m in metas[:8]:
+        c24 = chg(m)
+        rows.append(row("dexscreener", f"narracja: {str(m.get('name'))[:40]}", "ok", n=m.get("tokenCount"),
+                        note=f"kapitalizacja {fmt_usd(_num(m.get('marketCap')))}; płynność {fmt_usd(_num(m.get('liquidity')))}; "
+                             f"zmiana kapitalizacji 24h {c24 if c24 is not None else '—'}; obrót {str(m.get('volume'))[:60]}"))
+    slug = metas[0].get("slug")
+    if slug:
+        try:
+            one = _get(s, f"{DS}/metas/meta/v1/{slug}").json()
+            pairs = one.get("pairs") or []
+            rows.append(row("dexscreener", f"skład narracji {slug}", "ok" if pairs else "brak", n=len(pairs),
+                            note="pola pary: " + ", ".join(sorted(pairs[0].keys())[:25]) if pairs else "brak par w odpowiedzi"))
+        except Exception as e:  # noqa: BLE001
+            rows.append(err_row("dexscreener", f"skład narracji {slug}", e))
+    return rows
+
+
+FUNCS.update({"coingecko": check_coingecko, "dexscreener": check_dexscreener})
 
 
 def run(where, only=None, funcs=None, now=None):

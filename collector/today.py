@@ -52,7 +52,7 @@ def pl(t):
 
 def usd(v):
     """Kwoty likwidacji krótko: $409K, $8.3M, $1.2B."""
-    return f"${v / 1e3:.0f}K" if abs(v) < 1e6 else alerts.fmt_value(v, "liq")
+    return R.fmt_usd_short(v)
 
 
 # ── sekcje ───────────────────────────────────────────────────
@@ -84,8 +84,21 @@ def market_section(d, ema, t0, now):
                      "teraz vs na zamknięciu dnia."}]
 
 
-def coin_rows(d, ema, coins, t0, now, flat):
+def cvd_since(d, coin, kind, t0):
+    """Przewaga kupna (% wolumenu) na spot / perp od 00:00 UTC, ze świec 1 h; brak danych CVD → None."""
+    lc = coin.lower()
+    dl = sum(v for t, v in d.pts("1h", f"cvd_{lc}_{kind}") if t >= t0)
+    vol = sum(v for t, v in d.pts("1h", f"cvd_{lc}_{kind}_vol") if t >= t0)
+    return 100.0 * dl / vol if vol else None
+
+
+def coin_rows(d, ema, coins, t0, now, flat, cflat=1.0):
     by = {c["s"]: c for c in (ema or {}).get("coins") or []}
+    try:
+        import cvd
+        who = cvd.who
+    except Exception:  # noqa: BLE001 — bez modułu CVD zostaje sam fakt (cena i pozycje)
+        who = None
     rows, notes = [], []
     for coin in coins:
         lc = coin.lower()
@@ -101,7 +114,9 @@ def coin_rows(d, ema, coins, t0, now, flat):
         px_ch = R.pct_change(p1, p0) if p1 and p0 else None
         oi_usd = R.pct_change(oi_last[1], oi0) if oi_last and oi0 else None
         oi_coin = ((oi_last[1] / p1) / (oi0 / p0) - 1) * 100 if oi_last and oi0 and p1 and p0 else None
-        case = R.oi_case(px_ch, oi_coin, flat) if px_ch is not None and oi_coin is not None else "—"
+        ip, isp = cvd_since(d, coin, "perp", t0), cvd_since(d, coin, "spot", t0)
+        who_txt = who(isp, ip, cflat) if who and (ip is not None or isp is not None) else ""
+        case = R.reading(px_ch, oi_coin, ip, who_txt, flat, cflat) if px_ch is not None and oi_coin is not None else "—"
         fund = d.pts("1h", f"fund_{lc}")
         f_now = fund[-1][1] if fund else None
         f7 = [v for t, v in fund if fund and t > fund[-1][0] - 7 * DAY]
@@ -120,14 +135,20 @@ def coin_rows(d, ema, coins, t0, now, flat):
 def coins_section(d, ema, coins, t0, now, L):
     flat = float(L["oi_flat_pct"])
     rows, notes = coin_rows(d, ema, coins, t0, now, flat)
+    has_cvd = any(isinstance(r[5], list) and len(r[5]) > 1 for r in rows)
     if not rows:
         return []
     return [{"type": "section", "title": "Coiny z listy"},
             {"type": "table", "title": "Cena, lewar, funding i likwidacje — od 00:00 UTC", "left": [0, 5],
-             "cols": ["Coin", "Cena", "Cena od 00:00", "OI (w coinach)", "OI ($)", "Co to znaczy", "Funding teraz",
+             "cols": ["Coin", "Cena", "Cena od 00:00", "OI (w coinach)", "OI ($)", "Typowe odczytanie", "Funding teraz",
                       "Funding śr. 7 dni", "Likwidacje dziś"], "rows": rows,
-             "desc": "Kto dziś napędza ruch. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; cena ↑ + OI ↓ = "
-                     "zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów. Funding w % rocznie (neutralnie ok. 11%).",
+             "desc": ("Kto dziś napędza ruch. „Typowe odczytanie”, linia po linii: 1) co się stało — cena i open interest "
+                      "(OI rośnie = przybyło pozycji, maleje = pozycje są zamykane); 2) CVD perp, czyli kupno minus sprzedaż "
+                      "„po rynku” na kontraktach od 00:00 UTC — wniosek typu „nowe shorty” pojawia się tylko wtedy, gdy CVD go "
+                      "potwierdza; 3) spot i perp — czy kupowano prawdziwe coiny, czy kontrakty z dźwignią. "
+                      if has_cvd else
+                      "Kto dziś napędza ruch: cena i open interest (OI rośnie = przybyło pozycji, maleje = pozycje są zamykane). ")
+                     + "Funding w % rocznie (neutralnie ok. 11%).",
              "note": "OI, funding i likwidacje: Coinalyze, świece 1 h (likwidacje tylko Binance, Bybit, OKX — dolne oszacowanie). "
                      "Ceny BTC i ETH z tych samych danych; pozostałe z Binance spot (gałąź ema, co ~5–15 min), więc OI w coinach "
                      f"jest dla nich przybliżone. Zmiana poniżej {flat:g}% = „bez zmian”."
@@ -145,7 +166,8 @@ def liq_section(d, t0, now):
         lv = sum(v for t, v in hl if a <= t < a + step)
         sv = sum(v for t, v in hs.items() if a <= t < a + step)
         tot = lv + sv
-        rows.append({"label": f"{pl(a)[:2]}–{pl(a + step)[:2]}", "long": lv, "short": sv, "current": a + step > last_t + HOUR,
+        cur = a + step > last_t + HOUR                      # blok jeszcze trwa (niepełny)
+        rows.append({"label": f"{pl(a)[:2]}–{pl(a + step)[:2]}" + ("…" if cur else ""), "long": lv, "short": sv, "current": cur,
                      "text": f"{usd(tot)} · {100 * lv / tot:.0f}% long" if tot else "$0"})
     # typowy blok 3 h: percentyl 90 z ostatnich 60 dni (pełne bloki przed dziś)
     hist = []
@@ -171,7 +193,8 @@ def liq_section(d, t0, now):
              "parts": [{"key": "long", "name": "longi", "color": "#e05252"}, {"key": "short", "name": "shorty", "color": "#4caf7d"}],
              "line": {"value": big, "label": f"duży blok: {alerts.fmt_value(big, 'liq')} (więcej tylko w 10% bloków z 60 dni)"}
              if big else None,
-             "desc": "Kiedy dziś czyszczony był lewar. Duże likwidacje longów = zjazd w dół, shortów = short squeeze.",
+             "desc": "Kiedy dziś czyszczony był lewar. Duże likwidacje longów = zjazd w dół, shortów = short squeeze. "
+                     "Ostatni blok (z „…”) jeszcze trwa, więc jest niepełny.",
              "note": note}]
 
 

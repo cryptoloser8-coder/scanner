@@ -61,11 +61,18 @@ DEFAULTS = {
     "repo": "cryptoloser8-coder/scanner",
     "branch": "ema",
     "page_url": "https://cryptoloser8-coder.github.io/scanner/ema.html",
+    # RSI on 3-day and weekly candles (built from the daily closes): per coin + share of coins oversold / overbought
+    "rsi_period": 14,
+    "rsi_low": 30,
+    "rsi_high": 70,
+    "rsi_min_bars": 30,             # a coin counts once it has this many closed 3D / 1W candles
+    "rsi_min_coins": 30,            # history points with fewer coins are skipped
+    "rsi_d3_shift": 0,              # 0–2: which day starts a 3-day candle (0 = like Binance `3d` klines)
 }
 # stablecoins, fiat and gold tokens — never part of the EMA universe
 ALWAYS_EXCLUDE = {
     "USDT", "USDC", "FDUSD", "TUSD", "USDP", "DAI", "BUSD", "USDE", "PYUSD", "USD1", "RLUSD", "BFUSD",
-    "XUSD", "USDS", "AEUR", "EURI", "EUR", "GBP", "AUD", "BRL", "TRY", "JPY", "PLN", "RON", "ZAR", "UAH",
+    "XUSD", "USDS", "U", "AEUR", "EURI", "EUR", "GBP", "AUD", "BRL", "TRY", "JPY", "PLN", "RON", "ZAR", "UAH",
     "ARS", "MXN", "COP", "CZK", "KGST", "PAXG", "XAUT",
     # wrapped / staked copies of other coins (would double-count BTC, ETH, SOL…)
     "WBTC", "WBETH", "BETH", "BNSOL", "STETH", "WSTETH", "CBBTC",
@@ -211,6 +218,115 @@ def streak(closes, emas):
         n += 1
         i -= 1
     return side, n, (i + 1 if i >= 0 else None)
+
+
+# ── RSI on 3-day / weekly candles ────────────────────────────
+RSI_KINDS = ("d3", "w")
+
+
+def bar_key(t, kind, shift=0):
+    """Number of the 3-day / weekly candle a daily candle (open time t, UTC) belongs to.
+    Weekly = Monday–Sunday UTC (as on Binance and TradingView); 3-day = counted from 1970-01-01 + shift days."""
+    d = int(t) // DAY
+    return (d + 3) // 7 if kind == "w" else (d + int(shift)) // 3
+
+
+def bar_end(key, kind, shift=0):
+    """Open time (UTC midnight) of the last day of a 3-day / weekly candle."""
+    return ((key * 7 - 3 + 6) if kind == "w" else (key * 3 - int(shift) + 2)) * DAY
+
+
+def resample(times, closes, kind, shift=0):
+    """Daily closes → (keys, closes) of 3-day / weekly candles (close = last daily close in the candle)."""
+    keys, out = [], []
+    for t, c in zip(times, closes):
+        k = bar_key(t, kind, shift)
+        if keys and keys[-1] == k:
+            out[-1] = c
+        else:
+            keys.append(k)
+            out.append(c)
+    return keys, out
+
+
+def rsi_series(closes, period=14):
+    """Wilder's RSI like TradingView ta.rsi → list (None for the first `period` values)."""
+    n = len(closes)
+    out = [None] * n
+    if n < period + 1:
+        return out
+    gain = loss = 0.0
+    for i in range(1, period + 1):
+        d = closes[i] - closes[i - 1]
+        gain += max(d, 0.0)
+        loss += max(-d, 0.0)
+    gain /= period
+    loss /= period
+    out[period] = 100.0 if loss == 0 else 100 - 100 / (1 + gain / loss)
+    for i in range(period + 1, n):
+        d = closes[i] - closes[i - 1]
+        gain = (gain * (period - 1) + max(d, 0.0)) / period
+        loss = (loss * (period - 1) + max(-d, 0.0)) / period
+        out[i] = 100.0 if loss == 0 else 100 - 100 / (1 + gain / loss)
+    return out
+
+
+def rsi_live(times, closes, price, now, kind, cfg):
+    """RSI of the candle that is open now (counted with the current price, like on TradingView).
+    None while the coin has fewer than rsi_min_bars closed candles."""
+    shift = cfg.get("rsi_d3_shift", 0)
+    keys, bars = resample(times, closes, kind, shift)
+    if not keys:
+        return None
+    cur = bar_key(now, kind, shift)
+    if keys[-1] == cur:
+        bars[-1] = price
+    else:
+        keys.append(cur)
+        bars.append(price)
+    if len(bars) - 1 < int(cfg.get("rsi_min_bars", 30)):
+        return None
+    return rsi_series(bars, int(cfg.get("rsi_period", 14)))[-1]
+
+
+def rsi_extremes(series, cfg, now, kind, extra=None):
+    """Share of coins with RSI below rsi_low / above rsi_high on each CLOSED 3-day / weekly candle
+    → [[t_last_day, pct_oversold, pct_overbought, coins], ...]. extra = delisted pairs (as in breadth)."""
+    period, lo, hi = int(cfg.get("rsi_period", 14)), float(cfg.get("rsi_low", 30)), float(cfg.get("rsi_high", 70))
+    min_bars, shift = int(cfg.get("rsi_min_bars", 30)), cfg.get("rsi_d3_shift", 0)
+    cur = bar_key(now, kind, shift)
+    cnt, n_lo, n_hi = {}, {}, {}
+    for times, closes, _ in list(series.values()) + list((extra or {}).values()):
+        keys, bars = resample(times, closes, kind, shift)
+        vals = rsi_series(bars, period)
+        for j in range(min_bars, len(keys)):
+            k, v = keys[j], vals[j]
+            if k >= cur or v is None:
+                continue
+            cnt[k] = cnt.get(k, 0) + 1
+            if v < lo:
+                n_lo[k] = n_lo.get(k, 0) + 1
+            elif v > hi:
+                n_hi[k] = n_hi.get(k, 0) + 1
+    min_n = int(cfg.get("rsi_min_coins", 30))
+    return [[bar_end(k, kind, shift), round(n_lo.get(k, 0) / n * 100, 2), round(n_hi.get(k, 0) / n * 100, 2), n]
+            for k, n in sorted(cnt.items()) if n >= min_n]
+
+
+def rsi_now(rows, cfg):
+    """Live share of oversold / overbought coins (coins trading today) → {"d3": [pct_lo, pct_hi, n], "w": [...]}."""
+    lo, hi = float(cfg.get("rsi_low", 30)), float(cfg.get("rsi_high", 70))
+    out = {}
+    for kind, field in (("d3", "r3"), ("w", "rw")):
+        vals = [r[field] for r in rows if r.get(field) is not None]
+        n = len(vals)
+        out[kind] = ([round(sum(1 for v in vals if v < lo) / n * 100, 2),
+                      round(sum(1 for v in vals if v > hi) / n * 100, 2), n] if n else None)
+    return out
+
+
+def rsi_sig(cfg):
+    return [cfg.get(k) for k in ("rsi_period", "rsi_low", "rsi_high", "rsi_min_bars", "rsi_min_coins", "rsi_d3_shift")]
 
 
 # ── rules / alerts ───────────────────────────────────────────
@@ -584,6 +700,10 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
 
     prices = cl.prices()
     rows, excluded, series = compute(candles, sym_base, prices, st.get("volumes") or {}, cfg, cfg["alerts"])
+    for r in rows:                       # RSI on the open 3-day / weekly candle, with the current price
+        times_r, closes_r, _ = series[r["s"]]
+        r["r3"] = rsi_live(times_r, closes_r, r["p"], now, "d3", cfg)
+        r["rw"] = rsi_live(times_r, closes_r, r["p"], now, "w", cfg)
 
     # alerts (first run ever: arm silently)
     ast = st.setdefault("alerts", {})
@@ -634,10 +754,13 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     except OSError:
         d_mtime = None
     d_new = delisted_changed or d_mtime != st.get("delisted_mtime")      # e.g. after delisted.py
-    if daily_due or backfilled or d_new or not st.get("breadth"):
+    rsi_stale = (st.get("rsi") or {}).get("sig") != rsi_sig(cfg)
+    if daily_due or backfilled or d_new or not st.get("breadth") or rsi_stale:
         dser = delisted_series(delisted, cfg)
         br = breadth(series, cfg, now, extra=dser)
         st["breadth_delisted"] = len(dser)
+        st["rsi"] = {"sig": rsi_sig(cfg), "d3": rsi_extremes(series, cfg, now, "d3", extra=dser),
+                     "w": rsi_extremes(series, cfg, now, "w", extra=dser)}
     else:
         br = st["breadth"]
     st["breadth"] = br
@@ -652,6 +775,10 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "history_full": len(st.get("full_hist") or []), "pairs": len(sym_base),
         # pairs delisted from Binance counted in the breadth history (0 = only coins trading today)
         "breadth_delisted": int(st.get("breadth_delisted") or 0),
+        # RSI on 3-day / weekly candles: history = closed candles (with delisted pairs), now = live (coins trading today)
+        "rsi": {"period": int(cfg["rsi_period"]), "low": cfg["rsi_low"], "high": cfg["rsi_high"],
+                "min_bars": int(cfg["rsi_min_bars"]), "d3_shift": int(cfg["rsi_d3_shift"]),
+                "d3": st["rsi"]["d3"], "w": st["rsi"]["w"], "now": rsi_now(rows, cfg)},
     }
     fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
                    "setups": F.publish_rows(setups, set(series)),

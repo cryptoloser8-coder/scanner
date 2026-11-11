@@ -17,6 +17,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...]}]}
   {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours),
                    "left" (optional: indexes of left-aligned columns)}
+                   a cell may be a list of lines (first = main text, next = smaller): str or {"t": text,
+                   "tone": ok|warn|mute} — e.g. the three-line reading in the OI + CVD table (poprawka 45)
   {"type": "section", "title"}                                       — section heading
   any block: optional "desc" — plain-language explanation shown above the content (bigger font than "note")
   {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
@@ -26,7 +28,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "dbars", "title", "note", "rows": [{"label", "<key>": value, "<key>_text", "<key>_band": [lo, hi]}],
                     "parts": [{"key", "name"}], "band_label", "label_col"}   — bars both ways from zero (e.g. CVD % of volume),
                     grey band = usual range; scale per part (poprawka 44)
-  chart series: "fmt": "flow" = signed $ (CVD), "scale": "hidden" = own scale without an axis (e.g. price behind CVD)
+  chart series: "fmt": "flow" = signed $ (CVD), "scale": "hidden" = own scale without an axis (e.g. price behind CVD),
+                "dash": true = dashed line
   chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text"}] — on the first series;
   chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
          optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
@@ -125,8 +128,12 @@ def pct_change(now, before):
 def fmt_chg(ch, unit="%"):
     if ch is None:
         return "—"
-    arrow = "▲" if ch > 0 else ("▼" if ch < 0 else "•")
-    return f"{arrow}{ch:+.2f}{unit}" if unit.strip() == "pp" else f"{arrow}{ch:+.1f}{unit}"
+    nd = 2 if unit.strip() == "pp" else 1
+    r = round(ch, nd)
+    if r == 0:                                           # +0.04% is "no change", not ▲+0.0%
+        return f"•{0:.{nd}f}{unit}"
+    arrow = "▲" if r > 0 else "▼"
+    return f"{arrow}{r:+.{nd}f}{unit}"
 
 
 def fmt_price(v):
@@ -143,9 +150,16 @@ def fmt_price(v):
 def fmt_val(v, group):
     if group == "flow" and v is not None:                # CVD: kwota ze znakiem (+$1.40B / −$27M)
         a = abs(v)
-        t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}k" if a >= 1e3 else f"{a:.0f}"
+        t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}K" if a >= 1e3 else f"{a:.0f}"
         return ("-" if v < 0 else "+") + "$" + t
     return fmt_price(v) if group == "price" else alerts.fmt_value(v, group)
+
+
+def fmt_usd_short(v):
+    """Kwoty (likwidacje) jednym zapisem w całym raporcie: $409K, $8.3M, $1.20B."""
+    if v is None:
+        return "—"
+    return f"${v / 1e3:.0f}K" if 1e3 <= abs(v) < 1e6 else alerts.fmt_value(v, "liq")
 
 
 def percentile_rank(values, v):
@@ -468,7 +482,29 @@ MARKET = [
 ]
 
 
-def market_section(d, L, alt_t):
+def btc_eth_block(d, now):
+    """BTC i ETH jako tło: zamknięcie ostatniej pełnej doby UTC, zmiana doby i 7 dni, zakres doby (knoty)."""
+    day = int(now) - int(now) % DAY - DAY
+    items = []
+    for coin in ("BTC", "ETH"):
+        sid = f"px_{coin.lower()}"
+        px = d.pts("1d", sid)
+        c1 = dict(px).get(day)
+        if c1 is None:
+            continue
+        hi, lo = dict(d.pts("1d", sid + "_hi")).get(day), dict(d.pts("1d", sid + "_lo")).get(day)
+        sub = f"doba {fmt_chg(pct_change(c1, at(px, day - DAY, DAY)))} · 7 dni {fmt_chg(pct_change(c1, at(px, day - 7 * DAY, 2 * DAY)))}"
+        if hi is not None and lo is not None:
+            sub += f" · zakres doby {fmt_price(lo)} – {fmt_price(hi)}"
+        items.append({"label": coin, "value": fmt_price(c1), "sub": sub, "zone": None, "note": ""})
+    if not items:
+        return []
+    return [{"type": "facts", "title": f"BTC i ETH — zamknięcie dnia {utc(day, '%d.%m')} (tło rynku)", "items": items,
+             "note": "Zamknięcie ostatniej pełnej doby UTC; zakres doby = najniższa i najwyższa cena (knoty). "
+                     "Ceny z Binance perp przez Coinalyze."}]
+
+
+def market_section(d, L, alt_t, now=None):
     items = []
     years = int(L["range_years"])
     for sid, label, desc in MARKET:
@@ -485,7 +521,7 @@ def market_section(d, L, alt_t):
                 ath = max(daily, key=lambda p: p[1])
                 sub = f"{pct_change(v, ath[1]):+.0f}% od szczytu ({utc(ath[0], '%m.%Y')}) · " + sub
         items.append(range_item(d, label, daily, v, g, desc, alt_t, years, sub=sub))
-    return [{"type": "section", "title": "Rynek"},
+    return [{"type": "section", "title": "Rynek"}] + (btc_eth_block(d, now) if now else []) + [
             {"type": "ranges", "title": "Gdzie jest rynek na tle ostatnich 2 lat", "items": items,
              "note": f"Pasek = zakres z ostatnich {years} lat (od minimum do maksimum). Kropka = dziś, "
                      "znacznik = dzień ostatniego altseasonu (wyznaczony z danych: szczyt OI OTHERS/OI BTC przy szerokości rynku ≥ 90%)."}]
@@ -507,28 +543,50 @@ def alts_section(d, ema, L, refs, now):
     eb = d.pts("1d", "ethbtc")
     last_oi = d.latest("oi_others_vs_btc")
     last_eb = d.latest("ethbtc")
+    rsi = (ema or {}).get("rsi") or {}
+    pair = lambda x: f"{x[0]:.0f}%\u00a0/\u00a0{x[1]:.0f}%"  # noqa: E731  (twarde spacje: komórka się nie łamie)
+
+    def rsi_at(kind, tol):
+        pts = [[p[0], (p[1], p[2])] for p in rsi.get(kind) or []]
+        return lambda t: at(pts, t, tol)
+
+    def rsi_today(kind):
+        x = (rsi.get("now") or {}).get(kind)
+        return (x[0], x[1]) if x else None
     rows_def = [
         ("Lewar: OI OTHERS / OI BTC", lambda t: daily_at(oi, t), last_oi[1] if last_oi else None, lambda x: f"{x:.3f}"),
         ("Kapitał: Alty / BTC", lambda t: daily_at(ab, t), ab[-1][1] if ab else None, lambda x: f"{x:.3f}"),
         ("Szerokość rynku (% nad EMA200)", lambda t: daily_at(br, t), breadth_now(ema), lambda x: f"{x:.0f}%"),
+    ]
+    if rsi.get("w"):
+        rows_def.append(("RSI 1W: wyprzedane / wykupione", rsi_at("w", 8 * DAY), rsi_today("w"), pair))
+    if rsi.get("d3"):
+        rows_def.append(("RSI 3D: wyprzedane / wykupione", rsi_at("d3", 4 * DAY), rsi_today("d3"), pair))
+    rows_def += [
         ("Funding OTHERS (śr. 7 dni, rocznie)", lambda t: avg_days(fund, t, 7),
          avg_days(fund, fund[-1][0], 7) if fund else None, lambda x: f"{x:+.1f}%"),
         ("ETH / BTC", lambda t: daily_at(eb, t), last_eb[1] if last_eb else None, lambda x: f"{x:.4f}"),
     ]
+    today0 = int(now) - int(now) % DAY
+    past = [(today0 - n * DAY, lbl) for n, lbl in ((7, "7 dni temu"), (30, "30 dni temu"), (365, "rok temu"))]
     rows = []
     for name, at_t, today, f in rows_def:
         cells = [name, f(today) if today is not None else "—"]
-        for t, _ in refs:
+        for t, _ in past + list(refs):
             x = at_t(t)
             cells.append(f(x) if x is not None else "—")
         rows.append(cells)
     if refs:
-        blocks.append({"type": "table", "title": "Stan altów na tle poprzednich szczytów",
-                       "cols": ["Wskaźnik", "Dziś"] + [lbl for _, lbl in refs], "rows": rows, "plain": True,
-                       "desc": "Dzisiejsze wartości obok tych z ważnych momentów. W prawdziwym altseasonie wysoko jest wszystko naraz; "
+        rsi_note = (" RSI 1W / 3D = odsetek coinów z RSI(14) poniżej 30 (wyprzedane) i powyżej 70 (wykupione) na świecy "
+                    "tygodniowej / 3-dniowej: „dziś” z aktualną ceną, wcześniej z zamkniętych świec." if rsi.get("w") else "")
+        blocks.append({"type": "table", "title": "Stan altów — dziś, ostatnie zmiany i poprzednie szczyty",
+                       "cols": ["Wskaźnik", "Dziś"] + [lbl for _, lbl in past] + [lbl for _, lbl in refs],
+                       "rows": rows, "plain": True, "left": [0],
+                       "desc": "Wszystkie liczby sekcji w jednym miejscu: dziś, jak było tydzień, miesiąc i rok temu oraz przy "
+                               "ostatnich szczytach i dnie. W prawdziwym altseasonie wysoko jest wszystko naraz; "
                                "gdy wysoko jest tylko lewar, to raczej ostrzeżenie.",
-                       "note": f"Kolumny wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
-                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia."})
+                       "note": f"Kolumny ze szczytami wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
+                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia." + rsi_note})
     blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
                               note=history_note(d, "oi_others_vs_btc")))
     blocks[-1]["lines"] = lines_for(L, "oi_others_vs_btc")
@@ -562,7 +620,36 @@ def alts_section(d, ema, L, refs, now):
                        "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"], delisted=int(ema.get("breadth_delisted") or 0)),
                        "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
+    blocks += rsi_chart(ema)
     return blocks
+
+
+def rsi_chart(ema):
+    """RSI tygodniowy: odsetek coinów wyprzedanych i wykupionych — cała historia (dane z Orange Pi, ema.json → rsi)."""
+    rsi = (ema or {}).get("rsi") or {}
+    rw = rsi.get("w") or []
+    if len(rw) < 20:
+        return []
+    lo_v, hi_v = float(rsi.get("low", 30)), float(rsi.get("high", 70))
+    vals = sorted(p[1] for p in rw)
+    p90 = vals[min(len(vals) - 1, int(len(vals) * 0.9))]
+    mx_lo, mx_hi = max(rw, key=lambda p: p[1]), max(rw, key=lambda p: p[2])
+    delisted = int(ema.get("breadth_delisted") or 0)
+    return [{"type": "chart", "title": f"RSI tygodniowy — ile coinów jest wyprzedanych i wykupionych, od {utc(rw[0][0], '%m.%Y')}",
+             "log": False, "range": [0, 100],
+             "lines": [{"value": p90, "label": "więcej wyprzedanych tylko w co dziesiątym tygodniu", "color": "#888888"}],
+             "desc": f"Odsetek coinów z RSI({int(rsi.get('period', 14))}) na świecy tygodniowej poniżej {lo_v:g} (wyprzedane) i powyżej "
+                     f"{hi_v:g} (wykupione). Zwykle oba są blisko zera, więc każdy wyraźny szczyt to rzadki moment. Gdy szerokość "
+                     "rynku leży przy zerze, zielona linia pokazuje, jak głęboka jest wyprzedaż.",
+             "note": f"Maks. wyprzedanych {mx_lo[1]:.0f}% ({utc(mx_lo[0], '%d.%m.%Y')}, {mx_lo[3]} coinów), maks. wykupionych "
+                     f"{mx_hi[2]:.0f}% ({utc(mx_hi[0], '%d.%m.%Y')}, {mx_hi[3]} coinów). Zamknięte świece tygodniowe (pon.–nd. UTC); "
+                     f"coin liczy się od {int(rsi.get('min_bars', 30))} świec. Odczyt z aktualną ceną jest w tabeli wyżej. "
+                     + (f"Liczone także z {delisted} coinów wycofanych już z Binance." if delisted
+                        else "Liczone tylko z coinów notowanych dziś, więc starsze lata są zawyżone po stronie wykupienia."),
+             "series": [{"name": f"% wyprzedanych (RSI 1W < {lo_v:g})", "color": "#4caf7d", "fmt": "pct", "scale": "right",
+                         "data": [[p[0], p[1]] for p in rw]},
+                        {"name": f"% wykupionych (RSI 1W > {hi_v:g})", "color": "#e05252", "fmt": "pct", "scale": "right",
+                         "dash": True, "data": [[p[0], p[2]] for p in rw]}]}]
 
 
 OI_CASES = {
@@ -582,6 +669,76 @@ def oi_case(px_ch, oi_coin_ch, flat):
     def sgn(x):
         return 0 if x is None or abs(x) < flat else (1 if x > 0 else -1)
     return OI_CASES[(sgn(px_ch), sgn(oi_coin_ch))]
+
+
+READ_PX = {1: "Cena rośnie", -1: "Cena spada", 0: "Cena stoi"}
+READ_OI = {1: "przybywa pozycji", -1: "ubywa pozycji", 0: "pozycji tyle samo"}
+# (cena, OI, CVD perp) → co mówi CVD o typowym odczycie; True = potwierdza
+READ_CHECK = {
+    (-1, 1, -1): (True, "nowe shorty"), (-1, 1, 1): (False, "kupujący łapią spadek, to nie shorty"),
+    (1, 1, 1): (True, "nowe longi"), (1, 1, -1): (False, "sprzedający wchodzą we wzrost, to nie longi"),
+    (-1, -1, -1): (True, "zamykanie longów"), (-1, -1, 1): (False, "kupno przy spadku: shorty realizują zysk"),
+    (1, -1, 1): (True, "zamykanie shortów"), (1, -1, -1): (False, "sprzedaż przy wzroście: longi realizują zysk"),
+}
+
+
+def _sgn(x, flat):
+    return None if x is None else (0 if abs(x) < flat else (1 if x > 0 else -1))
+
+
+def reading(px_ch, oi_ch, cvd_perp, who_txt, flat, cflat):
+    """Komórka „Typowe odczytanie” — linie jedna pod drugą (poprawka 45):
+    1) fakt: cena i pozycje; 2) czy CVD perp potwierdza typowy wniosek; 3) spot vs perp (kto kupował czym)."""
+    sp, so, sc = _sgn(px_ch, flat), _sgn(oi_ch, flat), _sgn(cvd_perp, cflat)
+    if sp is None:
+        return "—"
+    lines = [READ_PX[sp] + (", " + READ_OI[so] if so is not None else " (brak danych OI)")]
+    if sc is not None:
+        side = {1: "przewaga kupna", -1: "przewaga sprzedaży", 0: "bez przewagi"}[sc]
+        if sp == 0 or not so:
+            lines.append({"t": f"CVD perp: {side}", "tone": "mute"})
+        elif sc == 0:
+            lines.append({"t": "CVD perp bez przewagi → nie widać, która strona naciskała", "tone": "warn"})
+        else:
+            ok, txt = READ_CHECK[(sp, so, sc)]
+            lines.append({"t": f"CVD perp: {side} → " + ("potwierdza: " if ok else "") + txt, "tone": "ok" if ok else "warn"})
+    if who_txt:
+        lines.append({"t": "Spot i perp: " + who_txt, "tone": "mute"})
+    return lines if len(lines) > 1 else lines[0]
+
+
+def cell_text(v, sep=" · "):
+    """Komórka tabeli jako tekst (wersja dla AI, testy): linie komórki wieloliniowej połączone separatorem."""
+    if isinstance(v, list):
+        return sep.join(x.get("t", "") if isinstance(x, dict) else str(x) for x in v)
+    return v
+
+
+def oi_cvd_rows(d, coins, flat, cflat, now):
+    """Cena, OI w coinach i CVD (perp, spot) dla doby UTC i 7 pełnych dni + odczyt sprawdzony w CVD.
+    → (wiersze, przykład do opisu „jak czytać”)."""
+    import cvd
+    today = int(now) - int(now) % DAY
+    day = today - DAY
+    rows, examples = [], {}
+    for coin in coins:
+        lc = coin.lower()
+        oi, px = d.pts("1d", f"oi_{lc}"), d.pts("1d", f"px_{lc}")
+        for label, t0, tb in ((f"doba {utc(day, '%d.%m')}", day, day - DAY), ("7 dni", day - 6 * DAY, day - 7 * DAY)):
+            p1, p0 = at(px, day, 2 * DAY), at(px, tb, 2 * DAY)
+            o1, o0 = at(oi, day, 2 * DAY), at(oi, tb, 2 * DAY)
+            px_ch = pct_change(p1, p0)
+            oi_coin = ((o1 / p1) / (o0 / p0) - 1) * 100 if o1 and o0 and p1 and p0 else None
+            ws, wp = cvd.window(d, coin, "spot", t0, today), cvd.window(d, coin, "perp", t0, today)
+            if px_ch is None or (oi_coin is None and not ws and not wp):
+                continue
+            ip, isp = cvd.imbalance(wp), cvd.imbalance(ws)
+            who_txt = cvd.who(isp, ip, cflat) if (ws or wp) else ""
+            cell = reading(px_ch, oi_coin, ip, who_txt, flat, cflat)
+            rows.append([coin, label, fmt_chg(px_ch), fmt_chg(oi_coin), cvd.cell(wp), cvd.cell(ws), cell])
+            if isinstance(cell, list) and len(cell) > 1 and isinstance(cell[1], dict) and cell[1].get("tone") in ("ok", "warn"):
+                examples.setdefault(cell[1]["tone"], f"{coin}, {label}: {cell[0].lower()}; {cell[1]['t']}")
+    return rows, examples
 
 
 def oi_price_rows(d, coin, flat, now=None):
@@ -604,18 +761,46 @@ def oi_price_rows(d, coin, flat, now=None):
     return rows
 
 
-def derivatives_section(d, L, alt_t, now=None):
+def derivatives_section(d, L, alt_t, now=None, cfg=None):
+    """→ (bloki, czy tabela zawiera już CVD — wtedy sekcja CVD nie powtarza swojej tabeli)."""
     flat = float(L["oi_flat_pct"])
-    rows = oi_price_rows(d, "BTC", flat, now) + oi_price_rows(d, "ETH", flat, now)
     blocks = [{"type": "section", "title": "Derywaty"}]
-    if rows:
-        blocks.append({"type": "table", "title": "Open interest i cena — BTC i ETH",
-                       "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "OI ($)", "Co to znaczy"], "rows": rows,
-                       "desc": "Kto napędza ruch ceny. Cena ↑ + OI ↑ = nowe longi; cena ↓ + OI ↑ = nowe shorty; "
-                               "cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów.",
-                       "note": "OI w coinach = OI w dolarach podzielone przez cenę — bez tego OI rósłby i spadał razem z ceną. "
-                               "Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni. "
-                               f"Zmiana poniżej {flat:g}% = „bez zmian”."})
+    merged = False
+    try:
+        import cvd
+        if now and cvd.enabled(cfg or {}) and cvd.has_data(d):
+            cflat = float(cvd.settings(cfg or {})["flat_pct"])
+            rows, ex = oi_cvd_rows(d, cvd.coins_of(cfg or {}), flat, cflat, now)
+            if rows:
+                example = " Przykłady z tego raportu — " + "; ".join(
+                    ("potwierdzone: " if k == "ok" else "bez potwierdzenia: ") + ex[k] for k in ("ok", "warn") if k in ex) + "." if ex else ""
+                blocks.append({
+                    "type": "table", "title": "Cena, open interest i CVD — kto napędzał ruch",
+                    "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD perp", "CVD spot", "Typowe odczytanie"],
+                    "rows": rows, "left": [0, 6],
+                    "desc": "Ostatnia kolumna, linia po linii. 1) Co się stało: cena i open interest — OI rośnie = przybyło pozycji, "
+                            "OI maleje = pozycje są zamykane. Samo OI nie mówi, kto naciskał, bo każda pozycja ma stronę long i short. "
+                            "2) Kto naciskał: CVD perp = kupno minus sprzedaż „po rynku” na kontraktach. Wniosek typu „nowe shorty” "
+                            "pojawia się tylko wtedy, gdy CVD go potwierdza (zielony); gdy CVD nie daje przewagi albo mówi coś innego — żółty. "
+                            "3) Spot i perp: czy kupowano prawdziwe coiny (spot), czy tylko kontrakty z dźwignią (perp)." + example,
+                    "note": "OI w coinach = OI w dolarach ÷ cena (bez tego OI rósłby i spadał razem z ceną). CVD: kwota i, w nawiasie, "
+                            "% wolumenu. Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni. "
+                            f"Zmiana ceny lub OI poniżej {flat:g}% = „stoi / tyle samo”; przewaga CVD poniżej {cflat:g}% wolumenu = „bez przewagi”. "
+                            + cvd.NOTE_MARKETS.strip()})
+                merged = True
+    except Exception as e:  # noqa: BLE001 — bez CVD zostaje sama tabela OI
+        log.warning("Tabela OI + CVD: %s", e)
+    if not merged:
+        rows = oi_price_rows(d, "BTC", flat, now) + oi_price_rows(d, "ETH", flat, now)
+        if rows:
+            blocks.append({"type": "table", "title": "Open interest i cena — BTC i ETH",
+                           "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "OI ($)", "Typowe odczytanie"], "rows": rows,
+                           "desc": "OI rośnie = przybyło pozycji, OI maleje = pozycje są zamykane. Typowe odczytanie: cena ↑ + OI ↑ = nowe longi; "
+                                   "cena ↓ + OI ↑ = nowe shorty; cena ↑ + OI ↓ = zamykanie shortów; cena ↓ + OI ↓ = zamykanie longów "
+                                   "(bez danych CVD nie da się tego sprawdzić).",
+                           "note": "OI w coinach = OI w dolarach podzielone przez cenę — bez tego OI rósłby i spadał razem z ceną. "
+                                   "Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni. "
+                                   f"Zmiana poniżej {flat:g}% = „bez zmian”."})
     years = int(L["range_years"])
     items = []
     for coin in ("BTC", "ETH"):
@@ -632,14 +817,15 @@ def derivatives_section(d, L, alt_t, now=None):
         it["note"] = ""                                  # one description for both coins
     blocks.append({"type": "ranges", "title": "Funding na tle ostatnich 2 lat", "items": items,
                    "note": "Pasek = zakres dziennych odczytów z ostatnich 2 lat. Szary znacznik = poziom neutralny."})
-    return blocks
+    return blocks, merged
 
 
-def cvd_section(d, now, cfg):
-    """CVD spot vs perp (poprawka 44) — bloki liczy cvd.py; brak danych lub błąd → sekcja pominięta."""
+def cvd_section(d, now, cfg, table=True):
+    """CVD spot vs perp (poprawka 44) — bloki liczy cvd.py; brak danych lub błąd → sekcja pominięta.
+    table=False: tabela doba / 7 dni jest już w sekcji Derywaty (połączona z OI)."""
     try:
         import cvd
-        return cvd.morning_blocks(d, now, cfg or {}) if cvd.enabled(cfg or {}) else []
+        return cvd.morning_blocks(d, now, cfg or {}, table=table) if cvd.enabled(cfg or {}) else []
     except Exception as e:  # noqa: BLE001 — sekcja dodatkowa, raport ma powstać i bez niej
         log.warning("CVD w raporcie: %s", e)
         return []
@@ -658,20 +844,21 @@ def liq_section(d, L):
     for t, lv, sv in days[-int(L["liq_days"]):]:
         rows.append({"label": utc(t, "%d.%m"), "long": lv, "short": sv})
     hl, hs = d.pts("1h", "liq_total_long"), d.pts("1h", "liq_total_short")
-    if hl:
-        t_now = hl[-1][0]
-        rows.append({"label": "24 h", "long": sum(v for t, v in hl if t > t_now - DAY),
-                     "short": sum(v for t, v in hs if t > t_now - DAY), "current": True})
+    if hl and days:
+        t_day = days[-1][0] + DAY                      # doba w toku: od 00:00 UTC do ostatniej świecy 1 h
+        rows.append({"label": "dziś", "long": sum(v for t, v in hl if t >= t_day),
+                     "short": sum(v for t, v in hs if t >= t_day), "current": True})
     for r in rows:
         tot = r["long"] + r["short"]
-        r["text"] = f"{alerts.fmt_value(tot, 'liq')} · {100 * r['long'] / tot:.0f}% long" if tot else "$0"
+        r["text"] = f"{fmt_usd_short(tot)} · {100 * r['long'] / tot:.0f}% long" if tot else "$0"
     return [{"type": "section", "title": "Likwidacje"},
             {"type": "bars", "title": f"Likwidacje — ostatnie {L['liq_days']} dni (doba UTC)", "rows": rows,
              "parts": [{"key": "long", "name": "longi", "color": "#e05252"}, {"key": "short", "name": "shorty", "color": "#4caf7d"}],
              "line": {"value": big, "label": f"duży dzień: {alerts.fmt_value(big, 'liq')} (więcej tylko w {100 - L['liq_big_pct']:.0f}% dni z 2 lat)"} if big else None,
              "desc": "Duże likwidacje longów = kaskada w dół, wypłukanie lewara (często blisko lokalnych dołków); "
                      "duże likwidacje shortów = short squeeze.",
-             "note": f"Mediana dnia z 2 lat: {alerts.fmt_value(med, 'liq')}. "
+             "note": f"Mediana dnia z 2 lat: {alerts.fmt_value(med, 'liq')}. „dziś” = doba w toku, od 00:00 UTC do teraz "
+                     "(niepełna, nie nakłada się na dni wyżej). "
                      "Suma z Binance, Bybit i OKX (bez Hyperliquid) — dolne oszacowanie."}]
 
 
@@ -748,7 +935,7 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
 
     refs, alt_t = alts_refs(d, ema, L, now)
     if d.updated:
-        blocks += market_section(d, L, alt_t)
+        blocks += market_section(d, L, alt_t, now)
     if macro is not None:
         # rano: tylko plan ★★★ na dziś (wyniki z wczoraj były w raporcie wieczornym)
         morning = kind == "morning"
@@ -760,8 +947,9 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
                              results=not morning, plan_importance="high" if morning else None, before_plan=night)
     if d.updated:
         blocks += alts_section(d, ema, L, refs, now)
-        blocks += derivatives_section(d, L, alt_t, now)
-        blocks += cvd_section(d, now, cfg)
+        der, merged = derivatives_section(d, L, alt_t, now, cfg)
+        blocks += der
+        blocks += cvd_section(d, now, cfg, table=not merged)
         blocks += liq_section(d, L)
     blocks += ema_near_section(ema, L)
 
@@ -788,6 +976,8 @@ SOURCES_MD = """## Źródła danych i metody
 - Open interest, funding, likwidacje, ceny perpetuali BTC i ETH: Coinalyze (https://coinalyze.net) — suma z Binance, Bybit, OKX, Hyperliquid i Deribit; likwidacje tylko z Binance, Bybit i OKX (dolne oszacowanie). OI w USD; „OI w coinach” = OI w USD / cena.
 - OTHERS w open interest = wszystkie śledzone coiny bez BTC i ETH (top coiny według OI).
 - Funding: stawka ważona open interest, przeliczona na % w skali roku; ok. 11% rocznie = poziom neutralny (0,01% na 8 h).
+- RSI 1W / 3D (odsetek coinów wyprzedanych i wykupionych): RSI(14) Wildera jak ta.rsi w TradingView, na świecach tygodniowych (pon.–nd. UTC) i 3-dniowych złożonych z dziennych zamknięć Binance spot; te same coiny co szerokość rynku.
+- CVD (kupno − sprzedaż „po rynku”): Coinalyze, spot i perp osobno; „typowe odczytanie” OI i ceny pokazuje wniosek tylko wtedy, gdy potwierdza go CVD perp.
 - EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Czy historia szerokości obejmuje coiny wycofane już z Binance (bez błędu przeżywalności) — w opisie wykresu szerokości rynku.
 - Dane makro z USA: kalendarz ekonomiczny TradingView (https://www.tradingview.com/economic-calendar/) — publikacje o średniej (★★) i wysokiej (★★★) ważności według TradingView; wynik, prognoza (oczekiwanie rynku), poprzednia wartość.
 - Daty bez godziny = dzień UTC. Wszystkie liczby policzył program; raport nie zawiera interpretacji ani rekomendacji.
@@ -795,7 +985,7 @@ SOURCES_MD = """## Źródła danych i metody
 
 
 def _md_cell(v):
-    return str(v if v is not None else "—").replace("|", "/").replace("\n", " ")
+    return str(cell_text(v) if v is not None else "—").replace("|", "/").replace("\n", " ")
 
 
 def _md_table(cols, rows):
@@ -819,7 +1009,7 @@ def _md_series(s, lines):
             ago.append(f"{label} {f(x)}")
     hi = max(pts, key=lambda p: p[1])
     lo = min(pts, key=lambda p: p[1])
-    out = [f"- **{s.get('name')}**: dziś {f(v)} ({utc(t, '%d.%m.%Y')})" + (f"; {', '.join(ago)}" if ago else "") + ".",
+    out = [f"- **{s.get('name')}**: ostatni odczyt {f(v)} ({utc(t, '%d.%m.%Y')})" + (f"; {', '.join(ago)}" if ago else "") + ".",
            f"  Na wykresie (od {utc(pts[0][0], '%m.%Y')}): maks. {f(hi[1])} ({utc(hi[0], '%d.%m.%Y')}), "
            f"min. {f(lo[1])} ({utc(lo[0], '%d.%m.%Y')})."]
     if lines:
@@ -831,7 +1021,7 @@ def _md_series(s, lines):
         if below:
             pos.append(f"pod {f(min(below, key=lambda x: x['value'])['value'])}")
         out.append("  Linie poziomów: " + "; ".join(f"{f(ln['value'])} = {ln['label']}" for ln in lines)
-                   + (f". Dziś: {' i '.join(pos)}." if pos else "."))
+                   + (f". Ostatni odczyt: {' i '.join(pos)}." if pos else "."))
     return out
 
 
@@ -928,8 +1118,9 @@ def to_markdown(rep, page_url=""):
             rows = []
             for r in b.get("rows") or []:
                 tot = (r.get("long") or 0) + (r.get("short") or 0)
-                rows.append([r.get("label"), alerts.fmt_value(tot, "liq"), alerts.fmt_value(r.get("long"), "liq"),
-                             alerts.fmt_value(r.get("short"), "liq"), f"{100 * r['long'] / tot:.0f}%" if tot else "—"])
+                rows.append([str(r.get("label")) + (" (trwa)" if r.get("current") else ""), fmt_usd_short(tot),
+                             fmt_usd_short(r.get("long")), fmt_usd_short(r.get("short")),
+                             f"{100 * r['long'] / tot:.0f}%" if tot else "—"])
             L += _md_table([b.get("label_col") or "Dzień (UTC)", "Suma", "Longi", "Shorty", "Udział longów"], rows)
             if b.get("line"):
                 L.append(f"Próg — {b['line']['label']}.")
