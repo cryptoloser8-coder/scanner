@@ -100,6 +100,9 @@
   td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);}
   th:first-child,td:first-child{text-align:left;}
   td.pos{color:var(--green);} td.neg{color:var(--red);}
+  td .ln{display:block;white-space:normal;min-width:240px;line-height:1.45;}
+  td .ln.s{font-size:11px;color:var(--text2);margin-top:2px;}
+  td .ln.ok{color:var(--green);} td .ln.warn{color:var(--amber);}
 
   /* telefon: tabela szersza niż ekran → wiersze jako karty (nazwa kolumny przy wartości); zwykłe tabele bez zmian */
   @media screen and (max-width:640px){
@@ -111,6 +114,8 @@
     .tbl.stack td::before{content:attr(data-label);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
     .tbl.stack td.ttl{grid-column:1/-1;order:-1;font-weight:600;font-size:12px;}
     .tbl.stack td.ttl::before{display:none;}
+    .tbl.stack td.wide{grid-column:1/-1;}
+    .tbl.stack td .ln{min-width:0;}
   }
   .sec{font-size:15px;font-weight:600;letter-spacing:-.2px;margin:22px 2px 0;padding-bottom:6px;border-bottom:1px solid var(--border2);}
   .rng{padding:10px 0;border-bottom:1px solid var(--border);}
@@ -373,8 +378,13 @@ function tableBlock(b) {
   const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^(-\d|▼)/.test(v) ? 'neg' : '';
   const left = b.left || [];
   const ttl = !left.length || left.includes(0) ? 0 : left[0];   // telefon (karty): tytuł karty = główna kolumna tekstowa
+  // komórka z kilkoma liniami (jedna pod drugą): pierwsza = główna, kolejne mniejsze; tone ok / warn / mute
+  const cell = v => !Array.isArray(v) ? esc(v) : v.map((x, k) => {
+    const o = (x && typeof x === 'object') ? x : {t: x};
+    return `<span class="ln${k ? ' s' : ''}${o.tone === 'ok' || o.tone === 'warn' ? ' ' + o.tone : ''}">${esc(o.t)}</span>`;
+  }).join('');
   return `<div class="tbl"><table><thead><tr>${(b.cols || []).map((c, j) => `<th${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${cls(String(v))}${j === ttl ? ' ttl' : ''}" data-label="${esc((b.cols || [])[j] || '')}"${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${Array.isArray(v) ? 'wide' : cls(String(v))}${j === ttl ? ' ttl' : ''}" data-label="${esc((b.cols || [])[j] || '')}"${left.includes(j) ? ' style="text-align:left"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 // telefon: tabele, które nie mieszczą się w szerokości, przechodzą w układ kart (CSS .tbl.stack)
 function fitTables() {
@@ -515,7 +525,7 @@ function drawChart(b, i) {
   }
   for (const s of b.series) {
     const ser = chart.addSeries(LWC.LineSeries, {
-      color: s.color, lineWidth: s.width || 2, priceScaleId: s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right',
+      color: s.color, lineWidth: s.width || 2, lineStyle: s.dash ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, priceScaleId: s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right',
       priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)},
       lastValueVisible: s.scale !== 'hidden', priceLineVisible: false,
     });

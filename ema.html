@@ -73,6 +73,8 @@
   .bar{display:inline-block;width:50px;height:6px;background:var(--bg3);border-radius:3px;position:relative;overflow:hidden;}
   .bar i{position:absolute;top:0;bottom:0;}
   .bell{color:var(--amber);}
+  .rsi{display:inline-block;min-width:30px;padding:1px 6px;border-radius:5px;text-align:center;}
+  .rsi.os{color:var(--green);background:var(--green-bg);} .rsi.ob{color:var(--red);background:var(--red-bg);}
   details{margin-top:10px;font-size:11px;color:var(--text2);}
   details summary{cursor:pointer;color:var(--text2);}
   details p{margin-top:6px;line-height:1.7;font-family:var(--mono);font-size:10px;color:var(--text3);}
@@ -112,6 +114,8 @@
       <div class="pills" id="view-pills">
         <button class="pill" data-val="coin">Coin + EMA200</button>
         <button class="pill" data-val="breadth" title="Jaki % coinów zamyka dzień nad swoją EMA200">Szerokość rynku</button>
+        <button class="pill" data-val="rsiw" title="Jaki % coinów jest wyprzedany / wykupiony na RSI tygodniowym">RSI 1W — skrajności</button>
+        <button class="pill" data-val="rsi3" title="Jaki % coinów jest wyprzedany / wykupiony na RSI 3-dniowym">RSI 3D — skrajności</button>
       </div>
     </div>
     <div class="sep"></div>
@@ -147,6 +151,10 @@
         <button class="pill" data-val="below">Pod EMA</button>
         <button class="pill" data-val="fresh" title="Przecięcie na zamknięciu dnia w ostatnich 7 dniach">Świeże przecięcia (7D)</button>
         <button class="pill" data-val="alert">Z alertem</button>
+        <button class="pill" data-val="wos" title="RSI(14) na świecy tygodniowej poniżej 30">RSI 1W &lt; 30</button>
+        <button class="pill" data-val="wob" title="RSI(14) na świecy tygodniowej powyżej 70">RSI 1W &gt; 70</button>
+        <button class="pill" data-val="dos" title="RSI(14) na świecy 3-dniowej poniżej 30">RSI 3D &lt; 30</button>
+        <button class="pill" data-val="dob" title="RSI(14) na świecy 3-dniowej powyżej 70">RSI 3D &gt; 70</button>
       </div>
     </div>
     <input type="search" id="search" placeholder="Szukaj coina…">
@@ -154,7 +162,8 @@
   </div>
   <div class="table-wrap"><table id="table"></table></div>
   <div class="hint">Kliknij nagłówek, żeby sortować (drugi klik odwraca kolejność). Kliknij wiersz, żeby zobaczyć wykres.
-    „Odległość” liczona z aktualną ceną (dzisiejsza świeca jeszcze otwarta, jak na TradingView); „Od” i „Przecięcie” liczone na zamknięciach dni.</div>
+    „Odległość” liczona z aktualną ceną (dzisiejsza świeca jeszcze otwarta, jak na TradingView); „Od” i „Przecięcie” liczone na zamknięciach dni.
+    RSI 3D i RSI 1W = RSI(14) na świecach 3-dniowych i tygodniowych, z aktualną ceną w otwartej świecy: poniżej 30 wyprzedany (zielony), powyżej 70 wykupiony (czerwony), „—” = za krótka historia.</div>
   <details id="excluded"></details>
 </div>
 
@@ -263,6 +272,9 @@ function renderTiles() {
       <div class="tile-val warn">${near}</div><div class="tile-sub">coinów w odległości do 3% od EMA200</div></div>
     <div class="tile click" data-go="fresh"><div class="tile-name">Przecięcia w 7 dni (zamknięcia)</div>
       <div class="tile-val"><span class="pos">▲${up7}</span> <span class="neg">▼${dn7}</span></div><div class="tile-sub">w górę / w dół, na świecy dziennej</div></div>
+    ${rsiNow('w') ? `<div class="tile click" data-go="rsiw"><div class="tile-name">RSI 1W — skrajności <span class="info" data-tip="Jaki % coinów ma RSI(14) na świecy tygodniowej poniżej ${RSI.low} (wyprzedane) albo powyżej ${RSI.high} (wykupione), z aktualną ceną. Zwykle oba odsetki są bliskie zera — wysoki odczyt to rzadki moment.">i</span></div>
+      <div class="tile-val"><span class="pos">${rsiNow('w')[0].toFixed(0)}%</span> <span class="neg">${rsiNow('w')[1].toFixed(0)}%</span></div>
+      <div class="tile-sub">wyprzedane / wykupione · 3D: ${rsiNow('d3') ? rsiNow('d3')[0].toFixed(0) + '% / ' + rsiNow('d3')[1].toFixed(0) + '%' : '—'}</div></div>` : ''}
     ${sel ? `<div class="tile click" data-go="coin"><div class="tile-name">${esc(sel.s)}</div>
       <div class="tile-val ${sel.d >= 0 ? 'pos' : 'neg'}">${pct(sel.d)}</div>
       <div class="tile-sub">${price(sel.p)} · EMA ${price(sel.e)} · ${sel.side > 0 ? 'nad' : 'pod'} od ${sel.since} dni</div></div>` : ''}`;
@@ -270,10 +282,16 @@ function renderTiles() {
 document.getElementById('tiles').addEventListener('click', e => {
   const t = e.target.closest('[data-go]'); if (!t || e.target.closest('.info')) return;
   const g = t.dataset.go;
-  if (g === 'breadth' || g === 'coin') { S.view = g; refreshChart(true); }
+  if (g === 'breadth' || g === 'coin' || g === 'rsiw') { S.view = g; refreshChart(true); }
   else { S.filter = g; renderTable(); }
   persist(); syncControls();
 });
+
+// ── RSI helpers ─────────────────────────────────────────────
+let RSI = {low: 30, high: 70, period: 14};
+const rsiNow = k => (DATA.rsi && DATA.rsi.now && DATA.rsi.now[k]) || null;
+const rsiCell = v => v == null ? '<span style="color:var(--text3)">—</span>'
+  : `<span class="rsi ${v < RSI.low ? 'os' : v > RSI.high ? 'ob' : ''}">${v.toFixed(0)}</span>`;
 
 // ── table ───────────────────────────────────────────────────
 const COLS = [
@@ -286,6 +304,8 @@ const COLS = [
     const bar = c.d >= 0 ? `<i style="left:50%;width:${w * 2}%;background:${col}"></i>` : `<i style="right:50%;width:${w * 2}%;background:${col}"></i>`;
     return `<span class="dist"><span style="color:${col}">${pct(c.d)}</span><span class="bar">${bar}</span></span>`;
   }],
+  ['r3', 'RSI 3D', c => rsiCell(c.r3)],
+  ['rw', 'RSI 1W', c => rsiCell(c.rw)],
   ['since', 'Od (dni)', c => `<span class="${c.side > 0 ? 'pos' : 'neg'}">${c.side > 0 ? 'nad' : 'pod'}</span> ${c.since}`],
   ['cross_t', 'Przecięcie', c => dateFmt(c.cross_t)],
   ['vol', 'Obrót 24h', c => usd(c.vol)],
@@ -299,6 +319,10 @@ function rowsFiltered() {
   if (S.filter === 'below') r = r.filter(c => c.d < 0);
   if (S.filter === 'fresh') r = r.filter(c => c.cross_t && c.cross_t >= wk);
   if (S.filter === 'alert') r = r.filter(c => c.alert);
+  if (S.filter === 'wos') r = r.filter(c => c.rw != null && c.rw < RSI.low);
+  if (S.filter === 'wob') r = r.filter(c => c.rw != null && c.rw > RSI.high);
+  if (S.filter === 'dos') r = r.filter(c => c.r3 != null && c.r3 < RSI.low);
+  if (S.filter === 'dob') r = r.filter(c => c.r3 != null && c.r3 > RSI.high);
   const key = S.sort, val = c => key === 'ad' ? Math.abs(c.d) : key === 's' ? c.s : (c[key] == null ? -Infinity : c[key]);
   r.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * S.dir; });
   return r;
@@ -388,6 +412,28 @@ async function refreshChart(resetRange) {
     updateLegend();
     return;
   }
+  if (S.view === 'rsiw' || S.view === 'rsi3') {
+    const kind = S.view === 'rsiw' ? 'w' : 'd3', label = kind === 'w' ? 'tygodniowej' : '3-dniowej';
+    title.textContent = '';
+    const h = (DATA.rsi && DATA.rsi[kind]) || [];
+    empty.style.display = h.length ? 'none' : 'flex';
+    empty.textContent = 'Brak historii RSI (pojawi się po najbliższym odświeżeniu na Orange Pi)';
+    const pf = {type: 'custom', minMove: .01, formatter: v => v.toFixed(0) + '%'};
+    const counts = new Map(h.map(([t, , , n]) => [t, n]));
+    const so = chart.addSeries(LWC.LineSeries, {color: '#4caf7d', lineWidth: 2, priceFormat: pf, priceLineVisible: false});
+    so.setData(h.map(([t, lo]) => ({time: t, value: lo})));
+    const sb = chart.addSeries(LWC.LineSeries, {color: '#e05252', lineWidth: 2, lineStyle: LWC.LineStyle.Dashed, priceFormat: pf, priceLineVisible: false});
+    sb.setData(h.map(([t, , hi]) => ({time: t, value: hi})));
+    mounted.push({series: so, name: `% wyprzedanych (RSI < ${RSI.low})`, color: '#4caf7d', fmt: v => v.toFixed(1) + '%', counts},
+                 {series: sb, name: `% wykupionych (RSI > ${RSI.high})`, color: '#e05252', fmt: v => v.toFixed(1) + '%'});
+    if (h.length) setRange(h[0][0], h[h.length - 1][0]);
+    document.getElementById('chart-hint').textContent = `Jaki % coinów miał RSI(${RSI.period}) na zamkniętej świecy ${label} poniżej ${RSI.low} (zielona, wyprzedane) i powyżej ${RSI.high} (czerwona przerywana, wykupione). ` +
+      'Zwykle oba odsetki są bliskie zera, więc każdy wyraźny szczyt to rzadki moment. Gdy szerokość rynku leży przy zerze, zielona linia pokazuje, jak głęboka jest wyprzedaż. ' +
+      `Coin liczy się od ${DATA.rsi ? DATA.rsi.min_bars : 30} zamkniętych świec` + (DATA.breadth_delisted ? '; liczone także z coinów wycofanych już z Binance.' : '.') +
+      ' Ostatni punkt = ostatnia zamknięta świeca; odczyt z aktualną ceną jest w kafelku na górze.';
+    updateLegend();
+    return;
+  }
   const c = DATA.coins.find(x => x.s === S.coin);
   title.textContent = c ? c.s + '/USDT' : '';
   if (!c) { empty.style.display = 'flex'; empty.textContent = 'Wybierz coin w tabeli poniżej'; return; }
@@ -467,6 +513,10 @@ async function boot() {
     const b = document.getElementById('banner'); b.className = 'banner warn';
     b.textContent = `⚠️ Dane nie były odświeżane od ${ago(DATA.updated)}. Sprawdź Orange Pi (cron, log ~/ema-monitor.log).`;
   }
+  if (DATA.rsi) RSI = {low: DATA.rsi.low, high: DATA.rsi.high, period: DATA.rsi.period};
+  else document.querySelectorAll('[data-val="rsiw"],[data-val="rsi3"],[data-val="wos"],[data-val="wob"],[data-val="dos"],[data-val="dob"]').forEach(b => b.style.display = 'none');
+  if (!DATA.rsi && ['rsiw', 'rsi3'].includes(S.view)) S.view = 'coin';
+  if (!DATA.rsi && ['wos', 'wob', 'dos', 'dob'].includes(S.filter)) S.filter = 'all';
   document.getElementById('foot-info').textContent = `${DATA.source} · ${DATA.total} coinów z EMA${DATA.period} (min. ${DATA.min_days} dni historii) · świece dzienne do ${dateFmt(DATA.daily_at - 86400)}`;
   if (!DATA.coins.some(c => c.s === S.coin)) S.coin = DATA.coins.length ? (DATA.coins.find(c => c.s === 'BTC') || DATA.coins[0]).s : '';
   document.getElementById('search').value = S.q;
