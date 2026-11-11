@@ -224,7 +224,7 @@ async function getJSON(name) {
 const GROUPS = [
   ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
   ['price', 'Cena'], ['cycle', 'Cykl BTC'], ['macro', 'Makro USA'],
-  ['cvd', 'CVD (kupno − sprzedaż)'], ['vol', 'Wolumen'],
+  ['cvd', 'CVD (kupno − sprzedaż)'], ['vol', 'Wolumen'], ['idx', 'Alty wg kapitalizacji'],
 ];
 const TILE_SECTIONS = [
   ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance']],
@@ -232,6 +232,8 @@ const TILE_SECTIONS = [
   ['Dominacja', ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
   ['Pary', ['ethbtc']],
   ['Dźwignia i stosunki', ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
+  ['Alty według kapitalizacji — typowy coin w koszyku (indeks 100 = dzień startu zapisu; porównuj w trybie Index 100 albo % zmiana)',
+    ['alt_idx_1b', 'alt_idx_100m', 'alt_idx_10m', 'alt_idx_1m']],
   ['Cykl BTC', ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr']],
   ['Makro USA', ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold']],
   ['CVD — kupno − sprzedaż „po rynku”, spot i perp (kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu)', ['cvd_btc_spot', 'cvd_btc_perp', 'cvd_eth_spot', 'cvd_eth_perp', 'cvd_sol_spot',
@@ -252,6 +254,7 @@ const BUILTIN_PRESETS = [
   {name: 'Podział rynku: BTC.D + ETH.D + Stablecoiny.D + Alty.D (= 100%)', series: ['btc_d', 'eth_d', 'stable_d', 'alts_d'], mode: 'val'},
   {name: 'Altseason: ETH/BTC + OTHERS.D + BTC.D', series: ['ethbtc', 'others_d', 'btc_d'], mode: 'val'},
   {name: 'OTHERS vs TOTAL3 (% zmiana)', series: ['others', 'total3'], mode: 'pct'},
+  {name: 'Alty według kapitalizacji: 4 koszyki + BTC + ETH (Index 100)', series: ['alt_idx_1b', 'alt_idx_100m', 'alt_idx_10m', 'alt_idx_1m', 'px_btc', 'px_eth'], mode: 'idx'},
   {name: 'Cykl BTC: cena + realized price (log)', series: ['px_btc', 'rprice_btc'], mode: 'val', log: true},
   {name: 'Cykl BTC: cena + MVRV-Z', series: ['px_btc', 'mvrvz_btc'], mode: 'val', log: true},
   {name: 'Cykl BTC: cena + Mayer + cena/200W', series: ['px_btc', 'mayer_btc', 'p200w_btc'], mode: 'val', log: true},

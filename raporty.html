@@ -102,7 +102,8 @@
   td.pos{color:var(--green);} td.neg{color:var(--red);}
   td .ln{display:block;white-space:normal;min-width:240px;line-height:1.45;}
   td .ln.s{font-size:11px;color:var(--text2);margin-top:2px;}
-  td .ln.ok{color:var(--green);} td .ln.warn{color:var(--amber);}
+  td .ln.ok,td .ln.pos{color:var(--green);} td .ln.warn{color:var(--amber);} td .ln.neg{color:var(--red);}
+  td .ln.e{font-size:inherit;color:var(--text);margin-top:1px;} td .ln.e.pos{color:var(--green);} td .ln.e.neg{color:var(--red);}
 
   /* telefon: tabela szersza niż ekran → wiersze jako karty (nazwa kolumny przy wartości); zwykłe tabele bez zmian */
   @media screen and (max-width:640px){
@@ -381,7 +382,7 @@ function tableBlock(b) {
   // komórka z kilkoma liniami (jedna pod drugą): pierwsza = główna, kolejne mniejsze; tone ok / warn / mute
   const cell = v => !Array.isArray(v) ? esc(v) : v.map((x, k) => {
     const o = (x && typeof x === 'object') ? x : {t: x};
-    return `<span class="ln${k ? ' s' : ''}${o.tone === 'ok' || o.tone === 'warn' ? ' ' + o.tone : ''}">${esc(o.t)}</span>`;
+    return `<span class="ln${b.even ? ' e' : (k ? ' s' : '')}${['ok', 'warn', 'pos', 'neg'].includes(o.tone) ? ' ' + o.tone : ''}">${esc(o.t)}</span>`;
   }).join('');
   return `<div class="tbl"><table><thead><tr>${(b.cols || []).map((c, j) => `<th${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${(b.rows || []).map(r => `<tr>${r.map((v, j) => `<td class="${Array.isArray(v) ? 'wide' : cls(String(v))}${j === ttl ? ' ttl' : ''}" data-label="${esc((b.cols || [])[j] || '')}"${left.includes(j) ? ' style="text-align:left"' : ''}>${cell(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
