@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = wszystkie): coinalyze tradingview coinmetrics bitmex binance vision cvd"
+        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics bitmex binance vision cvd). Nowe źródła altów: coingecko dexscreener"
         type: string
         default: ""
 
@@ -38,6 +38,7 @@ jobs:
       - name: Sprawdź źródła
         env:
           COINALYZE_API_KEY: ${{ secrets.COINALYZE_API_KEY }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
           ONLY: ${{ inputs.only }}
         run: |
           if [ -n "$ONLY" ]; then
