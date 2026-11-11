@@ -267,3 +267,34 @@ def test_main_run_cvd_failure_is_isolated(tmp_path):
 def test_report_cfg_reads_cvd_section():
     cfg = report.load_cfg(os.path.join(HERE, "config.yaml"))
     assert cvd.enabled(cfg) and cvd.coins_of(cfg) == ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]
+
+
+def test_morning_merged_oi_cvd_table(tmp_path):
+    """Poprawka 45: jedna tabela cena + OI + CVD w sekcji Derywaty; sekcja CVD bez własnej tabeli."""
+    now = T0 + 900 * DAY + 6 * HOUR
+    data = _data_dir(tmp_path, now)
+    today = now - now % DAY
+    ds = [today - (800 - i) * DAY for i in range(800)]
+    oi = {"oi_btc": [[t, 2e10 * (1.05 if t == ds[-1] else 1)] for t in ds],        # doba: OI $ +5%, cena +2% → w coinach +2.9%
+          "oi_eth": [[t, 1e10] for t in ds]}
+    with open(os.path.join(data, "1d.json"), "w") as f:
+        json.dump({"updated": now, "series": oi}, f)
+    rep = report.build(data, None, "morning", now=now, cfg={"cvd": {"enabled": True}})
+    by = {b.get("title"): b for b in rep["blocks"]}
+    assert "Kupno vs sprzedaż — spot i perp" not in by and "Open interest i cena — BTC i ETH" not in by
+    tab = by["Cena, open interest i CVD — kto napędzał ruch"]
+    assert tab["cols"] == ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD perp", "CVD spot", "Typowe odczytanie"]
+    btc = tab["rows"][0]
+    assert btc[:4] == ["BTC", "doba " + report.utc(today - DAY, "%d.%m"), "▲+2.0%", "▲+2.9%"]
+    assert btc[4] == "+$300M (+3.0%)" and btc[5] == "+$250M (+25.0%)"
+    assert btc[6][0] == "Cena rośnie, przybywa pozycji"
+    assert btc[6][1] == {"t": "CVD perp: przewaga kupna → potwierdza: nowe longi", "tone": "ok"}
+    assert btc[6][2] == {"t": "Spot i perp: kupują spot i perp", "tone": "mute"}
+    sol = next(r for r in tab["rows"] if r[0] == "SOL")
+    assert sol[3] == "—" and sol[6][0] == "Cena stoi (brak danych OI)"                 # coin bez serii OI
+    assert "potwierdzone: BTC, doba" in tab["desc"]
+    secs = [b["title"] for b in rep["blocks"] if b["type"] == "section"]
+    assert secs.index("Derywaty") < secs.index("CVD — kto kupował: spot i perp")
+    assert f"Przewaga kupujących w dobie {report.utc(today - DAY, '%d.%m')} — % wolumenu" in by
+    md = report.to_markdown(rep)
+    assert "Cena rośnie, przybywa pozycji · CVD perp: przewaga kupna → potwierdza: nowe longi · Spot i perp: kupują spot i perp" in md

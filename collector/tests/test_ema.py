@@ -263,3 +263,92 @@ def test_chart_files_rewritten_after_version_bump(tmp_path):
     json.dump(s, open(os.path.join(st, "state.json"), "w"))
     E.run(cfg(), st, now=NOW + 2000, client=FakeBinance(now=NOW + 2000), remote=None)
     assert os.path.exists(f)
+
+
+# ── RSI na świecach 3-dniowych i tygodniowych (poprawka 45) ──
+def _ts(s):
+    from datetime import datetime, timezone
+    return int(datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+
+
+def test_rsi_matches_wilder_example():
+    # klasyczny przykład Wildera (14 okresów): pierwsze RSI ≈ 70.5, potem ≈ 66.3, 66.5, 69.4, 66.3, 57.9
+    closes = [44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03, 45.61, 46.28, 46.28,
+              46.00, 46.03, 46.41, 46.22, 45.64]
+    r = E.rsi_series(closes, 14)
+    assert r[:14] == [None] * 14
+    for got, exp in zip(r[14:], [70.5, 66.3, 66.5, 69.4, 66.3, 57.9]):
+        assert abs(got - exp) < 0.25
+    assert E.rsi_series([1, 2, 3], 14) == [None, None, None]
+    assert E.rsi_series(list(range(1, 30)), 14)[-1] == 100.0          # same wzrosty → 100
+
+
+def test_bar_keys_weekly_monday_and_3d_shift():
+    sun, mon, nxt = _ts("2026-11-08"), _ts("2026-11-09"), _ts("2026-11-16")       # 09.11.2026 = poniedziałek
+    assert E.bar_key(mon, "w") == E.bar_key(_ts("2026-11-15"), "w") == E.bar_key(sun, "w") + 1 == E.bar_key(nxt, "w") - 1
+    assert E.bar_end(E.bar_key(mon, "w"), "w") == _ts("2026-11-15")               # ostatni dzień świecy = niedziela
+    k = E.bar_key(mon, "d3")
+    assert [E.bar_key(mon + i * D, "d3") - k for i in range(6)] in ([0, 0, 0, 1, 1, 1], [0, 0, 1, 1, 1, 2], [0, 1, 1, 1, 2, 2])
+    k1 = E.bar_key(mon, "d3", 1)                                                  # przesunięcie startu świecy 3D o dzień
+    assert [E.bar_key(mon + i * D, "d3", 1) - k1 for i in range(4)] != [E.bar_key(mon + i * D, "d3") - k for i in range(4)]
+    end = E.bar_end(k, "d3")
+    assert E.bar_key(end, "d3") == k and E.bar_key(end + D, "d3") == k + 1
+
+
+def test_resample_and_live_rsi():
+    mon = _ts("2026-01-05")
+    times = [mon + i * D for i in range(14)]                                       # 2 pełne tygodnie
+    closes = [float(i + 1) for i in range(14)]
+    keys, bars = E.resample(times, closes, "w")
+    assert len(keys) == 2 and bars == [7.0, 14.0]                                  # zamknięcie tygodnia = niedziela
+    c = dict(E.DEFAULTS, rsi_min_bars=30)
+    assert E.rsi_live(times, closes, 15.0, mon + 14 * D + 3600, "w", c) is None   # za krótka historia → brak RSI
+    # 40 tygodni spadków, bieżący (otwarty) tydzień liczony z aktualną ceną
+    times = [mon + i * D for i in range(40 * 7 + 2)]
+    closes = [1000.0 - i for i in range(len(times))]
+    now = times[-1] + D + 3600
+    low = E.rsi_live(times, closes, closes[-1] - 1, now, "w", c)
+    high = E.rsi_live(times, closes, closes[-1] * 3, now, "w", c)                  # mocne odbicie w otwartej świecy
+    assert low == 0.0 and high > low and high > 30
+
+
+def test_rsi_extremes_shares_and_open_candle():
+    mon = _ts("2025-01-06")
+    n = 60 * 7
+    times = [mon + i * D for i in range(n + 3)]                                    # + 3 dni otwartego tygodnia
+    down = (times, [1000.0 - i for i in range(len(times))], None)                  # RSI 0 → wyprzedany
+    up = (times, [100.0 + i for i in range(len(times))], None)                     # RSI 100 → wykupiony
+    flat = (times, [100.0 + (i % 2) for i in range(len(times))], None)             # RSI ok. 50
+    now = times[-1] + D + 3600
+    c = dict(E.DEFAULTS, rsi_min_coins=1)
+    h = E.rsi_extremes({"A": down, "B": up, "C": flat}, c, now, "w")
+    assert h[-1][0] == mon + (n - 1) * D                                           # ostatni ZAMKNIĘTY tydzień (niedziela)
+    assert h[-1][1:] == [33.33, 33.33, 3]
+    assert len(h) == 60 - 30                                                       # coin liczy się od 30 świec
+    h2 = E.rsi_extremes({"A": down}, c, now, "w", extra={"D:X": down})             # wycofane pary liczone tak samo
+    assert h2[-1][1:] == [100.0, 0.0, 2]
+    assert E.rsi_extremes({"A": down}, dict(c, rsi_min_coins=5), now, "w") == []
+    assert len(E.rsi_extremes({"A": down}, c, now, "d3")) > len(h)                 # świece 3D: więcej punktów
+    assert E.rsi_now([{"r3": 10.0, "rw": 80.0}, {"r3": 50.0, "rw": None}], c) == {"d3": [50.0, 0.0, 2], "w": [0.0, 100.0, 1]}
+
+
+def test_run_publishes_rsi(tmp_path):
+    st = str(tmp_path / "st")
+    E.run(cfg(rsi_min_coins=1), st, now=NOW, client=FakeBinance(), telegram=FakeTG(), publish=True, remote=None)
+    pub = json.load(open(tmp_path / "st" / "pub" / "ema.json"))
+    a = next(c for c in pub["coins"] if c["s"] == "AAA")
+    assert 0 <= a["r3"] <= 100 and 0 <= a["rw"] <= 100
+    r = pub["rsi"]
+    assert r["period"] == 14 and r["low"] == 30 and r["high"] == 70 and r["now"]["w"][2] == 3
+    assert len(r["w"]) > 200 and len(r["d3"]) > len(r["w"]) and r["w"][-1][3] == 3
+    assert r["w"][-1][0] < NOW - NOW % D                                           # tylko zamknięte świece
+    # zmiana ustawień RSI → historia przeliczona przy następnym uruchomieniu (bez czekania na 00:00 UTC)
+    E.run(cfg(rsi_min_coins=1, rsi_low=45), st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=FakeTG(), remote=None)
+    st2 = json.load(open(tmp_path / "st" / "state.json"))
+    assert st2["rsi"]["sig"][1] == 45
+
+
+def test_stablecoin_u_is_excluded():
+    info = {"symbols": [{"symbol": "UUSDT", "baseAsset": "U", "quoteAsset": "USDT", "status": "TRADING"},
+                        {"symbol": "UNIUSDT", "baseAsset": "UNI", "quoteAsset": "USDT", "status": "TRADING"}]}
+    assert set(E.universe(info, cfg())) == {"UNIUSDT"}

@@ -87,14 +87,15 @@ def test_evening_crypto_today(tmp_path):
     assert mk["Szerokość rynku (% nad EMA200)"][1:3] == ["20%", "▲+2.0 pp"]
     coins = {r[0]: r for r in by["Cena, lewar, funding i likwidacje — od 00:00 UTC"]["rows"]}
     assert list(coins) == ["BTC", "ETH", "SOL", "BNB", "DOGE", "HYPE"]
-    assert coins["BTC"][2] == "▲+1.0%" and coins["BTC"][5].startswith("nowe longi")         # OI w coinach +4%
-    assert coins["ETH"][5].startswith("zamykanie longów")                                    # cena −4%, OI −5% → w coinach −1%
+    assert coins["BTC"][2] == "▲+1.0%" and coins["BTC"][5] == "Cena rośnie, przybywa pozycji"   # OI w coinach +4%; bez CVD sam fakt
+    assert coins["ETH"][5] == "Cena spada, ubywa pozycji"                                    # cena −4%, OI −5% → w coinach −1%
     assert coins["SOL"][2] == "▲+4.2%" and coins["SOL"][6] == "-3.0%"
     assert coins["HYPE"][1] == "—" and coins["HYPE"][4] == "▼-3.7%" and coins["HYPE"][5] == "—"
     assert "HYPE: brak pary Binance spot" in by["Cena, lewar, funding i likwidacje — od 00:00 UTC"]["note"]
     bars = by["Likwidacje od 00:00 UTC — bloki 3-godzinne (czas polski)"]
     assert [r["label"] for r in bars["rows"]][:2] == ["01–04", "04–07"] and len(bars["rows"]) == 8
     assert bars["rows"][-1]["current"] and not bars["rows"][0]["current"] and bars["line"]
+    assert bars["rows"][-1]["label"].endswith("…") and not bars["rows"][0]["label"].endswith("…")   # niepełny blok oznaczony
     assert "największa godzina: 15:00–16:00 PL" in bars["note"]
     mv = by["Najmocniejsze i najsłabsze — obrót ≥ $10.0M dziennie"]
     assert "Na plus od 00:00 UTC: 22 z 25" in mv["desc"] and mv["rows"][-1][0] == "DOGE"
@@ -102,7 +103,7 @@ def test_evening_crypto_today(tmp_path):
     assert [r[:2] for r in cross["rows"]] == [["SOL", "w górę"]]
     macro = by["Publikacje ★★★ i zmiana BTC"]
     assert [r[1] for r in macro["rows"]] == ["ISM Manufacturing PMI (Oct)"]                # tylko ★★★ z dziś
-    assert macro["rows"][0][5] == "•+0.0%"                                                   # stała cena w tych godzinach
+    assert macro["rows"][0][5] == "•0.0%"                                                    # stała cena w tych godzinach
     assert "od 00:00 UTC" in rep["summary"] and "likwidacje dziś" in rep["summary"]
     md = report.to_markdown(rep)
     assert "## Coiny z listy" in md and "| HYPE |" in md

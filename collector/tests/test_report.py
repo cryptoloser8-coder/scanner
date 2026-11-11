@@ -84,12 +84,14 @@ def test_build_layout_v2(tmp_path):
     alt_day = report.utc(T0 + 300 * DAY, "%m.%Y")
     assert [m["label"].split(":")[0] for m in rng[0]["marks"] if m.get("kind") == "ref"] == [f"altseason {alt_day}"]
     # Alty table: columns = peaks ≥ 1.0 + lowest point of 12 months, found in the data
-    tab = by["Stan altów na tle poprzednich szczytów"]
-    assert tab["cols"][0:2] == ["Wskaźnik", "Dziś"]
+    tab = by["Stan altów — dziś, ostatnie zmiany i poprzednie szczyty"]
+    assert tab["cols"][0:5] == ["Wskaźnik", "Dziś", "7 dni temu", "30 dni temu", "rok temu"]
     assert any("(altseason)" in c for c in tab["cols"]) and any(c.startswith("dno 12 mies.") for c in tab["cols"])
-    assert len(tab["cols"]) == 5                                     # 2 peaks + dno
+    assert len(tab["cols"]) == 8                                     # dziś + 3 × wcześniej + 2 peaks + dno
     alt_row = tab["rows"][1]
-    assert alt_row[0].startswith("Kapitał") and alt_row[2] == "0.385"  # (3e11 + 2e11) / (2.3e12 − 1e12) on day 300
+    assert alt_row[0].startswith("Kapitał") and alt_row[5] == "0.385"  # (3e11 + 2e11) / (2.3e12 − 1e12) on day 300
+    assert all(c != "—" for c in alt_row[1:5])                         # dziś i 7 / 30 / 365 dni temu policzone z danych
+    assert not any(r[0].startswith("RSI") for r in tab["rows"])       # ema.json bez „rsi” (starszy Pi) → bez wierszy RSI
     oi_chart = by["Lewar: OI OTHERS / OI BTC — cała historia"]
     assert [l["value"] for l in oi_chart["lines"]] == [0.60, 0.85, 0.95, 1.00]
     assert by["Kapitał: Alty / BTC — od 2020"]["lines"]
@@ -97,9 +99,9 @@ def test_build_layout_v2(tmp_path):
     oi_rows = by["Open interest i cena — BTC i ETH"]["rows"]
     btc24 = next(r for r in oi_rows if r[0] == "BTC" and r[1] == "doba " + report.utc(now - DAY, "%d.%m"))
     assert btc24[2] == "▼-2.0%" and btc24[3] == "▲+7.1%" and btc24[5].startswith("nowe shorty")
-    # Likwidacje: 7 full days + last 24 h, "big day" line from 2-year percentile
+    # Likwidacje: 7 full days + the day in progress (no overlap), "big day" line from 2-year percentile
     bars = by["Likwidacje — ostatnie 7 dni (doba UTC)"]
-    assert len(bars["rows"]) == 8 and bars["rows"][-1]["label"] == "24 h"
+    assert len(bars["rows"]) == 8 and bars["rows"][-1]["label"] == "dziś" and bars["rows"][-1]["current"]
     assert bars["line"]["value"] == 1.5e8
     # EMA200: only coins near the average with enough volume
     ema_tab = next(b for b in rep["blocks"] if b["type"] == "table" and b["title"].startswith("Bliżej niż 3%"))
@@ -208,3 +210,74 @@ def test_backfill_md_for_older_reports(tmp_path):
     text = open(os.path.join(out, "reports", f"{old['id']}.md"), encoding="utf-8").read()
     assert text.startswith("# Raport testowy") and f"raporty.html?id={old['id']}" in text
     assert open(os.path.join(out, "latest.md"), encoding="utf-8").read().startswith("# Raport na żądanie")
+
+
+# ── poprawka 45: tło BTC/ETH, RSI w sekcji Alty, odczyt OI sprawdzany w CVD ──
+def test_fmt_chg_zero_has_no_arrow_and_money_is_consistent():
+    assert report.fmt_chg(0.04) == "•0.0%" and report.fmt_chg(-0.04) == "•0.0%"
+    assert report.fmt_chg(0.05) == "▲+0.1%" and report.fmt_chg(-1.26) == "▼-1.3%"
+    assert report.fmt_chg(0.004, " pp") == "•0.00 pp" and report.fmt_chg(0.33, " pp") == "▲+0.33 pp"
+    assert report.fmt_usd_short(656_682) == "$657K" and report.fmt_usd_short(7_700_000) == "$7.7M"
+    assert report.fmt_val(-853_000, "flow") == "-$853K"
+
+
+def test_reading_lines():
+    R = report.reading
+    # cena ↓, OI ↑: bez przewagi w CVD → bez wniosku „nowe shorty”
+    r = R(-1.9, 1.5, -0.9, "bez wyraźnej przewagi", 1.0, 1.0)
+    assert r[0] == "Cena spada, przybywa pozycji" and r[1]["tone"] == "warn" and "nie widać" in r[1]["t"]
+    assert r[2] == {"t": "Spot i perp: bez wyraźnej przewagi", "tone": "mute"}
+    # potwierdzone przez CVD
+    assert R(-1.9, 1.5, -2.0, "", 1.0, 1.0)[1] == {"t": "CVD perp: przewaga sprzedaży → potwierdza: nowe shorty", "tone": "ok"}
+    assert R(-5.3, -3.6, -1.3, "", 1.0, 1.0)[1]["t"].endswith("potwierdza: zamykanie longów")
+    assert R(3.0, 4.0, 2.0, "", 1.0, 1.0)[1]["t"].endswith("potwierdza: nowe longi")
+    assert R(3.0, -4.0, 2.0, "", 1.0, 1.0)[1]["t"].endswith("potwierdza: zamykanie shortów")
+    # CVD mówi co innego niż typowy wniosek
+    x = R(-3.0, 4.0, 2.0, "", 1.0, 1.0)[1]
+    assert x["tone"] == "warn" and "to nie shorty" in x["t"]
+    # cena stoi → sam opis CVD, bez wniosku
+    assert R(0.4, -3.2, -0.9, "", 1.0, 1.0)[1] == {"t": "CVD perp: bez przewagi", "tone": "mute"}
+    # bez CVD → jedna linia (zwykły tekst); bez OI → informacja o braku
+    assert R(2.0, 3.0, None, "", 1.0, 1.0) == "Cena rośnie, przybywa pozycji"
+    assert R(2.0, None, 1.5, "kupują spot i perp", 1.0, 1.0)[0] == "Cena rośnie (brak danych OI)"
+    assert report.cell_text(r).startswith("Cena spada, przybywa pozycji · CVD perp bez przewagi")
+
+
+def test_morning_btc_eth_background_and_liq_today(tmp_path):
+    now = T0 + 800 * DAY
+    data, ema = make_dirs(tmp_path, now)
+    rep = report.build(data, ema, "morning", now=now)
+    day = now - now % DAY - DAY
+    types = [(b["type"], b.get("title")) for b in rep["blocks"]]
+    i = types.index(("section", "Rynek"))
+    assert types[i + 1] == ("facts", f"BTC i ETH — zamknięcie dnia {report.utc(day, '%d.%m')} (tło rynku)")   # przed paskami
+    items = rep["blocks"][i + 1]["items"]
+    assert [it["label"] for it in items] == ["BTC", "ETH"] and items[0]["value"] == "$75,460"
+    assert "doba ▼-2.0%" in items[0]["sub"] and "7 dni ▼-2.0%" in items[0]["sub"] and "doba •0.0%" in items[1]["sub"]
+    md = report.to_markdown(rep)
+    assert "| dziś (trwa) |" in md and "| 24 h |" not in md
+
+
+def test_alts_table_rsi_rows_and_chart(tmp_path):
+    now = T0 + 800 * DAY
+    data, ema = make_dirs(tmp_path, now)
+    e = json.load(open(os.path.join(ema, "ema.json")))
+    weeks = [T0 + i * 7 * DAY for i in range(114)]
+    e["rsi"] = {"period": 14, "low": 30, "high": 70, "min_bars": 30, "d3_shift": 0,
+                "w": [[t, 45.0 if i == 80 else 2.0, 60.0 if i == 40 else 1.0, 300 + i] for i, t in enumerate(weeks)],
+                "d3": [[T0 + i * 3 * DAY, 5.0, 3.0, 300] for i in range(266)],
+                "now": {"w": [6.2, 0.5, 372], "d3": [11.0, 2.0, 372]}}
+    _w(os.path.join(ema, "ema.json"), e)
+    rep = report.build(data, ema, "morning", now=now)
+    by = blocks_by_title(rep)
+    tab = by["Stan altów — dziś, ostatnie zmiany i poprzednie szczyty"]
+    names = [r[0] for r in tab["rows"]]
+    assert names[3:5] == ["RSI 1W: wyprzedane / wykupione", "RSI 3D: wyprzedane / wykupione"]
+    rw = tab["rows"][3]
+    assert rw[1] == "6%\u00a0/\u00a00%" and rw[2] == "2%\u00a0/\u00a01%"                      # dziś z aktualną ceną, wcześniej zamknięte świece
+    assert tab["rows"][4][1] == "11%\u00a0/\u00a02%" and "RSI(14)" in tab["note"]
+    ch = by["RSI tygodniowy — ile coinów jest wyprzedanych i wykupionych, od " + report.utc(T0, "%m.%Y")]
+    assert ch["range"] == [0, 100] and len(ch["series"]) == 2 and ch["series"][1]["dash"] is True
+    assert "Maks. wyprzedanych 45%" in ch["note"] and "maks. wykupionych 60%" in ch["note"] and ch["lines"][0]["value"] == 2.0
+    md = report.to_markdown(rep)
+    assert "RSI 1W: wyprzedane / wykupione | 6%\u00a0/\u00a00%" in md and "ostatni odczyt" in md and "dziś 2" not in md
