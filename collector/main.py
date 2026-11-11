@@ -69,12 +69,21 @@ def liq_enabled(cfg):
     return bool((cfg.get("liquidations") or {}).get("enabled"))
 
 
+try:                                   # alty według kapitalizacji (poprawka 46) — brak modułu nie zatrzymuje skanu
+    import alts as A  # noqa: E402
+except Exception:  # noqa: BLE001
+    A = None
+
+
 def build_catalog(cfg):
     watch = [w.upper() for w in cfg["watchlist"]]
     liq = None
     if liq_enabled(cfg):
         liq = {"top": int(cfg["liquidations"].get("top_alts", 30)), "exchanges": cfg["coinalyze"]["exchanges"]}
-    return S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None)
+    cat = S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None)
+    if A is not None and A.enabled(cfg):
+        cat.update(A.catalog())
+    return cat
 
 
 def floor(t, step):
@@ -234,7 +243,7 @@ def _iso(t):
 
 # ── main run ─────────────────────────────────────────────────
 def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None,
-        vision_session=None, cm_session=None):
+        vision_session=None, cm_session=None, alts_session=None, alts_sleep=time.sleep):
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
@@ -298,6 +307,19 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
             results["Archiwum Binance"] = h_err.pop("archiwum Binance", None)
         if h_err:
             info["history_errors"] = h_err
+
+    # alty według kapitalizacji (poprawka 46): koszyki z CoinGecko + narracje DexScreenera, najwyżej 2 zapisy na dobę
+    if A is not None and A.enabled(cfg) and not backfill:
+        ast = st.setdefault("alts", {})
+        try:
+            a_info = A.collect(store, cfg, now, session=alts_session, sleep=alts_sleep)
+            if a_info.get("snapshot"):
+                info["alts"] = a_info
+                ast["error"] = None
+        except Exception as e:  # noqa: BLE001
+            log.exception("Alty (CoinGecko)")
+            ast["error"] = str(e)
+        results["Alty (CoinGecko)"] = ast.get("error")      # stan z ostatniej próby zapisu (nie każdy skan ją robi)
 
     for res in ("1h", "1d"):
         S.derived(store.series[res])

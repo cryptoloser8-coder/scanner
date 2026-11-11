@@ -78,6 +78,21 @@ cvd:
   # historia dzienna od (Coinalyze ma wolumen kupujących od 01.05.2019)
   history_start: "2019-05-01"
 
+# ─────────────────────────────────────────────────────────────
+#  ALTY WEDŁUG KAPITALIZACJI (poprawka 46; raport poranny i wieczorny, zakładka OI & TOTAL)
+#  CoinGecko: wszystkie coiny z kapitalizacją ≥ $1M (12 zapytań na zapis, darmowy klucz COINGECKO_API_KEY).
+#  Koszyki: > $1B, $100M–1B, $10–100M, $1–10M — bez BTC, ETH, stablecoinów, tokenów opakowanych i stakowanych.
+#  W każdym koszyku liczy się mediana zmiany ceny („typowy coin”), nie suma kapitalizacji.
+#  Koszt: ok. 30 zapytań na dobę (limit darmowego klucza: 10 000 na miesiąc).
+#  Narracje: DexScreener (trendujące grupy tokenów), 1 zapytanie na zapis, bez klucza.
+# ─────────────────────────────────────────────────────────────
+alts:
+  enabled: true
+  min_volume: 50000              # minimalny obrót 24 h coina ($), żeby liczył się do koszyka
+  snapshot_hours_utc: [0, 20]    # pierwszy skan po tych godzinach UTC robi zapis: 0 = zamknięcie dnia (raport poranny),
+                                 # 20 = przed raportem wieczornym; więcej godzin = więcej zapytań
+  metas: true                    # narracje z DexScreenera
+
 tradingview:
   # Serie CRYPTOCAP z TradingView (te same wartości co na wykresach TV).
   symbols:

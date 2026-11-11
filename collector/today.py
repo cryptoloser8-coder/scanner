@@ -84,6 +84,26 @@ def market_section(d, ema, t0, now):
                      "teraz vs na zamknięciu dnia."}]
 
 
+def caps_section(d, t0, now):
+    """Alty według kapitalizacji od zamknięcia dnia (zapis z CoinGecko przy skanie wieczornym, poprawka 46)."""
+    snap = (getattr(d, "alts", None) or {}).get("now") or {}
+    if not snap.get("rows") or (snap.get("t") or 0) < t0 or now - snap["t"] > 6 * HOUR:
+        return []
+    own = snap.get("basis") == "own" and snap.get("since")
+    title = ("Alty według kapitalizacji — od zamknięcia dnia" if own and snap["since"] >= t0 else
+             f"Alty według kapitalizacji — od {R.utc(snap['since'], '%d.%m %H:%M')} UTC" if own else
+             "Alty według kapitalizacji — ostatnie 24 h")
+    when = (f"Zmiana od zapisu {R.utc(snap['since'], '%d.%m %H:%M')} UTC (pierwszy skan po zamknięciu dnia) do zapisu "
+            f"{R.utc(snap['t'], '%H:%M')} UTC." if own else
+            f"Zmiana z 24 h przed zapisem {R.utc(snap['t'], '%d.%m %H:%M')} UTC (według CoinGecko).")
+    return [{"type": "table", "title": title,
+             "cols": ["Koszyk", "Coinów", "Mediana zmiany", "Na plus", "Lepsze od BTC"],
+             "rows": R.caps_rows(snap, with_periods=False), "left": [0],
+             "desc": "Typowy coin w każdym przedziale wielkości: mediana zmiany ceny (połowa coinów lepiej, połowa gorzej). "
+                     "Widać, czy dzisiejszy ruch jest tylko w dużych altach, czy schodzi do małych.",
+             "note": f"{when} Tylko coiny z obrotem 24 h co najmniej {R.fmt_usd_short(d.alts.get('min_volume') or 0)}. " + R.CAPS_NOTE}]
+
+
 def cvd_since(d, coin, kind, t0):
     """Przewaga kupna (% wolumenu) na spot / perp od 00:00 UTC, ze świec 1 h; brak danych CVD → None."""
     lc = coin.lower()
@@ -313,6 +333,7 @@ def build(d, ema, now, cfg, macro, L, head_blocks, ema_upd):
     t0 = day_start(now)
     blocks = list(head_blocks)
     blocks += market_section(d, ema, t0, now)
+    blocks += caps_section(d, t0, now)
     blocks += coins_section(d, ema, coins_cfg(cfg), t0, now, L)
     blocks += liq_section(d, t0, now)
     blocks += movers_section(ema, t0, L)

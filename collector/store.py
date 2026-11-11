@@ -4,6 +4,7 @@ Files:
   1h.json / 1d.json          {"updated": ts, "series": {id: [[t, v], ...]}}  — read by oi.html
   liq_1h.json / liq_1d.json  same format, liquidations / funding / price  — read by liq.html
   cvd_1h.json / cvd_1d.json  same format, CVD (kupno − sprzedaż) i wolumen spot / perp — read by oi.html (cvd.py)
+  alts.json                  alty według kapitalizacji: tabele koszyków i narracje dla raportów (alts.py)
   meta.json                  catalogue, levels, health — read by every tab
   state.json                 collector internals (universe, gap-fill values, alert state)
 """
@@ -15,6 +16,7 @@ RESOLUTIONS = ("1h", "1d")
 # file prefix per series-id prefix (anything else goes to the main 1h/1d files)
 BUNDLES = {"liq_": "liq_", "fund_": "liq_", "px_": "liq_", "cvd_": "cvd_"}
 FILE_PREFIXES = ("", "liq_", "cvd_")
+EXTRA_FILES = ("alts.json",)        # zwykłe pliki JSON (bez serii) trzymane obok — Store.extra[nazwa] = dict
 
 
 def bundle_of(sid):
@@ -57,6 +59,11 @@ class Store:
                     if bundle_of(sid) == fp:
                         self.series[res][sid] = {int(t): v for t, v in pts}
         self.state = _read(os.path.join(data_dir, "state.json"), {})
+        self.extra = {}
+        for fn in EXTRA_FILES:
+            obj = _read(os.path.join(data_dir, fn), None)
+            if isinstance(obj, dict):
+                self.extra[fn] = obj
 
     def get(self, res, sid):
         return self.series[res].setdefault(sid, {})
@@ -101,5 +108,8 @@ class Store:
                 if fp and not out and not os.path.exists(os.path.join(self.dir, f"{fp}{res}.json")):
                     continue  # don't create empty extra files
                 _write(os.path.join(self.dir, f"{fp}{res}.json"), {"updated": now, "series": out})
+        for fn, obj in self.extra.items():
+            if obj:
+                _write(os.path.join(self.dir, fn), obj)
         _write(os.path.join(self.dir, "meta.json"), meta)
         _write(os.path.join(self.dir, "state.json"), self.state)

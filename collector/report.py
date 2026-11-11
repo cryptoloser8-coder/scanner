@@ -18,7 +18,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
   {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours),
                    "left" (optional: indexes of left-aligned columns)}
                    a cell may be a list of lines (first = main text, next = smaller): str or {"t": text,
-                   "tone": ok|warn|mute} — e.g. the three-line reading in the OI + CVD table (poprawka 45)
+                   "tone": ok|warn|mute|pos|neg} — e.g. the three-line reading in the OI + CVD table (poprawka 45);
+                   "even": true = all lines the same size (lists of coins, poprawka 46)
   {"type": "section", "title"}                                       — section heading
   any block: optional "desc" — plain-language explanation shown above the content (bigger font than "note")
   {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
@@ -180,6 +181,7 @@ class Data:
 
     def __init__(self, data_dir):
         self.meta = _read(os.path.join(data_dir, "meta.json"), {}) or {}
+        self.alts = _read(os.path.join(data_dir, "alts.json"), {}) or {}     # alty według kapitalizacji (alts.py)
         self.catalog = self.meta.get("catalog", {})
         self.res = {"1h": {}, "1d": {}}
         self.updated = 0
@@ -587,6 +589,7 @@ def alts_section(d, ema, L, refs, now):
                                "gdy wysoko jest tylko lewar, to raczej ostrzeżenie.",
                        "note": f"Kolumny ze szczytami wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
                                "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia." + rsi_note})
+    blocks += caps_blocks(d, now)
     blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
                               note=history_note(d, "oi_others_vs_btc")))
     blocks[-1]["lines"] = lines_for(L, "oi_others_vs_btc")
@@ -621,7 +624,71 @@ def alts_section(d, ema, L, refs, now):
                        "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
     blocks += rsi_chart(ema)
+    blocks += metas_block(d, now)
     return blocks
+
+
+# ── alty według kapitalizacji (poprawka 46; dane: alts.py → alts.json) ──
+CAPS_NOTE = ("Koszyk = przedział kapitalizacji coina; liczy się kapitalizacja z poprzedniego zapisu, żeby coin, który "
+             "właśnie urósł albo spadł, nie zmieniał koszyka w trakcie doby. Bez BTC, ETH, stablecoinów oraz tokenów "
+             "opakowanych i stakowanych. Źródło: CoinGecko (ceny uśrednione z wielu giełd i DEX-ów).")
+
+
+def caps_rows(snap, with_periods=True):
+    """Wiersze tabeli koszyków: BTC, ETH, potem koszyki od największych."""
+    rows = []
+    for name, key in (("BTC", "btc"), ("ETH", "eth")):
+        m = snap.get(key)
+        if m:
+            rows.append([name, "—", fmt_chg(m.get("chg"))] + ([fmt_chg(m.get("chg7")), fmt_chg(m.get("chg30"))] if with_periods else [])
+                        + ["—", "—"])
+    pct = lambda x: f"{x:.0f}%" if x is not None else "—"  # noqa: E731
+    for r in snap.get("rows") or []:
+        rows.append([r["name"], str(r["n"]), fmt_chg(r.get("chg"))]
+                    + ([fmt_chg(r.get("chg7")), fmt_chg(r.get("chg30"))] if with_periods else [])
+                    + [pct(r.get("up")), pct(r.get("beat_btc"))])
+    return rows
+
+
+def caps_blocks(d, now):
+    """Raport poranny: tabela koszyków z zamknięcia dnia."""
+    snap = (getattr(d, "alts", None) or {}).get("close") or {}
+    day = int(now) - int(now) % DAY - DAY
+    if not snap.get("rows") or snap.get("day") != day:          # brak zapisu z ostatniego zamknięcia → bez bloku
+        return []
+    own = snap.get("basis") == "own"
+    min_vol = (d.alts.get("min_volume") or 0)
+    when = (f"Zmiana doby = od zapisu {utc(snap['prev_t'], '%d.%m %H:%M')} do zapisu {utc(snap['t'], '%d.%m %H:%M')} UTC "
+            f"(pierwszy skan po zamknięciu dnia)." if own and snap.get("prev_t") else
+            f"Zmiana doby = ostatnie 24 h przed zapisem {utc(snap['t'], '%d.%m %H:%M')} UTC (według CoinGecko).")
+    blocks = [{
+        "type": "table", "title": f"Alty według kapitalizacji — doba {utc(day, '%d.%m')}",
+        "cols": ["Koszyk", "Coinów", "Mediana zmiany — doba", "7 dni", "30 dni", "Na plus w dobie", "Lepsze od BTC w dobie"],
+        "rows": caps_rows(snap), "left": [0],
+        "desc": "Typowy coin w każdym przedziale wielkości. Mediana = coin „ze środka” koszyka: połowa coinów wypadła lepiej, "
+                "połowa gorzej, więc jeden coin +900% nie zawyża wyniku. Widać, czy ruch jest tylko w dużych altach, "
+                "czy schodzi do małych. „Lepsze od BTC” = odsetek coinów, które w dobie zrobiły więcej niż BTC.",
+        "note": f"{when} Tylko coiny z obrotem 24 h co najmniej {fmt_usd_short(min_vol)}. 7 i 30 dni: mediana zmian coinów, "
+                "które są w koszyku dziś — coiny, które w tym czasie wypadły z listy, nie są liczone, więc te dwie kolumny "
+                "są lekko zawyżone. " + CAPS_NOTE}]
+    return blocks
+
+
+def metas_block(d, now):
+    """Narracje z DexScreenera: grupy tokenów ze zmianą kapitalizacji z 24 h (odczyt nie starszy niż 30 h)."""
+    m = (getattr(d, "alts", None) or {}).get("metas") or {}
+    if not m.get("rows") or now - (m.get("t") or 0) > 30 * HOUR:
+        return []
+    usd = lambda v: fmt_val(v, "mcap") if v is not None else "—"  # noqa: E731
+    rows = [[r["name"], str(r["tokens"]) if r.get("tokens") is not None else "—", usd(r.get("mcap")),
+             fmt_chg(r.get("chg24")), usd(r.get("liq")), usd(r.get("vol"))] for r in m["rows"]]
+    return [{"type": "table", "title": "Narracje na DEX-ach — które grupy tokenów rosły w ostatnich 24 h",
+             "cols": ["Narracja", "Tokenów", "Kapitalizacja", "Zmiana kapitalizacji 24 h", "Płynność", "Obrót 24 h"],
+             "rows": rows, "left": [0],
+             "desc": "Trendujące grupy tokenów według DexScreenera, od największego wzrostu kapitalizacji. "
+                     "Pokazuje, w które tematy płynie teraz kapitał na DEX-ach.",
+             "note": f"Odczyt z {utc(m['t'], '%d.%m %H:%M')} UTC. Nazwy i skład grup ustala DexScreener; "
+                     "zmiana = łączna kapitalizacja tokenów grupy w ostatnich 24 h."}]
 
 
 def rsi_chart(ema):
@@ -978,6 +1045,7 @@ SOURCES_MD = """## Źródła danych i metody
 - Funding: stawka ważona open interest, przeliczona na % w skali roku; ok. 11% rocznie = poziom neutralny (0,01% na 8 h).
 - RSI 1W / 3D (odsetek coinów wyprzedanych i wykupionych): RSI(14) Wildera jak ta.rsi w TradingView, na świecach tygodniowych (pon.–nd. UTC) i 3-dniowych złożonych z dziennych zamknięć Binance spot; te same coiny co szerokość rynku.
 - CVD (kupno − sprzedaż „po rynku”): Coinalyze, spot i perp osobno; „typowe odczytanie” OI i ceny pokazuje wniosek tylko wtedy, gdy potwierdza go CVD perp.
+- Alty według kapitalizacji: CoinGecko (lista coinów z kapitalizacją od $1M, zapis po zamknięciu dnia UTC i przed raportem wieczornym); mediana zmiany ceny coinów w przedziale kapitalizacji, bez BTC, ETH, stablecoinów i tokenów opakowanych; tylko coiny z obrotem powyżej progu. Narracje: DexScreener (trendujące grupy tokenów).
 - EMA200 i szerokość rynku: Binance spot (https://www.binance.com), pary */USDT, świece dzienne; EMA liczona jak ta.ema(200) w TradingView; szerokość rynku = odsetek coinów (z co najmniej 300 dniami historii, bez stablecoinów i tokenów opakowanych) z ceną nad EMA200. Czy historia szerokości obejmuje coiny wycofane już z Binance (bez błędu przeżywalności) — w opisie wykresu szerokości rynku.
 - Dane makro z USA: kalendarz ekonomiczny TradingView (https://www.tradingview.com/economic-calendar/) — publikacje o średniej (★★) i wysokiej (★★★) ważności według TradingView; wynik, prognoza (oczekiwanie rynku), poprzednia wartość.
 - Daty bez godziny = dzień UTC. Wszystkie liczby policzył program; raport nie zawiera interpretacji ani rekomendacji.
