@@ -128,3 +128,10 @@ def test_bot_halving_command_and_reminders(tmp_path):
     assert B.halving_tick(c) == []                                        # halving już dopisany → cisza
     C.configure({})
     assert B.halving_tick(ctx_for(tmp_path, now=ts(2026, 11, 1))) == []
+
+
+def test_hist_rows_with_wicks_are_trimmed(tmp_path):
+    import json as _json
+    import special as SP
+    (tmp_path / "BTC.json").write_text(_json.dumps({"s": "BTC", "d": [[0, 1.0, 1.0], [86400, 2.0, 1.5, 2.5, 1.5]]}))
+    assert SP._hist(str(tmp_path), "BTC") == [[0, 1.0, 1.0], [86400, 2.0, 1.5]]

@@ -482,7 +482,7 @@ def test_liquidations_backfill_and_run(tmp_path):
     store2, _, res2 = main.run(d, cfg, now=NOW + 2 * H, coinalyze=cz, tv=FakeTV(), telegram=tg, cg_fetch=CG)
     assert res2["Likwidacje"] is None
     n_markets = len(store2.state["universe"]["symbols"])
-    assert cz.calls_made <= n_markets * 3 + 2               # OI + liquidations + funding + 2 prices
+    assert cz.calls_made <= n_markets * 3 + 4               # OI + liquidations + funding + 2 ceny 1h + 2 ceny 1d (knoty)
     assert max(store2.series["1h"]["liq_total_long"]) == NOW + 2 * H - (NOW + 2 * H) % H
     assert len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) or \
         len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) + 1
@@ -685,3 +685,32 @@ def test_price_wicks_hourly_daily_and_upgrade(tmp_path):
     store2, _, res = main.run(d, _liq_cfg(), now=NOW + 2 * H, coinalyze=FakeOHLC(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
     assert res["Likwidacje"] is None and len(store2.series["1d"]["px_btc_lo"]) > 300
     assert store2.series["1d"]["px_eth_lo"][old] == 4000 - 500
+
+
+def test_price_wicks_repair_bad_day_and_hourly_backfill(tmp_path):
+    """Poprawka 55: knot dzienny zapisany z niepełnej świecy (02.11.2026) → naprawa przy zmianie PX_VERSION;
+    knoty godzinowe dociągnięte wstecz tylko tam, gdzie jest zamknięcie 1h; dzień w toku zostaje z danych 1h."""
+    import liquidations as LQ
+    d = str(tmp_path)
+    tg = alerts.Telegram(token="", chat_id="", enabled=False)
+    main.run(d, _liq_cfg(), now=NOW, backfill=True, coinalyze=FakeOHLC(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    f1d, f1h, fst = (os.path.join(d, n) for n in ("liq_1d.json", "liq_1h.json", "state.json"))
+    js = json.load(open(f1d))
+    bad = [p for p in js["series"]["px_btc_lo"] if p[0] < NOW - 30 * D][-1][0]
+    js["series"]["px_btc_lo"] = [[t, 999999.0 if t == bad else v] for t, v in js["series"]["px_btc_lo"]]
+    json.dump(js, open(f1d, "w"))
+    jh = json.load(open(f1h))
+    cut = NOW - NOW % H - 48 * H
+    for k in ("px_btc_hi", "px_btc_lo"):
+        jh["series"][k] = [p for p in jh["series"][k] if p[0] >= cut]          # knoty 1h dopiero od 2 dni
+    json.dump(jh, open(f1h, "w"))
+    st = json.load(open(fst))
+    st.pop("px_version", None)                                                  # stan sprzed poprawki 55
+    json.dump(st, open(fst, "w"))
+    store, _, res = main.run(d, _liq_cfg(), now=NOW + 2 * H, coinalyze=FakeOHLC(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
+    assert res["Likwidacje"] is None and store.state["px_version"] == LQ.PX_VERSION
+    assert store.series["1d"]["px_btc_lo"][bad] == 100000 - 500                 # naprawiony z dziennej świecy
+    h = store.series["1h"]
+    assert min(h["px_btc_lo"]) < cut - 1000 * H and set(h["px_btc_lo"]) <= set(h["px_btc"])   # wstecz, tylko przy zamknięciach
+    today = NOW - NOW % D
+    assert store.series["1d"]["px_btc_lo"][today] != 100000 - 500               # dzień w toku: z godzin, nie ze świecy dziennej

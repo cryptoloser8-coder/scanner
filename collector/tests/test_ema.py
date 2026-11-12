@@ -352,3 +352,83 @@ def test_stablecoin_u_is_excluded():
     info = {"symbols": [{"symbol": "UUSDT", "baseAsset": "U", "quoteAsset": "USDT", "status": "TRADING"},
                         {"symbol": "UNIUSDT", "baseAsset": "UNI", "quoteAsset": "USDT", "status": "TRADING"}]}
     assert set(E.universe(info, cfg())) == {"UNIUSDT"}
+
+
+# ── EMA200 na świecy tygodniowej (poprawka 55) ───────────────
+def test_weekly_ema_closed_weeks_and_live_value():
+    mon = _ts("2025-01-06")
+    times = [mon + i * D for i in range(30 * 7 + 3)]                               # 30 pełnych tygodni + 3 dni otwartego
+    closes = [100.0 + (i // 7) * (1 if i < 20 * 7 else -3) for i in range(len(times))]
+    now = times[-1] + D + 3600
+    w = E.weekly_ema(times, closes, 50.0, now, 10)
+    _, wk = E.resample(times, closes, "w")
+    exp = E.ema_series(wk[:30], 10)
+    assert w["weeks"] == 30 and w["c"] == wk[29] and abs(w["ec"] - exp[-1]) < 1e-9
+    assert abs(w["e"] - (2 / 11 * 50.0 + 9 / 11 * exp[-1])) < 1e-9                # otwarty tydzień z aktualną ceną
+    assert w["t"] == mon + (30 * 7 - 1) * D                                        # niedziela ostatniego zamkniętego tygodnia
+    side, n, idx = E.streak(wk[:30], exp)
+    assert (w["side"], w["since"]) == (side, n) == (-1, n) and w["cross_t"] == mon + (idx * 7 + 6) * D
+    assert E.weekly_ema(times[:3], closes[:3], 1.0, times[2] + 3600, 10) is None   # żaden tydzień jeszcze nie zamknięty
+
+
+def test_breadth_weekly_counts_closed_weeks_with_enough_history():
+    mon = _ts("2025-01-06")
+    times = [mon + i * D for i in range(40 * 7 + 2)]
+    up = (times, [100.0 + i for i in range(len(times))], None)
+    down = (times, [1000.0 - i for i in range(len(times))], None)
+    young = (times[-12 * 7:], [5.0] * (12 * 7), None)
+    now = times[-1] + D + 3600
+    c = dict(E.DEFAULTS, period=10, weekly_min_weeks=20, breadth_min_coins=1)
+    h = E.breadth_weekly({"A": up, "B": down, "C": young}, c, now)
+    assert h[-1] == [mon + (40 * 7 - 1) * D, 50.0, 2]                              # C: za krótka historia; otwarty tydzień pominięty
+    assert len(h) == 40 - 19
+    assert E.breadth_weekly({"A": up}, c, now, extra={"D:X": down})[-1][1:] == [50.0, 2]
+    assert E.breadth_weekly({"A": up}, dict(c, breadth_min_coins=2), now) == []
+
+
+def test_check_weekly_alert_on_weekly_close_only():
+    c = cfg(page_url="https://x/ema.html")
+    st = {}
+    row = lambda t, side, coin="AAA": {"s": coin, "wt": t, "wside": side, "wc": 110.0 if side > 0 else 90.0, "wec": 100.0}  # noqa: E731
+    w1, w2, w3 = _ts("2026-11-01"), _ts("2026-11-08"), _ts("2026-11-15")
+    assert E.check_weekly([row(w1, -1), row(w1, 1, "ZZZ")], ["aaa"], st, c) == []       # pierwszy odczyt: tylko uzbrojenie
+    assert "ZZZ" not in st
+    assert E.check_weekly([row(w1, 1)], ["AAA"], st, c) == []                          # ten sam tydzień: bez zmian
+    m = E.check_weekly([row(w2, 1)], ["AAA"], st, c)
+    assert len(m) == 1 and "zamknął tydzień nad EMA200" in m[0] and "+10.0%" in m[0] and "i=1w" in m[0]
+    assert E.check_weekly([row(w2, 1)], ["AAA"], st, c) == []                          # bez powtórki
+    m = E.check_weekly([row(w3, -1)], ["AAA"], st, c)
+    assert "❌ zamknął tydzień pod" in m[0] and "−" not in m[0]
+    assert E.check_weekly([{"s": "AAA", "wside": None}], ["AAA"], st, c) == []         # coin bez EMA 1W
+
+
+def test_run_publishes_weekly_ema(tmp_path):
+    st = str(tmp_path / "st")
+    c = cfg(weekly_min_weeks=100, weekly_alerts=["AAA"])
+    info, rows, _, msgs = E.run(c, st, now=NOW, client=FakeBinance(), telegram=FakeTG(), publish=True, remote=None)
+    pub = json.load(open(tmp_path / "st" / "pub" / "ema.json"))
+    a = next(x for x in pub["coins"] if x["s"] == "AAA")
+    assert a["weeks"] >= 280 and a["wside"] in (1, -1) and a["wt"] < NOW and a["wt"] % D == 0
+    assert abs(a["wd"] - (a["p"] / a["we"] - 1) * 100) < 1e-3
+    w = pub["weekly"]
+    assert w["min_weeks"] == 100 and w["total"] == 3 and w["alerts"] == ["AAA"] and w["t"] == a["wt"]
+    assert w["breadth"] and w["breadth"][-1][0] == a["wt"] and w["breadth"][-1][2] == 3
+    assert msgs == [] and json.load(open(tmp_path / "st" / "state.json"))["walerts"]["AAA"]["t"] == a["wt"]
+    # krótsza historia niż weekly_min_weeks → bez pól tygodniowych
+    E.run(cfg(weekly_min_weeks=400), st, now=NOW + 300, client=FakeBinance(now=NOW + 300), telegram=FakeTG(),
+          publish=False, remote=None)
+    _, rows2, _, _ = E.run(cfg(weekly_min_weeks=400), st, now=NOW + 600, client=FakeBinance(now=NOW + 600),
+                           telegram=FakeTG(), publish=False, remote=None, check_only=True)
+    assert all("wside" not in r and r["weeks"] >= 280 for r in rows2)
+
+
+def test_chart_files_carry_wicks_for_recent_days(tmp_path):
+    pub = tmp_path / "pub"
+    E.write_outputs(str(pub), {"x": 1}, {"AAA": ([0, D, 2 * D], [1.0, 2.0, 3.0], [1.0, 1.5, 2.0])}, cfg(), True,
+                    hl={"AAA": [[D, 2.5, 1.5], [2 * D, 3.5, 1.9]]})
+    h = json.load(open(pub / "hist" / "AAA.json"))
+    assert h["d"] == [[0, 1.0, 1.0], [D, 2.0, 1.5, 2.5, 1.5], [2 * D, 3.0, 2.0, 3.5, 1.9]]   # knoty tylko tam, gdzie są
+    st = str(tmp_path / "st")
+    E.run(cfg(), st, now=NOW, client=FakeBinance(), telegram=FakeTG(), publish=True, remote=None)
+    a = json.load(open(tmp_path / "st" / "pub" / "hist" / "AAA.json"))["d"]
+    assert len(a[0]) == 3 and len(a[-1]) == 5 and a[-1][4] <= a[-1][1] <= a[-1][3]

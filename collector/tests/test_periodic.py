@@ -124,10 +124,11 @@ def test_build_weekly(tmp_path):
     now = ts(2026, 11, 2, 0, 50)
     data, ema = make_dirs(tmp_path, now)
     rep = report.build(data, ema, "weekly", now=now, cfg={}, macro={"events": EVENTS, "error": None})
+    assert report.layout({})["weekly_ema_coins"] == ["BTC", "ETH", "SOL", "BNB"]
     assert rep["kind"] == "weekly" and rep["id"].endswith("-weekly") and rep["period"]["start"] == ts(2026, 10, 26)
     assert rep["title"] == "Raport tygodniowy — 26.10–01.11.2026"
     secs = [b["title"] for b in rep["blocks"] if b["type"] == "section"]
-    assert secs == ["Tydzień w liczbach", "Alty w tygodniu", "Derywaty w tygodniu", "EMA200 — przecięcia w tygodniu",
+    assert secs == ["Tydzień w liczbach", "Alty w tygodniu", "Derywaty w tygodniu", "EMA200 w tygodniu",
                     "Makro USA", "Cykl BTC w tygodniu"]
     by = {b.get("title"): b for b in rep["blocks"]}
     first = by["Zamknięcie tygodnia i zmiany"]
@@ -138,7 +139,7 @@ def test_build_weekly(tmp_path):
     assert len(bars["rows"]) == 12 and bars["rows"][-1]["current"] and bars["rows"][-1]["label"] == "26.10"
     assert bars["rows"][-1]["long"] == 7 * 2e8
     # EMA: tylko przecięcia z tygodnia; TINY poniżej progu obrotu, OLD poza tygodniem
-    ema_tbl = by["Przecięcia coinów z obrotem ≥ $10.0M dziennie"]
+    ema_tbl = by["EMA200 na świecy dziennej — przecięcia coinów z obrotem ≥ $10.0M dziennie"]
     assert [r[0] for r in ema_tbl["rows"]] == ["SOL"] and "2 coinów" in ema_tbl["desc"]
     # makro: ★★★ z tygodnia, plan ★★/★★★ na kolejny (bez innych krajów)
     res = by["Wyniki publikacji ★★★ — miniony tydzień"]
@@ -370,3 +371,39 @@ def test_plan_starts_at_build_time(tmp_path):
     assert rep["period"]["start"] == ts(2026, 10, 26)
     plan = [b for b in rep["blocks"] if str(b.get("title", "")).startswith("Plan —")][0]
     assert plan["title"].endswith("08.11–14.11.2026") and [r[2] for r in plan["rows"]] == ["CPI YoY"]
+
+
+def test_weekly_ema200_block(tmp_path):
+    now = ts(2026, 11, 2, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    t_end = ts(2026, 11, 1)
+    e = json.load(open(os.path.join(ema, "ema.json")))
+    e["period"] = 200
+    e["coins"] += [
+        {"s": "BTC", "p": 72000, "e": 76000, "d": -5.0, "side": -1, "since": 9, "weeks": 483, "we": 69800, "wd": 3.2,
+         "wc": 74000, "wec": 69700, "wside": 1, "wsince": 11, "wcross_t": ts(2026, 8, 23), "wt": t_end},
+        {"s": "ZEC", "p": 300, "e": 200, "d": 50.0, "side": 1, "since": 40, "weeks": 450, "we": 100, "wd": 200.0,
+         "wc": 310, "wec": 98, "wside": 1, "wsince": 1, "wcross_t": t_end, "wt": t_end},
+        {"s": "ETH", "p": 2000, "e": 2400, "d": -16.0, "side": -1, "since": 30, "weeks": 483, "we": 2450, "wd": -18.0,
+         "wc": 2050, "wec": 2460, "wside": -1, "wsince": 1, "wcross_t": t_end, "wt": t_end},
+        {"s": "SUI", "p": 1, "e": 1.5, "d": -33.0, "side": -1, "since": 60, "weeks": 185}]
+    e["weekly"] = {"min_weeks": 300, "total": 3, "above": 2, "above_close": 2, "t": t_end, "alerts": ["BTC", "ETH"],
+                   "breadth": [[t_end - 4 * P.WEEK, 10.0, 3], [t_end - P.WEEK, 33.33, 3], [t_end, 66.67, 3]]}
+    json.dump(e, open(os.path.join(ema, "ema.json"), "w"))
+    cfg = {"weekly_ema_coins": ["BTC", "ETH", "SUI", "XRP"]}
+    rep = report.build(data, ema, "weekly", now=now, cfg=cfg, macro=None)
+    by = {b.get("title"): b for b in rep["blocks"]}
+    tbl = by["EMA200 na świecy tygodniowej — zamknięcie tygodnia"]
+    rows = {r[0]: r for r in tbl["rows"]}
+    assert list(rows) == ["BTC", "ETH", "SUI"]                              # XRP nie ma w danych
+    assert rows["BTC"][1:7] == ["$74,000", "$69,700", "+6.2%", "nad", "11", "23.08.2026"]
+    assert rows["ETH"][4] == "pod (przecięcie w tym tygodniu)"
+    assert "za krótka historia (185 z 300 tyg.)" in rows["SUI"][4]
+    assert "2 z 3 coinów (67%); tydzień wcześniej 33%, 4 tygodnie wcześniej 10%" in tbl["note"]
+    assert "w górę: ZEC; w dół: ETH" in tbl["note"]
+    # dane z innego tygodnia (np. Pi jeszcze nie przeliczył) → tylko komunikat
+    e["weekly"]["t"] = t_end - P.WEEK
+    json.dump(e, open(os.path.join(ema, "ema.json"), "w"))
+    rep = report.build(data, ema, "weekly", now=now, cfg=cfg, macro=None)
+    blk = [b for b in rep["blocks"] if b.get("title") == "EMA200 na świecy tygodniowej — zamknięcie tygodnia"][0]
+    assert blk["type"] == "text" and "25.10.2026" in blk["text"]
