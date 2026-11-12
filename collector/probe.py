@@ -23,6 +23,11 @@ Nowe źródła do sekcji Alty (poprawka 45) — uruchamiane tylko na życzenie (
   coingecko   — ile coinów wpada do koszyków kapitalizacji ($1–10M, $10–100M, $100M–1B, > $1B), jakie mają obroty,
                 czy odpowiedź zawiera zmiany 24h/7D/30D, jak głęboka jest historia na darmowym kluczu i ile to zapytań,
   dexscreener — trendujące narracje („metas”): czy API odpowiada z GitHuba i jakie pola zwraca.
+
+Sieci (poprawka 47) — tylko na życzenie (--only defillama):
+  defillama   — wolumen DEX, opłaty, stablecoiny i TVL dla 8 sieci (Ethereum, Robinhood Chain, Solana, BSC, TON, Base,
+                Tron, Hyperliquid L1): od kiedy, czy ostatni dzień jest pełny, udział w stablecoinach; kandydaci spoza
+                listy i percentyle z 2 lat do reguły „sieć nagle rośnie”.
 """
 import argparse
 import io
@@ -45,7 +50,7 @@ sys.path.insert(0, HERE)
 log = logging.getLogger("probe")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) scanner-probe"}
 START_2010 = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
-CHECKS = {       # domyślny zestaw; coingecko i dexscreener tylko przez --only (nowe źródła, osobne pytanie)
+CHECKS = {       # domyślny zestaw; coingecko, dexscreener i defillama tylko przez --only (nowe źródła, osobne pytanie)
     "github": ("coinalyze", "tradingview", "coinmetrics", "bitmex", "binance", "vision", "cvd"),
     "pi": ("binance", "vision", "bitmex", "coinmetrics"),
 }
@@ -811,6 +816,283 @@ def check_dexscreener(session=None, **_):
 
 
 FUNCS.update({"coingecko": check_coingecko, "dexscreener": check_dexscreener})
+
+
+# ── DefiLlama: sieci (poprawka 47) — tylko przez --only defillama ─────────
+# Pytania: czy endpointy odpowiadają z GitHuba, jak długa jest historia dla naszych 8 sieci, czy ostatni dzień
+# jest pełny, ile sieci trzeba przejrzeć do reguły „sieć spoza listy nagle rośnie” i jakie progi wychodzą z historii.
+LL = "https://api.llama.fi"
+LL_ST = "https://stablecoins.llama.fi"
+LL_CHAINS = ("Ethereum", "Robinhood Chain", "Solana", "BSC", "TON", "Base", "Tron", "Hyperliquid L1")
+LL_CAND_MIN = 20e6        # kandydat do reguły „rośnie”: stablecoiny albo TVL ≥ $20M, albo wolumen DEX 24 h ≥ $1M
+LL_CAND_DEX24 = 1e6
+LL_MAX_CAND = 80          # najwyżej tyle sieci spoza listy (2 zapytania na sieć)
+LL_DEX7_MIN = 10e6        # do rankingu i percentyli: wolumen DEX z 7 dni ≥ $10M
+LL_HIST_DAYS = 730        # percentyle z ostatnich 2 lat
+
+
+def _ll_get(session, url, params, sleep, calls):
+    for attempt in range(4):
+        calls[0] += 1
+        try:
+            r = session.get(url, params=params, headers=UA, timeout=90)
+        except requests.RequestException as e:
+            if attempt == 3:
+                raise RuntimeError(f"{type(e).__name__}: {str(e)[:100]}") from e
+            sleep(5 * (attempt + 1))
+            continue
+        if r.status_code == 200:
+            sleep(0.4)
+            return r.json()
+        if r.status_code == 429 or r.status_code >= 500:
+            sleep(15 * (attempt + 1))
+            continue
+        raise RuntimeError(f"HTTP {r.status_code} {r.text[:120]}")
+    raise RuntimeError("zbyt wiele odpowiedzi 429 / 5xx")
+
+
+def _day(t):
+    t = int(float(t))
+    if t > 1e11:
+        t //= 1000
+    return t - t % DAY
+
+
+def ll_points(data, kind):
+    """Odpowiedź DefiLlama → {dzień 00:00 UTC: wartość}. kind: dex / fees (totalDataChart), stable, tvl."""
+    out = {}
+    if kind in ("dex", "fees"):
+        for p in (data or {}).get("totalDataChart") or []:
+            if isinstance(p, (list, tuple)) and len(p) >= 2 and _num(p[1]) is not None:
+                out[_day(p[0])] = _num(p[1])
+    elif kind == "stable":
+        for p in data or []:
+            usd = p.get("totalCirculatingUSD") or {}
+            vals = [_num(v) for v in usd.values()] if isinstance(usd, dict) else [_num(usd)]
+            vals = [v for v in vals if v is not None]
+            if vals and p.get("date") is not None:
+                out[_day(p["date"])] = sum(vals)
+    elif kind == "tvl":
+        for p in data or []:
+            if _num(p.get("tvl")) is not None and p.get("date") is not None:
+                out[_day(p["date"])] = _num(p["tvl"])
+    return out
+
+
+FLOW = ("dex", "fees")          # przepływy: sumy z okresów; reszta (stable, tvl) to stany: poziom vs poziom
+
+
+def _sum(pts, a, b):
+    """Suma z dni a..b włącznie (brak dnia = 0); None, gdy w oknie nie ma żadnego punktu."""
+    vals = [pts[d] for d in range(a, b + 1, DAY) if d in pts]
+    return sum(vals) if vals else None
+
+
+def _at(pts, d, back=3):
+    for k in range(back + 1):
+        if d - k * DAY in pts:
+            return pts[d - k * DAY]
+    return None
+
+
+def _chg(a, b):
+    return None if a is None or not b else (a / b - 1) * 100
+
+
+def ll_change(pts, kind, end):
+    """Zmiany na dzień `end`: przepływ — 7 dni vs poprzednie 7 i 30 dni vs poprzednie 30; stan — vs 7 i 30 dni wcześniej.
+    Dodatkowo `ratio4w`: przepływ = 7 dni ÷ średni tydzień z poprzednich 4; stan = jak 7D."""
+    if kind in FLOW:
+        s7, p7 = _sum(pts, end - 6 * DAY, end), _sum(pts, end - 13 * DAY, end - 7 * DAY)
+        s30, p30 = _sum(pts, end - 29 * DAY, end), _sum(pts, end - 59 * DAY, end - 30 * DAY)
+        p28 = _sum(pts, end - 34 * DAY, end - 7 * DAY)
+        return {"v": pts.get(end), "s7": s7, "c7": _chg(s7, p7), "c30": _chg(s30, p30),
+                "ratio4w": (s7 / (p28 / 4)) if s7 is not None and p28 else None}
+    v = _at(pts, end)
+    return {"v": v, "s7": None, "c7": _chg(v, _at(pts, end - 7 * DAY)), "c30": _chg(v, _at(pts, end - 30 * DAY)),
+            "ratio4w": None}
+
+
+def ll_tail(pts, today, n=3):
+    """Ostatnie n dni: wartość ÷ mediana 7 dni przed nimi — czy ostatni dzień jest pełny (≈ 1) czy w toku (≪ 1)."""
+    days = sorted(pts)[-n:]
+    out = []
+    for d in days:
+        prev = [pts[x] for x in range(d - 7 * DAY, d, DAY) if x in pts]
+        med = _median(prev)
+        out.append((d, pts[d], (pts[d] / med) if med else None, d >= today))
+    return out
+
+
+def _pct(xs, q):
+    xs = sorted(xs)
+    if not xs:
+        return None
+    k = min(len(xs) - 1, max(0, int(round(q / 100 * (len(xs) - 1)))))
+    return xs[k]
+
+
+def _fmt_pct(x):
+    return "—" if x is None else f"{x:+.1f}%"
+
+
+def _ll_sum_nested(x):
+    if isinstance(x, dict):
+        return sum(_ll_sum_nested(v) for v in x.values())
+    return _num(x) or 0.0
+
+
+def ll_breakdown(data):
+    """breakdown24h z /overview/dexs: {sieć: {protokół: wartość}} albo {sieć: wartość} → {sieć: suma}."""
+    b = (data or {}).get("breakdown24h")
+    if not isinstance(b, dict):
+        return {}
+    return {k: _ll_sum_nested(v) for k, v in b.items()}
+
+
+def check_defillama(session=None, sleep=time.sleep, now=None, chains=LL_CHAINS, max_cand=LL_MAX_CAND, **_):
+    s = session or requests.Session()
+    calls = [0]
+    now = now or time.time()
+    today = _day(now)
+    end = today - DAY                     # ostatni pełny dzień UTC
+    rows = []
+    q = requests.utils.quote
+
+    # 1) listy wszystkich sieci (jedno zapytanie na źródło)
+    lists = {}
+    for key, url, params in (
+            ("dex", LL + "/overview/dexs", {"excludeTotalDataChart": "true", "excludeTotalDataChartBreakdown": "true"}),
+            ("fees", LL + "/overview/fees", {"excludeTotalDataChart": "true", "excludeTotalDataChartBreakdown": "true"}),
+            ("stable", LL_ST + "/stablecoinchains", None),
+            ("tvl", LL + "/v2/chains", None)):
+        try:
+            lists[key] = _ll_get(s, url, params, sleep, calls)
+        except Exception as e:  # noqa: BLE001
+            rows.append(err_row("defillama", f"lista sieci: {key}", e))
+    names = {}
+    if "dex" in lists:
+        names["dex"] = set(lists["dex"].get("allChains") or [])
+    if "fees" in lists:
+        names["fees"] = set(lists["fees"].get("allChains") or [])
+    if "stable" in lists:
+        names["stable"] = {c.get("name") for c in lists["stable"] or []}
+    if "tvl" in lists:
+        names["tvl"] = {c.get("name") for c in lists["tvl"] or []}
+    dex24 = ll_breakdown(lists.get("dex"))
+    for key, ns in names.items():
+        miss = [c for c in chains if c not in ns]
+        extra = f"; breakdown24h: {len(dex24)} sieci w jednym zapytaniu" if key == "dex" and dex24 else (
+            "; breakdown24h: BRAK — wolumen 24 h sieci tylko z zapytań per sieć" if key == "dex" else "")
+        rows.append(row("defillama", f"lista sieci: {key}", "ok", n=len(ns),
+                        note=("wszystkie nasze sieci są" if not miss else "brak nazw: " + ", ".join(miss)) + extra))
+    stable_now = {c.get("name"): _ll_sum_nested(c.get("totalCirculatingUSD") or {}) for c in lists.get("stable") or []}
+    tvl_now = {c.get("name"): _num(c.get("tvl")) or 0.0 for c in lists.get("tvl") or []}
+
+    # 2) nasze sieci: pełna historia 4 miar
+    ours = {}
+    for ch in chains:
+        for kind, url, params in (
+                ("dex", f"{LL}/overview/dexs/{q(ch)}", {"excludeTotalDataChartBreakdown": "true"}),
+                ("fees", f"{LL}/overview/fees/{q(ch)}", {"excludeTotalDataChartBreakdown": "true"}),
+                ("stable", f"{LL_ST}/stablecoincharts/{q(ch)}", None),
+                ("tvl", f"{LL}/v2/historicalChainTvl/{q(ch)}", None)):
+            item = f"{ch}: {kind}"
+            try:
+                data = _ll_get(s, url, params, sleep, calls)
+            except Exception as e:  # noqa: BLE001
+                rows.append(err_row("defillama", item, e))
+                continue
+            pts = ll_points(data, kind)
+            if not pts:
+                rows.append(row("defillama", item, "brak", note="pusta historia"))
+                continue
+            ours[(ch, kind)] = pts
+            c = ll_change(pts, kind, end)
+            tail = "; ".join(f"{iso(d)[5:]} {fmt_usd(v)}" + (f" (×{r:.2f} mediany 7 dni)" if r is not None else "")
+                             + (" — dzień w toku" if live else "") for d, v, r, live in ll_tail(pts, today))
+            gaps = sum(1 for d in range(min(pts), max(pts), DAY) if d not in pts)
+            lfd = f"; totalLastFullDay {fmt_usd(_num(data.get('totalLastFullDay')))}" if (
+                kind in FLOW and isinstance(data, dict) and data.get("totalLastFullDay") is not None) else ""
+            what = "7 dni vs poprzednie 7" if kind in FLOW else "vs 7 dni wcześniej"
+            rows.append(row("defillama", item, "ok", min(pts), max(pts), len(pts),
+                            note=f"{iso(end)[5:]}: {fmt_usd(c['v'])}; {what} {_fmt_pct(c['c7'])}; 30D {_fmt_pct(c['c30'])}"
+                                 f"{lfd}; luki {gaps} dni; ostatnie dni: {tail}"))
+
+    # 3) udział naszych sieci w stablecoinach (stan teraz)
+    tot = sum(stable_now.values())
+    if tot:
+        sh = sorted(((stable_now.get(ch, 0.0), ch) for ch in chains), reverse=True)
+        rest = tot - sum(v for v, _ in sh)
+        rows.append(row("defillama", "udział w stablecoinach (teraz)", "ok", n=len(stable_now),
+                        note=", ".join(f"{ch} {v / tot * 100:.1f}%" for v, ch in sh)
+                             + f", reszta {rest / tot * 100:.1f}% (razem {fmt_usd(tot)})"))
+
+    # 4) kandydaci do reguły „rośnie”: sieci spoza listy z kapitałem albo ruchem
+    every = set(stable_now) | set(tvl_now) | set(dex24)
+    cand = [c for c in every if c and c not in chains and (
+        stable_now.get(c, 0) >= LL_CAND_MIN or tvl_now.get(c, 0) >= LL_CAND_MIN or dex24.get(c, 0) >= LL_CAND_DEX24)]
+    cand.sort(key=lambda c: -max(stable_now.get(c, 0), tvl_now.get(c, 0), dex24.get(c, 0) * 30))
+    rows.append(row("defillama", "kandydaci do reguły „rośnie”", "ok", n=len(cand),
+                    note=f"sieci spoza listy ze stablecoinami albo TVL ≥ {fmt_usd(LL_CAND_MIN)} albo DEX 24 h ≥ "
+                         f"{fmt_usd(LL_CAND_DEX24)} (z {len(every)} wszystkich); sprawdzane w sondzie: {min(len(cand), max_cand)}"))
+    hist = {"dex": [], "stable": []}
+    now_rank = {"dex": [], "stable": []}
+    fails = []
+    pool = [(ch, True) for ch in chains] + [(c, False) for c in cand[:max_cand]]
+    for ch, mine in pool:
+        for kind in ("dex", "stable"):
+            pts = ours.get((ch, kind))
+            if pts is None and not mine:
+                url = (f"{LL}/overview/dexs/{q(ch)}" if kind == "dex" else f"{LL_ST}/stablecoincharts/{q(ch)}")
+                try:
+                    pts = ll_points(_ll_get(s, url, {"excludeTotalDataChartBreakdown": "true"} if kind == "dex" else None,
+                                            sleep, calls), kind)
+                except Exception:  # noqa: BLE001
+                    fails.append(f"{ch} ({kind})")
+                    continue
+            if not pts:
+                continue
+            # historia: każdy dzień z ostatnich 2 lat, gdy sieć była dość duża
+            for d in range(end - LL_HIST_DAYS * DAY, end + DAY, DAY):
+                if kind == "dex":
+                    c = ll_change(pts, "dex", d)
+                    if c["s7"] is not None and c["s7"] >= LL_DEX7_MIN and c["ratio4w"] is not None:
+                        hist["dex"].append(c["ratio4w"])
+                elif d in pts and pts[d] >= LL_CAND_MIN:
+                    c = ll_change(pts, "stable", d)
+                    if c["c30"] is not None:
+                        hist["stable"].append(c["c30"])
+            c = ll_change(pts, kind, end)
+            if kind == "dex" and c["s7"] is not None and c["s7"] >= LL_DEX7_MIN and c["ratio4w"] is not None:
+                now_rank["dex"].append((c["ratio4w"], ch, mine, c["s7"]))
+            if kind == "stable" and c["v"] is not None and c["v"] >= LL_CAND_MIN and c["c30"] is not None:
+                now_rank["stable"].append((c["c30"], ch, mine, c["v"]))
+    if fails:
+        rows.append(row("defillama", "kandydaci: nieudane zapytania", "błąd", n=len(fails), note=", ".join(fails[:25])))
+    if hist["dex"]:
+        h = hist["dex"]
+        rows.append(row("defillama", "historia: DEX 7 dni ÷ średni tydzień z 4 poprzednich", "ok", n=len(h),
+                        note=f"dni-sieci z wolumenem 7 dni ≥ {fmt_usd(LL_DEX7_MIN)}, ostatnie {LL_HIST_DAYS} dni: "
+                             + ", ".join(f"p{p} ×{_pct(h, p):.2f}" for p in (50, 90, 95, 99))))
+    if hist["stable"]:
+        h = hist["stable"]
+        rows.append(row("defillama", "historia: stablecoiny 30D", "ok", n=len(h),
+                        note=f"dni-sieci ze stablecoinami ≥ {fmt_usd(LL_CAND_MIN)}, ostatnie {LL_HIST_DAYS} dni: "
+                             + ", ".join(f"p{p} {_pct(h, p):+.1f}%" for p in (50, 90, 95, 99))))
+    for r_, ch, mine, size in sorted(now_rank["dex"], reverse=True)[:12]:
+        rows.append(row("defillama", f"teraz DEX rośnie: {ch}{' (nasza)' if mine else ''}", "ok",
+                        note=f"7 dni {fmt_usd(size)}; ×{r_:.2f} średniego tygodnia z 4 poprzednich"))
+    for c30, ch, mine, size in sorted(now_rank["stable"], reverse=True)[:12]:
+        rows.append(row("defillama", f"teraz stablecoiny rosną: {ch}{' (nasza)' if mine else ''}", "ok",
+                        note=f"{fmt_usd(size)}; 30D {_fmt_pct(c30)}"))
+    rows.append(row("defillama", "koszt w zapytaniach", "ok", n=calls[0],
+                    note=f"ta sonda: {calls[0]} zapytań; w produkcji raz na dobę: 4 listy + 4 × {len(chains)} naszych sieci "
+                         f"+ 2 × kandydaci (bez klucza)"))
+    return rows
+
+
+FUNCS.update({"defillama": check_defillama})
 
 
 def run(where, only=None, funcs=None, now=None):
