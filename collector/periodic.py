@@ -201,6 +201,37 @@ def change_table(d, ema, sids, t_end, start, end, horizons, title_, desc, note="
     return [{"type": "table", "title": title_, "cols": cols, "rows": rows, "left": [0], "desc": desc, "note": note}]
 
 
+# ── świece ceny w raportach (poprawka 58) ────────────────────
+def ohlc_groups(d, sid, t_end, key, since):
+    """Świece z dziennych zamknięć i knotów (px_*_hi / _lo): [[t_ostatniego_dnia, open, high, low, close]], grupy wg key(t).
+    Open = zamknięcie poprzedniej świecy; dzień bez knota liczy się samym zamknięciem."""
+    hi = dict((t, v) for t, v in d.pts("1d", sid + "_hi"))
+    lo = dict((t, v) for t, v in d.pts("1d", sid + "_lo"))
+    out, prev = [], None
+    for t, c in d.pts("1d", sid):
+        if t > t_end:
+            break
+        k = key(t)
+        h, l_ = max(hi.get(t, c), c), min(lo.get(t, c), c)
+        if out and out[-1][5] == k:
+            o = out[-1]
+            o[0], o[2], o[3], o[4] = t, max(o[2], h), min(o[3], l_), c
+        else:
+            o_ = prev if prev is not None else c
+            out.append([t, o_, max(h, o_), min(l_, o_), c, k])
+        prev = c
+    return [x[:5] for x in out if x[0] >= since]
+
+
+def _week_key(t):
+    return (int(t) // DAY + 3) // 7                       # tydzień pon.–nd. UTC
+
+
+def _month_key(t):
+    x = _dt(t)
+    return x.year * 12 + x.month
+
+
 # ── tygodniowe średnie BTC ───────────────────────────────────
 def weekly_closes(pts, t_end):
     """Zamknięcia tygodni (niedziela) do t_end włącznie → [[t_niedzieli, v]]."""
@@ -230,11 +261,13 @@ def btc_weekly_mas(d, t_end):
             weeks += 1
         rows.append([f"Średnia {n} tygodni", R.fmt_price(ma), f"{(vals[-1] / ma - 1) * 100:+.1f}%",
                      "nad" if side > 0 else "pod", str(weeks)])
-    series = [{"name": "BTC — zamknięcia tygodni", "color": "#f7931a", "fmt": "price", "scale": "right",
-               "data": [p for p in wk if p[0] >= _ts(datetime(2017, 1, 1))]}]
+    since = _ts(datetime(2011, 1, 1))
+    candles = [c for c in ohlc_groups(d, "px_btc", t_end, _week_key, since) if _dt(c[0]).weekday() == 6]
+    series = [{"name": "BTC — świece tygodniowe", "color": "#f7931a", "fmt": "price", "scale": "right",
+               "data": [p for p in wk if p[0] >= since], "ohlc": candles}]
     for n, col in ((20, "#4fc3f7"), (50, "#ffd54f"), (200, "#e05252")):
         ma_pts = [[wk[i][0], sum(vals[i - n + 1:i + 1]) / n] for i in range(n - 1, len(vals))
-                  if wk[i][0] >= _ts(datetime(2017, 1, 1))]
+                  if wk[i][0] >= since]
         if ma_pts:
             series.append({"name": f"Średnia {n} tyg.", "color": col, "fmt": "price", "scale": "right", "data": ma_pts})
     return [{"type": "table", "title": "BTC na tle średnich tygodniowych", "cols": ["Średnia", "Wartość", "Cena vs średnia",
@@ -243,8 +276,9 @@ def btc_weekly_mas(d, t_end):
              "desc": "Gdzie jest zamknięcie tygodnia BTC względem średnich z 20, 50 i 200 tygodni (zwykłe średnie z "
                      "zamknięć tygodni). Długo nad średnimi = trend wzrostowy, pod = spadkowy.",
              "note": f"Zamknięcie tygodnia: {R.fmt_price(vals[-1])} ({R.utc(wk[-1][0], '%d.%m.%Y')})."},
-            {"type": "chart", "title": "BTC i średnie tygodniowe — od 2017", "log": True, "series": series,
-             "desc": "Zamknięcia tygodni BTC (skala logarytmiczna) ze średnimi 20, 50 i 200 tygodni."}]
+            {"type": "chart", "title": "BTC i średnie tygodniowe — od 2011", "log": True, "series": series,
+             "desc": "Świece tygodniowe BTC (poniedziałek–niedziela UTC, skala logarytmiczna) ze średnimi 20, 50 i 200 tygodni "
+                     "z zamknięć tygodni. Knoty z dziennych świec: do 2019–2020 indeks TradingView, potem Binance perp."}]
 
 
 # ── derywaty ─────────────────────────────────────────────────
@@ -627,14 +661,21 @@ def phase_bands(phs, t_last):
 
 
 def price_chart(d, px, t_end, phs, manual_note=""):
-    """Cena BTC (log, co tydzień) od 2011 z realized price, średnią 200 tygodni i tłem w kolorach faz cyklu."""
+    """Cena BTC (log, świece miesięczne) od 2011 z realized price, średnią 200 tygodni i tłem w kolorach faz cyklu."""
     since = _ts(datetime(2011, 1, 1))
     ts = sorted(px)
     vals = [px[t] for t in ts]
-    keep = lambda t: t >= since and (_dt(t).weekday() == 6 or t == ts[-1])  # noqa: E731 — co tydzień (mniejszy plik)
+    last_of = {}
+    for t in ts:
+        last_of[_month_key(t)] = t
+    month_end = set(last_of.values())
+    keep = lambda t: t >= since and (t in month_end or t == ts[-1])  # noqa: E731 — koniec miesiąca (świece 1M)
     p = [[t, px[t]] for t in ts if keep(t)]
     sma = [[ts[i], sum(vals[i - 1399:i + 1]) / 1400] for i in range(1399, len(vals)) if keep(ts[i])]
-    series = [{"name": "Cena BTC", "color": "#f7931a", "fmt": "price", "scale": "right", "data": p}]
+    candles = ohlc_groups(d, "px_btc", ts[-1], _month_key, since) if d.pts("1d", "px_btc") else []
+    series = [{"name": "Cena BTC — świece miesięczne", "color": "#f7931a", "fmt": "price", "scale": "right", "data": p}]
+    if candles and [c[0] for c in candles] == [x[0] for x in p]:
+        series[0]["ohlc"] = candles
     rpp = [x for x in d.pts("1d", "rprice_btc") if x[0] <= t_end and keep(x[0])]
     if rpp:
         series.append({"name": "Realized price", "color": "#ffd54f", "fmt": "price", "scale": "right", "data": rpp})
@@ -644,8 +685,9 @@ def price_chart(d, px, t_end, phs, manual_note=""):
             "bands": [b for b in phase_bands(phs, ts[-1]) if b["to"] >= since],
             "desc": "Tło: zielone = hossa, czerwone = bessa, niebieskie = akumulacja, fioletowe = akumulacja niepotwierdzona "
                     "(dno uznane przez nas, jeszcze bez pewności — reguła w opisie pod wykresem). "
-                    "Skala logarytmiczna. Realized price = średnia cena, po której monety ostatnio się ruszały; "
-                    "średnia 200 tygodni = 1400 dni.",
+                    "Skala logarytmiczna, świece miesięczne (knoty: do 2019–2020 indeks TradingView, potem Binance perp). "
+                    "Realized price = średnia cena, po której monety ostatnio się ruszały; średnia 200 tygodni = 1400 dni "
+                    "(obie linie: wartość z ostatniego dnia miesiąca).",
             "note": "Fazy wyznaczone z dziennych zamknięć ceny BTC: bessa = od szczytu cyklu do dna cyklu; akumulacja = od "
                     "dna do pierwszego zamknięcia powyżej poprzedniego szczytu (cena odrobiła bessę); hossa = od tego "
                     "zamknięcia do kolejnego szczytu. Szczyt = najwyższe zamknięcie w 2 latach po halvingu (liczy się po "
