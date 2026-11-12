@@ -173,6 +173,7 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="px-btn" title="Cena na lewej osi (BTC; dla ETH cena ETH)">Cena</button>
+        <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance perp): pusta = wzrost, pełna = spadek. Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="fund-btn" title="Panel fundingu (% rocznie) pod wykresem">Funding</button>
       </div>
     </div>
@@ -186,6 +187,7 @@
   <div class="hint">
     Słupki w górę (czerwone) = zlikwidowane longi, w dół (zielone) = zlikwidowane shorty, suma w USD na świecę.
     Świece 4H i 1W są sumowane z danych 1H/1D; funding na nich to średnia.
+    Cena (przycisk „Świece”): świece z knotami z Binance perp — pusta = wzrost, pełna = spadek; knoty dzienne od końca 2019 i z danych godzinowych (1H/4H).
     <span id="range-info"></span><br>
     Kwoty to dolne oszacowanie: giełdy publikują tylko część likwidacji (np. Binance najwyżej jedną na sekundę na rynek),
     a Hyperliquid nie ma likwidacji w Coinalyze. Pokazują, kiedy były duże kaskady i w którą stronę, ale nie są sumą „całego rynku”.
@@ -240,7 +242,7 @@ const store = {
 };
 let META = null, CAT = {}, TIPS = {};
 const DATA = {'1h': null, '1d': null};
-let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true}, store.get('view', {}), parseHash());
+let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true}, store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = {};
@@ -249,11 +251,12 @@ function parseHash() {
   if (h.get('z')) o.range = +h.get('z');
   if (h.get('p')) o.px = h.get('p') === '1';
   if (h.get('f')) o.fund = h.get('f') === '1';
+  if (h.get('k')) o.cdl = h.get('k') === '1';
   return o;
 }
 function persist() {
   store.set('view', S);
-  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, f: S.fund ? 1 : 0}));
+  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0}));
 }
 
 // ── formatting ──────────────────────────────────────────────
@@ -431,10 +434,13 @@ bindPills('iv-pills', 'iv');
 bindPills('range-pills', 'range', Number);
 document.getElementById('px-btn').addEventListener('click', () => { S.px = !S.px; refresh(); });
 document.getElementById('fund-btn').addEventListener('click', () => { S.fund = !S.fund; refresh(); });
+document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; refresh(); });
 function syncControls() {
   for (const [id, key] of [['iv-pills', 'iv'], ['range-pills', 'range']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(key === 'iv' ? IV() : S[key]) === b.dataset.val));
   document.getElementById('px-btn').classList.toggle('active', S.px);
+  const wick = pts(resOf(IV()), pxId(S.asset) + '_hi').length > 0;
+  const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.px && S.cdl && wick); kb.disabled = !S.px || !wick;
   document.getElementById('fund-btn').classList.toggle('active', S.fund);
   document.querySelectorAll('#iv-pills [data-val="1h"], #iv-pills [data-val="4h"]').forEach(b => b.disabled = !has1h());
   document.querySelectorAll('.tile[data-asset]').forEach(t => t.classList.toggle('on', t.dataset.asset === S.asset && t.querySelector('[data-tip^="liq_"]')));
@@ -484,9 +490,28 @@ function drawChart(resetRange) {
     // cena od początku likwidacji/fundingu (historia ceny sięga 2009, ale tu jest tłem dla tych danych)
     const t0 = Math.min(L[0][0], ...fundIds(g).map(f => (pts(res, f)[0] || [Infinity])[0]));
     const id = pxId(g), arr = agg(pts(res, id).filter(p => p[0] >= t0), iv, 'last');
-    if (arr.length) {
+    const pf = {type: 'custom', minMove: .01, formatter: price};
+    const raw = pts(res, id).filter(p => p[0] >= t0 - 86400);          // + poprzednia świeca: open pierwszej
+    const pc = S.cdl && pts(res, id + '_hi').length
+      ? priceCandles(raw, pts(res, id + '_hi'), pts(res, id + '_lo'), iv === '4h' || iv === '1w' ? t => bucket(t, iv) : null) : null;
+    if (pc && pc.candles.length) {
+      const c0 = pc.candles[0].time, line = agg(raw.filter(p => p[0] >= t0 && p[0] < c0), iv, 'last');
+      if (line.length) {
+        const ls = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left', priceFormat: pf,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false}, 0);
+        ls.setData(line.map(([t, v]) => ({time: t, value: v})));
+        mounted.push({kind: 'aux', series: ls});
+      }
+      // kolor ceny (nie zielony / czerwony — te są zajęte przez słupki likwidacji): wzrost = pusta świeca, spadek = pełna
+      const col = CAT[id].color;
+      const cs = chart.addSeries(LWC.CandlestickSeries, {priceScaleId: 'left', priceFormat: pf, upColor: 'rgba(0,0,0,0)', downColor: col,
+        borderUpColor: col, borderDownColor: col, wickUpColor: col, wickDownColor: col, priceLineVisible: false, lastValueVisible: true}, 0);
+      cs.setData(pc.candles.filter(k => k.time >= bucket(t0, iv)));
+      mounted.push({kind: 'px', series: cs, name: CAT[id].name, fmt: price, color: CAT[id].color, candle: true});
+      leftUsed = true;
+    } else if (arr.length) {
       const sp = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left',
-        priceFormat: {type: 'custom', minMove: .01, formatter: price}, lastValueVisible: true, priceLineVisible: false}, 0);
+        priceFormat: pf, lastValueVisible: true, priceLineVisible: false}, 0);
       sp.setData(arr.map(([t, v]) => ({time: t, value: v})));
       mounted.push({kind: 'px', series: sp, name: CAT[id].name, fmt: price, color: CAT[id].color});
       leftUsed = true;
@@ -533,11 +558,13 @@ function updateLegend(param) {
   const rows = [];
   let L = null, Sv = null;
   for (const m of mounted) {
-    let v = null;
-    if (lastCrosshair) { const d = param.seriesData.get(m.series); v = d && d.value; }
-    else { const data = m.series.data(); v = data.length ? data[data.length - 1].value : null; }
+    if (m.kind === 'aux') continue;
+    let v = null, k = null;
+    if (lastCrosshair) { const d = param.seriesData.get(m.series); k = d; v = d && (m.candle ? d.close : d.value); }
+    else { const data = m.series.data(); k = data.length ? data[data.length - 1] : null; v = k ? (m.candle ? k.close : k.value) : null; }
     if (m.kind === 'long') L = v; if (m.kind === 'short') Sv = v == null ? null : Math.abs(v);
     rows.push(`<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${m.fmt(v)}</span></div>`);
+    if (m.candle && k) rows.push(`<div class="lg-row"><span class="lg-name">O ${price(k.open)} · H ${price(k.high)} · L ${price(k.low)}</span></div>`);
   }
   if (L != null && Sv != null && L + Sv > 0)
     rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).toFixed(0)}%</span></div>`);

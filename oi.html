@@ -194,6 +194,7 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
+        <button class="pill" id="cdl-btn" title="Cena BTC i ETH jako świece z knotami (Binance perp; tryb Wartości). Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
       </div>
@@ -212,6 +213,7 @@
   <div class="hint">
     Kliknij kafelek lub nazwę serii, żeby dodać ją do wykresu. Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
     Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
+    Cena BTC i ETH w trybie Wartości jest rysowana jako świece z knotami (Binance perp; dzienne od końca 2019 — wcześniej linia zamknięć; open = zamknięcie poprzedniej świecy). Przycisk „Świece” przełącza na linię.
   </div>
 </div>
 
@@ -302,7 +304,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, candles: true},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -315,6 +317,7 @@ function parseHash() {
   if (h.get('log')) o.log = h.get('log') === '1';
   if (h.get('lines')) o.levels = h.get('lines') !== '0';
   if (h.get('cyc')) o.cycle = h.get('cyc') === '1';
+  if (h.get('cdl')) o.candles = h.get('cdl') !== '0';
   return o;
 }
 function persist() {
@@ -323,6 +326,7 @@ function persist() {
   if (S.log) h.set('log', '1');
   if (!S.levels) h.set('lines', '0');
   if (S.cycle) h.set('cyc', '1');
+  if (!S.candles) h.set('cdl', '0');
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -552,11 +556,14 @@ bindPills('mode-pills', 'mode');
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
 document.getElementById('lvl-btn').addEventListener('click', () => { S.levels = !S.levels; refresh(); });
 document.getElementById('cyc-btn').addEventListener('click', () => { S.cycle = !S.cycle; refresh(); });
+document.getElementById('cdl-btn').addEventListener('click', () => { S.candles = !S.candles; refresh(); });
 function syncControls() {
   for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
   const val = S.mode === 'val';
   const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
+  const hasWicks = S.series.some(id => WICKS[id] && pts(S.res, id + '_hi').length);
+  const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.candles && val && hasWicks); kb.disabled = !val || !hasWicks;
   const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
   const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
   const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
@@ -702,6 +709,11 @@ function allocAxes(ids) {
   return out;
 }
 
+// ceny z knotami (px_*_hi / px_*_lo) → świece w trybie Wartości (przycisk „Świece”)
+const WICKS = {px_btc: true, px_eth: true};
+const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && pts(S.res, id + '_hi').length > 0;
+let aux = [];                                      // linia zamknięć sprzed pierwszego knota (bez własnego wpisu w legendzie)
+
 // dane serii do wykresu: CVD = suma narastająca od początku wybranego zakresu (przyciski 1T/1M/…; ALL = od początku)
 let cumFrom = 0;
 function seriesData(id) { return isCum(id) ? cumulate(pts(S.res, id), cumFrom) : pts(S.res, id); }
@@ -709,8 +721,8 @@ function drawChart(resetRange) {
   if (!chart) makeChart();
   const prevRange = chart.timeScale().getVisibleRange();
   for (const m of mounted) chart.removeSeries(m.series);
-  for (const b of bands) chart.removeSeries(b);
-  mounted = []; bands = [];
+  for (const b of bands.concat(aux)) chart.removeSeries(b);
+  mounted = []; bands = []; aux = [];
   while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
 
   const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
@@ -726,14 +738,29 @@ function drawChart(resetRange) {
     const c = CAT[id];
     const {pane, scale} = axes[id];
     used[pane + ':' + scale] = true;
-    const series = chart.addSeries(LWC.LineSeries, {
+    const pf = S.mode === 'val' || c.cum ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
+      : {type: 'price', precision: 2, minMove: 0.01};
+    const candle = asCandles(id);
+    const pc = candle ? priceCandles(seriesData(id), pts(S.res, id + '_hi'), pts(S.res, id + '_lo')) : null;
+    if (candle) {
+      const {candles, line} = pc;
+      if (line.length) {
+        const ls = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: scale, priceFormat: pf,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false}, pane);
+        ls.setData(line.concat(candles.length ? [[candles[0].time, candles[0].open]] : []).map(([t, v]) => ({time: t, value: v})));
+        aux.push(ls);
+      }
+    }
+    const series = candle ? chart.addSeries(LWC.CandlestickSeries, Object.assign({priceScaleId: scale, priceFormat: pf}, CANDLE_OPTS), pane)
+      : chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
       lastValueVisible: true, priceLineVisible: false,
       pointMarkersVisible: !!(shortInfo(id) && shortInfo(id).n <= 30),   // 1 punkt nie rysuje linii — pokaż kropki
       priceFormat: S.mode === 'val' || c.cum ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
         : {type: 'price', precision: 2, minMove: 0.01},
     }, pane);
-    series.setData(seriesData(id).map(([t, v]) => ({time: t, value: v})));
+    if (candle) series.setData(pc.candles);
+    else series.setData(seriesData(id).map(([t, v]) => ({time: t, value: v})));
     if (S.mode === 'val' && S.levels) {
       for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
         series.createPriceLine({price: +lv.level, color: c.color, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed,
@@ -746,7 +773,7 @@ function drawChart(resetRange) {
           axisLabelVisible: true, title: ln.label || ''});
       }
     }
-    mounted.push({id, series, pane, scale});
+    mounted.push({id, series, pane, scale, candle});
   }
   // scales
   const mode = S.mode === 'pct' ? LWC.PriceScaleMode.Percentage : S.mode === 'idx' ? LWC.PriceScaleMode.IndexedTo100
@@ -787,12 +814,14 @@ function drawChart(resetRange) {
 
 function updateLegend(param) {
   lastCrosshair = param && param.time ? param : null;
-  const rows = mounted.map(({id, series}) => {
+  const rows = mounted.map(({id, series, candle}) => {
     const c = CAT[id];
-    let v = null;
-    if (lastCrosshair) { const d = param.seriesData.get(series); v = d && d.value; }
+    let v = null, ohlc = null;
+    if (lastCrosshair) { const d = param.seriesData.get(series); v = d && (candle ? d.close : d.value); if (candle && d) ohlc = d; }
     if (v == null) { const a = seriesData(id); v = a.length ? a[a.length - 1][1] : null; }
+    if (candle && !lastCrosshair) { const a = series.data(); ohlc = a.length ? a[a.length - 1] : null; }
     let extra = '';
+    if (ohlc) extra = ` <span class="lg-short">O ${fmt(ohlc.open, fmtOf(c))} · H ${fmt(ohlc.high, fmtOf(c))} · L ${fmt(ohlc.low, fmtOf(c))}</span>`;
     if (S.mode !== 'val' && !c.cum) {
       const vr = chart.timeScale().getVisibleRange();
       const a = pts(S.res, id);
