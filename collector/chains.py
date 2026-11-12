@@ -8,18 +8,20 @@ Co robi (GitHub, workflow „Sieci” — osobno albo równolegle ze skanem prze
     punkt z bieżącej daty UTC jest pomijany (DefiLlama podaje w nim wartości z ostatnich 24 h, nie dzień w toku),
   • sieci spoza listy ze stablecoinami albo TVL ≥ `cand_min` ($20M): historia wolumenu DEX i stablecoinów,
     reguły „rośnie” (progi z sondy 12.11.2026 — na próbę):
-      – ruch:    wolumen DEX z 7 dni ÷ średni tydzień z 4 poprzednich ≥ `dex_ratio` (×3) przy 7 dniach ≥ `dex7_min`,
+      – ruch:    wolumen DEX z 7 dni ÷ średni tydzień z 4 poprzednich, podzielone przez to samo dla całego rynku,
+                 ≥ `dex_ratio` (×3) przy 7 dniach ≥ `dex7_min` (sieć rośnie 3× bardziej niż rynek),
       – kapitał: stablecoiny 30D ≥ `stable30` (+100%) przy stablecoinach ≥ `stable_min`,
       – nowa sieć: pierwsze dane ≤ `new_days` dni temu, a już DEX 7 dni ≥ `new_dex7` albo stablecoiny ≥ `new_stable`,
-    epizod = kolejne dni nad progiem (przerwa ≤ `gap_days` go nie kończy) → „nowa” / „dzień N”,
+    epizod = kolejne dni nad progiem liczone z historii (przerwa ≤ `gap_days` go nie kończy) → „nowa” / „dzień N”,
   • sprawdzanie, czy wartość z rana była kompletna: zapisuje wartości ostatniego pełnego dnia, a następnego dnia
     porównuje je z wartościami po korektach DefiLlama (lista `revisions`).
 
 Pliki (gałąź `chains`):
-  chains_1d.json    {"updated", "series": {"ch_<slug>_<dex|fees|stable|tvl>": [[t, v], …]}} — nasze sieci,
+  chains_1d.json    {"updated", "series": {"ch_<slug>_<dex|fees|stable|tvl>": [[t, v], …]}} — nasze sieci
+                    + cały rynek: ch_all_dex (wolumen DEX wszystkich sieci), ch_all_stable (wszystkie stablecoiny),
   chains.json       podsumowanie dla raportu i zakładki (ostatni pełny dzień, zmiany, udziały, „rośnie”, korekty),
   chains_other.json sieci spoza listy: ostatnie `other_days` dni wolumenu DEX i stablecoinów (bez klucza "series"),
-  state.json        epizody „rośnie”, wartości poranne do porównania.
+  state.json        wartości ostatniego pełnego dnia z poprzedniego przebiegu (do porównania z korektami).
 
     python collector/chains.py --data-dir DIR [--config collector/config.yaml]
 """
@@ -186,56 +188,84 @@ def change(pts, kind, end):
 
 
 def hist_rank(pts, kind, end, years=2):
-    """Miejsce wartości z dnia `end` w historii ostatnich `years` lat: percentyl 0–100 (przepływy: suma 7 dni)."""
+    """Miejsce wartości z dnia `end` w historii ostatnich `years` lat (przepływy: suma 7 dni):
+    → (percentyl 0–100, [data, minimum], [data, maksimum]) albo (None, None, None) przy zbyt krótkiej historii."""
     d = dict(map(tuple, pts))
     start = end - years * 365 * DAY
-    if kind in FLOW:
-        vals = [_sum(d, x - 6 * DAY, x) for x in range(start, end + DAY, DAY)]
+    if kind in FLOW:                     # tylko pełne tygodnie (7 dni z danymi) — luki i start sieci zaniżałyby minimum
+        full = lambda x: all(y in d for y in range(x - 6 * DAY, x + DAY, DAY))  # noqa: E731
+        vals = [(x, _sum(d, x - 6 * DAY, x)) for x in range(start, end + DAY, DAY) if full(x)]
         now = _sum(d, end - 6 * DAY, end)
     else:
-        vals = [d[x] for x in range(start, end + DAY, DAY) if x in d]
+        vals = [(x, d[x]) for x in range(start, end + DAY, DAY) if x in d]
         now = _at(d, end)
-    vals = [v for v in vals if v is not None]
+    vals = [(t, v) for t, v in vals if v is not None]
     if now is None or len(vals) < 30:
-        return None
-    return round(sum(1 for v in vals if v <= now) / len(vals) * 100, 1)
+        return None, None, None
+    lo, hi = min(vals, key=lambda p: p[1]), max(vals, key=lambda p: p[1])
+    return (round(sum(1 for _, v in vals if v <= now) / len(vals) * 100, 1),
+            [iso(lo[0]), round(lo[1], 2)], [iso(hi[0]), round(hi[1], 2)])
 
 
-def rising_check(name, dex, stable, end, cfg):
-    """→ dict z wynikiem reguł dla sieci spoza listy albo None. dex / stable: listy [[t, v]] (mogą być puste)."""
+def market_ratio(market, day):
+    """Wolumen DEX całego rynku: 7 dni ÷ średni tydzień z 4 poprzednich (None, gdy brak danych)."""
+    return change(market, "dex", day).get("ratio4w") if market else None
+
+
+def rising_check(name, dex, stable, end, cfg, market=None):
+    """→ dict z wynikiem reguł dla sieci spoza listy na dzień `end` albo None. dex / stable: listy [[t, v]].
+    market = wolumen DEX całego rynku ({dzień: wartość}) — ruch liczony WZGLĘDEM rynku: gdy cały rynek handluje
+    2× więcej (np. dzień wielkich likwidacji), sieć musi urosnąć 3× bardziej niż rynek, a nie 3× w ogóle
+    (bez tego 19–25.08.2026 próg przekroczyło naraz kilkanaście sieci)."""
     first = min([p[0][0] for p in (dex, stable) if p] or [end])
     cd = change(dex, "dex", end) if dex else {}
     cs = change(stable, "stable", end) if stable else {}
+    mr = market_ratio(market, end)
+    rel = (cd["ratio4w"] / mr if mr else cd["ratio4w"]) if cd.get("ratio4w") is not None else None
     kinds, strength = [], 0.0
-    if cd.get("ratio4w") is not None and (cd.get("s7") or 0) >= cfg["dex7_min"] and cd["ratio4w"] >= cfg["dex_ratio"]:
+    if rel is not None and (cd.get("s7") or 0) >= cfg["dex7_min"] and rel >= cfg["dex_ratio"]:
         kinds.append("dex")
-        strength = max(strength, cd["ratio4w"] / cfg["dex_ratio"])
+        strength = max(strength, rel / cfg["dex_ratio"])
     if cs.get("c30") is not None and (cs.get("v") or 0) >= cfg["stable_min"] and cs["c30"] >= cfg["stable30"]:
         kinds.append("stable")
         strength = max(strength, cs["c30"] / cfg["stable30"])
     age = (end - first) // DAY + 1
-    if age <= cfg["new_days"] and ((cd.get("s7") or 0) >= cfg["new_dex7"] or (cs.get("v") or 0) >= cfg["new_stable"]):
+    if 0 < age <= cfg["new_days"] and ((cd.get("s7") or 0) >= cfg["new_dex7"] or (cs.get("v") or 0) >= cfg["new_stable"]):
         kinds.append("new")
         strength = max(strength, 1.0 + max((cd.get("s7") or 0) / cfg["new_dex7"], (cs.get("v") or 0) / cfg["new_stable"]) / 10)
     if not kinds:
         return None
     return {"name": name, "kinds": kinds, "strength": round(strength, 3), "first_data": iso(first), "age_days": age,
-            "dex7": cd.get("s7"), "dex_ratio": cd.get("ratio4w"), "stable": cs.get("v"), "stable30": cs.get("c30")}
+            "dex7": cd.get("s7"), "dex_ratio": cd.get("ratio4w"), "dex_rel": round(rel, 3) if rel is not None else None,
+            "market_ratio": mr, "stable": cs.get("v"), "stable30": cs.get("c30")}
 
 
-def episodes(found, state, end, gap_days):
-    """Epizody „rośnie”: state = {nazwa: {"first": t, "last": t}} → dopisuje "since", "day_n", "new" do `found`."""
+def episode_start(name, dex, stable, end, cfg, max_days=365, market=None):
+    """Od kiedy trwa epizod „rośnie” — liczone z historii (nie od dnia, w którym zaczęliśmy zbierać dane):
+    cofamy się dzień po dniu; przerwa pod progiem dłuższa niż `gap_days` kończy epizod."""
+    dd = dict(map(tuple, dex)) if dex else {}
+    ss = dict(map(tuple, stable)) if stable else {}
+    since, below = end, 0
+    for k in range(1, max_days + 1):
+        day = end - k * DAY
+        if rising_check(name, [[t, v] for t, v in dd.items() if t <= day] if dd else [],
+                        [[t, v] for t, v in ss.items() if t <= day] if ss else [], day, cfg, market):
+            since, below = day, 0
+        else:
+            below += 1
+            if below > cfg["gap_days"]:
+                break
+    return since
+
+
+def episodes(found, series, end, cfg, market=None):
+    """Dopisuje do wyników "since" (od kiedy nad progiem), "day_n" i "new" (= pierwszy dzień epizodu)."""
     for r in found:
-        e = state.get(r["name"])
-        if not e or end - e["last"] > gap_days * DAY:
-            e = {"first": end, "last": end}
-        e["last"] = end
-        state[r["name"]] = e
-        r["since"] = iso(e["first"])
-        r["day_n"] = (end - e["first"]) // DAY + 1
-        r["new"] = e["first"] == end
-    for n in [n for n, e in state.items() if end - e["last"] > 60 * DAY]:      # porządek w stanie
-        del state[n]
+        dex, stable = series.get(r["name"], ([], []))
+        start = episode_start(r["name"], dex, stable, end, cfg, market=market)
+        r["since"] = iso(start)
+        r["day_n"] = (end - start) // DAY + 1
+        r["new"] = start == end
     return found
 
 
@@ -283,7 +313,7 @@ def run(data_dir, cfg, client=None, now=None):
     errors = []
 
     # 1) listy wszystkich sieci: stablecoiny i TVL teraz (do udziałów i wyboru kandydatów)
-    stable_now, tvl_now = {}, {}
+    stable_now, tvl_now, market_pts = {}, {}, {}
     try:
         for c in cl.get(f"{LL_ST}/stablecoinchains") or []:
             usd = c.get("totalCirculatingUSD") or {}
@@ -295,6 +325,19 @@ def run(data_dir, cfg, client=None, now=None):
             tvl_now[c.get("name")] = _num(c.get("tvl")) or 0
     except Exception as e:  # noqa: BLE001
         errors.append(f"lista TVL: {e}")
+
+    # 1b) cały rynek: wolumen DEX i stablecoiny wszystkich sieci (do reguły „względem rynku” i udziałów w czasie)
+    for sid, (url, params, kind) in {
+            "ch_all_dex": (f"{LL}/overview/dexs", {"excludeTotalDataChartBreakdown": "true"}, "dex"),
+            "ch_all_stable": (f"{LL_ST}/stablecoincharts/all", None, "stable")}.items():
+        try:
+            pts = points(cl.get(url, params), kind, today)
+            if not pts:
+                raise RuntimeError("pusta historia")
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"cały rynek {kind}: {e}")
+            pts = []
+        market_pts[sid] = pts
 
     # 2) nasze sieci
     series, ours = {}, []
@@ -318,11 +361,16 @@ def run(data_dir, cfg, client=None, now=None):
                 continue
             series[sid] = pts
             c = change(pts, kind, end)
-            c.update(first=iso(pts[0][0]), last=iso(pts[-1][0]), rank2y=hist_rank(pts, kind, end))
+            rk, lo, hi = hist_rank(pts, kind, end)
+            c.update(first=iso(pts[0][0]), last=iso(pts[-1][0]), rank2y=rk, min2y=lo, max2y=hi)
             row["m"][kind] = c
         ours.append(row)
-    for sid, pts in old.items():                   # sieć usunięta z listy — historia zostaje do ręcznego usunięcia
+    for sid, pts in market_pts.items():
+        if pts:
+            series[sid] = pts
+    for sid, pts in old.items():                   # sieć usunięta z listy / błąd rynku — historia zostaje
         series.setdefault(sid, pts)
+    market = dict(map(tuple, series.get("ch_all_dex") or [])) or None
 
     if not ok:
         raise RuntimeError("DefiLlama: żadna seria naszych sieci nie została pobrana — " + "; ".join(errors[:5]))
@@ -340,7 +388,7 @@ def run(data_dir, cfg, client=None, now=None):
             and max(stable_now.get(n, 0), tvl_now.get(n, 0)) >= cfg["cand_min"]]
     cand.sort(key=lambda n: -max(stable_now.get(n, 0), tvl_now.get(n, 0)))
     cand = cand[:cfg["max_cand"]]
-    other, found, fails = {}, [], []
+    other, found, fails, hist = {}, [], [], {}
     keep_from = end - cfg["other_days"] * DAY
     for n in cand:
         got = {}
@@ -351,14 +399,16 @@ def run(data_dir, cfg, client=None, now=None):
             except Exception:  # noqa: BLE001 — nazwa bywa tylko w jednej liście DefiLlama (np. dYdX)
                 got[kind] = []
                 fails.append(f"{n} ({kind})")
-        r = rising_check(n, got["dex"], got["stable"], end, cfg)
+        r = rising_check(n, got["dex"], got["stable"], end, cfg, market)
         if r:
             found.append(r)
+            hist[n] = (got["dex"], got["stable"])
         if got["dex"] or got["stable"]:
             other[n] = {k: [p for p in v if p[0] >= keep_from] for k, v in got.items() if v}
             other[n]["first"] = iso(min(v[0][0] for v in got.values() if v))
     found.sort(key=lambda r: -r["strength"])
-    found = episodes(found, state.setdefault("rising", {}), end, cfg["gap_days"])
+    found = episodes(found, hist, end, cfg, market)
+    state.pop("rising", None)
     shown = found[:cfg["max_rising"]]
 
     # 4) korekty DefiLlama (wartość z poprzedniego przebiegu vs po korektach)
@@ -369,6 +419,7 @@ def run(data_dir, cfg, client=None, now=None):
     summary = {
         "updated": int(now), "day": iso(end), "source": "DefiLlama",
         "chains": ours, "share": share,
+        "market": {k: change(series.get(f"ch_all_{k}") or [], k, end) for k in ("dex", "stable") if series.get(f"ch_all_{k}")},
         "rules": {k: cfg[k] for k in ("cand_min", "dex_ratio", "dex7_min", "stable30", "stable_min", "new_days",
                                       "new_dex7", "new_stable", "gap_days", "max_rising")},
         "candidates": len(cand), "rising": shown, "rising_all": len(found),

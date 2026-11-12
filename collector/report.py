@@ -57,6 +57,7 @@ import argparse
 import json
 import logging
 import os
+import statistics
 import sys
 import time
 from datetime import datetime, timezone
@@ -179,9 +180,13 @@ def zone_of(v, zones):
 class Data:
     """Series from the data branch: 1h + 1d (main and liq_ files), sorted [[t, v], ...]."""
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, chains_dir=None):
         self.meta = _read(os.path.join(data_dir, "meta.json"), {}) or {}
         self.alts = _read(os.path.join(data_dir, "alts.json"), {}) or {}     # alty według kapitalizacji (alts.py)
+        # sieci z DefiLlama (chains.py, gałąź chains) — podsumowanie dla raportu porannego
+        self.chains = (_read(os.path.join(chains_dir, "chains.json"), {}) or {}) if chains_dir else {}
+        self.chains_series = ((_read(os.path.join(chains_dir, "chains_1d.json"), {}) or {}).get("series") or {}) \
+            if chains_dir else {}
         self.catalog = self.meta.get("catalog", {})
         self.res = {"1h": {}, "1d": {}}
         self.updated = 0
@@ -929,6 +934,227 @@ def liq_section(d, L):
                      "Suma z Binance, Bybit i OKX (bez Hyperliquid) — dolne oszacowanie."}]
 
 
+# ── sieci (DefiLlama, chains.py — poprawka 49) ──────────────
+CHAIN_KINDS = {"dex": "ruch (wolumen DEX)", "stable": "kapitał (stablecoiny)", "new": "nowa sieć"}
+
+
+def chains_section(d, now):
+    """Raport poranny: nasze sieci za ostatni pełny dzień UTC + sieci spoza listy, które nagle rosną."""
+    ch = getattr(d, "chains", None) or {}
+    day_s = ch.get("day")
+    if not ch.get("chains") or not day_s:
+        return []
+    day = chains_fresh_day(ch, now)
+    if day is None:                                          # dane starsze niż przedwczoraj — nie pokazujemy jako „doby”
+        return [{"type": "section", "title": "Sieci — gdzie jest kapitał i ruch"},
+                {"type": "text", "title": "", "text": f"Dane sieci z DefiLlama są z {day_s[8:10]}.{day_s[5:7]} — nieświeże "
+                                                      "(workflow „Sieci” nie zadziałał?)."}]
+    usd = fmt_usd_short
+    share = {n: v for n, v in ((ch.get("share") or {}).get("rows") or [])}
+    mkt = ch.get("market") or {}
+    rows = []
+    md, ms = mkt.get("dex") or {}, mkt.get("stable") or {}
+    if md or ms:
+        tot = (ch.get("share") or {}).get("total") or ms.get("v")       # ta sama suma co w kolumnie „Udział”
+        rows.append(["Wszystkie sieci", usd(tot), fmt_chg(ms.get("c30")), "100%",
+                     usd(md.get("s7")), fmt_chg(md.get("c7")), "—", "—", "—", "—"])
+    order = sorted(ch["chains"], key=lambda c: -((((c.get("m") or {}).get("stable") or {}).get("v")) or 0))
+    for c in order:
+        m = c.get("m") or {}
+        st, dx, fe, tv = (m.get(k) or {} for k in ("stable", "dex", "fees", "tvl"))
+        rows.append([c["name"], usd(st.get("v")), fmt_chg(st.get("c30")),
+                     f"{share[c['name']]:.1f}%" if c["name"] in share else "—",
+                     usd(dx.get("s7")), fmt_chg(dx.get("c7")), usd(fe.get("s7")), fmt_chg(fe.get("c7")),
+                     usd(tv.get("v")), fmt_chg(tv.get("c30"))])
+    blocks = [{"type": "section", "title": "Sieci — gdzie jest kapitał i ruch"},
+              {"type": "table", "title": f"Sieci — doba {utc(day, '%d.%m')} (ostatni pełny dzień UTC)",
+               "cols": ["Sieć", "Stablecoiny", "30 dni", "Udział", "Wolumen DEX — 7 dni", "vs poprzednie 7 dni",
+                        "Opłaty — 7 dni", "vs poprzednie 7 dni", "TVL", "30 dni"],
+               "rows": rows, "left": [0],
+               "desc": "Stablecoiny na sieci = dolary gotowe do wydania (gdzie leży kapitał). Wolumen DEX = ile handlowano "
+                       "na giełdach zdecentralizowanych tej sieci (gdzie jest ruch). Opłaty = ile użytkownicy zapłacili "
+                       "za korzystanie z sieci — najtrudniej je napompować. TVL = wartość zablokowana w aplikacjach, "
+                       "rusza się razem z cenami coinów. Przepływy (DEX, opłaty) liczymy z 7 dni, bo pojedynczy dzień "
+                       "bywa przypadkowy.",
+               "note": "Udział = część wszystkich stablecoinów, która leży na danej sieci. „Wszystkie sieci” = suma z "
+                       "DefiLlama. Kolejność według stablecoinów. Źródło: DefiLlama (stablecoiny: stablecoins.llama.fi; "
+                       "DEX i opłaty: adaptery protokołów). " + revisions_note(ch, day)}]
+    items = []
+    events = [e for e in ((getattr(d, "meta", None) or {}).get("cycle_marks") or {}).get("events") or []
+              if e.get("kind") in ("top", "bottom") and day - 730 * DAY <= int(e.get("t") or 0) <= day]
+    series = getattr(d, "chains_series", None) or {}
+    for c in order:
+        dx = (c.get("m") or {}).get("dex") or {}
+        pts = series.get(f"ch_{c.get('slug')}_dex") or []
+        v = dx.get("s7")
+        wk = dex_weeks(pts, day)
+        if wk and wk[-1][0] == day:          # ta sama suma 7 dni co minimum i maksimum paska
+            v = wk[-1][1]
+        if v is None or len(wk) < 30:
+            continue
+        lo, hi = min(w for _, w in wk), max(w for _, w in wk)
+        pos = log_pos(lo, hi)
+        rk = sum(1 for _, w in wk if w <= v) / len(wk) * 100
+        sub = ("najniżej w 2 latach" if v <= lo else "najwyżej w 2 latach" if v >= hi
+               else f"wyżej niż w {rk:.0f}% tygodni z 2 lat")
+        first = utc(min(p[0] for p in pts), "%Y-%m-%d")
+        items.append({"label": c["name"], "value": usd(v), "sub": sub,
+                      "pos": pos(v), "marks": dex_marks(wk, day, events, pos),
+                      "note": (f"Dane od {first[8:10]}.{first[5:7]}.{first[:4]} — krótsza historia niż 2 lata "
+                               "(pierwsze 30 dni pomijamy: sieć dopiero startowała)."
+                               if first > utc(day - 730 * DAY, "%Y-%m-%d") else all_time_note(pts, day, hi))})
+    if items:
+        blocks.append({"type": "ranges", "title": "Wolumen DEX z 7 dni na tle 2 lat", "items": items,
+                       "desc": "Gdzie jest dziś ruch na każdej sieci w porównaniu z jej własnymi ostatnimi 2 latami: "
+                               "lewy koniec paska = najspokojniejszy tydzień, prawy = najbardziej ruchliwy; skala "
+                               "logarytmiczna (ta sama odległość = ten sam mnożnik, np. 2× więcej). Kreski: "
+                               "żółta = najlepszy tydzień sieci, fioletowa = najgorszy, szara = zwykły tydzień (mediana "
+                               "2 lat), czerwona = tydzień szczytu BTC, zielona = tydzień dna BTC (daty i wartości pod paskiem).",
+                       "note": "Sieci z krótszą historią (np. Robinhood Chain) porównujemy z tym, co jest. "
+                               "Wolumen w dolarach — rośnie też wtedy, gdy rosną ceny coinów."})
+    blocks += rising_block(ch)
+    return blocks
+
+
+def dex_weeks(pts, day):
+    """Tygodnie (suma 7 dni) z ostatnich 2 lat: tylko pełne (7 dni z danymi), bez pierwszych 30 dni danych sieci
+    (start sieci, np. Robinhood Chain przed 07.2026) → [(dzień końca tygodnia, suma)]."""
+    d = dict(map(tuple, pts))
+    if not d:
+        return []
+    start = max(day - 730 * DAY, min(d) + 30 * DAY)
+    out = []
+    for x in range(start, day + DAY, DAY):
+        vals = [d.get(x - k * DAY) for k in range(7)]
+        if None not in vals:
+            out.append((x, sum(vals)))
+    return out
+
+
+def log_pos(lo, hi):
+    """Pozycja na pasku 0–100 w skali logarytmicznej (ta sama odległość = ten sam mnożnik): wolumen sieci waha się
+    o rzędy wielkości (TON: $11,6M – $505M), w skali liniowej jeden rekordowy tydzień ściskał resztę przy lewym brzegu."""
+    import math
+    if lo <= 0 or hi <= lo:
+        span = (hi - lo) or 1
+        return lambda v: round(max(0.0, min(100.0, (v - lo) / span * 100)), 1)
+    a, b = math.log(lo), math.log(hi)
+    return lambda v: round(max(0.0, min(100.0, (math.log(max(v, lo)) - a) / (b - a) * 100)), 1)
+
+
+def dex_marks(wk, day, events, pos):
+    """Kreski na pasku DEX (wk = dex_weeks): najlepszy i najgorszy tydzień sieci, mediana 2 lat,
+    tydzień szczytu / dna BTC (meta.cycle_marks) w tym oknie — z datami i wartościami (wypisane pod paskiem)."""
+    if len(wk) < 30:
+        return []
+    by = dict(wk)
+    (bt, bv), (wt, wv) = max(wk, key=lambda p: p[1]), min(wk, key=lambda p: p[1])
+    out = [{"pos": pos(bv), "kind": "best", "label": f"najlepszy tydzień {utc(bt - 6 * DAY, '%d.%m')}–{utc(bt, '%d.%m.%Y')}: {fmt_usd_short(bv)}"},
+           {"pos": pos(wv), "kind": "worst", "label": f"najgorszy tydzień {utc(wt - 6 * DAY, '%d.%m')}–{utc(wt, '%d.%m.%Y')}: {fmt_usd_short(wv)}"},
+           {"pos": pos(statistics.median(by.values())), "label": "mediana 2 lat"}]
+    for e in events:
+        t = int(e["t"]) - int(e["t"]) % DAY
+        if t not in by:                  # sieć jeszcze nie działała / niepełny tydzień — bez kreski
+            continue
+        what = "szczyt" if e["kind"] == "top" else "dno"
+        out.append({"pos": pos(by[t]), "kind": e["kind"], "label": f"{what} BTC {utc(t, '%d.%m.%Y')}: {fmt_usd_short(by[t])}"})
+    return out
+
+
+def all_time_note(pts, day, best2y):
+    """Gdy najlepszy tydzień w całej historii sieci był ponad 2 lata temu — dopisek pod paskiem (poza skalą paska)."""
+    d = dict(map(tuple, pts))
+    if not d:
+        return ""
+    best = None
+    for x in sorted(d):
+        if x > day - 730 * DAY:
+            break
+        vals = [d.get(x - k * DAY) for k in range(7)]
+        if None not in vals and (best is None or sum(vals) > best[1]):
+            best = (x, sum(vals))
+    if not best or best[1] <= best2y:
+        return ""
+    return (f"Najlepszy tydzień w całej historii (od {utc(min(d), '%m.%Y')}): {utc(best[0] - 6 * DAY, '%d.%m')}–"
+            f"{utc(best[0], '%d.%m.%Y')}, {fmt_usd_short(best[1])} — {best[1] / best2y:.1f}× więcej niż najlepszy tydzień z 2 lat.")
+
+
+def chains_fresh_day(ch, now):
+    """Dzień danych sieci (00:00 UTC), gdy nie starszy niż przedwczoraj; inaczej None."""
+    try:
+        day = int(datetime.strptime(ch.get("day") or "", "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return None
+    return day if day >= int(now) - int(now) % DAY - 2 * DAY else None
+
+
+def chains_alert(d, now):
+    """Linia do powiadomienia na Telegram: tylko w dniu, gdy sieć spoza listy pierwszy raz przekroczyła próg."""
+    ch = getattr(d, "chains", None) or {}
+    new = ch.get("new_today") or []
+    if not new or not chains_fresh_day(ch, now):
+        return ""
+    return ("Nowa sieć rośnie: " if len(new) == 1 else "Nowe sieci rosną: ") + ", ".join(new)
+
+
+def revisions_note(ch, day):
+    """Ile DefiLlama poprawiła wartości poprzedniego dnia między przebiegami (sprawdzanie kompletności danych rano)."""
+    prev = utc(day - DAY, "%Y-%m-%d")
+    rev = [r for r in ch.get("revisions") or [] if r.get("day") == prev and r.get("diff_pct") is not None]
+    if not rev:
+        return ""
+    worst = {}
+    for r in rev:
+        k = r["sid"].rsplit("_", 1)[1]
+        worst[k] = max(worst.get(k, 0), abs(r["diff_pct"]))
+    names = {"dex": "DEX", "fees": "opłaty", "stable": "stablecoiny"}
+    return (f"Wczorajsze wartości ({utc(day - DAY, '%d.%m')}) DefiLlama poprawiła potem najwyżej o: "
+            + ", ".join(f"{names.get(k, k)} {v:.1f}%" for k, v in sorted(worst.items())) + ".")
+
+
+def rising_block(ch):
+    rules = ch.get("rules") or {}
+    rule_txt = (f"Progi (na próbę): wolumen DEX z 7 dni co najmniej ×{rules.get('dex_ratio', 3):g} średniego tygodnia z 4 "
+                f"poprzednich — w porównaniu z całym rynkiem (gdy cały rynek handluje 2× więcej, sieć musi urosnąć 6×) — przy "
+                f"7 dniach ≥ {fmt_usd_short(rules.get('dex7_min'))}; stablecoiny +{rules.get('stable30', 100):g}% w 30 dni przy "
+                f"≥ {fmt_usd_short(rules.get('stable_min'))}; nowa sieć: dane od najwyżej {rules.get('new_days', 35)} dni, a już "
+                f"DEX ≥ {fmt_usd_short(rules.get('new_dex7'))} tygodniowo albo stablecoiny ≥ {fmt_usd_short(rules.get('new_stable'))}. "
+                f"Sprawdzamy {ch.get('candidates', '?')} sieci spoza listy ze stablecoinami albo TVL ≥ "
+                f"{fmt_usd_short(rules.get('cand_min'))}. ")
+    traps = ("Uwaga: wolumen bywa napompowany (farming pod airdrop, nagrody za handel, handel sam ze sobą), a jeden duży "
+             "mint stablecoina daje skok bez nowych użytkowników — sieć, na której rośnie i wolumen, i stablecoiny, mówi więcej.")
+    rising = ch.get("rising") or []
+    if not rising:
+        return [{"type": "text", "title": "Sieci spoza listy, które rosną",
+                 "text": "Dziś żadna sieć spoza naszej listy nie przekroczyła progów. " + rule_txt}]
+    rows = []
+    for r in rising:
+        what, size = [], []
+        if "dex" in r["kinds"] and r.get("dex_ratio") is not None:
+            mr = f"; cały rynek ×{r['market_ratio']:.2f}" if r.get("market_ratio") else ""
+            what.append(f"wolumen DEX ×{r['dex_ratio']:.1f} zwykłego tygodnia{mr}")
+        if "stable" in r["kinds"]:
+            what.append(f"stablecoiny {fmt_chg(r.get('stable30'))} w 30 dni")
+        if "new" in r["kinds"]:
+            what.append(f"dane od {r.get('age_days')} dni")
+        if r.get("dex7"):
+            size.append(f"DEX 7 dni {fmt_usd_short(r.get('dex7'))}")
+        if r.get("stable") is not None:
+            size.append(f"stablecoiny {fmt_usd_short(r.get('stable'))}")
+        mark = "nowa" if r.get("new") else f"dzień {r.get('day_n')}"
+        rows.append([r["name"], ", ".join(CHAIN_KINDS[k] for k in r["kinds"]), "; ".join(what), "; ".join(size),
+                     f"{mark} (od {r['since'][8:10]}.{r['since'][5:7]})", r.get("first_data", "")[:7].replace("-", ".")])
+    more = (ch.get("rising_all") or 0) - len(rising)
+    return [{"type": "table", "title": "Sieci spoza listy, które rosną", "plain": True,
+             "cols": ["Sieć", "Co rośnie", "Ile", "Wielkość", "Od kiedy nad progiem", "Dane od"],
+             "rows": rows, "left": [0, 1, 2, 3],
+             "desc": "Sieci, których nie śledzimy, a na których nagle pojawił się ruch albo kapitał. „Nowa” = pierwszy dzień "
+                     "nad progiem; „dzień N” = od ilu dni sieć jest nad progiem (krótkie spadki pod próg do 14 dni nie przerywają). "
+                     "Jeśli sieć się utrzyma, można ją dopisać do listy w config.yaml.",
+             "note": rule_txt + (f"Nad progiem jest jeszcze {more} sieci (pokazujemy najsilniejsze). " if more > 0 else "") + traps}]
+
+
+
 def ema_near_section(ema, L):
     near_pct, min_vol = float(L["ema_near_pct"]), float(L["ema_min_volume"])
     blocks = [{"type": "section", "title": "EMA200 — coiny blisko średniej"}]
@@ -956,11 +1182,12 @@ def ema_near_section(ema, L):
                               + (f" I jeszcze {more} — zakładka EMA200." if more > 0 else "")}]
 
 
-def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
-    """macro: {"events": [...], "error": str|None} from econ.fetch (None = section left out)."""
+def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None, chains_dir=None):
+    """macro: {"events": [...], "error": str|None} from econ.fetch (None = section left out).
+    chains_dir: gałąź chains (sieci z DefiLlama) — sekcja „Sieci” w raporcie porannym i na żądanie."""
     now = int(now or time.time())
     L = layout(cfg)
-    d = Data(data_dir)
+    d = Data(data_dir, chains_dir)
     ema = _read(os.path.join(ema_dir, "ema.json")) if ema_dir else None
     import cycle as C
     C.configure(cfg or {})                              # halvingi: kod + config.yaml cycle.halvings
@@ -1018,6 +1245,7 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
         blocks += der
         blocks += cvd_section(d, now, cfg, table=not merged)
         blocks += liq_section(d, L)
+    blocks += chains_section(d, now)
     blocks += ema_near_section(ema, L)
 
     parts = []
@@ -1030,10 +1258,15 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None):
         parts.append(f"szerokość rynku {bn:.0f}%")
     summary = " · ".join(parts)
 
-    return {"id": utc(now, "%Y%m%d-%H%M") + "-" + kind, "kind": kind, "layout": 2,
-            "title": KIND_TITLES.get(kind, "Raport"), "created": now, "summary": summary,
-            "sources": {"data_updated": d.updated or None, "ema_updated": ema_upd or None},
-            "blocks": blocks}
+    out = {"id": utc(now, "%Y%m%d-%H%M") + "-" + kind, "kind": kind, "layout": 2,
+           "title": KIND_TITLES.get(kind, "Raport"), "created": now, "summary": summary,
+           "sources": {"data_updated": d.updated or None, "ema_updated": ema_upd or None,
+                       "chains_updated": (d.chains or {}).get("updated")},
+           "blocks": blocks}
+    alert = chains_alert(d, now)
+    if alert:
+        out["alert"] = alert
+    return out
 
 
 # ── text version for AI agents (markdown) ───────────────────
@@ -1209,7 +1442,7 @@ def save(out_dir, rep, keep=120, md=None, page_url="", keep_periodic=60):
     Weekly and monthly: at most `keep_periodic` of each, latest-weekly.md/.json and latest-monthly.md/.json."""
     idx = _read(os.path.join(out_dir, "index.json"), {}) or {}
     items = [r for r in idx.get("reports") or [] if r.get("id") != rep["id"]]
-    items.insert(0, {k: rep[k] for k in ("id", "kind", "title", "created", "summary")})
+    items.insert(0, {k: rep[k] for k in ("id", "kind", "title", "created", "summary", "alert") if k in rep})
     items.sort(key=lambda r: r.get("created") or 0, reverse=True)
     kept, count = [], {}
     for it in items:
@@ -1307,6 +1540,8 @@ def notify_text(entry, page_url):
     lines = [head, pl_time(entry["created"])]
     if entry.get("summary"):
         lines.append(entry["summary"])
+    if entry.get("alert"):                  # np. „Nowa sieć rośnie: X” — tylko w dniu, gdy się pojawi
+        lines.append(f"🆕 {entry['alert']}")
     lines += ["", f'<a href="{link}">Otwórz raport</a>']
     return "\n".join(lines)
 
@@ -1334,6 +1569,7 @@ def main(argv=None):
     ap.add_argument("--id", default="", help="delete: id raportu (kilka po przecinku)")
     ap.add_argument("--data", default="data-branch", help="katalog z gałęzią data")
     ap.add_argument("--ema", default="ema-branch", help="katalog z gałęzią ema")
+    ap.add_argument("--chains", default="chains-branch", help="katalog z gałęzią chains (sieci z DefiLlama)")
     ap.add_argument("--out", default="reports-branch", help="katalog z gałęzią reports")
     ap.add_argument("--kind", default="test",
                     help="rodzaj raportu: " + ", ".join(sorted(KIND_TITLES)) + ", adhoc:<nazwa> (raport specjalny, "
@@ -1365,7 +1601,7 @@ def main(argv=None):
             macro = macro_for(kind, cfg)
             if kind in ("morning", "evening") and macro is not None:   # każda publikacja tylko w jednym raporcie
                 macro["since"] = last_created(a.out, "evening" if kind == "morning" else "morning", time.time())
-            rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro)
+            rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro, chains_dir=a.chains)
             save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page,
                  keep_periodic=int(cfg["keep_periodic"]))
             made.append(rep["id"])
