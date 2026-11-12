@@ -58,8 +58,12 @@ class TradingView:
             header=["Origin: https://www.tradingview.com"],
         )
 
-    def bars(self, symbol, interval="60", n_bars=5000):
-        """Return [(t, close)] — interval '60' = 1h, '1D' = daily."""
+    def ohlc_bars(self, symbol, interval="1D", n_bars=20000):
+        """[(t, (open, high, low, close))] — knoty (poprawka 56)."""
+        return self.bars(symbol, interval, n_bars, ohlc=True)
+
+    def bars(self, symbol, interval="60", n_bars=5000, ohlc=False):
+        """Return [(t, close)] — interval '60' = 1h, '1D' = daily; ohlc=True → [(t, (open, high, low, close))]."""
         ws = self._open()
         cs = _rand("cs_")
         try:
@@ -93,7 +97,7 @@ class TradingView:
                         for b in s1.get("s", []) or []:
                             v = b.get("v") or []
                             if len(v) >= 5:
-                                bars[int(v[0])] = float(v[4])
+                                bars[int(v[0])] = (tuple(float(x) for x in v[1:5]) if ohlc else float(v[4]))
                     elif m in ("symbol_error", "series_error", "critical_error", "protocol_error"):
                         raise TradingViewError(f"{symbol}: {m} {msg.get('p')}")
                     elif m == "series_completed":

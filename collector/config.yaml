@@ -371,6 +371,11 @@ history:
     oi_btc_binance: BTCUSDT
     oi_eth_binance: ETHUSDT
   vision_max_minutes: 25     # limit czasu na archiwum w jednym skanie (resztę dobierze następny)
+  # świece 1h BTC/ETH od 08.2017 z archiwum Binance spot → osobne pliki px_1h_btc.json / px_1h_eth.json (poprawka 56)
+  spot_1h:
+    px_btc: BTCUSDT
+    px_eth: ETHUSDT
+  spot_1h_start: "2017-08-01"
 
 # ─────────────────────────────────────────────────────────────
 #  CYKL BTC i MAKRO (poprawka 29, collector/cycle.py) — serie do nakładania w zakładce OI & TOTAL

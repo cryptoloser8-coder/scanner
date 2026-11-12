@@ -35,6 +35,8 @@ def series_points(path):
             obj = json.load(f)
     except (OSError, ValueError):
         return None
+    if isinstance(obj, dict) and isinstance(obj.get("c"), list) and obj.get("step"):   # px_1h_*.json (poprawka 56)
+        return sum(1 for v in obj["c"] if v is not None)
     s = obj.get("series") if isinstance(obj, dict) else None
     if not isinstance(s, dict):
         return None
