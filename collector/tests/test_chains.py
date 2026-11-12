@@ -44,6 +44,8 @@ class Fake:
         name = u.rsplit("/", 1)[1]
         if any(f in u for f in self.fail):
             return Resp("err", 500 if "500" in str(self.fail) else 404)
+        if u.endswith("/overview/dexs"):                               # cały rynek: płasko
+            return Resp(flow(3e9))
         if u.endswith("/stablecoinchains"):
             return Resp([{"name": n, "totalCirculatingUSD": {"peggedUSD": v}} for n, v in
                          (("Ethereum", 1.3e11), ("Solana", 1.4e10), ("Boom", 3e7), ("Cash", 5e8), ("Fresh", 5e7),
@@ -99,7 +101,8 @@ def test_run_files_ours_and_share(tmp_path):
     files = sorted(os.listdir(tmp_path))
     assert files == ["chains.json", "chains_1d.json", "chains_other.json", "state.json"]
     ser = json.load(open(tmp_path / "chains_1d.json"))["series"]
-    assert set(ser) == {f"ch_{c}_{m}" for c in ("ethereum", "solana") for m in chains.METRICS}
+    assert set(ser) == {f"ch_{c}_{m}" for c in ("ethereum", "solana") for m in chains.METRICS} | {"ch_all_dex", "ch_all_stable"}
+    assert s["market"]["dex"]["ratio4w"] == 1.0
     assert ser["ch_ethereum_dex"][-1][0] == END                       # bez punktu z bieżącej daty
     eth = s["chains"][0]
     assert eth["slug"] == "ethereum" and eth["m"]["dex"]["v"] == 1e9 and eth["m"]["dex"]["c7"] == 0
@@ -108,30 +111,38 @@ def test_run_files_ours_and_share(tmp_path):
     assert s["share"]["rows"][0][0] == "Ethereum" and s["share"]["rest"] > 0 and s["day"] == chains.iso(END)
 
 
-def test_rising_rules_and_new_today(tmp_path):
+def test_rising_rules_and_episode_from_history(tmp_path):
     s, _ = run(tmp_path)
     by = {r["name"]: r for r in s["rising"]}
     assert set(by) == {"Boom", "Cash", "Fresh"}                       # Calm bez zmian, Tiny za mała
-    assert by["Boom"]["kinds"] == ["dex"] and by["Boom"]["dex_ratio"] == 5.0
+    assert by["Boom"]["kinds"] == ["dex"] and by["Boom"]["dex_ratio"] == 5.0 and by["Boom"]["dex_rel"] == 5.0
     assert by["Cash"]["kinds"] == ["stable"] and by["Cash"]["stable30"] == 150.0
     assert by["Fresh"]["kinds"] == ["new"] and by["Fresh"]["age_days"] == 10
-    assert all(r["new"] and r["day_n"] == 1 for r in s["rising"]) and set(s["new_today"]) == set(by)
+    # epizod liczony z historii, nie od pierwszego przebiegu: Boom ≥ ×3 od 4 dni (≥ 4 dni „boomu” w oknie 7 dni),
+    # Cash od 20 dni (stablecoiny ×2,5), Fresh od pierwszego dnia danych
+    assert {n: r["day_n"] for n, r in by.items()} == {"Boom": 4, "Cash": 20, "Fresh": 10}
+    assert by["Boom"]["since"] == chains.iso(END - 3 * DAY) and s["new_today"] == []
     assert s["candidates"] == 4 and s["rising"][0]["name"] == "Boom"   # siła: ×5 ÷ ×3 = 1,67 > +150% ÷ +100% = 1,5
     other = json.load(open(tmp_path / "chains_other.json"))["other"]
     assert "Boom" in other and len(other["Boom"]["dex"]) <= CFG["other_days"] + 1
 
 
-def test_episode_continues_and_ends():
-    st = {}
-    r = [{"name": "X"}]
-    chains.episodes(r, st, END, 14)
-    assert r[0]["new"] and r[0]["day_n"] == 1
-    r = [{"name": "X"}]
-    chains.episodes(r, st, END + 5 * DAY, 14)                         # przerwa 4 dni — ten sam epizod
-    assert not r[0]["new"] and r[0]["day_n"] == 6 and r[0]["since"] == chains.iso(END)
-    r = [{"name": "X"}]
-    chains.episodes(r, st, END + 30 * DAY, 14)                        # przerwa > 14 dni — nowy epizod
-    assert r[0]["new"] and r[0]["day_n"] == 1
+def test_dex_rule_is_relative_to_market():
+    dex = [[END - k * DAY, 2e6 * (5 if k < 7 else 1)] for k in range(60, -1, -1)]
+    assert chains.rising_check("X", dex, [], END, CFG)["dex_rel"] == 5.0          # bez rynku: ×5
+    market = {END - k * DAY: 1e9 * (2 if k < 7 else 1) for k in range(60, -1, -1)}  # cały rynek ×2
+    assert chains.rising_check("X", dex, [], END, CFG, market) is None             # ×5 ÷ ×2 = 2,5 < 3
+
+
+def test_episode_start_gap_and_new():
+    cfg = dict(CFG)
+    base = [[END - k * DAY, 1e8] for k in range(200, -1, -1)]
+    # stablecoiny ×3 od 5 dni → epizod od 5 dni; dziś pierwszy dzień → new
+    st = [[t, v * (3 if t >= END - 4 * DAY else 1)] for t, v in base]
+    assert chains.episode_start("X", [], st, END, cfg) == END - 4 * DAY
+    st1 = [[t, v * (3 if t >= END else 1)] for t, v in base]
+    r = chains.episodes([{"name": "X"}], {"X": ([], st1)}, END, cfg)[0]
+    assert r["new"] and r["day_n"] == 1
 
 
 def test_second_day_revisions_and_day_n(tmp_path):
@@ -141,7 +152,7 @@ def test_second_day_revisions_and_day_n(tmp_path):
     assert rev and all(r["day"] == chains.iso(END) for r in rev)
     assert {r["sid"] for r in rev} >= {"ch_ethereum_dex", "ch_solana_stable"} and all(r["diff_pct"] == 0 for r in rev)
     days = {r["name"]: r["day_n"] for r in s["rising"]}
-    assert days == {"Boom": 2, "Cash": 2, "Fresh": 2} and s["new_today"] == []      # te same epizody, dzień 2
+    assert days == {"Boom": 5, "Cash": 21, "Fresh": 11} and s["new_today"] == []
 
 
 def test_failure_keeps_old_history(tmp_path):
