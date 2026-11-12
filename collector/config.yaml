@@ -93,6 +93,30 @@ alts:
                                  # 20 = przed raportem wieczornym; więcej godzin = więcej zapytań
   metas: true                    # narracje z DexScreenera
 
+chains:
+  # Sieci (poprawka 48): DefiLlama, raz na dobę (workflow „Sieci”, równolegle ze skanem przed raportem porannym).
+  # Lista naszych sieci — nazwy dokładnie jak w DefiLlama; coin = cena do porównania w zakładce (opcjonalnie).
+  enabled: true
+  list:
+    - {name: Ethereum, coin: ETH}
+    - {name: Robinhood Chain}
+    - {name: Solana, coin: SOL}
+    - {name: BSC, coin: BNB}
+    - {name: TON, coin: TON}
+    - {name: Base}
+    - {name: Tron, coin: TRX}
+    - {name: Hyperliquid L1, coin: HYPE}
+  # „Sieć spoza listy rośnie” — progi na próbę (sonda 12.11.2026: DEX p95 ×2,52 / p99 ×7,23; stablecoiny 30D p95 +61% / p99 +409%)
+  cand_min: 20000000      # sprawdzamy sieci ze stablecoinami albo TVL ≥ $20M
+  dex_ratio: 3.0          # wolumen DEX z 7 dni ÷ średni tydzień z 4 poprzednich
+  dex7_min: 10000000      #   … przy wolumenie z 7 dni ≥ $10M
+  stable30: 100           # stablecoiny na sieci +100% w 30 dni
+  stable_min: 20000000    #   … przy stablecoinach ≥ $20M
+  new_days: 35            # nowa sieć: dane od najwyżej 35 dni, a już DEX 7 dni ≥ new_dex7 albo stablecoiny ≥ new_stable
+  new_dex7: 10000000
+  new_stable: 20000000
+  max_rising: 5           # najwyżej tyle sieci w raporcie
+
 tradingview:
   # Serie CRYPTOCAP z TradingView (te same wartości co na wykresach TV).
   symbols:
