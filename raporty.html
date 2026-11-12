@@ -563,15 +563,23 @@ function drawChart(b, i) {
     chart.priceScale('bands').applyOptions({scaleMargins: {top: 0, bottom: 0}, visible: false});
   }
   for (const s of b.series) {
-    const ser = chart.addSeries(LWC.LineSeries, {
-      color: s.color, lineWidth: s.width || 2, lineStyle: s.dash ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, priceScaleId: s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right',
-      priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)},
+    const scaleId = s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right';
+    const pf = {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)};
+    // świece (poprawka 58): s.ohlc = [[t, open, high, low, close]]; s.data (zamknięcia) zostaje dla tła okresów i wersji dla AI
+    const ser = s.ohlc && s.ohlc.length
+      ? chart.addSeries(LWC.CandlestickSeries, {upColor: '#4caf7d', downColor: '#e05252', borderUpColor: '#4caf7d',
+          borderDownColor: '#e05252', wickUpColor: '#4caf7d', wickDownColor: '#e05252', priceScaleId: scaleId, priceFormat: pf,
+          lastValueVisible: s.scale !== 'hidden', priceLineVisible: false})
+      : chart.addSeries(LWC.LineSeries, {
+      color: s.color, lineWidth: s.width || 2, lineStyle: s.dash ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, priceScaleId: scaleId,
+      priceFormat: pf,
       lastValueVisible: s.scale !== 'hidden', priceLineVisible: false,
     });
     if (s.scale === 'hidden') chart.priceScale('hidden').applyOptions({scaleMargins: {top: 0.08, bottom: 0.08}});
     if (b.range) chart.priceScale('right').applyOptions({scaleMargins: {top: 0.04, bottom: 0.04}});
     if (b.range) ser.applyOptions({autoscaleInfoProvider: () => ({priceRange: {minValue: b.range[0], maxValue: b.range[1]}})});
-    ser.setData(s.data.map(([t, v]) => ({time: days ? DAY0 + t * 86400 : t, value: v})));
+    if (s.ohlc && s.ohlc.length) ser.setData(s.ohlc.map(([t, o, h, l, c]) => ({time: t, open: o, high: h, low: l, close: c})));
+    else ser.setData(s.data.map(([t, v]) => ({time: days ? DAY0 + t * 86400 : t, value: v})));
     if (s === b.series[0] && (b.markers || []).length && LWC.createSeriesMarkers) {   // strzałki / punkty na pierwszej serii
       const SH = {up: 'arrowUp', down: 'arrowDown'};
       LWC.createSeriesMarkers(ser, b.markers.map(m => ({time: days ? DAY0 + m.t * 86400 : m.t,
