@@ -276,7 +276,7 @@ def btc_weekly_mas(d, t_end):
              "desc": "Gdzie jest zamknięcie tygodnia BTC względem średnich z 20, 50 i 200 tygodni (zwykłe średnie z "
                      "zamknięć tygodni). Długo nad średnimi = trend wzrostowy, pod = spadkowy.",
              "note": f"Zamknięcie tygodnia: {R.fmt_price(vals[-1])} ({R.utc(wk[-1][0], '%d.%m.%Y')})."},
-            {"type": "chart", "title": "BTC i średnie tygodniowe — od 2011", "log": True, "series": series,
+            {"type": "chart", "title": "BTC i średnie tygodniowe — od 2011", "log": True, "series": series, "view": 1095,
              "desc": "Świece tygodniowe BTC (poniedziałek–niedziela UTC, skala logarytmiczna) ze średnimi 20, 50 i 200 tygodni "
                      "z zamknięć tygodni. Knoty z dziennych świec: do 2019–2020 indeks TradingView, potem Binance perp."}]
 

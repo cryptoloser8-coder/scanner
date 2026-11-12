@@ -14,7 +14,8 @@ reports branch:
 Blocks (generic, rendered by raporty.html — the report layout lives only in this file):
   {"type": "text",  "title", "text"}
   {"type": "facts", "title", "items": [{"label", "value", "sub", "zone", "note"}]}   zone: green|yellow|red|None
-  {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...]}]}
+  {"type": "chart", "title", "note", "log", "range" (optional [min, max]), "view" (optional: days shown at start, default all),
+   "series": [{"name", "color", "fmt", "scale", "data": [[t, v], ...], "ohlc" (optional: [[t, o, h, l, c], ...] = candles)}]}
   {"type": "table", "title", "note", "cols": [...], "rows": [[...], ...], "plain" (optional: no +/− colours),
                    "left" (optional: indexes of left-aligned columns)}
                    a cell may be a list of lines (first = main text, next = smaller): str or {"t": text,
