@@ -162,6 +162,7 @@
       </div>
     </div>
     <div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna">Log</button>
+      <button class="pill" id="sma-btn" title="Zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym) — tylko na świecy 1W">Średnie 20/50 tyg.</button>
       <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot): BTC i ETH od 2017, pozostałe coiny z ostatnich ok. 400 dni — wcześniej linia zamknięć">Świece</button></div>
   </div>
   <div class="chart-wrap">
@@ -250,7 +251,7 @@ const store = {
 };
 
 let DATA = null, HIST = {};
-let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sort: 'ad', dir: 1, filter: 'all', q: ''},
+let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sma: true, sort: 'ad', dir: 1, filter: 'all', q: ''},
   store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1)), o = {};
@@ -264,7 +265,7 @@ function parseHash() {
   return o;
 }
 function persist() {
-  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sort: S.sort, dir: S.dir, filter: S.filter});
+  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sma: S.sma, sort: S.sort, dir: S.dir, filter: S.filter});
   const h = new URLSearchParams({c: S.coin, v: S.view, i: S.tf === 'w' ? '1w' : '1d', z: S.range, f: S.filter});
   if (!S.cdl) h.set('k', '0');
   history.replaceState(null, '', '#' + h);
@@ -422,12 +423,14 @@ function syncControls() {
   document.getElementById('tf-group').style.display = DATA && DATA.weekly && (S.view === 'coin' || S.view === 'breadth') ? '' : 'none';
   document.getElementById('log-btn').classList.toggle('active', S.log);
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.cdl); kb.style.display = S.view === 'coin' ? '' : 'none';
+  const sb = document.getElementById('sma-btn'); sb.classList.toggle('active', S.sma); sb.style.display = S.view === 'coin' && S.tf === 'w' ? '' : 'none';
 }
 document.getElementById('view-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.view = b.dataset.val; persist(); refreshChart(true); } });
 document.getElementById('tf-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.tf = b.dataset.val; persist(); refreshChart(true); } });
 document.getElementById('range-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.range = +b.dataset.val; persist(); refreshChart(true); } });
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; persist(); refreshChart(false); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; persist(); refreshChart(false); });
+document.getElementById('sma-btn').addEventListener('click', () => { S.sma = !S.sma; persist(); refreshChart(false); });
 
 // ── chart ───────────────────────────────────────────────────
 let chart = null, mounted = [];
@@ -608,7 +611,7 @@ async function refreshChart(resetRange) {
   addPrice(line, candles, marks, candles ? 'Cena' : 'Cena (zamknięcie)');
   const se = chart.addSeries(LWC.LineSeries, {color: '#ffc107', lineWidth: 2, priceFormat: PF, priceLineVisible: false});
   se.setData(emaData);
-  mounted.push({series: se, name: 'EMA' + DATA.period, color: '#ffc107', fmt: price});
+  mounted.push({series: se, name: 'EMA' + DATA.period, color: '#ffc107', fmt: price, ema: true});
   if (resetRange) setRange(line[0][0], today);
   document.getElementById('chart-hint').textContent =
     (candles ? `Świece dzienne z knotami (Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}); ostatnia świeca trwa — od wczorajszego zamknięcia do aktualnej ceny, bez knotów. `
@@ -655,14 +658,31 @@ function drawWeekly(c, h, today, resetRange) {
     const emaData = bars.map(b => ({time: (b.k * 7 - 3) * 86400, value: b.e})).concat([{time: now, value: c.we}]);
     const se = chart.addSeries(LWC.LineSeries, {color: '#ce93d8', lineWidth: 2, priceFormat: PF, priceLineVisible: false});
     se.setData(emaData);
-    mounted.push({series: se, name: `EMA${per} 1W`, color: '#ce93d8', fmt: price});
+    mounted.push({series: se, name: `EMA${per} 1W`, color: '#ce93d8', fmt: price, ema: true});
+  }
+  // zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym); ostatni punkt z aktualną ceną
+  if (S.sma) {
+    const closes = bars.map(b => b.c).concat([c.p]), times = line.map(p => p[0]);
+    for (const [n, col] of [[20, '#4fc3f7'], [50, '#ffd54f']]) {
+      if (closes.length < n) continue;
+      const out = [];
+      let sum = 0;
+      for (let k = 0; k < closes.length; k++) {
+        sum += closes[k];
+        if (k >= n) sum -= closes[k - n];
+        if (k >= n - 1) out.push({time: times[k], value: sum / n});
+      }
+      const sm = chart.addSeries(LWC.LineSeries, {color: col, lineWidth: 1.5, priceFormat: PF, priceLineVisible: false, lastValueVisible: false});
+      sm.setData(out);
+      mounted.push({series: sm, name: `Średnia ${n} tyg.`, color: col, fmt: price});
+    }
   }
   if (resetRange) setRange(line[0][0], now);
   const minW = DATA.weekly.min_weeks;
   document.getElementById('chart-hint').textContent =
     (candles ? `Świece tygodniowe z knotami (z dziennych świec Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}), data = poniedziałek; ostatnia świeca trwa (aktualna cena). `
              : `Biała linia: zamknięcia tygodni (punkt = poniedziałek otwierający tydzień), ostatni punkt to aktualna cena (tydzień jeszcze trwa). `) +
-    (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` +
+    (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` + (S.sma ? 'Niebieska i żółta: zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (ostatni punkt z aktualną ceną). ' : '') +
            `Ostatnie zamknięcie tygodnia (${dateFmt(c.wt)}): ${price(c.wc)}, EMA ${price(c.wec)}, ${c.wside > 0 ? 'nad' : 'pod'} od ${c.wsince} tyg.`
          : `EMA${per} 1W liczymy dla coinów z co najmniej ${minW} zamkniętymi tygodniami historii (ok. ${(minW * 7 / 365.25).toFixed(1)} roku); ${c.s} ma ${c.weeks || bars.length} — przy krótszej historii średnia za mocno zależy od pierwszych tygodni po listingu.`) +
     (((DATA.weekly.alerts || []).includes(c.s)) ? ' Alert: przecięcie na zamknięciu tygodnia.' : '');
@@ -678,8 +698,9 @@ function updateLegend(param) {
     if (m.counts) { const t = live ? param.time : (m.series.data().slice(-1)[0] || {}).time; const n = m.counts.get(t); if (n) extra = ` <span class="lg-name">z ${n} coinów</span>`; }
     return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span>${extra}</div>`;
   });
-  if (mounted.length === 2 && S.view === 'coin') {
-    const vals = mounted.map(m => valOf(live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0]));
+  const emaM = mounted.find(m => m.ema);
+  if (emaM && S.view === 'coin') {
+    const vals = [mounted[0], emaM].map(m => valOf(live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0]));
     if (vals[0] != null && vals[1]) rows.push(`<div class="lg-row"><span class="lg-name">Odległość</span><span class="lg-val">${pct((vals[0] / vals[1] - 1) * 100)}</span></div>`);
   }
   document.getElementById('legend').innerHTML = rows.join('');
