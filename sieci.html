@@ -136,6 +136,8 @@
       <div class="pills" id="smooth-pills">
         <button class="pill" data-val="7" title="Suma z ostatnich 7 dni (wygładza przypadkowe dni)">Suma 7 dni</button>
         <button class="pill" data-val="1" title="Każdy dzień osobno">Dzień</button>
+        <button class="pill" data-val="w" title="Suma tygodnia kalendarzowego (pon.–nd. UTC); ostatni tydzień jeszcze trwa">Tydzień</button>
+        <button class="pill" data-val="m" title="Suma miesiąca kalendarzowego; ostatni miesiąc jeszcze trwa">Miesiąc</button>
       </div>
     </div>
     <div class="sep"></div>
@@ -206,7 +208,7 @@ function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1)), o = {};
   if (h.get('m')) o.metric = h.get('m');
   if (h.get('v')) o.view = h.get('v');
-  if (h.get('s')) o.smooth = +h.get('s');
+  if (h.get('s')) o.smooth = ['w', 'm'].includes(h.get('s')) ? h.get('s') : +h.get('s');
   if (h.get('z')) o.range = +h.get('z');
   if (h.get('log')) o.log = h.get('log') === '1';
   if (h.get('c')) o.chains = h.get('c').split(',').filter(Boolean);
@@ -243,12 +245,23 @@ function rolling(pts, n) {                                 // suma z n dni (tylk
   }
   return out;
 }
+function calSum(pts, kind) {                               // suma tygodnia (od poniedziałku) / miesiąca kalendarzowego
+  const out = [];
+  for (const [t, v] of pts) {
+    const d = new Date(t * 1000);
+    const b = kind === 'w' ? t - ((d.getUTCDay() + 6) % 7) * DAY : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000;
+    const last = out[out.length - 1];
+    if (last && last[0] === b) last[1] += v; else out.push([b, v]);
+  }
+  return out;
+}
+const flowPts = pts => (S.smooth === 'w' || S.smooth === 'm') ? calSum(pts, S.smooth) : rolling(pts, S.smooth);
 function seriesFor(slug) {
   const raw = SER[`ch_${slug}_${S.metric}`] || [];
-  let pts = FLOW.has(S.metric) ? rolling(raw, S.smooth) : raw;
+  let pts = FLOW.has(S.metric) ? flowPts(raw) : raw;
   if (S.view === 'share') {
     const all = SER[`ch_all_${S.metric}`] || [];
-    const tot = new Map(FLOW.has(S.metric) ? rolling(all, S.smooth) : all);
+    const tot = new Map(FLOW.has(S.metric) ? flowPts(all) : all);
     pts = pts.map(([t, v]) => [t, tot.get(t) ? v / tot.get(t) * 100 : null]).filter(p => p[1] != null);
   }
   return pts;
@@ -350,7 +363,7 @@ function bindPills(id, key, conv = v => v) {
     S[key] = conv(b.dataset.val); refresh();
   });
 }
-bindPills('metric-pills', 'metric'); bindPills('view-pills', 'view'); bindPills('smooth-pills', 'smooth', Number); bindPills('range-pills', 'range', Number);
+bindPills('metric-pills', 'metric'); bindPills('view-pills', 'view'); bindPills('smooth-pills', 'smooth', v => ['w', 'm'].includes(v) ? v : Number(v)); bindPills('range-pills', 'range', Number);
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
 document.getElementById('chips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;

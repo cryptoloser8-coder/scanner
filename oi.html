@@ -86,14 +86,16 @@
   .panel,.tile{min-width:0;}
   .btn{cursor:pointer;background:rgba(255,255,255,.06);}
   .btn:hover{background:rgba(255,255,255,.12);}
-  .picker{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
-  .picker-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
-  .picker-row .ctrl-label{min-width:92px;}
-  .chip{font-size:11px;padding:3px 9px 3px 7px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;transition:all .15s;}
-  .chip:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
-  .chip .swatch{opacity:.45;}
-  .chip.on{color:var(--text);border-color:var(--c);background:rgba(255,255,255,.05);}
-  .chip.on .swatch{opacity:1;}
+  .grp-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .grp{font-size:12px;padding:6px 12px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .15s;}
+  .grp:hover{color:var(--text);border-color:rgba(255,255,255,.3);background:var(--bg3);}
+  .grp.open{color:var(--text);border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08);}
+  .grp .caret{font-size:9px;opacity:.6;}
+  .grp .cnt{font-size:10px;font-family:var(--mono);padding:0 5px;border-radius:8px;background:rgba(91,156,246,.25);color:var(--text);}
+  .grp-search{font-size:12px;padding:6px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;font-family:inherit;width:190px;margin-left:auto;}
+  .grp-tiles{margin-top:10px;}
+  .grp-tiles:empty{display:none;}
+  .grp-note{font-size:10px;color:var(--text3);margin:0 0 8px;line-height:1.5;}
   .chart-wrap{position:relative;height:min(62vh,620px);min-height:340px;}
   #chart{position:absolute;inset:0;}
   .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
@@ -124,7 +126,8 @@
   @media (max-width:640px){
     body{padding:14px;}
     .tiles{grid-template-columns:repeat(2,1fr);}
-    .picker-row .ctrl-label{min-width:100%;}
+    .grp{padding:5px 9px;font-size:11px;}
+    .grp-search{width:100%;margin-left:0;}
     select{max-width:150px;}
   }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
@@ -152,7 +155,11 @@
 
 <div class="banner" id="banner"></div>
 
-<div id="tiles"></div>
+<div class="grp-bar">
+  <div class="grp-bar" id="grp-btns"></div>
+  <input type="search" class="grp-search" id="grp-search" placeholder="Szukaj serii… (np. sol, mvrv, oi)">
+</div>
+<div class="grp-tiles" id="tiles"></div>
 
 <div class="panel">
   <div class="controls">
@@ -167,7 +174,10 @@
       <span class="ctrl-label">Interwał</span>
       <div class="pills" id="res-pills">
         <button class="pill" data-val="1h">1H</button>
+        <button class="pill" data-val="4h" title="Świece 4-godzinne złożone z danych 1H">4H</button>
         <button class="pill" data-val="1d">1D</button>
+        <button class="pill" data-val="1w" title="Tydzień poniedziałek–niedziela UTC, złożony z danych 1D">1W</button>
+        <button class="pill" data-val="1m" title="Miesiąc kalendarzowy, złożony z danych 1D">1M</button>
       </div>
     </div>
     <div class="ctrl-group">
@@ -194,26 +204,26 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
-        <button class="pill" id="cdl-btn" title="Cena BTC i ETH jako świece z knotami (Binance perp; tryb Wartości). Wyłączone = linia zamknięć.">Świece</button>
+        <button class="pill" id="cdl-btn" title="Cena BTC i ETH jako świece z knotami (tryb Wartości). Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
       </div>
     </div>
   </div>
 
-  <div class="picker" id="picker"></div>
-
   <div class="chart-wrap">
     <div id="chart"></div>
     <div class="legend" id="legend"></div>
     <div class="vlines" id="vlines"></div>
-    <div class="empty" id="empty">Wybierz serie powyżej albo kliknij kafelek</div>
+    <div class="empty" id="empty">Rozwiń grupę na górze strony albo wyszukaj serię i kliknij kafelek</div>
   </div>
   <div class="cyc-legend" id="cyc-legend"></div>
   <div class="hint">
-    Kliknij kafelek lub nazwę serii, żeby dodać ją do wykresu. Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
+    Rozwiń grupę albo wyszukaj serię na górze strony i kliknij kafelek, żeby dodać ją do wykresu (× w legendzie usuwa). Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
+    Interwały 4H, 1W i 1M są składane z danych 1H / 1D: ostatnia wartość okresu, a wolumen i CVD — suma.
     Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
-    Cena BTC i ETH w trybie Wartości jest rysowana jako świece z knotami (Binance perp; dzienne od końca 2019 — wcześniej linia zamknięć; open = zamknięcie poprzedniej świecy). Przycisk „Świece” przełącza na linię.
+    Cena BTC i ETH w trybie Wartości jest rysowana jako świece z knotami (open = zamknięcie poprzedniej świecy): dzienne od 2010 (BTC) i 2015 (ETH) — do 2019–2020 z indeksu TradingView, potem Binance perp;
+    godzinowe od 08.2017 z Binance spot, a ostatnie godziny (jeszcze nie w archiwum) z Binance perp. Przycisk „Świece” przełącza na linię.
   </div>
 </div>
 
@@ -249,23 +259,21 @@ async function getJSON(name) {
 }
 
 // ── state ───────────────────────────────────────────────────
-const GROUPS = [
-  ['oi', 'Open interest'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja / %'], ['ratio', 'Stosunki'], ['pair', 'Pary'],
-  ['price', 'Cena'], ['cycle', 'Cykl BTC'], ['macro', 'Makro USA'],
-  ['cvd', 'CVD (kupno − sprzedaż)'], ['vol', 'Wolumen'], ['idx', 'Alty wg kapitalizacji'],
-];
-const TILE_SECTIONS = [
-  ['Open interest', ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance']],
-  ['Kapitalizacja (spot)', ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap']],
-  ['Dominacja', ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom']],
-  ['Pary', ['ethbtc']],
-  ['Dźwignia i stosunki', ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others']],
-  ['Alty według kapitalizacji — typowy coin w koszyku (indeks 100 = dzień startu zapisu; porównuj w trybie Index 100 albo % zmiana)',
-    ['alt_idx_1b', 'alt_idx_100m', 'alt_idx_10m', 'alt_idx_1m']],
-  ['Cykl BTC', ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr']],
-  ['Makro USA', ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold']],
-  ['CVD — kupno − sprzedaż „po rynku”, spot i perp (kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu)', ['cvd_btc_spot', 'cvd_btc_perp', 'cvd_eth_spot', 'cvd_eth_perp', 'cvd_sol_spot',
-    'cvd_sol_perp', 'cvd_bnb_spot', 'cvd_bnb_perp', 'cvd_xrp_spot', 'cvd_xrp_perp', 'cvd_doge_spot', 'cvd_doge_perp']],
+// grupy kafelków (pasek na górze strony; domyślnie zwinięte). Serie spoza list trafiają do grupy według CAT.group.
+const TILE_GROUPS = [
+  {key: 'oi', label: 'Open interest', ids: ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance'], cats: ['oi'], watch: true},
+  {key: 'mcap', label: 'Kapitalizacja', ids: ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap'], cats: ['mcap']},
+  {key: 'dom', label: 'Dominacja', ids: ['btc_d', 'eth_d', 'stable_d', 'alts_d', 'usdt_d', 'others_d', 'oi_btc_dom'], cats: ['pct']},
+  {key: 'lev', label: 'Dźwignia i stosunki', ids: ['oi_others_vs_btc', 'alts_vs_btc', 'oi_alts_vs_btc', 'lev_btc', 'lev_alts', 'lev_others'], cats: ['ratio']},
+  {key: 'px', label: 'Ceny i pary', ids: ['px_btc', 'px_eth', 'px_sol', 'px_bnb', 'px_xrp', 'px_doge', 'ethbtc'], cats: ['price', 'pair']},
+  {key: 'alts', label: 'Alty wg kapitalizacji', ids: ['alt_idx_1b', 'alt_idx_100m', 'alt_idx_10m', 'alt_idx_1m'], cats: ['idx'],
+    note: 'Typowy coin w koszyku: indeks 100 = dzień startu zapisu; porównuj w trybie Index 100 albo % zmiana.'},
+  {key: 'cycle', label: 'Cykl BTC', ids: ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr'], cats: ['cycle']},
+  {key: 'macro', label: 'Makro USA', ids: ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold'], cats: ['macro']},
+  {key: 'cvd', label: 'CVD', ids: ['cvd_btc_spot', 'cvd_btc_perp', 'cvd_eth_spot', 'cvd_eth_perp', 'cvd_sol_spot', 'cvd_sol_perp',
+    'cvd_bnb_spot', 'cvd_bnb_perp', 'cvd_xrp_spot', 'cvd_xrp_perp', 'cvd_doge_spot', 'cvd_doge_perp'], cats: ['cvd'],
+    note: 'Kupno − sprzedaż „po rynku”, spot i perp. Kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu.'},
+  {key: 'vol', label: 'Wolumen', ids: [], cats: ['vol']},
 ];
 const BUILTIN_PRESETS = [
   {name: 'OI: BTC vs ALTS vs OTHERS (% zmiana)', series: ['oi_btc', 'oi_alts', 'oi_others'], mode: 'pct'},
@@ -304,7 +312,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, candles: true},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, candles: true, grp: ''},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -429,6 +437,34 @@ function cumulate(arr, from) {
 }
 const sumSince = (arr, from) => arr.reduce((a, p) => a + (p[0] >= from ? p[1] : 0), 0);
 
+// ── interwały: 4H z danych 1H, 1W i 1M z danych 1D (składane na stronie) ──
+const IVS = ['1h', '4h', '1d', '1w', '1m'];
+const baseRes = iv => (iv === '1h' || iv === '4h') ? '1h' : '1d';
+function bucketOf(t, iv) {
+  if (iv === '4h') return t - t % 14400;
+  if (iv === '1w') return t - (((t - 345600) % 604800) + 604800) % 604800;     // tydzień od poniedziałku (UTC)
+  if (iv === '1m') { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
+  return t;
+}
+// jak łączyć punkty w dłuższą świecę: knoty max/min, przepływy (CVD, wolumen) suma, reszta ostatnia wartość
+const howOf = id => /_hi$/.test(id) ? 'max' : /_lo$/.test(id) ? 'min' : (isCum(id) || (CAT[id] || {}).group === 'vol') ? 'sum' : 'last';
+const AGG = new Map();
+function cp(id, iv = S.res) {                      // punkty serii na wybranym interwale
+  const base = baseRes(iv), a = pts(base, id);
+  if (iv === base || !a.length) return a;
+  const key = iv + '|' + id;
+  const hit = AGG.get(key);
+  if (hit && hit.src === a) return hit.out;
+  const how = howOf(id), out = [];
+  for (const [t, v] of a) {
+    const b = bucketOf(t, iv), last = out[out.length - 1];
+    if (!last || last[0] !== b) out.push([b, v]);
+    else last[1] = how === 'sum' ? last[1] + v : how === 'max' ? Math.max(last[1], v) : how === 'min' ? Math.min(last[1], v) : v;
+  }
+  AGG.set(key, {src: a, out});
+  return out;
+}
+
 // ── tiles ───────────────────────────────────────────────────
 function sparkline(arr, color) {
   const a = arr.slice(-90);
@@ -445,15 +481,51 @@ function shortNote(id) {
   const s = shortInfo(id);
   return s ? `<div class="tile-short" title="Seria jest zbierana od niedawna — wykres wydłuża się z każdym dniem">${s.text}</div>` : '';
 }
+let GROUP_IDS = null, SEARCH = '';
+function groupIds() {                              // {key: [ids]} — każda dostępna seria w co najmniej jednej grupie
+  if (GROUP_IDS) return GROUP_IDS;
+  const out = {}, placed = new Set();
+  const watch = (META.watchlist || []).map(s => 'oi_' + s.toLowerCase());
+  for (const g of TILE_GROUPS) {
+    out[g.key] = g.ids.concat(g.watch ? watch : []).filter(id => CAT[id] && available(id));
+    out[g.key].forEach(id => placed.add(id));
+  }
+  for (const id of Object.keys(CAT).filter(available)) {
+    if (placed.has(id) || /_(hi|lo)$/.test(id)) continue;
+    const g = TILE_GROUPS.find(x => x.cats.includes(CAT[id].group)) || TILE_GROUPS[0];
+    out[g.key].push(id);
+  }
+  return (GROUP_IDS = out);
+}
+function renderGroupBar() {
+  const ids = groupIds();
+  document.getElementById('grp-btns').innerHTML = TILE_GROUPS.filter(g => ids[g.key].length).map(g => {
+    const n = ids[g.key].filter(id => S.series.includes(id)).length;
+    return `<button class="grp ${S.grp === g.key && !SEARCH ? 'open' : ''}" data-g="${g.key}" title="${ids[g.key].length} serii">` +
+      `${esc(g.label)}${n ? ` <span class="cnt" title="Serie z tej grupy na wykresie">${n}</span>` : ''}<span class="caret">${S.grp === g.key && !SEARCH ? '▲' : '▼'}</span></button>`;
+  }).join('');
+}
 function renderTiles() {
-  const sections = TILE_SECTIONS.slice();
-  const watch = (META.watchlist || []).map(s => 'oi_' + s.toLowerCase()).filter(available);
-  if (watch.length) sections.push(['Watchlista OI', watch]);
+  renderGroupBar();
+  const ids = groupIds();
+  let list = [], note = '';
+  const q = SEARCH.trim().toLowerCase();
+  if (q) {
+    const all = [...new Set(Object.values(ids).flat())];
+    list = all.filter(id => (CAT[id].name + ' ' + id).toLowerCase().includes(q));
+    note = list.length ? `Wyniki wyszukiwania: ${list.length}` : 'Brak serii pasujących do wyszukiwania.';
+  } else if (S.grp && ids[S.grp]) {
+    list = ids[S.grp];
+    note = (TILE_GROUPS.find(g => g.key === S.grp) || {}).note || '';
+  }
+  const sections = list.length || note ? [[note, list]] : [];
   let html = '';
-  for (const [label, ids] of sections) {
-    const tiles = ids.filter(id => CAT[id] && available(id)).map(id => {
+  for (const [label, ids_] of sections) {
+    const tiles = ids_.map(id => {
       const c = CAT[id], d = pts('1d', id), h = pts('1h', id);
-      const last = (h.length && (!d.length || h[h.length - 1][0] >= d[d.length - 1][0])) ? h[h.length - 1] : d[d.length - 1];
+      // przepływy (wolumen): wartość dzienna — punkt godzinowy to tylko jedna godzina
+      const useH = h.length && howOf(id) === 'last' && (!d.length || h[h.length - 1][0] >= d[d.length - 1][0]);
+      const last = useH || !d.length ? h[h.length - 1] : d[d.length - 1];
       const t = last[0], v = last[1];
       if (c.cum) {                                // CVD: suma z 24 h (godziny albo ostatnia doba), 7 i 30 dni; wykres narastająco
         const tEnd = d.length ? d[d.length - 1][0] : t;
@@ -473,7 +545,7 @@ function renderTiles() {
         ${sparkline(d, c.color)}${shortNote(id)}
       </div>`;
     }).join('');
-    if (tiles) html += `<div class="section-label">${label}</div><div class="tiles">${tiles}</div>`;
+    html += (label ? `<div class="grp-note">${esc(label)}</div>` : '') + (tiles ? `<div class="tiles">${tiles}</div>` : '');
   }
   document.getElementById('tiles').innerHTML = html;
 }
@@ -481,20 +553,15 @@ document.getElementById('tiles').addEventListener('click', e => {
   const t = e.target.closest('.tile');
   if (t && !e.target.closest('.info')) toggleSeries(t.dataset.sid);
 });
-
-// ── picker ──────────────────────────────────────────────────
-function renderPicker() {
-  const ids = Object.keys(CAT).filter(available);
-  document.getElementById('picker').innerHTML = GROUPS.map(([g, label]) => {
-    const chips = ids.filter(id => CAT[id].group === g).map(id =>
-      `<button class="chip ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${CAT[id].color}"><span class="swatch"></span><span data-tip="${id}">${esc(CAT[id].name)}</span></button>`).join('');
-    return chips ? `<div class="picker-row"><span class="ctrl-label">${label}</span>${chips}</div>` : '';
-  }).join('');
-}
-document.getElementById('picker').addEventListener('click', e => {
-  const c = e.target.closest('.chip');
-  if (c) toggleSeries(c.dataset.sid);
+document.getElementById('grp-btns').addEventListener('click', e => {
+  const b = e.target.closest('.grp');
+  if (!b) return;
+  if (SEARCH) { SEARCH = ''; document.getElementById('grp-search').value = ''; S.grp = b.dataset.g; }
+  else S.grp = S.grp === b.dataset.g ? '' : b.dataset.g;
+  persist();
+  renderTiles();
 });
+document.getElementById('grp-search').addEventListener('input', e => { SEARCH = e.target.value; renderTiles(); });
 function toggleSeries(sid) {
   const i = S.series.indexOf(sid);
   if (i >= 0) S.series.splice(i, 1); else S.series.push(sid);
@@ -562,14 +629,14 @@ function syncControls() {
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
   const val = S.mode === 'val';
   const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
-  const hasWicks = S.series.some(id => WICKS[id] && pts(S.res, id + '_hi').length);
+  const hasWicks = S.series.some(id => WICKS[id] && cp(id + '_hi').length);
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.candles && val && hasWicks); kb.disabled = !val || !hasWicks;
   const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
   const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
   const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
   cb.classList.toggle('active', S.cycle && hasCyc); cb.disabled = !hasCyc;
   if (!hasCyc) cb.title = 'Fazy cyklu pojawią się po najbliższym skanie (meta.json bez cycle_marks).';
-  document.querySelector('#res-pills [data-val="1h"]').disabled = !DATA['1h'] && DATA._1hFailed;
+  document.querySelectorAll('#res-pills [data-val="1h"], #res-pills [data-val="4h"]').forEach(b => b.disabled = !DATA['1h'] && DATA._1hFailed);
 }
 
 // ── chart ───────────────────────────────────────────────────
@@ -582,8 +649,8 @@ function makeChart() {
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
     leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
-    // minBarSpacing: zakres ALL mieści całą historię (cena BTC od 2009 = ponad 6000 świec dziennych)
-    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3, minBarSpacing: 0.05},
+    // minBarSpacing: zakres ALL mieści całą historię (cena BTC od 2009 = ponad 6000 świec dziennych, 1H od 2017 = ok. 80 tys.)
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true, secondsVisible: false, rightOffset: 3, minBarSpacing: 0.005},
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: {locale: 'pl-PL'},
   });
@@ -711,12 +778,12 @@ function allocAxes(ids) {
 
 // ceny z knotami (px_*_hi / px_*_lo) → świece w trybie Wartości (przycisk „Świece”)
 const WICKS = {px_btc: true, px_eth: true};
-const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && pts(S.res, id + '_hi').length > 0;
+const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && cp(id + '_hi').length > 0;
 let aux = [];                                      // linia zamknięć sprzed pierwszego knota (bez własnego wpisu w legendzie)
 
 // dane serii do wykresu: CVD = suma narastająca od początku wybranego zakresu (przyciski 1T/1M/…; ALL = od początku)
 let cumFrom = 0;
-function seriesData(id) { return isCum(id) ? cumulate(pts(S.res, id), cumFrom) : pts(S.res, id); }
+function seriesData(id) { return isCum(id) ? cumulate(cp(id), cumFrom) : cp(id); }
 function drawChart(resetRange) {
   if (!chart) makeChart();
   const prevRange = chart.timeScale().getVisibleRange();
@@ -725,14 +792,14 @@ function drawChart(resetRange) {
   mounted = []; bands = []; aux = [];
   while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
 
-  const ids = S.series.filter(id => CAT[id] && pts(S.res, id).length);
-  const endAll = Math.max(0, ...ids.map(id => { const a = pts(S.res, id); return a[a.length - 1][0]; }));
+  const ids = S.series.filter(id => CAT[id] && cp(id).length);
+  const endAll = Math.max(0, ...ids.map(id => { const a = cp(id); return a[a.length - 1][0]; }));
   cumFrom = S.range > 0 ? endAll - S.range * 86400 : 0;
   document.getElementById('empty').style.display = ids.length ? 'none' : 'flex';
   const axes = allocAxes(ids);
   const used = {};
   // tło faz cyklu — najpierw (pod liniami serii), w każdym panelu, na punktach czasu wybranych serii
-  cycTimes = cycleOn() && ids.length ? [...new Set(ids.flatMap(id => pts(S.res, id).map(p => p[0])))].sort((a, b) => a - b) : [];
+  cycTimes = cycleOn() && ids.length ? [...new Set(ids.flatMap(id => cp(id).map(p => p[0])))].sort((a, b) => a - b) : [];
   if (cycTimes.length) addBands([...new Set(ids.map(id => axes[id].pane))].sort(), cycTimes);
   for (const id of ids) {
     const c = CAT[id];
@@ -741,7 +808,7 @@ function drawChart(resetRange) {
     const pf = S.mode === 'val' || c.cum ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
       : {type: 'price', precision: 2, minMove: 0.01};
     const candle = asCandles(id);
-    const pc = candle ? priceCandles(seriesData(id), pts(S.res, id + '_hi'), pts(S.res, id + '_lo')) : null;
+    const pc = candle ? priceCandles(seriesData(id), cp(id + '_hi'), cp(id + '_lo')) : null;
     if (candle) {
       const {candles, line} = pc;
       if (line.length) {
@@ -824,7 +891,7 @@ function updateLegend(param) {
     if (ohlc) extra = ` <span class="lg-short">O ${fmt(ohlc.open, fmtOf(c))} · H ${fmt(ohlc.high, fmtOf(c))} · L ${fmt(ohlc.low, fmtOf(c))}</span>`;
     if (S.mode !== 'val' && !c.cum) {
       const vr = chart.timeScale().getVisibleRange();
-      const a = pts(S.res, id);
+      const a = cp(id);
       const first = vr ? a.find(p => p[0] >= vr.from) : null;
       if (first && v != null) extra = ' ' + chg(v, first[1]);
     }
@@ -852,21 +919,46 @@ async function load1h() {
   Object.assign(d.series, (cv && cv.series) || {});            // CVD i wolumen spot / perp (poprawka 44)
   return d;
 }
+// świece 1h BTC/ETH od 08.2017 (archiwum Binance spot, px_1h_<coin>.json) — pobierane tylko na wykresie 1H/4H z ceną.
+// Godziny z archiwum zastępują dane z Coinalyze; po ostatniej godzinie archiwum (dzień w toku) zostaje Coinalyze.
+const SPOT = {};
+async function loadSpot(sid) {
+  if (SPOT[sid]) return;
+  SPOT[sid] = 'loading';
+  let o = null;
+  try { o = await getJSON(`px_1h_${sid.slice(3)}.json`); } catch (e) { o = null; }
+  SPOT[sid] = o ? 'ok' : 'none';
+  const H = DATA['1h'];
+  if (!o || !H || !o.c) return;
+  const mk = k => { const out = []; for (let i = 0; i < o.c.length; i++) if (o[k][i] != null) out.push([o.t0 + i * o.step, o[k][i]]); return out; };
+  const last = o.last || (o.t0 + (o.c.length - 1) * o.step);
+  for (const [suf, k] of [['', 'c'], ['_hi', 'h'], ['_lo', 'l']])
+    H.series[sid + suf] = mk(k).concat(pts('1h', sid + suf).filter(p => p[0] > last));
+  AGG.clear();
+}
 async function ensureRes() {
-  if (S.res === '1h' && !DATA['1h']) {
+  if (baseRes(S.res) === '1h' && !DATA['1h']) {
     setStatus('stale', 'Ładowanie danych 1H…');
-    try { DATA['1h'] = await load1h(); }
+    try { DATA['1h'] = await load1h(); GROUP_IDS = null; AGG.clear(); }
     catch (e) { DATA._1hFailed = true; S.res = '1d'; }
     setUpdated();
+  }
+  if (baseRes(S.res) === '1h' && DATA['1h']) {
+    const need = ['px_btc', 'px_eth'].filter(id => S.series.includes(id) && !SPOT[id]);
+    if (need.length) {
+      setStatus('stale', 'Ładowanie świec 1H od 2017…');
+      await Promise.all(need.map(loadSpot));
+      setUpdated();
+    }
   }
 }
 async function refresh(resetRange = false) {
   await ensureRes();
   persist();
   syncControls();
-  renderPicker();
   renderPresets();
   document.querySelectorAll('.tile').forEach(t => t.classList.toggle('on', S.series.includes(t.dataset.sid)));
+  if (META) renderGroupBar();
   drawChart(resetRange);
 }
 
@@ -909,12 +1001,12 @@ async function boot() {
   }
   CAT = META.catalog || {};
   S.series = S.series.filter(id => CAT[id]);
-  if (!['1h', '1d'].includes(S.res)) S.res = '1d';
+  if (!IVS.includes(S.res)) S.res = '1d';
   if (!['val', 'pct', 'idx'].includes(S.mode)) S.mode = 'pct';
   setUpdated();
   renderTiles();
   await refresh(true);
-  if (!DATA['1h']) load1h().then(d => { DATA['1h'] = d; renderTiles(); renderPicker(); }).catch(() => { DATA._1hFailed = true; });
+  if (!DATA['1h']) load1h().then(d => { if (!DATA['1h']) { DATA['1h'] = d; GROUP_IDS = null; AGG.clear(); renderTiles(); } }).catch(() => { DATA._1hFailed = true; });
 }
 if (!LWC) {
   setStatus('error', 'Błąd ładowania biblioteki wykresów');

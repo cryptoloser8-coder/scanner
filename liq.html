@@ -155,6 +155,7 @@
         <button class="pill" data-val="4h">4H</button>
         <button class="pill" data-val="1d">1D</button>
         <button class="pill" data-val="1w">1W</button>
+        <button class="pill" data-val="1m" title="Miesiąc kalendarzowy (suma likwidacji, średni funding)">1M</button>
       </div>
     </div>
     <div class="ctrl-group">
@@ -186,7 +187,7 @@
   </div>
   <div class="hint">
     Słupki w górę (czerwone) = zlikwidowane longi, w dół (zielone) = zlikwidowane shorty, suma w USD na świecę.
-    Świece 4H i 1W są sumowane z danych 1H/1D; funding na nich to średnia.
+    Świece 4H, 1W i 1M są sumowane z danych 1H/1D; funding na nich to średnia.
     Cena (przycisk „Świece”): świece z knotami z Binance perp — pusta = wzrost, pełna = spadek; knoty dzienne od końca 2019 i z danych godzinowych (1H/4H).
     <span id="range-info"></span><br>
     Kwoty to dolne oszacowanie: giełdy publikują tylko część likwidacji (np. Binance najwyżej jedną na sekundę na rynek),
@@ -312,6 +313,7 @@ const lastT = arr => arr.length ? arr[arr.length - 1][0] : null;
 function bucket(t, iv) {
   if (iv === '4h') return t - t % 14400;
   if (iv === '1w') return t - (((t - 345600) % 604800) + 604800) % 604800;   // weeks start on Monday (UTC)
+  if (iv === '1m') { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; }
   return t;
 }
 function agg(arr, iv, how) {
@@ -493,7 +495,7 @@ function drawChart(resetRange) {
     const pf = {type: 'custom', minMove: .01, formatter: price};
     const raw = pts(res, id).filter(p => p[0] >= t0 - 86400);          // + poprzednia świeca: open pierwszej
     const pc = S.cdl && pts(res, id + '_hi').length
-      ? priceCandles(raw, pts(res, id + '_hi'), pts(res, id + '_lo'), iv === '4h' || iv === '1w' ? t => bucket(t, iv) : null) : null;
+      ? priceCandles(raw, pts(res, id + '_hi'), pts(res, id + '_lo'), iv === '4h' || iv === '1w' || iv === '1m' ? t => bucket(t, iv) : null) : null;
     if (pc && pc.candles.length) {
       const c0 = pc.candles[0].time, line = agg(raw.filter(p => p[0] >= t0 && p[0] < c0), iv, 'last');
       if (line.length) {
@@ -569,7 +571,7 @@ function updateLegend(param) {
   if (L != null && Sv != null && L + Sv > 0)
     rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).toFixed(0)}%</span></div>`);
   const iv = IV();
-  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toISOString().slice(0, iv === '1d' || iv === '1w' ? 10 : 16).replace('T', ' ') + ' UTC'
+  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toISOString().slice(0, iv === '1d' || iv === '1w' || iv === '1m' ? 10 : 16).replace('T', ' ') + ' UTC'
     : 'ostatnia świeca';
   rows.unshift(`<div class="lg-row"><span class="lg-name">${tl} · świeca ${iv.toUpperCase()}</span></div>`);
   const lg = document.getElementById('legend');
@@ -628,7 +630,7 @@ document.getElementById('top-table').addEventListener('click', e => {
 // ── refresh / boot ──────────────────────────────────────────
 function refresh(resetRange = false) {
   if (!assets().some(([g]) => g === S.asset)) S.asset = 'total';
-  if (!['1h', '4h', '1d', '1w'].includes(S.iv)) S.iv = '4h';
+  if (!['1h', '4h', '1d', '1w', '1m'].includes(S.iv)) S.iv = '4h';
   persist();
   renderAssetPills();
   syncControls();
