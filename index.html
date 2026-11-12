@@ -83,6 +83,9 @@
   .tile-tag.live{background:rgba(76,175,125,.15);color:var(--green);}
   .tile-tag.beta{background:rgba(91,156,246,.15);color:var(--blue);}
   .tile-tag.soon{background:var(--bg3);color:var(--text3);}
+  .tile-tag.paused{background:rgba(255,193,7,.14);color:var(--amber);}
+  .tile.paused{opacity:.6;}
+  .tile.paused:hover{opacity:.85;}
 
   .footer{text-align:center;margin-top:40px;font-size:10px;color:var(--text3);}
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
@@ -112,35 +115,35 @@
       <div class="tile-icon oi">OI</div>
       <div class="tile-title">OI & TOTAL Monitor</div>
       <div class="tile-desc">Open interest BTC / ALTS / OTHERS z wielu giełd na tle TOTAL, TOTAL2, TOTAL3 i BTC.D. Nakładanie wykresów, dźwignia, alerty poziomów na Telegram.</div>
-      <span class="tile-tag beta">● Beta</span>
+      <span class="tile-tag live">● Live</span>
     </a>
 
     <a href="liq.html" class="tile">
       <div class="tile-icon liq">LIQ</div>
       <div class="tile-title">Likwidacje i funding</div>
       <div class="tile-desc">Likwidacje long/short BTC, ETH i największych altów (Binance, Bybit, OKX), funding ważony OI w % rocznie (także Hyperliquid), udział giełd, największe dni.</div>
-      <span class="tile-tag beta">● Beta</span>
+      <span class="tile-tag live">● Live</span>
     </a>
 
     <a href="ema.html" class="tile">
       <div class="tile-icon ema">EMA</div>
       <div class="tile-title">EMA200 Monitor</div>
       <div class="tile-desc">Wszystkie coiny z Binance (pary USDT) względem EMA200 na świecy dziennej: tabela najbliższych przecięcia, szerokość rynku, alerty przecięcia i zbliżenia na Telegram.</div>
-      <span class="tile-tag beta">● Beta</span>
+      <span class="tile-tag live">● Live</span>
     </a>
 
-    <a href="fib.html" class="tile">
+    <a href="fib.html" class="tile paused">
       <div class="tile-icon fib">Fib</div>
       <div class="tile-title">Fibo — moje setupy</div>
-      <div class="tile-desc">Twoje ruchy szczyt–dołek (dodawane z Telegrama: /fib SOL 250 120), strefa 0.705–0.786 z linią 0.75, alerty zbliżenia, wejścia w strefę, przebicia i unieważnienia.</div>
-      <span class="tile-tag beta">● Beta</span>
+      <div class="tile-desc">Twoje ruchy szczyt–dołek (dodawane z Telegrama: /fib SOL 250 120), strefa 0.705–0.786 z linią 0.75, alerty zbliżenia, wejścia w strefę, przebicia i unieważnienia. Zawieszone — do dopracowania.</div>
+      <span class="tile-tag paused">● Zawieszone</span>
     </a>
 
     <a href="raporty.html" class="tile">
       <div class="tile-icon rep">RAP</div>
       <div class="tile-title">Raporty</div>
-      <div class="tile-desc">Raport poranny (zamknięcie dnia: rynek, alty, derywaty, EMA200) i wieczorny (krypto dziś: co ruszyło się od 00:00 UTC), tygodniowe i miesięczne (cykl BTC, makro). Pobieranie jako PDF, wersja dla AI, powiadomienie z linkiem na Telegram.</div>
-      <span class="tile-tag beta">● Test</span>
+      <div class="tile-desc">Raport poranny (zamknięcie dnia: rynek, alty, derywaty, EMA200) i wieczorny (krypto dziś: co ruszyło się od 00:00 UTC), tygodniowe, miesięczne (cykl BTC, makro), roczne i po halvingu. Pobieranie jako PDF, wersja dla AI, powiadomienie z linkiem na Telegram.</div>
+      <span class="tile-tag beta">● Beta</span>
     </a>
 
     <a href="sieci.html" class="tile">
@@ -160,7 +163,7 @@
   </div>
 
   <div class="footer">
-    Dane: <a href="https://hyperliquid.xyz" target="_blank">Hyperliquid</a>, <a href="https://coinalyze.net" target="_blank">Coinalyze</a>, <a href="https://www.tradingview.com" target="_blank">TradingView</a>, <a href="https://defillama.com" target="_blank">DefiLlama</a> &nbsp;·&nbsp; Wykresy: <a href="https://kiyotaka.ai" target="_blank">Kiyotaka</a>
+    Dane: <a href="https://coinalyze.net" target="_blank">Coinalyze</a>, <a href="https://www.tradingview.com" target="_blank">TradingView</a>, <a href="https://www.binance.com" target="_blank">Binance</a>, <a href="https://coinmetrics.io" target="_blank">Coin Metrics</a>, <a href="https://www.coingecko.com" target="_blank">CoinGecko</a>, <a href="https://defillama.com" target="_blank">DefiLlama</a>, <a href="https://hyperliquid.xyz" target="_blank">Hyperliquid</a> &nbsp;·&nbsp; Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank">TradingView Lightweight Charts</a>
   </div>
 
 </div>
