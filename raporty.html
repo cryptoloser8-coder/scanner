@@ -110,6 +110,19 @@
   .chart-box{position:relative;height:300px;}
   .chart-box .c{position:absolute;inset:0;}
   .chart-img{display:none;width:100%;}
+  .chart-ctl{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0 0 6px;}
+  .rpill{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;}
+  .rpill:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
+  .rpill.on{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);}
+  .chart-ctl .how{font-size:10px;color:var(--text3);margin-left:auto;}
+  .chart-range{font-size:9px;color:#555;margin-top:3px;}
+  .pdf-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;}
+  .pdf-modal .box{max-width:460px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg,12px);padding:18px;font-size:13px;line-height:1.6;color:var(--text);}
+  .pdf-modal h4{font-size:15px;margin-bottom:8px;}
+  .pdf-modal ul{margin:8px 0 12px 18px;color:var(--text2);}
+  .pdf-modal .row{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  .pdf-modal label{font-size:11px;color:var(--text3);margin-right:auto;}
+  @media (max-width:640px){ .chart-ctl .how{width:100%;margin-left:0;} }
   .chart-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:6px;}
   .chart-legend span::before{content:'';display:inline-block;width:10px;height:3px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:middle;}
 
@@ -222,6 +235,7 @@
     .block .note{font-size:9.5px;}
     .chart-box{height:auto;}
     .chart-box .c{display:none;}
+    .chart-ctl,.pdf-modal{display:none !important;}
     .chart-img{display:block;}
     .legend-print{display:block;margin-top:8px;font-size:9px;color:#555;line-height:1.5;}
     .legend-print b{color:#222;}
@@ -264,7 +278,7 @@
 
 <div class="footer">
   Raporty powstają w GitHub Actions (workflow „Raport”) z danych z gałęzi <code>data</code> (Coinalyze, TradingView) i <code>ema</code> (Binance, Orange Pi)
-  i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>.
+  i są publikowane na gałęzi <code>reports</code>. „Pobierz PDF” otwiera okno drukowania: wybierz <b>Zapisz jako PDF</b>; wykresy trafiają do PDF w takim zakresie, jaki jest ustawiony na ekranie.
   „Kopiuj dla AI” kopiuje cały raport jako tekst (wykresy zamienione na liczby, źródła i metody na końcu) — wklej go w dowolnego asystenta AI.
   „Link dla AI” kopiuje adres tej wersji. Stałe adresy najnowszych raportów (tekst dla AI) — dziennego: <code id="latest-md"></code>,
   tygodniowego: <code id="latest-weekly-md"></code>, miesięcznego: <code id="latest-monthly-md"></code>, specjalnego: <code id="latest-adhoc-md"></code>.
@@ -433,7 +447,9 @@ addEventListener('resize', () => requestAnimationFrame(fitTables));
 function chartBlock(b, i) {
   const lg = (b.series || []).map(s => `<span style="--c:${esc(s.color)}">${esc(s.name)}${(b.series.length > 1 && b.series.some(x => x.scale === 'left')) ? (s.scale === 'left' ? ' (lewa oś)' : s.scale === 'hidden' ? ' (bez osi)' : ' (prawa oś)') : ''}</span>`).join('');
   return `<div class="chart-legend">${lg}</div>
+    <div class="chart-ctl" id="ctl-${i}"></div>
     <div class="chart-box"><div class="c" id="chart-${i}"></div><img class="chart-img" id="chart-img-${i}" alt=""></div>
+    <div class="chart-range print-only" id="rng-${i}"></div>
     ${(b.bands || []).length ? `<div class="chart-bands">${[...new Map(b.bands.map(x => [x.color + x.label.replace(' (trwa)', ''), x])).values()]
       .map(x => `<span style="--c:${esc(x.color)}">${esc(x.label.replace(' (trwa)', ''))}</span>`).join('')}</div>` : ''}
     ${(b.lines || []).length ? `<div class="chart-lines">${b.lines.map(l => `<span style="--c:${esc(l.color)}">${esc(fmt(l.value, (b.series[0] || {}).fmt))} — ${esc(l.label)}</span>`).join('')}</div>` : ''}`;
@@ -542,7 +558,10 @@ function drawChart(b, i) {
       days ? {tickMarkFormatter: t => 'dzień ' + dayOf(t)} : {}),
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: Object.assign({locale: 'pl-PL'}, days ? {timeFormatter: t => 'dzień ' + dayOf(t)} : {}),
-    handleScroll: false, handleScale: false,
+    // przesuwanie: przeciągnięcie (mysz, palec w poziomie); przybliżanie: kółko myszy, dwa palce, przeciąganie osi czasu.
+    // Pionowy ruch palcem przewija stronę (telefon).
+    handleScroll: {mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false},
+    handleScale: {mouseWheel: true, pinch: true, axisPressedMouseMove: {time: true, price: false}, axisDoubleClickReset: false},
   });
   if (window.brandWatermark) brandWatermark(chart);
   // tło w kolorach okresów (np. fazy cyklu): pola na ukrytej osi 0–1, pełna wysokość wykresu
@@ -591,15 +610,57 @@ function drawChart(b, i) {
         axisLabelVisible: true, title: ''});
     }
   }
-  chart.timeScale().fitContent();
-  charts.push({chart, i});
+  charts.push({chart, i, days});
+  rangeControls(chart, b, i, days);
+}
+
+// zakres widoku wykresu: przyciski 1M…5L / ALL, start z b.view (dni; brak = cała historia), ↺ = widok startowy
+const RANGES = [[30, '1M'], [90, '3M'], [180, '6M'], [365, '1R'], [1095, '3L'], [1825, '5L']];
+function rangeControls(chart, b, i, days) {
+  const ts = (b.series || []).flatMap(s => {
+    const a = s.ohlc && s.ohlc.length ? s.ohlc : (s.data || []);
+    return a.length ? [a[0][0], a[a.length - 1][0]] : [];
+  }).map(t => days ? DAY0 + t * 86400 : t);
+  if (!ts.length) return;
+  const first = Math.min(...ts), last = Math.max(...ts), span = (last - first) / 86400;
+  const opts = days ? [] : RANGES.filter(([d]) => d < span * 0.9);
+  const start = days || !b.view || b.view === 'all' || +b.view >= span ? 0 : +b.view;
+  const el = document.getElementById('ctl-' + i);
+  let auto = false;
+  const mark = d => el.querySelectorAll('.rpill[data-d]').forEach(x => x.classList.toggle('on', d !== null && +x.dataset.d === d));
+  const apply = d => {
+    auto = true;
+    const go = () => { if (d > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - d * 86400), to: last}); else chart.timeScale().fitContent(); };
+    go();
+    requestAnimationFrame(() => requestAnimationFrame(() => { go(); setTimeout(() => { auto = false; }, 50); }));
+    mark(d);
+  };
+  el.innerHTML = opts.map(([d, l]) => `<button class="rpill" data-d="${d}">${l}</button>`).join('') +
+    `<button class="rpill" data-d="0">ALL</button><button class="rpill" data-reset="1" title="Widok startowy">↺</button>` +
+    `<span class="how">przeciągnij = przesuń · kółko myszy / dwa palce = przybliż</span>`;
+  el.addEventListener('click', e => {
+    const x = e.target.closest('.rpill');
+    if (!x) return;
+    apply(x.dataset.reset ? start : +x.dataset.d);
+  });
+  chart.timeScale().subscribeVisibleTimeRangeChange(() => { if (!auto) mark(null); });
+  apply(start);
+}
+function rangeLabel(chart, days) {
+  const r = chart.timeScale().getVisibleRange();
+  if (!r) return '';
+  if (days) return `Zakres na wykresie: dzień ${dayOf(r.from)} – ${dayOf(r.to)}.`;
+  const d = t => new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'});
+  return `Zakres na wykresie: ${d(r.from)} – ${d(r.to)} (taki, jak był na ekranie przy pobieraniu PDF).`;
 }
 
 // PDF: wykresy jako obrazki w jasnych kolorach (płótno nie drukuje się pewnie)
 function chartsToImages() {
-  for (const {chart, i} of charts) {
+  for (const {chart, i, days} of charts) {
     const box = document.getElementById('chart-' + i);
     if (!box || box.clientWidth < 50) continue;      // already in print layout → keep the earlier image
+    const rl = document.getElementById('rng-' + i);
+    if (rl) rl.textContent = rangeLabel(chart, days);
     try {
       chart.applyOptions(LIGHT);
       const img = document.getElementById('chart-img-' + i);
@@ -609,9 +670,35 @@ function chartsToImages() {
   }
 }
 addEventListener('beforeprint', chartsToImages);
-function downloadPdf() {
+function printNow() {
   chartsToImages();
   setTimeout(() => window.print(), 50);
+}
+// przed PDF: wyjaśnienie, że wykresy w PDF to obrazki widoku z ekranu (można wyłączyć na stałe)
+function downloadPdf() {
+  let skip = false;
+  try { skip = localStorage.getItem('raporty.pdfInfo') === 'off'; } catch (e) { skip = false; }
+  if (skip) { printNow(); return; }
+  const m = document.createElement('div');
+  m.className = 'pdf-modal';
+  m.innerHTML = `<div class="box" role="dialog" aria-modal="true">
+    <h4>Wykresy w PDF</h4>
+    <div>PDF nie może mieć interaktywnych wykresów — każdy wykres trafi do pliku jako obrazek <b>dokładnie takiego widoku, jaki masz teraz na ekranie</b>.</div>
+    <ul>
+      <li>Chcesz w PDF krótszy okres (np. ostatnie 3 lata)? Zamknij to okno, ustaw zakres przyciskami nad wykresem albo przybliż kółkiem myszy / dwoma palcami, a potem pobierz PDF.</li>
+      <li>Pod każdym wykresem w PDF będzie dopisany zakres dat, który pokazuje.</li>
+      <li>W oknie drukowania wybierz <b>Zapisz jako PDF</b>.</li>
+    </ul>
+    <div class="row"><label><input type="checkbox" id="pdf-skip"> nie pokazuj więcej</label>
+      <button class="btn" id="pdf-cancel">Ustawię wykresy</button><button class="btn primary" id="pdf-go">Pobierz PDF</button></div></div>`;
+  document.body.appendChild(m);
+  const close = () => {
+    try { if (m.querySelector('#pdf-skip').checked) localStorage.setItem('raporty.pdfInfo', 'off'); } catch (e) { /* bez zapamiętania */ }
+    m.remove();
+  };
+  m.querySelector('#pdf-cancel').onclick = close;
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  m.querySelector('#pdf-go').onclick = () => { close(); printNow(); };
 }
 
 async function openReport(id) {
