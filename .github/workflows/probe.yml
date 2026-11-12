@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics bitmex binance vision cvd). Nowe źródła altów: coingecko dexscreener"
+        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics bitmex binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama"
         type: string
         default: ""
 
