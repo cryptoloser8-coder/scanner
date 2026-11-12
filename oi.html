@@ -5,6 +5,24 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OI & TOTAL Monitor · Crypto Loser</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="Open interest BTC / ALTS / OTHERS z wielu giełd na tle TOTAL, TOTAL2, TOTAL3 i BTC.D — nakładanie wykresów, dźwignia, fazy cyklu.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crypto Loser Analytics Tools">
+<meta property="og:title" content="OI &amp; TOTAL Monitor · Crypto Loser">
+<meta property="og:description" content="Open interest BTC / ALTS / OTHERS z wielu giełd na tle TOTAL, TOTAL2, TOTAL3 i BTC.D — nakładanie wykresów, dźwignia, fazy cyklu.">
+<meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crypto Loser Analytics Tools — The best tools for buying high and selling low.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Crypto Loser">
+<script src="app.js"></script>
 <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -562,6 +580,7 @@ function makeChart() {
     crosshair: {mode: LWC.CrosshairMode.Normal},
     localization: {locale: 'pl-PL'},
   });
+  if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); });
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
