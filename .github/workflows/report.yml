@@ -63,10 +63,11 @@ jobs:
 
       - run: pip install -r collector/requirements.txt
 
-      - name: Pobierz dane (gałęzie data, ema, reports)
+      - name: Pobierz dane (gałęzie data, ema, chains, reports)
         run: |
           bash collector/fetch_branch.sh data    data-branch    "$REMOTE"
           bash collector/fetch_branch.sh ema     ema-branch     "$REMOTE" || mkdir -p ema-branch
+          bash collector/fetch_branch.sh chains  chains-branch  "$REMOTE" || mkdir -p chains-branch
           # reports: błąd pobrania = błąd kroku (dawniej pusty katalog → nadpisanie wszystkich raportów)
           bash collector/fetch_branch.sh reports reports-branch "$REMOTE"
           rm -rf reports-branch/.git
@@ -78,7 +79,7 @@ jobs:
           SPECIAL: ${{ inputs.special }}
         run: |
           if [ -n "$SPECIAL" ]; then KIND="adhoc:$SPECIAL"; fi
-          python collector/report.py make --kind "$KIND" --data data-branch --ema ema-branch --out reports-branch
+          python collector/report.py make --kind "$KIND" --data data-branch --ema ema-branch --chains chains-branch --out reports-branch
 
       - name: Usuń raport(y) z historii
         if: inputs.delete != ''

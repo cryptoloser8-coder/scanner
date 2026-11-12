@@ -69,7 +69,7 @@ jobs:
 
   # raport zaraz po świeżych danych (harmonogram w config.yaml → schedule, uruchamia Orange Pi)
   report:
-    needs: collect
+    needs: [collect, chains]          # poranny czeka też na dane sieci (chains pominięte przy innych raportach)
     if: ${{ always() && inputs.mode != 'backfill' && inputs.report != '' && inputs.report != 'none' }}
     uses: ./.github/workflows/report.yml
     with:
