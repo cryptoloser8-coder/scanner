@@ -60,6 +60,13 @@ jobs:
           PUBLISH_ALLOW_SHRINK: ${{ inputs.mode == 'backfill' && '1' || '0' }}
         run: bash collector/publish.sh data-branch "$REMOTE"
 
+  # sieci (DefiLlama, poprawka 48): raz na dobę, równolegle ze skanem przed raportem porannym
+  # (osobna gałąź `chains`, nie korzysta z limitu Coinalyze)
+  chains:
+    if: ${{ inputs.mode != 'backfill' && contains(inputs.report, 'morning') }}
+    uses: ./.github/workflows/chains.yml
+    secrets: inherit
+
   # raport zaraz po świeżych danych (harmonogram w config.yaml → schedule, uruchamia Orange Pi)
   report:
     needs: collect

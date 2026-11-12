@@ -1,0 +1,51 @@
+name: Sieci
+
+# Dane sieci z DefiLlama (collector/chains.py): wolumen DEX, opłaty, stablecoiny i TVL naszych sieci
+# + sieci spoza listy, które nagle rosną. Raz na dobę — równolegle ze skanem przed raportem porannym
+# (wywołuje go „OI Monitor”), albo ręcznie: Actions → Sieci → Run workflow. Trwa ok. 15–20 min.
+# Wynik: gałąź `chains` (chains_1d.json, chains.json, chains_other.json, state.json).
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+jobs:
+  chains:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: chains
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: collector/requirements.txt
+
+      - run: pip install -r collector/requirements.txt
+
+      - name: Pobierz dotychczasowe dane (gałąź chains)
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: bash collector/fetch_branch.sh chains chains-branch "$REMOTE"
+
+      - name: Zbierz dane sieci (DefiLlama)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python collector/chains.py --data-dir chains-branch
+
+      - name: Opublikuj (gałąź chains)
+        if: always() && hashFiles('chains-branch/chains.json') != ''
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          DATA_BRANCH: chains
+          GIT_AUTHOR_NAME: chains-bot
+          GIT_AUTHOR_EMAIL: chains-bot@users.noreply.github.com
+        run: bash collector/publish.sh chains-branch "$REMOTE"
