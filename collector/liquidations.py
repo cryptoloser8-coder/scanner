@@ -20,6 +20,8 @@ log = logging.getLogger("liquidations")
 HOUR, DAY = S.HOUR, S.DAY
 
 LIQ_VERSION = 1              # bump → automatic re-download of the liquidation history
+PX_VERSION = 2               # bump → knoty dzienne cen pobrane od nowa (całe) + knoty godzinowe wstecz (poprawka 55)
+PX_RECENT_DAYS = 4           # w każdym skanie: knoty dzienne ostatnich dni z dziennych świec Coinalyze (pełne dni)
 INTRADAY_KEEP_HOURS = 1490
 OVERLAP_HOURS = 3
 FUND_ABS_CAP = 5000.0        # % per year; anything beyond is a data glitch
@@ -302,15 +304,30 @@ def collect_liq(client, store, cfg, now, backfill=False):
             store.put("1d", sid, pts, replace_from=0)
         if first:
             log.info("Likwidacje 1d: pełne dane od %s", _iso(first))
-    # knoty dzienne (high / low ceny) — jednorazowo cała historia, gdy jeszcze ich nie ma (pierwszy skan po poprawce 37)
-    if psyms and not full and any(not store.series["1d"].get(sid + "_lo") for sid in psyms):
+    # knoty dzienne (high / low ceny) z dziennych świec Coinalyze, tylko PEŁNE dni (dzień w toku — z danych 1h).
+    # Zwykle ostatnie PX_RECENT_DAYS dni (1 zapytanie); po zmianie PX_VERSION / bez knotów — cała historia
+    # (naprawia dzień zapisany z niepełnej świecy, np. 02.11.2026) i knoty godzinowe wstecz (Coinalyze ~2 miesiące).
+    if psyms and not full:
+        today = floor(now, DAY)
+        redo = st.get("px_version") != PX_VERSION or any(not store.series["1d"].get(sid + "_lo") for sid in psyms)
         d0 = int(datetime.strptime(str(cfg.get("coinalyze", {}).get("daily_history_start", "2019-01-01")),
                                    "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
-        pd = price_ohlc(client, sorted(set(psyms.values())), "daily", d0, now)
+        psym_list = sorted(set(psyms.values()))
+        pd = price_ohlc(client, psym_list, "daily", d0 if redo else today - PX_RECENT_DAYS * DAY, now)
         for sid, sym in psyms.items():
+            rows = {t: v for t, v in (pd.get(sym) or {}).items() if t < today}
             for i, suffix in ((0, "_hi"), (1, "_lo")):
-                store.put("1d", sid + suffix, {t: v[i] for t, v in (pd.get(sym) or {}).items()})
-        log.info("Knoty dzienne cen: %s", {sid: len(pd.get(sym) or {}) for sid, sym in psyms.items()})
+                store.put("1d", sid + suffix, {t: v[i] for t, v in rows.items()})
+        if redo:
+            ph_old = price_ohlc(client, psym_list, "1hour", keep_from, now)
+            for sid, sym in psyms.items():
+                for i, suffix in ((0, "_hi"), (1, "_lo")):
+                    store.put("1h", sid + suffix, {t: v[i] for t, v in (ph_old.get(sym) or {}).items()
+                                                   if t in (store.series["1h"].get(sid) or {})})
+            log.info("Knoty cen od nowa: dzienne %s, godzinowe %s", {sid: len(pd.get(sym) or {}) for sid, sym in psyms.items()},
+                     {sid: len(ph_old.get(sym) or {}) for sid, sym in psyms.items()})
+    if psyms:
+        st["px_version"] = PX_VERSION
     # Coinalyze liquidation history before the OI history start (09.2022) covers only a fraction
     # of the market (median ~$1–6M/day vs $100M+ later) → keep daily data from the OI start on.
     # Funding is not cut: fund_btc / fund_eth before that date come from history.py (fixed weights).

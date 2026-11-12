@@ -317,7 +317,7 @@ def alts_year(d, ema, y, hist_dir):
 def _hist(hist_dir, sym):
     try:
         with open(os.path.join(hist_dir, f"{sym}.json"), encoding="utf-8") as f:
-            return [p for p in json.load(f).get("d") or [] if len(p) >= 3]
+            return [p[:3] for p in json.load(f).get("d") or [] if len(p) >= 3]     # [t, close, ema] (+ knoty od poprawki 55)
     except (OSError, ValueError):
         return []
 

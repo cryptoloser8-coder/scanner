@@ -341,8 +341,73 @@ def liq_block(d, kind, starts, label_fn, cur_start, cur_end, hist_from):
     return out
 
 
-# ── EMA200: przecięcia w tygodniu ────────────────────────────
-def ema_crosses(ema, start, end, min_vol):
+# ── EMA200: świeca tygodniowa i przecięcia w tygodniu ────────
+def _week_pct(br, t):
+    for tt, v, n in br or []:
+        if tt == t:
+            return v, n
+    return None, None
+
+
+def ema_weekly(ema, t_end, cfg):
+    """EMA200 na świecy tygodniowej (Orange Pi, ema.json → weekly + pola w* coinów) z zamknięcia tygodnia t_end."""
+    w = (ema or {}).get("weekly")
+    if not w:
+        return []
+    per, min_w = int(ema.get("period") or 200), int(w.get("min_weeks") or 300)
+    title = f"EMA{per} na świecy tygodniowej — zamknięcie tygodnia"
+    if w.get("t") != t_end:
+        last = R.utc(w["t"], "%d.%m.%Y") if w.get("t") else "brak"
+        return [{"type": "text", "title": title,
+                 "text": f"Brak danych z zamknięcia tego tygodnia (ostatnie zamknięcie tygodnia w danych z Orange Pi: {last})."}]
+    allc = {c["s"]: c for c in ema.get("coins") or []}
+    wcoins = [c for c in allc.values() if c.get("wside") is not None]
+    want = R.layout(cfg)["weekly_ema_coins"]
+    rows = []
+    for s in [x.upper() for x in want]:
+        c = allc.get(s)
+        if not c:
+            continue
+        if c.get("wside") is None:
+            rows.append([s, "—", "—", "—", f"za krótka historia ({c.get('weeks', 0)} z {min_w} tyg.)", "—", "—"])
+            continue
+        new = c.get("wcross_t") == t_end
+        side = ("nad" if c["wside"] > 0 else "pod") + (" (przecięcie w tym tygodniu)" if new else "")
+        rows.append([s, R.fmt_price(c["wc"]), R.fmt_price(c["wec"]), f"{(c['wc'] / c['wec'] - 1) * 100:+.1f}%", side,
+                     str(c.get("wsince")), R.utc(c["wcross_t"], "%d.%m.%Y") if c.get("wcross_t") else "—"])
+    br = w.get("breadth") or []
+    v0, n0 = _week_pct(br, t_end)
+    v1, _ = _week_pct(br, t_end - WEEK)
+    v4, _ = _week_pct(br, t_end - 4 * WEEK)
+    up = sorted(c["s"] for c in wcoins if c.get("wcross_t") == t_end and c["wside"] > 0)
+    dn = sorted(c["s"] for c in wcoins if c.get("wcross_t") == t_end and c["wside"] < 0)
+    cross = ("Przecięcia na zamknięciu tygodnia (wszystkie coiny z EMA200 1W): "
+             + ("; ".join(x for x in ((f"w górę: {', '.join(up)}" if up else ""),
+                                       (f"w dół: {', '.join(dn)}" if dn else "")) if x) if up or dn else "brak") + ".")
+    note = cross
+    if v0 is not None:
+        above = sum(1 for c in wcoins if c["wside"] > 0)
+        note = (f"Nad EMA200 1W na zamknięciu tygodnia: {above} z {n0} coinów ({v0:.0f}%)"
+                + (f"; tydzień wcześniej {v1:.0f}%" if v1 is not None else "")
+                + (f", 4 tygodnie wcześniej {v4:.0f}%" if v4 is not None else "")
+                + (f" (historia od {R.utc(br[0][0], '%m.%Y')})" if br else "") + ". " + cross)
+    out = []
+    if rows:
+        out.append({"type": "table", "title": title,
+                    "cols": ["Coin", "Zamknięcie tygodnia", f"EMA{per} 1W", "Odległość", "Strona", "Tygodni po tej stronie",
+                             "Ostatnie przecięcie (zamknięcie tygodnia)"],
+                    "rows": rows, "left": [0, 4], "plain": True,
+                    "desc": f"Zamknięcie świecy tygodniowej (niedziela 24:00 UTC, Binance spot */USDT) względem EMA{per} "
+                            f"liczonej na świecach tygodniowych — te same wartości pokazuje TradingView na wykresie 1W pary "
+                            f"z Binance. Tylko coiny z co najmniej {min_w} tygodniami historii (ok. "
+                            f"{min_w * 7 / 365.25:.1f} roku).",
+                    "note": note})
+    else:
+        out.append({"type": "text", "title": title, "text": note})
+    return out
+
+
+def ema_crosses(ema, start, end, min_vol, head=True):
     coins = (ema or {}).get("coins") or []
     hits = [c for c in coins if c.get("cross_t") and start <= c["cross_t"] < end]
     up = sum(1 for c in hits if c.get("side", 0) > 0)
@@ -350,12 +415,13 @@ def ema_crosses(ema, start, end, min_vol):
     big.sort(key=lambda c: -(c.get("vol") or 0))
     rows = [[c["s"], "w górę" if c.get("side", 0) > 0 else "w dół", R.utc(c["cross_t"], "%d.%m"),
              R.fmt_price(c.get("p")), f"{c.get('d', 0):+.1f}%", alerts.fmt_value(c.get("vol"), "liq")] for c in big[:20]]
-    head = {"type": "section", "title": "EMA200 — przecięcia w tygodniu"}
+    head = [{"type": "section", "title": "EMA200 — przecięcia w tygodniu"}] if head else []
     txt = (f"W tygodniu {len(hits)} coinów przecięło EMA200 na zamknięciu dnia: {up} w górę, {len(hits) - up} w dół "
            f"(wszystkie coiny, bez progu obrotu).")
     if not rows:
-        return [head, {"type": "text", "title": "", "text": txt + f" Żaden z obrotem ≥ {alerts.fmt_value(min_vol, 'liq')} dziennie."}]
-    return [head, {"type": "table", "title": f"Przecięcia coinów z obrotem ≥ {alerts.fmt_value(min_vol, 'liq')} dziennie",
+        return head + [{"type": "text", "title": "EMA200 na świecy dziennej — przecięcia w tygodniu",
+                        "text": txt + f" Żaden z obrotem ≥ {alerts.fmt_value(min_vol, 'liq')} dziennie."}]
+    return head + [{"type": "table", "title": f"EMA200 na świecy dziennej — przecięcia coinów z obrotem ≥ {alerts.fmt_value(min_vol, 'liq')} dziennie",
                    "cols": ["Coin", "Kierunek", "Dzień", "Cena dziś", "Odległość od EMA dziś", "Obrót/dzień"],
                    "rows": rows, "plain": True, "desc": txt,
                    "note": "Binance spot */USDT, świeca dzienna. Kierunek i dzień ostatniego przecięcia; jeśli coin przeciął "
@@ -770,7 +836,9 @@ def build(d, ema, kind, now, cfg, macro):
         blocks += cvd_weekly(d, start, end, cfg)
         mondays = list(range(start - 104 * WEEK, end + 1, WEEK))
         blocks += liq_block(d, "weekly", mondays, lambda a: R.utc(a, "%d.%m"), start, end, end - 104 * WEEK)
-        blocks += ema_crosses(ema, start, end, float(L["ema_min_volume"]))
+        blocks += [{"type": "section", "title": "EMA200 w tygodniu"}]
+        blocks += ema_weekly(ema, t_end, cfg)
+        blocks += ema_crosses(ema, start, end, float(L["ema_min_volume"]), head=False)
         blocks += macro_blocks(macro, start, end, plan_from, plan_from + WEEK, cfg, 0, "miniony tydzień")
         blocks += change_table(d, ema, [x for x in MACRO_SIDS if x != "m2"], t_end, start, end, hz,
                                "Rynki i płynność — zamknięcie tygodnia",

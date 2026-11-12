@@ -202,6 +202,7 @@ reports:
   range_years: 2            # paski zakresu (Rynek, funding): min–maks. z ostatnich N lat
   ema_near_pct: 3           # EMA200: tylko coiny bliżej niż X% od średniej…
   ema_min_volume: 10000000  # …z obrotem co najmniej $ dziennie
+  weekly_ema_coins: [BTC, ETH, SOL, BNB]   # raport tygodniowy: tabela EMA200 na świecy tygodniowej (zamknięcie tygodnia)
   ema_max_rows: 15
   oi_flat_pct: 1            # OI i cena: zmiana poniżej X% = „bez zmian”
   liq_days: 7               # likwidacje: ostatnie N pełnych dni
@@ -274,6 +275,8 @@ ema:
   cooldown_hours: 12     # po alercie o przecięciu ten sam coin milczy tyle godzin
   near_cooldown_hours: 24  # alert „zbliża się” dla tego samego coina najwyżej raz na tyle godzin
   publish_minutes: 15    # jak często Pi odświeża dane na stronie
+  weekly_min_weeks: 300  # EMA200 na świecy tygodniowej: tylko coiny z co najmniej tyloma zamkniętymi tygodniami (~5,7 roku)
+  weekly_alerts: [BTC, ETH, SOL, XRP, BNB, DOGE]   # alert, gdy zamknięcie tygodnia (niedziela 24:00 UTC) przetnie EMA200 1W
   #
   # ALERTY — dowolnie wiele reguł:
   #   coins:     lista coinów albo all (uwaga: all = setki coinów, dużo wiadomości)

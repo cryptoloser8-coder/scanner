@@ -68,6 +68,9 @@ DEFAULTS = {
     "rsi_min_bars": 30,             # a coin counts once it has this many closed 3D / 1W candles
     "rsi_min_coins": 30,            # history points with fewer coins are skipped
     "rsi_d3_shift": 0,              # 0–2: which day starts a 3-day candle (0 = like Binance `3d` klines)
+    # EMA on the weekly candle (Mon–Sun UTC, built from the daily closes; same `period`)
+    "weekly_min_weeks": 300,        # a coin gets the weekly EMA once it has this many closed weeks
+    "weekly_alerts": [],            # coins with an alert when a weekly close crosses the weekly EMA
 }
 # stablecoins, fiat and gold tokens — never part of the EMA universe
 ALWAYS_EXCLUDE = {
@@ -80,7 +83,7 @@ ALWAYS_EXCLUDE = {
     "PAX", "USDSB", "SUSD", "UST", "USTC", "BKRW", "BIDR", "IDRT", "NGN", "RUB", "BVND", "VAI", "GYEN",
 }
 LEVERAGED = ("UP", "DOWN", "BULL", "BEAR")
-HIST_VERSION = 2          # bump → chart files are rewritten on the next run (not only after 00:00 UTC)
+HIST_VERSION = 3          # bump → chart files are rewritten on the next run (not only after 00:00 UTC); 3 = + knoty
 
 
 def fmt_price(v):
@@ -220,7 +223,7 @@ def streak(closes, emas):
     return side, n, (i + 1 if i >= 0 else None)
 
 
-# ── RSI on 3-day / weekly candles ────────────────────────────
+# ── RSI and EMA on 3-day / weekly candles ────────────────────
 RSI_KINDS = ("d3", "w")
 
 
@@ -247,6 +250,48 @@ def resample(times, closes, kind, shift=0):
             keys.append(k)
             out.append(c)
     return keys, out
+
+
+def weekly_ema(times, closes, price, now, period):
+    """EMA on weekly candles (Mon–Sun UTC) built from the daily closes, seeded with the first weekly close
+    (like ta.ema on TradingView's Binance chart). Side, streak and crossing from CLOSED weeks; e = EMA of the
+    week that is open now, counted with the current price. → dict or None (no closed week yet)."""
+    keys, bars = resample(times, closes, "w")
+    cur = bar_key(now, "w")
+    ck = [k for k in keys if k < cur]
+    cb = bars[:len(ck)]
+    if not cb:
+        return None
+    emas = ema_series(cb, period)
+    side, n, idx = streak(cb, emas)
+    a = 2 / (period + 1)
+    return {"weeks": len(cb), "keys": ck, "closes": cb, "emas": emas, "side": side, "since": n,
+            "cross_t": bar_end(ck[idx], "w") if idx is not None else None, "t": bar_end(ck[-1], "w"),
+            "c": cb[-1], "ec": emas[-1], "e": a * price + (1 - a) * emas[-1]}
+
+
+def breadth_weekly(series, cfg, now, extra=None):
+    """% of coins (with ≥ weekly_min_weeks closed weeks at that week) whose weekly close is above their weekly EMA,
+    per CLOSED week → [[t_last_day_of_week, pct, coins]]. extra = delisted pairs (as in the daily breadth)."""
+    period, min_w = int(cfg["period"]), int(cfg.get("weekly_min_weeks") or 300)
+    cur = bar_key(now, "w")
+    cnt, above = {}, {}
+    for times, closes, _ in list(series.values()) + list((extra or {}).values()):
+        keys, bars = resample(times, closes, "w")
+        emas = ema_series(bars, period)
+        for j in range(min_w - 1, len(keys)):
+            k = keys[j]
+            if k >= cur:
+                continue
+            cnt[k] = cnt.get(k, 0) + 1
+            if bars[j] >= emas[j]:
+                above[k] = above.get(k, 0) + 1
+    min_n = int(cfg.get("breadth_min_coins", 10))
+    return [[bar_end(k, "w"), round(above.get(k, 0) / n * 100, 2), n] for k, n in sorted(cnt.items()) if n >= min_n]
+
+
+def weekly_sig(cfg):
+    return [cfg.get(k) for k in ("period", "weekly_min_weeks", "breadth_min_coins")]
 
 
 def rsi_series(closes, period=14):
@@ -410,10 +455,36 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
     return msgs
 
 
+def check_weekly(rows, coins, st, cfg, arm_only=False):
+    """Weekly-close crossing of the weekly EMA for the coins in `weekly_alerts`.
+    st: state["walerts"] (mutated): {coin: {"t": last closed week, "side": side on that close}}. → message lines."""
+    want = {c.upper() for c in coins or []}
+    page = cfg.get("page_url", "")
+    msgs = []
+    for r in rows:
+        coin = r["s"]
+        if coin not in want or r.get("wside") is None:
+            continue
+        s = st.setdefault(coin, {})
+        if s.get("t") == r["wt"]:
+            continue
+        if not arm_only and s.get("side") is not None and r["wside"] != s["side"]:
+            up = r["wside"] > 0
+            link = f' · <a href="{page}#c={coin}&amp;i=1w">wykres</a>' if page else ""
+            dist = (r["wc"] / r["wec"] - 1) * 100
+            msgs.append(f"{'✅' if up else '❌'} zamknął tydzień {'nad' if up else 'pod'} EMA{cfg['period']}: "
+                        f"<b>{html.escape(coin)}</b> zamknięcie {fmt_price(r['wc'])}, EMA{cfg['period']} 1W "
+                        f"{fmt_price(r['wec'])} ({dist:+.1f}%){link}")
+        s["t"], s["side"] = r["wt"], r["wside"]
+    return msgs
+
+
 # ── computations ─────────────────────────────────────────────
-def compute(candles, sym_base, prices, vols, cfg, rules):
-    """→ (rows, excluded, per-coin series {base: (times, closes, emas)})."""
+def compute(candles, sym_base, prices, vols, cfg, rules, now=None):
+    """→ (rows, excluded, per-coin series {base: (times, closes, emas)}).
+    With `now`: also the weekly EMA (w* fields) for coins with ≥ weekly_min_weeks closed weeks."""
     period, min_days = int(cfg["period"]), int(cfg["min_days"])
+    min_w = int(cfg.get("weekly_min_weeks") or 300)
     min_vol = float(cfg.get("min_volume_usd") or 0)
     rows, excluded, series = [], [], {}
     a = 2 / (period + 1)
@@ -442,6 +513,12 @@ def compute(candles, sym_base, prices, vols, cfg, rules):
             "vol": vol, "days": len(cs),
             "alert": ({"cross": rule["cross"], "near": rule["near_pct"]} if rule else None),
         })
+        if now is not None:
+            w = weekly_ema(times, closes, p, now, period)
+            rows[-1]["weeks"] = w["weeks"] if w else 0
+            if w and w["weeks"] >= min_w:
+                rows[-1].update({"we": w["e"], "wd": (p / w["e"] - 1) * 100, "wc": w["c"], "wec": w["ec"],
+                                 "wside": w["side"], "wsince": w["since"], "wcross_t": w["cross_t"], "wt": w["t"]})
         series[base] = (times, closes, emas)
     rows.sort(key=lambda r: abs(r["d"]))
     excluded.sort(key=lambda x: -x[1])
@@ -487,7 +564,8 @@ def _round(v, sig=6):
     return None if v is None else float(f"{v:.{sig}g}")
 
 
-def write_outputs(pub_dir, payload, series, cfg, write_hist):
+def write_outputs(pub_dir, payload, series, cfg, write_hist, hl=None):
+    """hl: {base: [[t, high, low], ...]} — knoty z ostatnich ~400 dni (hl.json) → punkty [t, close, ema, high, low]."""
     os.makedirs(pub_dir, exist_ok=True)
     _write(os.path.join(pub_dir, "ema.json"), payload)
     if write_hist:
@@ -500,7 +578,9 @@ def write_outputs(pub_dir, payload, series, cfg, write_hist):
             names.add(fn)
             if keep:
                 times, closes, emas = times[-keep:], closes[-keep:], emas[-keep:]
-            pts = [[t, _round(c), _round(e)] for t, c, e in zip(times, closes, emas)]
+            wick = {t: (h, l_) for t, h, l_ in (hl or {}).get(base) or []}
+            pts = [[t, _round(c), _round(e)] + ([_round(wick[t][0]), _round(wick[t][1])] if t in wick else [])
+                   for t, c, e in zip(times, closes, emas)]
             _write(os.path.join(hdir, fn), {"s": base, "p": int(cfg["period"]), "d": pts})
         for fn in os.listdir(hdir):
             if fn.endswith(".json") and fn not in names:
@@ -699,7 +779,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             info["hl_missing"] = max(0, len(need) - int(cfg.get("history_pages_per_run") or 100))
 
     prices = cl.prices()
-    rows, excluded, series = compute(candles, sym_base, prices, st.get("volumes") or {}, cfg, cfg["alerts"])
+    rows, excluded, series = compute(candles, sym_base, prices, st.get("volumes") or {}, cfg, cfg["alerts"], now=now)
     for r in rows:                       # RSI on the open 3-day / weekly candle, with the current price
         times_r, closes_r, _ = series[r["s"]]
         r["r3"] = rsi_live(times_r, closes_r, r["p"], now, "d3", cfg)
@@ -709,6 +789,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     ast = st.setdefault("alerts", {})
     first = not st.get("armed")
     msgs = check_alerts(rows, cfg["alerts"], ast, cfg, now, daily_done=daily_due, arm_only=first or check_only)
+    wmsgs = check_weekly(rows, cfg.get("weekly_alerts"), st.setdefault("walerts", {}), cfg, arm_only=check_only)
     st["armed"] = True
 
     # Fibonacci setups: config + Telegram (/fib is handled by bot.py, stored in bot.json)
@@ -735,16 +816,18 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         pr["cmd"] = F.command_for(pr)
         pr["chart"] = pr["coin"] in series
 
-    if (msgs or fmsgs) and not check_only:
+    if (msgs or wmsgs or fmsgs) and not check_only:
         if alerts.is_muted(mute_until, now):
-            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(msgs) + len(fmsgs))
-            info["muted_alerts"] = len(msgs) + len(fmsgs)
+            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(msgs) + len(wmsgs) + len(fmsgs))
+            info["muted_alerts"] = len(msgs) + len(wmsgs) + len(fmsgs)
         else:
             tg = telegram or alerts.Telegram(tg_cfg=cfg.get("telegram") or {})
             if msgs:
                 header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
                 for i in range(0, len(msgs), 25):
                     tg.post("market", "\n".join([header, ""] + msgs[i:i + 25]))
+            if wmsgs:
+                tg.post("market", "\n".join([f"📅 <b>EMA{cfg['period']}</b> (Binance, świeca tygodniowa)", ""] + wmsgs))
             if fmsgs:
                 tg.post("market", "\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
 
@@ -761,9 +844,14 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         st["breadth_delisted"] = len(dser)
         st["rsi"] = {"sig": rsi_sig(cfg), "d3": rsi_extremes(series, cfg, now, "d3", extra=dser),
                      "w": rsi_extremes(series, cfg, now, "w", extra=dser)}
+        st["breadth_w"] = {"sig": weekly_sig(cfg), "d": breadth_weekly(series, cfg, now, extra=dser)}
     else:
         br = st["breadth"]
+    if (st.get("breadth_w") or {}).get("sig") != weekly_sig(cfg):     # first run with this code / settings changed
+        st["breadth_w"] = {"sig": weekly_sig(cfg), "d": breadth_weekly(series, cfg, now,
+                                                                       extra=delisted_series(delisted, cfg))}
     st["breadth"] = br
+    wrows = [r for r in rows if r.get("wside") is not None]
     payload = {
         "updated": now, "daily_at": st.get("daily_day"), "period": int(cfg["period"]),
         "min_days": int(cfg["min_days"]), "source": f"Binance spot */{cfg['quote']}",
@@ -779,13 +867,20 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         "rsi": {"period": int(cfg["rsi_period"]), "low": cfg["rsi_low"], "high": cfg["rsi_high"],
                 "min_bars": int(cfg["rsi_min_bars"]), "d3_shift": int(cfg["rsi_d3_shift"]),
                 "d3": st["rsi"]["d3"], "w": st["rsi"]["w"], "now": rsi_now(rows, cfg)},
+        # EMA on the weekly candle: coins with ≥ min_weeks closed weeks; t = last closed week (its Sunday, 00:00 UTC)
+        "weekly": {"min_weeks": int(cfg["weekly_min_weeks"]), "total": len(wrows),
+                   "above": sum(1 for r in wrows if r["wd"] >= 0),
+                   "above_close": sum(1 for r in wrows if r["wside"] > 0),
+                   "t": max((r["wt"] for r in wrows), default=None),
+                   "alerts": [c.upper() for c in cfg.get("weekly_alerts") or []],
+                   "breadth": st["breadth_w"]["d"]},
     }
     fib_payload = {"updated": now, "near_pct": fcfg["near_pct"], "zone": list(F.ZONE),
                    "setups": F.publish_rows(setups, set(series)),
                    "proposals": [{k: (_round(v) if isinstance(v, float) else v) for k, v in pr.items()} for pr in props],
                    "proposal_cfg": pcfg, "candidates": len(st.get("fib_cands") or [])}
     info.update({"pairs": len(sym_base), "coins": len(rows), "excluded": len(excluded), "above": above,
-                 "alerts_sent": 0 if check_only else len(msgs) + len(fmsgs), "calls": cl.calls,
+                 "alerts_sent": 0 if check_only else len(msgs) + len(wmsgs) + len(fmsgs), "calls": cl.calls,
                  "fib_setups": len(setups)})
 
     if not check_only:
@@ -806,7 +901,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             pub = os.path.join(state_dir, "pub")
             write_hist = (daily_due or st.get("hist_dirty") or st.get("hist_version") != HIST_VERSION
                           or not os.path.isdir(os.path.join(pub, "hist")))
-            write_outputs(pub, payload, series, cfg, write_hist=write_hist)
+            write_outputs(pub, payload, series, cfg, write_hist=write_hist,
+                          hl={r["s"]: hld.get(r["sym"]) for r in rows})
             _write(os.path.join(pub, "fib.json"), fib_payload)
             st["hist_dirty"] = False
             if write_hist:
@@ -823,7 +919,7 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
                     info["publish_error"] = str(e)
         _write(spath, st)
     info["fib"] = fib_payload["setups"]
-    return info, rows, excluded, msgs + fmsgs
+    return info, rows, excluded, msgs + wmsgs + fmsgs
 
 
 def main(argv=None):

@@ -333,6 +333,7 @@ LAYOUT = {
     "ema_near_pct": 3.0,           # EMA200: tylko coiny bliżej niż X% od średniej
     "ema_min_volume": 10e6,        # … z obrotem ≥ $ dziennie
     "ema_max_rows": 15,
+    "weekly_ema_coins": ["BTC", "ETH", "SOL", "BNB"],   # raport tygodniowy: tabela EMA200 na świecy tygodniowej
     "oi_flat_pct": 1.0,            # OI i cena: zmiana poniżej X% = „bez zmian”
     "liq_days": 7,                 # likwidacje: ostatnie N pełnych dni
     "liq_big_pct": 90,             # linia „duży dzień” = percentyl z 2 lat
