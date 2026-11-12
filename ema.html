@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EMA200 Monitor · Crypto Loser</title>
+<title>EMA200 i RSI — coiny Binance · Crypto Loser</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<meta name="description" content="Wszystkie coiny z Binance względem EMA200 na świecy dziennej i tygodniowej: najbliższe przecięcia, szerokość rynku.">
+<meta name="description" content="Wszystkie coiny z Binance: EMA200 na świecy dziennej i tygodniowej, RSI 3D i 1W, szerokość rynku, przecięcia, świece.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Crypto Loser Analytics Tools">
-<meta property="og:title" content="EMA200 Monitor · Crypto Loser">
-<meta property="og:description" content="Wszystkie coiny z Binance względem EMA200 na świecy dziennej i tygodniowej: najbliższe przecięcia, szerokość rynku.">
+<meta property="og:title" content="EMA200 i RSI — coiny Binance · Crypto Loser">
+<meta property="og:description" content="Wszystkie coiny z Binance: EMA200 na świecy dziennej i tygodniowej, RSI 3D i 1W, szerokość rynku, przecięcia, świece.">
 <meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -117,8 +117,8 @@
   <div class="header-left">
     <a href="index.html" class="menu-link">← Menu</a>
     <div>
-      <h1>EMA200 Monitor</h1>
-      <p>Binance spot */USDT &nbsp;·&nbsp; świeca dzienna i tygodniowa &nbsp;·&nbsp; liczone na Orange Pi, odświeżane co ~15 min</p>
+      <h1>EMA200 i RSI — coiny Binance</h1>
+      <p>Binance spot */USDT &nbsp;·&nbsp; EMA200 na świecy dziennej i tygodniowej, RSI 3D i 1W, szerokość rynku &nbsp;·&nbsp; liczone na Orange Pi, odświeżane co ~15 min</p>
     </div>
   </div>
   <div style="text-align:right">
@@ -162,7 +162,7 @@
       </div>
     </div>
     <div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna">Log</button>
-      <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot; knoty z ostatnich ok. 400 dni, wcześniej linia zamknięć)">Świece</button></div>
+      <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot): BTC i ETH od 2017, pozostałe coiny z ostatnich ok. 400 dni — wcześniej linia zamknięć">Świece</button></div>
   </div>
   <div class="chart-wrap">
     <div id="chart"></div>
@@ -227,6 +227,16 @@ const BASE = (() => {
     return `https://raw.githubusercontent.com/${owner}/${repo}/ema/`;
   }
   return 'ema-data/';
+})();
+// gałąź data (świece 1h BTC/ETH z archiwum Binance spot — knoty dla całej historii tych dwóch coinów)
+const DATA_BASE = (() => {
+  if (qs.get('data')) return qs.get('data').replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/data/`;
+  }
+  return 'data/';
 })();
 const bust = () => 'v=' + Math.floor(Date.now() / 120000);
 async function getJSON(name) {
@@ -461,6 +471,30 @@ function addPrice(line, candles, marks, name) {
   mounted.push({series: sp, name, color: '#e0e0e0', fmt: price});
 }
 const wicksOf = d => d.filter(p => p.length >= 5);
+// BTC i ETH: knoty dzienne z całej historii ze świec 1h Binance spot (ta sama para co tutaj) — max / min godzin dnia.
+// Dni z knotami z Orange Pi (ostatnie ~400) zostają; archiwum kończy się na wczoraj.
+const SPOT_COINS = ['BTC', 'ETH'];
+async function addSpotWicks(coin, h) {
+  h.spot = 'none';
+  let o = null;
+  try {
+    const r = await fetch(`${DATA_BASE}px_1h_${coin.toLowerCase()}.json?${bust()}`, {cache: 'no-cache'});
+    if (r.ok) o = await r.json();
+  } catch (e) { o = null; }
+  if (!o || !o.c) return;
+  const day = new Map();
+  for (let i = 0; i < o.c.length; i++) {
+    if (o.c[i] == null) continue;
+    const t = o.t0 + i * o.step, d = t - t % 86400, x = day.get(d);
+    if (!x) day.set(d, [o.h[i], o.l[i]]); else { x[0] = Math.max(x[0], o.h[i]); x[1] = Math.min(x[1], o.l[i]); }
+  }
+  let n = 0;
+  for (const p of h.d) {
+    const w = day.get(p[0]);
+    if (p.length < 5 && w) { p[3] = Math.max(w[0], p[1]); p[4] = Math.min(w[1], p[1]); n++; }
+  }
+  h.spot = n ? 'ok' : 'none';
+}
 function setRange(first, last) {
   const apply = () => {
     if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(first, last - S.range * 86400), to: last});
@@ -547,6 +581,11 @@ async function refreshChart(resetRange) {
     catch (e) { empty.textContent = 'Nie udało się wczytać historii ' + c.s + ' (' + e.message + ')'; return; }
     if (S.coin !== c.s) return;
   }
+  if (S.cdl && SPOT_COINS.includes(c.s) && !h.spot) {
+    empty.style.display = 'flex'; empty.textContent = 'Ładowanie świec ' + c.s + ' od 2017…';
+    await addSpotWicks(c.s, h);
+    if (S.coin !== c.s) return;
+  }
   empty.style.display = 'none';
   const today = Math.floor(DATA.updated / 86400) * 86400;
   if (weekly) { drawWeekly(c, h, today, resetRange); return; }
@@ -572,7 +611,7 @@ async function refreshChart(resetRange) {
   mounted.push({series: se, name: 'EMA' + DATA.period, color: '#ffc107', fmt: price});
   if (resetRange) setRange(line[0][0], today);
   document.getElementById('chart-hint').textContent =
-    (candles ? `Świece dzienne z knotami (Binance spot; knoty z ostatnich ${wk.length} dni, wcześniej biała linia zamknięć); ostatnia świeca trwa — od wczorajszego zamknięcia do aktualnej ceny, bez knotów. `
+    (candles ? `Świece dzienne z knotami (Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}); ostatnia świeca trwa — od wczorajszego zamknięcia do aktualnej ceny, bez knotów. `
              : `Biała linia: zamknięcia dni, ostatni punkt to aktualna cena (dzień jeszcze trwa). `) +
     `Żółta: EMA${DATA.period}. Strzałki: przecięcia na zamknięciu dnia. ` +
     `Historia coina: ${c.days} dni.` + (c.alert ? ` Alert: ${c.alert.cross ? 'przecięcie' : ''}${c.alert.cross && c.alert.near ? ' + ' : ''}${c.alert.near ? `zbliżenie do ${c.alert.near}%` : ''}.` : '');
@@ -621,7 +660,7 @@ function drawWeekly(c, h, today, resetRange) {
   if (resetRange) setRange(line[0][0], now);
   const minW = DATA.weekly.min_weeks;
   document.getElementById('chart-hint').textContent =
-    (candles ? `Świece tygodniowe z knotami (z dziennych świec Binance spot; knoty z ostatnich ok. ${Math.round(wk.length / 7)} tygodni, wcześniej biała linia zamknięć), data = poniedziałek; ostatnia świeca trwa (aktualna cena). `
+    (candles ? `Świece tygodniowe z knotami (z dziennych świec Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}), data = poniedziałek; ostatnia świeca trwa (aktualna cena). `
              : `Biała linia: zamknięcia tygodni (punkt = poniedziałek otwierający tydzień), ostatni punkt to aktualna cena (tydzień jeszcze trwa). `) +
     (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` +
            `Ostatnie zamknięcie tygodnia (${dateFmt(c.wt)}): ${price(c.wc)}, EMA ${price(c.wec)}, ${c.wside > 0 ? 'nad' : 'pod'} od ${c.wsince} tyg.`

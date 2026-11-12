@@ -16,7 +16,7 @@
   "shortcuts": [
     {"name": "Raporty", "url": "./raporty.html", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]},
     {"name": "OI & TOTAL", "url": "./oi.html", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]},
-    {"name": "EMA200", "url": "./ema.html", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "EMA200 i RSI", "url": "./ema.html", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]},
     {"name": "Sieci", "url": "./sieci.html", "icons": [{"src": "icons/icon-192.png", "sizes": "192x192"}]}
   ]
 }
