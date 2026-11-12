@@ -176,6 +176,96 @@ def test_parse_metrics_skips_bad_rows():
     assert H.parse_metrics(content) == ("2020-09-01 23:50:00", 5.0)
 
 
+# ── 1b. knoty z TradingView INDEX (poprawka 56) ──────────────
+class FakeTVOHLC(FakeTV):
+    def ohlc_bars(self, symbol, interval, n):
+        self.calls += 1
+        return [(t, (c, c + 50, c - 30, c)) for t, c in self.bars(symbol, interval, n)]
+
+
+def test_wicks_only_for_days_with_index_close(tmp_path):
+    store = Store(str(tmp_path))
+    coin_first = NOW - NOW % D - 50 * D
+    store.put("1d", "px_btc", {t: 5.0 for t in range(coin_first, NOW, D)})     # Coinalyze (inne zamknięcia)
+    store.put("1d", "px_btc_hi", {t: 6.0 for t in range(coin_first - 10 * D, NOW, D)})
+    store.put("1d", "px_btc_lo", {t: 4.0 for t in range(coin_first - 10 * D, NOW, D)})
+    tv = FakeTVOHLC(coin_first - 300 * D)
+    cfg = {"history": {"price_symbols": {"px_btc": "INDEX:BTCUSD"}}}
+    H.extend_prices(store, tv, cfg, NOW)
+    info = H.extend_wicks(store, tv, cfg, NOW)
+    hi, lo, px = (store.series["1d"][k] for k in ("px_btc_hi", "px_btc_lo", "px_btc"))
+    first = coin_first - 300 * D
+    assert min(hi) == first and hi[first] == px[first] + 50 and lo[first] == px[first] - 30
+    d = coin_first - 5 * D                                   # zamknięcie z INDEX, a knoty z Coinalyze → z INDEX
+    assert hi[d] == px[d] + 50
+    assert hi[coin_first] == 6.0 and lo[coin_first] == 4.0  # dni z Coinalyze bez zmian
+    assert "300 dni" in info["px_btc_knoty"]
+    n = tv.calls
+    H.extend_wicks(store, tv, cfg, NOW + 3600)
+    assert tv.calls == n                                     # drugi raz nic nie pobiera
+    assert H.extend_wicks(store, FakeTV(first), cfg, NOW) == {}   # klient bez OHLC (stare testy)
+
+
+# ── 5. świece 1h z archiwum Binance spot (poprawka 56) ───────
+def kline_csv(ts, mult=1000):
+    return "".join(f"{t * mult},{100 + i},{110 + i},{90 + i},{100 + i},1,0\n" for i, t in enumerate(ts))
+
+
+class KlineSession:
+    def __init__(self, first, last_day, monthly_until):
+        self.first, self.last_day, self.monthly_until, self.urls = first, last_day, monthly_until, []
+
+    def get(self, url, params=None, timeout=None):
+        self.urls.append(url)
+        per = "monthly" if "/monthly/" in url else "daily"
+        date = url.rsplit("-1h-", 1)[1][:-4]
+        if per == "monthly":
+            a = H.day_of(date + "-01")
+            if H._next_month(a) > self.monthly_until:
+                return Resp(404)
+            b = H._next_month(a)
+        else:
+            a = H.day_of(date)
+            if a > self.last_day:
+                return Resp(404)
+            b = a + D
+        ts = [t for t in range(max(a, self.first), b, 3600)]
+        mult = 1_000_000 if a >= H.day_of("2025-01-01") else 1000
+        return Resp(content=zip_bytes("k.csv", kline_csv(ts, mult)))
+
+
+def test_spot_1h_monthly_then_daily_then_incremental(tmp_path):
+    from store import Store as St
+    import guard as G
+    today = NOW - NOW % D
+    cur_m = H._month_start(today)
+    prev_m = H._month_start(cur_m - D)
+    start = H._month_start(prev_m - 40 * D)                  # ~2–3 miesiące wstecz
+    sess = KlineSession(first=start + 5 * D, last_day=today - D, monthly_until=prev_m)   # poprzedni miesiąc nie spakowany
+    cfg = {"history": {"spot_1h": {"px_btc": "BTCUSDT"}, "spot_1h_start": H.iso(start), "vision_workers": 2}}
+    info = H.collect_spot_1h(str(tmp_path), cfg, NOW, session=sess)
+    bars, _ = H.load_px1h(H.px1h_path(str(tmp_path), "px_btc"))
+    assert min(bars) == start + 5 * D and max(bars) == today - 3600     # pełne dni do wczoraj
+    assert len(bars) == (today - start - 5 * D) // 3600 and "od " in info["px_btc_1h"]
+    assert any("/daily/" in u and H.iso(prev_m) in u for u in sess.urls)   # 404 miesiąca → pliki dzienne
+    o = json.load(open(tmp_path / "px_1h_btc.json"))
+    assert o["step"] == 3600 and len(o["c"]) == len(bars) and G.series_points(str(tmp_path / "px_1h_btc.json")) == len(bars)
+    n = len(sess.urls)
+    H.collect_spot_1h(str(tmp_path), cfg, NOW + 3600, session=sess)      # ten sam dzień — nic nowego
+    assert len(sess.urls) == n
+    sess.last_day = today
+    H.collect_spot_1h(str(tmp_path), cfg, NOW + D, session=sess)
+    bars2, _ = H.load_px1h(H.px1h_path(str(tmp_path), "px_btc"))
+    assert max(bars2) == today + D - 3600 and len(sess.urls) == n + 1
+    assert St(str(tmp_path)).series["1h"] == {}                           # osobny plik, nie miesza się z liq_1h
+
+
+def test_parse_spot_klines_ms_and_us():
+    t1, t2 = 1_600_000_000, 1_740_000_000
+    out = H.parse_klines(zip_bytes("k.csv", "open_time,o,h,l,c\n" + f"{t1 * 1000},1,3,0.5,2,0\n{t2 * 1_000_000},1,4,1,3,0\n"))
+    assert out == {t1: (3.0, 0.5, 2.0), t2: (4.0, 1.0, 3.0)}
+
+
 # ── 4. pary zdelistowane ─────────────────────────────────────
 def ecfg(**kw):
     c = dict(E.DEFAULTS)
