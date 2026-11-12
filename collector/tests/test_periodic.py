@@ -421,6 +421,7 @@ def test_report_price_charts_have_candles(tmp_path):
     rep = report.build(data, ema, "weekly", now=now, cfg={}, macro=None)
     ch = [b for b in rep["blocks"] if b.get("title") == "BTC i średnie tygodniowe — od 2011"][0]
     s0 = ch["series"][0]
+    assert ch["view"] == 1095                                                 # strona raportu otwiera ostatnie 3 lata
     assert s0["ohlc"] and s0["ohlc"][-1][0] == s0["data"][-1][0] and s0["ohlc"][-1][4] == s0["data"][-1][1]
     for t, o, h, l_, c in s0["ohlc"]:
         assert l_ <= min(o, c) <= max(o, c) <= h and P._dt(t).weekday() == 6
