@@ -407,3 +407,27 @@ def test_weekly_ema200_block(tmp_path):
     rep = report.build(data, ema, "weekly", now=now, cfg=cfg, macro=None)
     blk = [b for b in rep["blocks"] if b.get("title") == "EMA200 na świecy tygodniowej — zamknięcie tygodnia"][0]
     assert blk["type"] == "text" and "25.10.2026" in blk["text"]
+
+
+def test_report_price_charts_have_candles(tmp_path):
+    now = ts(2026, 11, 2, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    f = os.path.join(data, "liq_1d.json")
+    js = json.load(open(f))
+    px = report.Data(data).pts("1d", "px_btc")
+    js["series"]["px_btc_hi"] = [[t, v * 1.03] for t, v in px if t >= ts(2019, 9, 12)]
+    js["series"]["px_btc_lo"] = [[t, v * 0.97] for t, v in px if t >= ts(2019, 9, 12)]
+    json.dump(js, open(f, "w"))
+    rep = report.build(data, ema, "weekly", now=now, cfg={}, macro=None)
+    ch = [b for b in rep["blocks"] if b.get("title") == "BTC i średnie tygodniowe — od 2011"][0]
+    s0 = ch["series"][0]
+    assert s0["ohlc"] and s0["ohlc"][-1][0] == s0["data"][-1][0] and s0["ohlc"][-1][4] == s0["data"][-1][1]
+    for t, o, h, l_, c in s0["ohlc"]:
+        assert l_ <= min(o, c) <= max(o, c) <= h and P._dt(t).weekday() == 6
+    assert s0["ohlc"][1][1] == s0["ohlc"][0][4]                               # open = zamknięcie poprzedniego tygodnia
+    rep = report.build(data, ema, "monthly", now=ts(2026, 11, 1, 0, 50), cfg={}, macro=None)
+    ch = [b for b in rep["blocks"] if b.get("title") == "Cena BTC i fazy cyklu — od 2011"][0]
+    s0 = ch["series"][0]
+    assert [c[0] for c in s0["ohlc"]] == [p[0] for p in s0["data"]] and len(s0["ohlc"]) > 150
+    assert all(P._dt(c[0]).day >= 28 for c in s0["ohlc"])                   # ostatni dzień miesiąca
+    assert "świece" in report.to_markdown(rep) or "Cena BTC" in report.to_markdown(rep)
