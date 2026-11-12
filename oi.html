@@ -47,6 +47,8 @@
   .info:hover{color:var(--text);border-color:var(--text2);}
   .tile-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
   .tile-chg{display:flex;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text3);}
+  .tile-short,.lg-short{font-size:10px;color:var(--amber,#e0a84a);}
+  .tile-short{margin-top:3px;}
   .pos{color:var(--green);} .neg{color:var(--red);}
   .spark{display:block;width:100%;height:34px;margin-top:5px;}
 
@@ -380,6 +382,16 @@ function valueAt(arr, t) { // last value at/before t (binary search)
   while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m][0] <= t) { best = m; lo = m + 1; } else hi = m - 1; }
   return best >= 0 ? arr[best][1] : null;
 }
+// seria z krótką historią (np. zbierana od niedawna) — dopisek „zbierane od DD.MM · N dni” na kafelku i w legendzie
+const SHORT_DAYS = 60;
+function shortInfo(sid) {
+  const d = pts('1d', sid);
+  if (!d.length) return null;
+  const days = Math.round((d[d.length - 1][0] - d[0][0]) / 86400) + 1;
+  if (days >= SHORT_DAYS) return null;
+  const t = new Date(d[0][0] * 1000), p2 = n => String(n).padStart(2, '0');
+  return {days, n: d.length, text: `zbierane od ${p2(t.getUTCDate())}.${p2(t.getUTCMonth() + 1)} · ${days} ${days === 1 ? 'dzień' : 'dni'}`};
+}
 function available(sid) { return pts('1d', sid).length > 0 || pts('1h', sid).length > 0; }
 // CVD: serie z deltą na świecę (CAT.cum) rysowane jako suma narastająca od chwili `from`
 function cumulate(arr, from) {
@@ -401,6 +413,10 @@ function sparkline(arr, color) {
     <polygon points="0,${H} ${p.join(' ')} ${W},${H}" fill="${color}" opacity=".08"/>
     <polyline points="${p.join(' ')}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
 }
+function shortNote(id) {
+  const s = shortInfo(id);
+  return s ? `<div class="tile-short" title="Seria jest zbierana od niedawna — wykres wydłuża się z każdym dniem">${s.text}</div>` : '';
+}
 function renderTiles() {
   const sections = TILE_SECTIONS.slice();
   const watch = (META.watchlist || []).map(s => 'oi_' + s.toLowerCase()).filter(available);
@@ -419,14 +435,14 @@ function renderTiles() {
         <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
         <div class="tile-val">${sg(v24)}<span style="font-size:10px;color:var(--text3)"> 24 h</span></div>
         <div class="tile-chg"><span>7D ${sg(sumSince(d, tEnd - 6 * 86400))}</span><span>30D ${sg(sumSince(d, tEnd - 29 * 86400))}</span></div>
-        ${sparkline(cumulate(d, tEnd - 89 * 86400), c.color)}
+        ${sparkline(cumulate(d, tEnd - 89 * 86400), c.color)}${shortNote(id)}
       </div>`;
       }
       return `<div class="tile ${S.series.includes(id) ? 'on' : ''}" data-sid="${id}" style="--c:${c.color}">
         <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
         <div class="tile-val">${fmt(v, fmtOf(c))}</div>
         <div class="tile-chg"><span>1D ${chgFor(c, v, valueAt(d, t - 86400))}</span><span>7D ${chgFor(c, v, valueAt(d, t - 7 * 86400))}</span><span>30D ${chgFor(c, v, valueAt(d, t - 30 * 86400))}</span></div>
-        ${sparkline(d, c.color)}
+        ${sparkline(d, c.color)}${shortNote(id)}
       </div>`;
     }).join('');
     if (tiles) html += `<div class="section-label">${label}</div><div class="tiles">${tiles}</div>`;
@@ -688,6 +704,7 @@ function drawChart(resetRange) {
     const series = chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
       lastValueVisible: true, priceLineVisible: false,
+      pointMarkersVisible: !!(shortInfo(id) && shortInfo(id).n <= 30),   // 1 punkt nie rysuje linii — pokaż kropki
       priceFormat: S.mode === 'val' || c.cum ? {type: 'custom', minMove: 1e-6, formatter: v => fmt(v, fmtOf(c))}
         : {type: 'price', precision: 2, minMove: 0.01},
     }, pane);
@@ -758,7 +775,7 @@ function updateLegend(param) {
       if (first && v != null) extra = ' ' + chg(v, first[1]);
     }
     return `<div class="lg-row"><span class="swatch" style="--c:${c.color}"></span><span class="lg-name" data-tip="${id}">${esc(c.name)}</span>` +
-      `<span class="lg-val">${fmt(v, fmtOf(c))}${extra}</span><span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;
+      `<span class="lg-val">${fmt(v, fmtOf(c))}${extra}</span>${shortInfo(id) ? `<span class="lg-short">${shortInfo(id).text}</span>` : ''}<span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;
   });
   const lg = document.getElementById('legend');
   lg.innerHTML = rows.join('');
