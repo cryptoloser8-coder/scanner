@@ -187,6 +187,10 @@
   .tip{position:fixed;z-index:50;max-width:320px;background:#1d1d1d;border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:11px;line-height:1.55;color:var(--text);display:none;pointer-events:none;box-shadow:0 6px 24px rgba(0,0,0,.5);}
   .footer{font-size:10px;color:var(--text3);margin-top:18px;line-height:1.6;}
   .print-only{display:none;}
+  /* znak wodny raportu (stały na środku ekranu; w druku powtarza się na każdej stronie) */
+  .page-wm{position:fixed;left:50%;top:50%;width:min(560px,72vw);height:auto;transform:translate(-50%,-50%);
+    opacity:.05;pointer-events:none;user-select:none;z-index:40;}
+  @media print{ .page-wm{opacity:.18;width:120mm;} }
   .rep-logo{margin:0 0 12px;} .rep-logo img{display:block;height:36px;width:auto;}
 
   @media (max-width:820px){
@@ -267,6 +271,8 @@
   Usunięcie raportu z historii (admin): <code>/usun_raport ID</code> na Telegramie albo Actions → Raport → pole „delete” (ID jest przy dacie raportu).
 </div>
 <div class="tip" id="tip"></div>
+<!-- znak wodny raportu: stały na środku ekranu, w PDF na każdej stronie; nie przechwytuje kliknięć -->
+<img class="page-wm" src="logo-watermark.svg" alt="" aria-hidden="true">
 
 <script>
 'use strict';
