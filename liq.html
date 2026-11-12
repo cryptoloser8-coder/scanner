@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Likwidacje i funding</title>
+<title>Likwidacje i funding · Crypto Loser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -95,10 +96,15 @@
     body{padding:14px;}
     .tiles{grid-template-columns:repeat(2,1fr);}
   }
+  .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
+  .brand img{display:block;height:34px;max-width:100%;}
+  @media (max-width:640px){ .brand{margin-bottom:14px;} .brand img{height:30px;} }
+  @media print{ .brand{display:none !important;} }
 </style>
 </head>
 <body>
 
+<a href="index.html" class="brand" title="Menu"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>
 <div class="header">
   <div class="header-left">
     <a href="index.html" class="menu-link">← Menu</a>

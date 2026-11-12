@@ -2,7 +2,8 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Hyperliquid Scanners</title>
+<title>Crypto Loser Analytics Tools</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{
@@ -20,9 +21,10 @@
   .container{max-width:900px;width:100%;}
 
   .hero{text-align:center;margin-bottom:48px;}
-  .hero h1{font-size:32px;font-weight:600;letter-spacing:-.5px;margin-bottom:8px;}
+  .hero h1{margin:0 0 14px;}
+  .hero h1 img{display:block;margin:0 auto;height:78px;max-width:100%;}
   .hero p{font-size:13px;color:var(--text2);}
-  .hero .accent{color:var(--blue);}
+  @media (max-width:640px){ .hero{margin-bottom:32px;} .hero h1 img{height:auto;width:100%;max-width:340px;} }
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;}
 
@@ -71,8 +73,8 @@
 <div class="container">
 
   <div class="hero">
-    <h1>Hyperliquid <span class="accent">Scanners</span></h1>
-    <p>Zestaw narzędzi do skanowania rynków perp na Hyperliquid</p>
+    <h1><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></h1>
+    <p>Własne narzędzia do analizy rynku krypto: dane na jednym wykresie, raporty i alerty na Telegram</p>
   </div>
 
   <div class="grid">
