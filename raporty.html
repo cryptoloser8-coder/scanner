@@ -131,8 +131,10 @@
   .rng-mark.ref{background:var(--amber);}
   .rng-mark.top{background:var(--red);}
   .rng-mark.bottom{background:var(--green);}
+  .rng-mark.best{background:var(--amber);} .rng-mark.worst{background:var(--purple,#ce93d8);}
   .rng-refs{font-family:var(--mono);font-size:10.5px;color:var(--text2);margin-top:4px;line-height:1.6;}
   .rng-refs span{white-space:nowrap;} .rng-refs .top{color:var(--red);} .rng-refs .bottom{color:var(--green);}
+  .rng-refs .best{color:var(--amber);} .rng-refs .worst{color:var(--purple,#ce93d8);}
   .rng-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);}
   .rng-desc{font-size:13px;color:var(--text2);margin-top:4px;line-height:1.5;}
   .rng-legend,.bars-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:8px;}
@@ -140,6 +142,7 @@
   .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
   .lg-mark.ref{background:var(--amber);}
   .lg-mark.top{background:var(--red);} .lg-mark.bottom{background:var(--green);}
+  .lg-mark.best{background:var(--amber);} .lg-mark.worst{background:var(--purple,#ce93d8);}
   .dbar-grp{padding:4px 0;border-bottom:1px solid var(--border2);}
   .dbar-grp:last-of-type{border-bottom:0;}
   .dbar-row{display:grid;grid-template-columns:62px 34px minmax(0,1fr) 170px;gap:8px;align-items:center;padding:2px 0;font-size:12px;}
@@ -406,12 +409,13 @@ function chartBlock(b, i) {
 }
 function rangesBlock(b) {
   const items = b.items || [];
-  let hasRef = false, hasMark = false, hasTop = false, hasBottom = false;
-  const CYC = {top: 1, bottom: 1};
+  let hasRef = false, hasMark = false, hasTop = false, hasBottom = false, hasBest = false, hasWorst = false;
+  const CYC = {best: 1, worst: 1, top: 1, bottom: 1};
   const rows = items.map(it => {
     const marks = (it.marks || []).map(m => {
       if (m.kind === 'ref') hasRef = true; else if (m.kind === 'top') hasTop = true;
-      else if (m.kind === 'bottom') hasBottom = true; else hasMark = true;
+      else if (m.kind === 'bottom') hasBottom = true; else if (m.kind === 'best') hasBest = true;
+      else if (m.kind === 'worst') hasWorst = true; else hasMark = true;
       const cls = m.kind === 'ref' || CYC[m.kind] ? m.kind : '';
       return `<div class="rng-mark ${cls}" style="left:${+m.pos}%" data-note="${esc(m.label)}"></div>`;
     }).join('');
@@ -429,6 +433,8 @@ function rangesBlock(b) {
   const marksLegend = [...new Set(items.flatMap(it => (it.marks || []).filter(m => !m.kind).map(m => m.label)))];
   return rows + `<div class="rng-legend"><span><span class="lg-dot"></span>dziś</span>
     ${hasRef ? '<span><span class="lg-mark ref"></span>ostatni altseason</span>' : ''}
+    ${hasBest ? '<span><span class="lg-mark best"></span>najlepszy tydzień (2 lata)</span>' : ''}
+    ${hasWorst ? '<span><span class="lg-mark worst"></span>najgorszy tydzień (2 lata)</span>' : ''}
     ${hasTop ? '<span><span class="lg-mark top"></span>szczyty poprzednich cykli</span>' : ''}
     ${hasBottom ? '<span><span class="lg-mark bottom"></span>dna poprzednich cykli</span>' : ''}
     ${hasMark ? marksLegend.map(l => `<span><span class="lg-mark"></span>${esc(l)}</span>`).join('') : ''}</div>`;

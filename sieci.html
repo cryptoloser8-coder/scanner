@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sieci — kapitał i ruch</title>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--red-bg:rgba(224,82,82,.12);
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);} .status-dot.stale{background:var(--amber);} .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:14px;}
+  .panel h2{font-size:13px;font-weight:600;margin-bottom:4px;}
+  .desc{font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .pill:disabled{opacity:.35;cursor:not-allowed;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  select{font-size:11px;padding:4px 9px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit;}
+  .chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+  .chip{font-size:11px;padding:3px 9px 3px 7px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;}
+  .chip .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);opacity:.45;}
+  .chip.on{color:var(--text);border-color:var(--c);background:rgba(255,255,255,.05);}
+  .chip.on .swatch{opacity:1;}
+  .chip:disabled{opacity:.3;cursor:not-allowed;}
+  .chart-wrap{position:relative;height:min(58vh,560px);min-height:320px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;}
+  .lg-row .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);}
+  .lg-name{color:var(--text2);} .lg-val{font-family:var(--mono);color:var(--text);}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+
+  .rise{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;}
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;}
+  .card-head{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .card-name{font-weight:600;font-size:13px;}
+  .tag{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--bg3);color:var(--text2);white-space:nowrap;}
+  .tag.new{background:rgba(255,193,7,.15);color:var(--amber);}
+  .card-what{font-size:11px;color:var(--text);margin:6px 0 2px;line-height:1.45;}
+  .card-size{font-size:10px;color:var(--text2);font-family:var(--mono);}
+  .spark-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
+  .spark-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
+  .spark{display:block;width:100%;height:36px;}
+  .card a{font-size:10px;color:var(--text3);}
+  .none{font-size:12px;color:var(--text2);}
+  .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
+  .footer a{color:var(--text3);}
+  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Sieci — gdzie jest kapitał i ruch</h1>
+      <p>Stablecoiny, wolumen DEX, opłaty i TVL na sieciach (DefiLlama, dane dzienne)</p>
+    </div>
+  </div>
+  <div style="text-align:right"><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group"><span class="ctrl-label">Miara</span>
+      <div class="pills" id="metric-pills">
+        <button class="pill" data-val="stable" title="Dolary w stablecoinach leżące na sieci — gdzie jest kapitał">Stablecoiny</button>
+        <button class="pill" data-val="dex" title="Ile handlowano na giełdach zdecentralizowanych tej sieci — gdzie jest ruch">Wolumen DEX</button>
+        <button class="pill" data-val="fees" title="Ile użytkownicy zapłacili za korzystanie z sieci — najtrudniej napompować">Opłaty</button>
+        <button class="pill" data-val="tvl" title="Wartość zablokowana w aplikacjach sieci — rusza się razem z cenami coinów">TVL</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Widok</span>
+      <div class="pills" id="view-pills">
+        <button class="pill" data-val="val" title="Kwoty w dolarach">Wartości</button>
+        <button class="pill" data-val="share" title="Jaka część całego rynku (wszystkich sieci) jest na tej sieci — tylko stablecoiny i wolumen DEX">Udział w rynku</button>
+        <button class="pill" data-val="idx" title="Wszystkie linie startują od 100 na początku widocznego zakresu — co rośnie szybciej">Index 100</button>
+      </div>
+    </div>
+    <div class="ctrl-group" id="smooth-group"><span class="ctrl-label">Okres</span>
+      <div class="pills" id="smooth-pills">
+        <button class="pill" data-val="7" title="Suma z ostatnich 7 dni (wygładza przypadkowe dni)">Suma 7 dni</button>
+        <button class="pill" data-val="1" title="Każdy dzień osobno">Dzień</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Zakres</span>
+      <div class="pills" id="range-pills">
+        <button class="pill" data-val="90">3M</button><button class="pill" data-val="180">6M</button>
+        <button class="pill" data-val="365">1R</button><button class="pill" data-val="730">2L</button>
+        <button class="pill" data-val="0">ALL</button>
+      </div>
+    </div>
+    <div class="ctrl-group"><div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości) — sieci różnej wielkości na jednym wykresie">Log</button></div></div>
+    <div class="ctrl-group"><span class="ctrl-label">Cena na tle</span><select id="price-sel"></select></div>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="chart-wrap">
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty" id="empty">Wybierz sieci powyżej</div>
+  </div>
+  <div class="hint" id="hint"></div>
+</div>
+
+<div class="panel">
+  <h2>Sieci spoza listy, które rosną</h2>
+  <div class="desc" id="rise-desc"></div>
+  <div class="rise" id="rise"></div>
+</div>
+
+<div class="footer">
+  Dane: <a href="https://defillama.com/chains" target="_blank" rel="noopener">DefiLlama</a> (stablecoiny, wolumen DEX, opłaty, TVL) · ceny coinów: Coinalyze (perpetuale) ·
+  Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a><br>
+  <span id="foot-info"></span>
+</div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+const qs = new URLSearchParams(location.search);
+function branchBase(param, branch) {
+  if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+  }
+  return branch + '/';
+}
+const CH_BASE = branchBase('data', 'chains'), PX_BASE = branchBase('prices', 'data');
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(base, name) {
+  const r = await fetch(`${base}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const DAY = 86400;
+const COLORS = ['#7b8cde', '#e05252', '#9c6ade', '#f3ba2f', '#4caf7d', '#3b82f6', '#26c6da', '#ff8a65', '#ce93d8', '#a1887f'];
+const METRIC = {stable: 'Stablecoiny', dex: 'Wolumen DEX', fees: 'Opłaty', tvl: 'TVL'};
+const FLOW = new Set(['dex', 'fees']);
+const PRICES = {BTC: 'px_btc', ETH: 'px_eth', SOL: 'px_sol', BNB: 'px_bnb'};
+
+let SUM = null, SER = {}, OTHER = {}, PX = null, chart = null, mounted = [], CHAINS = [];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('sieci.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('sieci.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1)), o = {};
+  if (h.get('m')) o.metric = h.get('m');
+  if (h.get('v')) o.view = h.get('v');
+  if (h.get('s')) o.smooth = +h.get('s');
+  if (h.get('z')) o.range = +h.get('z');
+  if (h.get('log')) o.log = h.get('log') === '1';
+  if (h.get('c')) o.chains = h.get('c').split(',').filter(Boolean);
+  if (h.has('p')) o.price = h.get('p');
+  return o;
+}
+let S = Object.assign({metric: 'stable', view: 'val', smooth: 7, range: 365, log: true, chains: null, price: ''},
+  store.get('view', {}), parseHash());
+function persist() {
+  store.set('view', S);
+  const h = new URLSearchParams({m: S.metric, v: S.view, s: S.smooth, z: S.range, log: S.log ? 1 : 0, c: (S.chains || []).join(','), p: S.price || ''});
+  history.replaceState(null, '', '#' + h.toString());
+}
+
+// ── liczby ──────────────────────────────────────────────────
+function fmtUsd(v) {
+  if (v == null || isNaN(v)) return '—';
+  const a = Math.abs(v);
+  if (a >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (a >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
+function rolling(pts, n) {                                 // suma z n dni (tylko pełne okna, bez luk)
+  if (n <= 1) return pts;
+  const m = new Map(pts), out = [];
+  for (const [t] of pts) {
+    let s = 0, ok = true;
+    for (let k = 0; k < n; k++) { const v = m.get(t - k * DAY); if (v == null) { ok = false; break; } s += v; }
+    if (ok) out.push([t, s]);
+  }
+  return out;
+}
+function seriesFor(slug) {
+  const raw = SER[`ch_${slug}_${S.metric}`] || [];
+  let pts = FLOW.has(S.metric) ? rolling(raw, S.smooth) : raw;
+  if (S.view === 'share') {
+    const all = SER[`ch_all_${S.metric}`] || [];
+    const tot = new Map(FLOW.has(S.metric) ? rolling(all, S.smooth) : all);
+    pts = pts.map(([t, v]) => [t, tot.get(t) ? v / tot.get(t) * 100 : null]).filter(p => p[1] != null);
+  }
+  return pts;
+}
+
+// ── wykres ──────────────────────────────────────────────────
+function makeChart() {
+  chart = LWC.createChart(document.getElementById('chart'), {
+    autoSize: true, layout: {background: {color: 'transparent'}, textColor: '#888', fontSize: 11},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, leftPriceScale: {borderColor: 'rgba(255,255,255,.1)', visible: false},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', minBarSpacing: 0.05},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL', dateFormat: 'dd.MM.yyyy'},
+  });
+  chart.subscribeCrosshairMove(updateLegend);
+}
+function draw() {
+  if (!chart) makeChart();
+  for (const m of mounted) chart.removeSeries(m.series);
+  mounted = [];
+  const sel = (S.chains || []).filter(sl => CHAINS.some(c => c.slug === sl) || sl === 'all');
+  const fmtV = v => S.view === 'share' ? v.toFixed(2) + '%' : fmtUsd(v);
+  for (const sl of sel) {
+    if (sl === 'all' && S.view === 'share') continue;
+    const pts = seriesFor(sl);
+    if (!pts.length) continue;
+    const c = CHAINS.find(x => x.slug === sl) || {name: 'Wszystkie sieci', color: '#bdbdbd'};
+    const s = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 2, priceScaleId: 'right', lastValueVisible: true, priceLineVisible: false,
+      priceFormat: S.view === 'idx' ? {type: 'price', precision: 1, minMove: 0.1} : {type: 'custom', minMove: 1e-6, formatter: fmtV}});
+    s.setData(pts.map(([t, v]) => ({time: t, value: v})));
+    mounted.push({series: s, name: c.name, color: c.color, fmt: fmtV});
+  }
+  const px = S.price && PX && PX[PRICES[S.price]];
+  if (px && mounted.length) {
+    const s = chart.addSeries(LWC.LineSeries, {color: 'rgba(240,240,240,.55)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, priceScaleId: 'left',
+      lastValueVisible: true, priceLineVisible: false, priceFormat: {type: 'custom', minMove: 0.01, formatter: v => '$' + v.toLocaleString('pl-PL', {maximumFractionDigits: v < 100 ? 2 : 0})}});
+    s.setData(px.map(([t, v]) => ({time: t, value: v})));
+    mounted.push({series: s, name: `Cena ${S.price}`, color: 'rgba(240,240,240,.55)', fmt: v => '$' + v.toLocaleString('pl-PL', {maximumFractionDigits: 2})});
+  }
+  const mode = S.view === 'idx' ? LWC.PriceScaleMode.IndexedTo100 : (S.log && S.view === 'val') ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal;
+  chart.priceScale('right').applyOptions({mode, scaleMargins: {top: .1, bottom: .08}});
+  chart.priceScale('left').applyOptions({visible: !!px && mounted.length > 0, mode: S.view === 'idx' ? LWC.PriceScaleMode.IndexedTo100 : LWC.PriceScaleMode.Logarithmic});
+  document.getElementById('empty').style.display = mounted.length ? 'none' : 'flex';
+  const ends = mounted.map(m => m.series.data()).filter(d => d.length);
+  if (ends.length) {
+    const end = Math.max(...ends.map(d => d[d.length - 1].time)), start = Math.min(...ends.map(d => d[0].time));
+    if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(start, end - S.range * DAY), to: end});
+    else chart.timeScale().fitContent();
+  }
+  updateLegend();
+  requestAnimationFrame(() => updateLegend());          // szerokość lewej osi (cena) znana dopiero po narysowaniu
+  renderHint();
+}
+function updateLegend(param) {
+  const rows = mounted.map(m => {
+    let v = null;
+    if (param && param.time) { const d = param.seriesData.get(m.series); v = d && d.value; }
+    if (v == null) { const d = m.series.data(); v = d.length ? d[d.length - 1].value : null; }
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : esc(m.fmt(v))}</span></div>`;
+  });
+  document.getElementById('legend').innerHTML = rows.join('');
+  let lw = 0; try { lw = chart.priceScale('left').width(); } catch (e) {}
+  document.getElementById('legend').style.left = (lw + 8) + 'px';
+}
+function renderHint() {
+  const what = {
+    stable: 'Stablecoiny na sieci = dolary gotowe do wydania. Rosną, gdy ktoś przenosi kapitał na sieć (albo emitent wybija nowe tokeny).',
+    dex: 'Wolumen DEX = obrót na giełdach zdecentralizowanych sieci. Bywa napompowany (farming pod airdrop, handel sam ze sobą) i rośnie razem z cenami coinów.',
+    fees: 'Opłaty = ile użytkownicy zapłacili za korzystanie z sieci. Najtrudniej je napompować — dobry sprawdzian, czy ruch jest prawdziwy.',
+    tvl: 'TVL = wartość zablokowana w aplikacjach sieci. W dolarach, więc spada i rośnie razem z cenami coinów.',
+  }[S.metric];
+  const extra = S.view === 'share' ? ' Udział = wartość sieci ÷ suma wszystkich sieci w DefiLlama tego samego dnia.'
+    : S.view === 'idx' ? ' Index 100 = każda linia startuje od 100 na początku widocznego zakresu.' : '';
+  document.getElementById('hint').innerHTML = esc(what + extra) + (FLOW.has(S.metric) ? ' Suma 7 dni pomija tygodnie z brakującymi dniami.' : '') +
+    ' Punkt z bieżącego dnia pomijamy (dzień niepełny).';
+}
+
+// ── kontrolki ───────────────────────────────────────────────
+function syncControls() {
+  const okShare = S.metric === 'stable' || S.metric === 'dex';
+  if (S.view === 'share' && !okShare) S.view = 'val';
+  for (const [id, key] of [['metric-pills', 'metric'], ['view-pills', 'view'], ['smooth-pills', 'smooth'], ['range-pills', 'range']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
+  document.querySelector('#view-pills [data-val="share"]').disabled = !okShare;
+  document.getElementById('smooth-group').style.display = FLOW.has(S.metric) ? '' : 'none';
+  const lb = document.getElementById('log-btn');
+  lb.classList.toggle('active', S.log); lb.disabled = S.view !== 'val';
+  const hasAll = !!SER[`ch_all_${S.metric}`] && S.view !== 'share';
+  document.getElementById('chips').innerHTML = [...(hasAll ? [{slug: 'all', name: 'Wszystkie sieci', color: '#bdbdbd'}] : []), ...CHAINS].map(c =>
+    `<button class="chip ${(S.chains || []).includes(c.slug) ? 'on' : ''}" data-sl="${c.slug}" style="--c:${c.color}"><span class="swatch"></span>${esc(c.name)}</button>`).join('');
+  const ps = document.getElementById('price-sel');
+  ps.innerHTML = '<option value="">—</option>' + Object.keys(PRICES).map(k => `<option value="${k}"${S.price === k ? ' selected' : ''}>${k}</option>`).join('');
+}
+function bindPills(id, key, conv = v => v) {
+  document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('.pill'); if (!b || b.disabled) return;
+    S[key] = conv(b.dataset.val); refresh();
+  });
+}
+bindPills('metric-pills', 'metric'); bindPills('view-pills', 'view'); bindPills('smooth-pills', 'smooth', Number); bindPills('range-pills', 'range', Number);
+document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
+document.getElementById('chips').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  const sl = c.dataset.sl, set = new Set(S.chains || []);
+  set.has(sl) ? set.delete(sl) : set.add(sl);
+  S.chains = [...set]; refresh();
+});
+document.getElementById('price-sel').addEventListener('change', async e => {
+  S.price = e.target.value;
+  if (S.price && !PX) {
+    try { PX = (await getJSON(PX_BASE, 'liq_1d.json')).series || {}; } catch (err) { PX = {}; }
+  }
+  refresh();
+});
+function refresh() { syncControls(); persist(); draw(); }
+
+// ── sieci spoza listy ───────────────────────────────────────
+function spark(pts, color) {
+  if (!pts || pts.length < 2) return '<div class="spark-lbl" style="margin-top:12px">brak danych</div>';
+  const W = 100, H = 36, vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), sp = (hi - lo) || 1;
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0], ts = (t1 - t0) || 1;
+  const p = pts.map(([t, v]) => `${((t - t0) / ts * W).toFixed(2)},${(H - (v - lo) / sp * (H - 2) - 1).toFixed(2)}`);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${p.join(' ')}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function renderRising() {
+  const r = SUM.rules || {}, list = SUM.rising || [];
+  document.getElementById('rise-desc').textContent =
+    `Sieci, których nie śledzimy, a na których nagle pojawił się ruch albo kapitał (doba ${SUM.day ? SUM.day.split('-').reverse().join('.') : '?'}). ` +
+    `Progi na próbę: wolumen DEX z 7 dni ≥ ×${r.dex_ratio ?? 3} średniego tygodnia z 4 poprzednich w porównaniu z całym rynkiem; ` +
+    `stablecoiny +${r.stable30 ?? 100}% w 30 dni; nowa sieć z dużym ruchem od pierwszych dni. Sprawdzamy ${SUM.candidates ?? '?'} sieci ` +
+    `ze stablecoinami albo TVL ≥ ${fmtUsd(r.cand_min)}. Wykresiki: ostatnie ${Math.round((OTHER._days || 120))} dni.`;
+  if (!list.length) { document.getElementById('rise').innerHTML = '<div class="none">Dziś żadna sieć spoza listy nie przekroczyła progów.</div>'; return; }
+  const K = {dex: 'ruch (wolumen DEX)', stable: 'kapitał (stablecoiny)', new: 'nowa sieć'};
+  document.getElementById('rise').innerHTML = list.map(x => {
+    const o = OTHER[x.name] || {};
+    const what = [];
+    if (x.kinds.includes('dex') && x.dex_ratio != null) what.push(`wolumen DEX ×${x.dex_ratio.toFixed(1)} zwykłego tygodnia` + (x.market_ratio ? ` (cały rynek ×${x.market_ratio.toFixed(2)})` : ''));
+    if (x.kinds.includes('stable')) what.push(`stablecoiny ${fmtPct(x.stable30)} w 30 dni`);
+    if (x.kinds.includes('new')) what.push(`dane od ${x.age_days} dni`);
+    const size = [x.dex7 ? `DEX 7 dni ${fmtUsd(x.dex7)}` : '', x.stable != null ? `stablecoiny ${fmtUsd(x.stable)}` : ''].filter(Boolean).join(' · ');
+    const since = x.since ? x.since.split('-').reverse().slice(0, 2).join('.') : '?';
+    return `<div class="card">
+      <div class="card-head"><span class="card-name">${esc(x.name)}</span><span class="tag ${x.new ? 'new' : ''}">${x.new ? 'nowa' : 'dzień ' + x.day_n} · od ${esc(since)}</span></div>
+      <div class="card-what">${esc(x.kinds.map(k => K[k]).join(', '))}: ${esc(what.join('; '))}</div>
+      <div class="card-size">${esc(size)}</div>
+      <div class="spark-row"><div><div class="spark-lbl">Wolumen DEX, suma 7 dni</div>${spark(rolling(o.dex || [], 7), '#5b9cf6')}</div>
+        <div><div class="spark-lbl">Stablecoiny</div>${spark(o.stable, '#4caf7d')}</div></div>
+      <a href="https://defillama.com/chain/${encodeURIComponent(x.name)}" target="_blank" rel="noopener">DefiLlama ↗</a>
+    </div>`;
+  }).join('');
+}
+
+// ── start ───────────────────────────────────────────────────
+function setStatus(cls, txt) { document.getElementById('dot').className = 'status-dot ' + cls; document.getElementById('status').textContent = txt; }
+(async () => {
+  try {
+    const [sum, ser, oth] = await Promise.all([getJSON(CH_BASE, 'chains.json'), getJSON(CH_BASE, 'chains_1d.json'), getJSON(CH_BASE, 'chains_other.json').catch(() => ({}))]);
+    SUM = sum; SER = ser.series || {}; OTHER = oth.other || {};
+    CHAINS = (SUM.chains || []).map((c, i) => ({slug: c.slug, name: c.name, coin: c.coin, color: COLORS[i % COLORS.length]}));
+    if (!S.chains) S.chains = CHAINS.map(c => c.slug);
+    const age = (Date.now() / 1000 - (SUM.updated || 0)) / 3600;
+    const upd = new Date((SUM.updated || 0) * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+    setStatus(age > 30 ? 'stale' : 'live', `Ostatni pełny dzień ${SUM.day ? SUM.day.split('-').reverse().join('.') : '?'} · pobrano ${upd}`);
+    if (age > 30) { const b = document.getElementById('banner'); b.className = 'banner warn'; b.textContent = `Dane sieci sprzed ${Math.round(age)} h — workflow „Sieci” mógł nie zadziałać.`; }
+    if ((SUM.errors || []).length) document.getElementById('foot-info').textContent = 'Uwagi z ostatniego pobrania: ' + SUM.errors.join('; ');
+    if (S.price) { try { PX = (await getJSON(PX_BASE, 'liq_1d.json')).series || {}; } catch (e) { PX = {}; } }
+    refresh();
+    renderRising();
+  } catch (e) {
+    setStatus('error', 'Błąd danych');
+    const b = document.getElementById('banner'); b.className = 'banner err';
+    b.textContent = 'Nie udało się wczytać danych sieci (gałąź chains): ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>
