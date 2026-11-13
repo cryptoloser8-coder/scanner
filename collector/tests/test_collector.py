@@ -90,6 +90,10 @@ class FakeCoinalyze:
     def price_history(self, symbols, interval, frm, to, progress=None):
         return self._hist(symbols, interval, frm, to, lambda s, t: 100000.0 if s.startswith("BTC") else 4000.0)
 
+    def history(self, path, symbols, interval, frm, to, fields, usd=False, progress=None):
+        # /ohlcv-history (v, bv, c) — ceny coinów z watchlisty (poprawka 67)
+        return self._hist(symbols, interval, max(frm, 1_600_000_000), to, lambda s, t: (1.0, 0.5, 25.0))
+
 
 class FakeTV:
     def __init__(self, fail=False):
@@ -235,7 +239,7 @@ def test_backfill_then_run(tmp_path):
     cz, tv = FakeCoinalyze(), FakeTV()
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
     store, msgs, res = main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=cz, tv=tv, telegram=tg, cg_fetch=CG)
-    assert res == {"Coinalyze": None, "TradingView": None}
+    assert res == {"Coinalyze": None, "Ceny watchlisty": None, "TradingView": None}
     # max_assets=3 → BTC, ETH, SOL (DUST and PEPE dropped), Kraken excluded
     uni = store.state["universe"]["symbols"]
     assert set(uni.values()) == {"BTC", "ETH", "SOL"}
@@ -252,7 +256,7 @@ def test_backfill_then_run(tmp_path):
     assert 0 < h["oi_btc_dom"][t] < 100
     assert any("Backfill" in m for m in msgs)
     files = sorted(os.listdir(d))
-    assert files == ["1d.json", "1h.json", "meta.json", "state.json"]
+    assert files == ["1d.json", "1h.json", "liq_1d.json", "liq_1h.json", "meta.json", "state.json"]   # liq_* = ceny watchlisty
     meta = json.load(open(os.path.join(d, "meta.json")))
     assert "oi_sol" in meta["catalog"] and meta["health"]["Coinalyze"] == "ok"
 
@@ -260,8 +264,8 @@ def test_backfill_then_run(tmp_path):
     cz2 = FakeCoinalyze()
     tv2 = FakeTV()
     store2, msgs2, res2 = main.run(d, _cfg(), now=NOW + 2 * H, coinalyze=cz2, tv=tv2, telegram=tg, cg_fetch=CG)
-    assert res2 == {"Coinalyze": None, "TradingView": None}
-    assert cz2.calls_made == len(uni)  # universe reused, one history pass
+    assert res2 == {"Coinalyze": None, "Ceny watchlisty": None, "TradingView": None}
+    assert cz2.calls_made == len(uni) + 1  # universe reused, one history pass + cena SOL (1h)
     assert all(n < 20 for (_, iv, n) in tv2.requests)
     assert max(store2.series["1h"]["oi_total"]) == NOW + 2 * H - (NOW + 2 * H) % H
     assert not any("Dzienny raport" in m for m in msgs2)     # old text report removed (zakładka Raporty)
@@ -443,7 +447,7 @@ def test_liquidations_backfill_and_run(tmp_path):
     cfg = _liq_cfg()
     store, msgs, res = main.run(d, cfg, now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(),
                                 telegram=tg, cg_fetch=CG)
-    assert res == {"Coinalyze": None, "Likwidacje": None, "TradingView": None}
+    assert res == {"Coinalyze": None, "Likwidacje": None, "Ceny watchlisty": None, "TradingView": None}
     h, dd = store.series["1h"], store.series["1d"]
     # top_alts=1 → OTHERS = SOL (+ watchlist SOL; PEPE not in OI universe) ; 3 exchanges per coin
     t = NOW - NOW % H
@@ -482,7 +486,7 @@ def test_liquidations_backfill_and_run(tmp_path):
     store2, _, res2 = main.run(d, cfg, now=NOW + 2 * H, coinalyze=cz, tv=FakeTV(), telegram=tg, cg_fetch=CG)
     assert res2["Likwidacje"] is None
     n_markets = len(store2.state["universe"]["symbols"])
-    assert cz.calls_made <= n_markets * 3 + 4               # OI + liquidations + funding + 2 ceny 1h + 2 ceny 1d (knoty)
+    assert cz.calls_made <= n_markets * 3 + 5               # OI + liq + funding + 2 ceny 1h + 2 ceny 1d (knoty) + cena SOL
     assert max(store2.series["1h"]["liq_total_long"]) == NOW + 2 * H - (NOW + 2 * H) % H
     assert len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) or \
         len(store2.series["1d"]["liq_btc_long"]) == len(dd["liq_btc_long"]) + 1
@@ -504,7 +508,7 @@ def test_liquidations_first_run_after_upgrade_downloads_history(tmp_path):
     d = str(tmp_path)
     tg = alerts.Telegram(token="", chat_id="", enabled=False)
     main.run(d, _cfg(), now=NOW, backfill=True, coinalyze=FakeCoinalyze(), tv=FakeTV(), telegram=tg, cg_fetch=CG)
-    assert not os.path.exists(os.path.join(d, "liq_1h.json"))
+    assert not [k for k in Store_(d).series["1h"] if k.startswith("liq_")]   # w pliku liq_* tylko ceny watchlisty
     store, _, res = main.run(d, _liq_cfg(), now=NOW + 2 * H, coinalyze=FakeCoinalyze(), tv=FakeTV(),
                              telegram=tg, cg_fetch=CG)
     assert res["Likwidacje"] is None

@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+import pytest
+
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
@@ -298,3 +300,72 @@ def test_morning_merged_oi_cvd_table(tmp_path):
     assert f"Przewaga kupujących w dobie {report.utc(today - DAY, '%d.%m')} — % wolumenu" in by
     md = report.to_markdown(rep)
     assert "Cena rośnie, przybywa pozycji · CVD perp: przewaga kupna → potwierdza: nowe longi · Spot i perp: kupują spot i perp" in md
+
+
+class PxCZ:
+    """Coinalyze dla cen watchlisty: świece od startu rynku (start[sym]), cena = 10 + dzień."""
+    def __init__(self, start, fail=False):
+        self.start, self.fail, self.calls_made, self.failed_batches, self.requests = start, fail, 0, 0, []
+
+    def history(self, path, syms, interval, frm, to, fields, usd=False, progress=None):
+        assert path == "/ohlcv-history" and tuple(fields) == ("v", "bv", "c")
+        self.requests.append((interval, tuple(syms), frm))
+        self.calls_made += len(syms)
+        if self.fail:
+            self.failed_batches += 1
+            return {}
+        step = DAY if interval == "daily" else HOUR
+        out = {}
+        for s in syms:
+            a = -(-max(frm, self.start[s]) // step) * step
+            out[s] = {t: (1.0, 0.5, 10.0 + t // DAY % 1000) for t in range(a, to + 1, step)}
+        return out
+
+
+def _px_store(tmp_path):
+    st = Store(str(tmp_path))
+    st.state["universe"] = {"symbols": {"TAOUSDT_PERP.A": "TAO", "TAOUSDT.6": "TAO", "HYPEUSDT.6": "HYPE",
+                                        "HYPE.H": "HYPE", "SUIUSD_PERP.A": "SUI", "SOLUSDT_PERP.A": "SOL"}}
+    return st
+
+
+def test_watch_prices_full_history_then_incremental(tmp_path):
+    now = T0 + 900 * DAY + 5 * HOUR
+    cfg = dict(CFG, watchlist=["SOL", "TAO", "HYPE", "SUI"])
+    assert cvd.watch_coins(cfg) == ["TAO", "HYPE", "SUI"]                     # SOL ma cenę z CVD
+    st = _px_store(tmp_path)
+    cz = PxCZ({"TAOUSDT_PERP.A": T0 + 100 * DAY, "TAOUSDT.6": T0 + 100 * DAY, "HYPEUSDT.6": T0 + 700 * DAY,
+               "HYPE.H": T0 + 600 * DAY})
+    info = cvd.watch_prices(cz, st, cfg, now)
+    # TAO: ta sama długość historii → Binance; HYPE: Hyperliquid ma dłuższą historię niż Bybit
+    assert info["markets"] == {"TAO": "TAOUSDT_PERP.A", "HYPE": "HYPE.H"}
+    assert info["missing"] == ["SUI"]                                          # tylko perp na monetę (USD) — pomijamy
+    d = st.series["1d"]
+    assert min(d["px_tao"]) == T0 + 100 * DAY and min(d["px_hype"]) == T0 + 600 * DAY   # od startu rynku
+    today = now - now % DAY
+    assert today in d["px_tao"] and max(st.series["1h"]["px_tao"]) == now - now % HOUR  # bieżący dzień z godzin
+    assert st.state["watch_px"]["full"] == {"TAO": "TAOUSDT_PERP.A", "HYPE": "HYPE.H"}
+    # następny skan tego samego dnia: bez świec dziennych, godziny od ostatniej − 3 h
+    cz2 = PxCZ(cz.start)
+    cvd.watch_prices(cz2, st, cfg, now + 2 * HOUR)
+    assert [r[0] for r in cz2.requests] == ["1hour"] and cz2.requests[0][2] == now - now % HOUR - 3 * HOUR
+    # nowy dzień: 40 dni świec dziennych dla znanych coinów
+    cz3 = PxCZ(cz.start)
+    cvd.watch_prices(cz3, st, cfg, now + DAY)
+    assert cz3.requests[0][0] == "daily" and cz3.requests[0][2] == today + DAY - cvd.DAILY_REFRESH_DAYS * DAY
+    assert cz3.requests[0][1] == ("HYPE.H", "TAOUSDT_PERP.A")
+
+
+def test_watch_prices_failure_and_catalog(tmp_path):
+    now = T0 + 900 * DAY
+    cfg = dict(CFG, watchlist=["TAO"])
+    st = _px_store(tmp_path)
+    with pytest.raises(RuntimeError, match="nieudanych"):
+        cvd.watch_prices(PxCZ({"TAOUSDT_PERP.A": T0}, fail=True), st, cfg, now)
+    assert st.state["watch_px"]["full"] == {}                                  # następny skan spróbuje całej historii
+    import series as S
+    cat = S.catalog_with_watchlist(["SOL", "TAO"], None, ["BTC", "SOL"], cvd.watch_coins(dict(CFG, watchlist=["SOL", "TAO"])))
+    assert cat["px_tao"]["group"] == "price" and "Coinalyze" in cat["px_tao"]["desc"]
+    assert "perpa SOLUSDT" in cat["px_sol"]["desc"]                            # SOL zostaje z CVD
+    assert "px_tao" not in S.catalog_with_watchlist(["TAO"])
+    assert cvd.watch_coins(dict(CFG, watchlist=[])) == []
