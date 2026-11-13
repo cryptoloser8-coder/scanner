@@ -681,6 +681,7 @@ function banner(kind, html) { const b = document.getElementById('banner'); b.cla
       getJSON(DATA_BASE, 'meta.json').catch(() => ({})), getJSON(DATA_BASE, '1d.json').catch(() => ({})),
       getJSON(DATA_BASE, 'liq_1d.json').catch(() => ({})), getJSON(CH_BASE, 'chains_1d.json').catch(() => ({}))]);
   } catch (e) { setStatus('error', 'Błąd danych'); banner('err', 'Nie udało się wczytać danych: ' + esc(e.message)); return; }
+  if (window.trimSince && D1 && D1.series) trimSince(D1.series, META.catalog);   // np. Alty/BTC dopiero od 14.07.2017
   const btc = pts(LQ, 'px_btc');
   BTC_T = btc.map(p => p[0]); BTC_V = btc.map(p => p[1]);
   if (!IDX || !(IDX.d || []).length) {

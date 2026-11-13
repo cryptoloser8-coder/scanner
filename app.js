@@ -29,6 +29,19 @@
     });
   };
 
+  // Serie z polem `since` w katalogu (meta.json) pokazujemy dopiero od tej chwili — np. CRYPTOCAP z TradingView przed
+  // 14.07.2017 liczył niepełny rynek (bez ETH i części altów). Punkty zostają w plikach, strony je pomijają.
+  // series = {id: [[t, v], ...]}, catalog = meta.catalog; zmienia series w miejscu i je zwraca.
+  window.trimSince = function (series, catalog) {
+    if (!series || !catalog) return series;
+    Object.keys(series).forEach(function (id) {
+      var since = catalog[id] && catalog[id].since, arr = series[id];
+      if (!since || !Array.isArray(arr) || !arr.length || arr[0][0] >= since) return;
+      series[id] = arr.filter(function (p) { return p[0] >= since; });
+    });
+    return series;
+  };
+
   // Świece ceny BTC / ETH z zamknięć (px_btc) i knotów (px_btc_hi / px_btc_lo, Binance perp przez Coinalyze).
   // Open = zamknięcie poprzedniej świecy (rynek 24/7 — na Binance różnica to zwykle centy); high / low obejmują
   // też open i close. bucket(t) → początek dłuższej świecy (np. 4H, 1W) albo brak = świece jak w danych.

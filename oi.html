@@ -926,6 +926,7 @@ async function load1h() {
   const lq = await lqP, cv = await cvP;
   for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_')) d.series[id] = arr;
   Object.assign(d.series, (cv && cv.series) || {});            // CVD i wolumen spot / perp (poprawka 44)
+  if (window.trimSince) trimSince(d.series, CAT);
   return d;
 }
 // świece 1h BTC/ETH od 08.2017 (archiwum Binance spot, px_1h_<coin>.json) — pobierane tylko na wykresie 1H/4H z ceną.
@@ -1009,6 +1010,7 @@ async function boot() {
     return;
   }
   CAT = META.catalog || {};
+  if (window.trimSince) trimSince(DATA['1d'].series, CAT);       // niepełne dane sprzed `since` (np. TV przed 14.07.2017)
   S.series = S.series.filter(id => CAT[id]);
   if (!IVS.includes(S.res)) S.res = '1d';
   if (!['val', 'pct', 'idx'].includes(S.mode)) S.mode = 'pct';
