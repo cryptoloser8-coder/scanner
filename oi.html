@@ -204,7 +204,7 @@
     <div class="ctrl-group">
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
-        <button class="pill" id="cdl-btn" title="Cena BTC i ETH jako świece z knotami (tryb Wartości). Wyłączone = linia zamknięć.">Świece</button>
+        <button class="pill" id="cdl-btn" title="Ceny jako świece z knotami (tryb Wartości): BTC, ETH i coiny z watchlisty. Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis. Działa w każdym trybie.">Historyczne wydarzenia</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
@@ -785,7 +785,8 @@ function allocAxes(ids) {
 }
 
 // ceny z knotami (px_*_hi / px_*_lo) → świece w trybie Wartości (przycisk „Świece”)
-const WICKS = {px_btc: true, px_eth: true};
+// knoty ma każda cena z serią <id>_hi (BTC i ETH od 2009/2015, coiny z watchlisty od poprawki 68)
+const WICKS = new Proxy({}, {get: (_, id) => typeof id === 'string' && id.startsWith('px_') && !/_(hi|lo)$/.test(id)});
 const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && cp(id + '_hi').length > 0;
 let aux = [];                                      // linia zamknięć sprzed pierwszego knota (bez własnego wpisu w legendzie)
 

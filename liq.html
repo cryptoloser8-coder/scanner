@@ -340,7 +340,8 @@ function fundIds(g) {
   if (g === 'total') return ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]);
   return CAT['fund_' + g] ? ['fund_' + g] : [];
 }
-const pxId = g => g === 'eth' ? 'px_eth' : 'px_btc';
+// cena na tle: własna cena coina, gdy ją mamy (ETH, coiny z watchlisty — poprawki 67–68), inaczej BTC (TOTAL, OTHERS)
+const pxId = g => (g !== 'btc' && CAT['px_' + g]) ? 'px_' + g : 'px_btc';
 
 // ── tiles ───────────────────────────────────────────────────
 function bars(arr, color) {
