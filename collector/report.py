@@ -196,7 +196,8 @@ class Data:
                 d = _read(os.path.join(data_dir, f"{prefix}{res}.json"), {}) or {}
                 self.updated = max(self.updated, d.get("updated") or 0)
                 for sid, pts in (d.get("series") or {}).items():
-                    self.res[res][sid] = sorted(pts)
+                    since = (self.catalog.get(sid) or {}).get("since")     # niepełne dane sprzed tej chwili pomijamy
+                    self.res[res][sid] = sorted(p for p in pts if not since or p[0] >= since)
 
     def pts(self, res, sid):
         return self.res[res].get(sid) or []
@@ -1273,7 +1274,7 @@ def build(data_dir, ema_dir, kind="test", now=None, cfg=None, macro=None, chains
 
 # ── text version for AI agents (markdown) ───────────────────
 SOURCES_MD = """## Źródła danych i metody
-- Kapitalizacja i dominacje (TOTAL, TOTAL2, TOTAL3ES — alty bez BTC, ETH i stablecoinów, BTC.D, stablecoiny = TOTAL − TOTALES): indeksy CRYPTOCAP z TradingView (https://www.tradingview.com/symbols/CRYPTOCAP-TOTAL/), świece dzienne.
+- Kapitalizacja i dominacje (TOTAL, TOTAL2, TOTAL3ES — alty bez BTC, ETH i stablecoinów, BTC.D, stablecoiny = TOTAL − TOTALES): indeksy CRYPTOCAP z TradingView (https://www.tradingview.com/symbols/CRYPTOCAP-TOTAL/), świece dzienne; od 14.07.2017 — wcześniej TradingView liczył niepełny rynek (bez ETH i części altów).
 - ETH/BTC: para ETHBTC z Binance przez TradingView.
 - Open interest, funding, likwidacje, ceny perpetuali BTC i ETH: Coinalyze (https://coinalyze.net) — suma z Binance, Bybit, OKX, Hyperliquid i Deribit; likwidacje tylko z Binance, Bybit i OKX (dolne oszacowanie). OI w USD; „OI w coinach” = OI w USD / cena.
 - OTHERS w open interest = wszystkie śledzone coiny bez BTC i ETH (top coiny według OI).

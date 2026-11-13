@@ -149,6 +149,18 @@ CYCLE_CATALOG = {
 }
 CATALOG.update(CYCLE_CATALOG)
 
+# CRYPTOCAP z TradingView przed 14.07.2017 liczy niepełny rynek: bez ETH i tylko część altów (13.07 → 14.07.2017 TOTAL
+# +36% w dzień, BTC.D 75,6% → 52,5%, a BTC −5,5%; sprawdzone 13.11.2026). Te serie pokazujemy od 14.07.2017 — starsze
+# punkty zostają na gałęzi data, ale strony (app.js trimSince) i raporty (report.Data) je pomijają.
+TV_FULL_FROM = 1499990400            # 2017-07-14 00:00 UTC
+TV_FULL_FROM_TXT = "14.07.2017"
+TV_PARTIAL = ("total", "total2", "totales", "total3es", "others", "btc_d", "usdt_d", "stable_d", "alts_d", "others_d",
+              "alts_vs_btc")
+for _sid in TV_PARTIAL:
+    CATALOG[_sid] = dict(CATALOG[_sid], since=TV_FULL_FROM,
+                         desc=CATALOG[_sid]["desc"] + f" Pokazujemy od {TV_FULL_FROM_TXT} — wcześniej TradingView liczył "
+                                                      "niepełny rynek (bez ETH i części altów).")
+
 
 def catalog_with_watchlist(watchlist, liq=None, cvd_coins=None):
     """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series; cvd_coins — CVD."""
