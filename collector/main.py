@@ -102,7 +102,7 @@ def build_catalog(cfg):
     liq = None
     if liq_enabled(cfg):
         liq = {"top": int(cfg["liquidations"].get("top_alts", 30)), "exchanges": cfg["coinalyze"]["exchanges"]}
-    cat = S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None)
+    cat = S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None, V.watch_coins(cfg))
     if A is not None and A.enabled(cfg):
         cat.update(A.catalog())
     return cat
@@ -305,6 +305,17 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         except Exception as e:  # noqa: BLE001
             log.exception("CVD")
             results["CVD"] = str(e)
+
+    # ceny coinów z watchlisty spoza CVD (poprawka 67): jeden perp na coin, historia dzienna od startu rynku
+    if V.watch_coins(cfg):
+        try:
+            if client is None:
+                raise RuntimeError("brak klienta Coinalyze")
+            info["watch_px"] = V.watch_prices(client, store, cfg, now)
+            results["Ceny watchlisty"] = None
+        except Exception as e:  # noqa: BLE001
+            log.exception("Ceny watchlisty")
+            results["Ceny watchlisty"] = str(e)
 
     tv = tv or TradingView()
     try:

@@ -342,6 +342,97 @@ def cell(w):
     return "—" if not w else f"{fmt_usd(w[1])} ({fmt_pct(imbalance(w))})"
 
 
+# ── ceny coinów z watchlisty spoza CVD (poprawka 67) ─────────
+# OI, funding i likwidacje watchlisty mieliśmy od zawsze, a cenę tylko coiny z cvd.coins (przy okazji świec CVD).
+# Tu każdy coin z watchlisty, którego nie ma w CVD, dostaje cenę z jednego perpa USDT. Pierwszy raz pobieramy całą historię
+# dzienną wszystkich kandydatów (≤ 4 zapytania na coin, jednorazowo) i bierzemy rynek z najdłuższą historią (remis →
+# kolejność giełd niżej), więc bez backfillu. Potem co skan świece godzinowe, a raz na dobę świece dzienne z 40 dni.
+WATCH_PX_MARKETS = ("{c}USDT_PERP.A", "{c}USDT.6", "{c}USDT_PERP.3", "{c}.H")   # Binance, Bybit, OKX, Hyperliquid
+
+
+def watch_price_markets(coin, symbols):
+    """Perpy USDT coina z uniwersum OI (symbol → coin), w kolejności WATCH_PX_MARKETS."""
+    return [f.format(c=coin) for f in WATCH_PX_MARKETS if symbols.get(f.format(c=coin)) == coin]
+
+
+def watch_coins(cfg):
+    """Coiny z watchlisty bez własnej ceny (poza BTC, ETH i coinami CVD)."""
+    have = set(settings(cfg)["coins"]) if enabled(cfg) else set()
+    return [w.upper() for w in cfg.get("watchlist") or [] if w.upper() not in have | {"BTC", "ETH"}]
+
+
+def watch_prices(client, store, cfg, now):
+    coins = watch_coins(cfg)
+    if not coins:
+        return {}
+    st = store.state.setdefault("watch_px", {})
+    symbols = (store.state.get("universe") or {}).get("symbols") or {}
+    cands = {c: watch_price_markets(c, symbols) for c in coins}
+    missing = sorted(c for c, m in cands.items() if not m)
+    now = int(now)
+    now_h, today = floor(now, HOUR), floor(now, DAY)
+    calls0, f_all = client.calls_made, getattr(client, "failed_batches", 0)
+    full = st.setdefault("full", {})                 # coin → rynek, z którego mamy już całą historię dzienną
+    hours = st.setdefault("h_until", {})             # coin → do kiedy mamy świece godzinowe
+    syms = {c: full[c] for c, m in cands.items() if full.get(c) in m}
+    new = [c for c, m in cands.items() if m and c not in syms]
+
+    # dzienne: nowe coiny — cała historia kandydatów; znane — 40 dni raz na dobę
+    daily, picked, ok = {}, [], True
+    if new:
+        f0 = getattr(client, "failed_batches", 0)
+        daily = dict(_daily_full(client, sorted(s for c in new for s in cands[c]), now))
+        ok = getattr(client, "failed_batches", 0) == f0
+        for c in new:
+            have = [s for s in cands[c] if daily.get(s)]
+            if have and ok:
+                syms[c] = min(have, key=lambda s: (min(daily[s]), cands[c].index(s)))
+                picked.append(c)
+    if st.get("daily_day") != today:
+        old = sorted(s for c, s in syms.items() if c not in picked)
+        if old:
+            f0 = getattr(client, "failed_batches", 0)
+            daily.update(_history(client, old, "daily", today - DAILY_REFRESH_DAYS * DAY, now))
+            ok = ok and getattr(client, "failed_batches", 0) == f0
+        if ok and syms:
+            st["daily_day"] = today
+    for c, s in syms.items():
+        pts = {t - t % DAY: p[2] for t, p in (daily.get(s) or {}).items() if t < today and p and p[2]}
+        if c in picked:
+            store.put("1d", px_sid(c), pts, replace_from=0)
+            full[c] = s
+            hours.pop(c, None)
+        else:
+            store.put("1d", px_sid(c), pts)
+
+    # godzinowe: od ostatniej świecy (− zakładka), nowe coiny od początku okna 1h
+    keep_from = now_h - INTRADAY_KEEP_HOURS * HOUR
+    groups = {}
+    for c, s in syms.items():
+        a = hours.get(c)
+        start = max(a - OVERLAP_HOURS * HOUR, keep_from) if a else keep_from
+        groups.setdefault(start, []).append((c, s))
+    for start, items in sorted(groups.items()):
+        f0 = getattr(client, "failed_batches", 0)
+        hourly = _history(client, sorted(s for _, s in items), "1hour", start, now)
+        ok_h = getattr(client, "failed_batches", 0) == f0
+        for c, s in items:
+            store.put("1h", px_sid(c), {t - t % HOUR: p[2] for t, p in (hourly.get(s) or {}).items() if p and p[2]},
+                      replace_from=None if hours.get(c) else 0)
+            h = store.series["1h"].get(px_sid(c)) or {}
+            if h:
+                store.put("1d", px_sid(c), S.daily_from_hourly(h, today))      # bieżący (niepełny) dzień
+            if ok_h:
+                hours[c] = now_h
+    failed = getattr(client, "failed_batches", 0) - f_all
+    info = {"markets": syms, "missing": missing, "full_history": sorted(picked), "calls": client.calls_made - calls0,
+            "failed_batches": failed}
+    log.info("Ceny watchlisty: %s", info)
+    if failed:
+        raise RuntimeError(f"{failed} nieudanych paczek zapytań (ceny {', '.join(coins)})")
+    return info
+
+
 def price_change(d, coin, t_now, t_before):
     """Zmiana zamknięcia dziennego ceny coina (px_<coin>) w % albo None."""
     from report import at, pct_change

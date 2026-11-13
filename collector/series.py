@@ -162,8 +162,9 @@ for _sid in TV_PARTIAL:
                                                       "niepełny rynek (bez ETH i części altów).")
 
 
-def catalog_with_watchlist(watchlist, liq=None, cvd_coins=None):
-    """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series; cvd_coins — CVD."""
+def catalog_with_watchlist(watchlist, liq=None, cvd_coins=None, watch_px=None):
+    """Full catalogue. liq = {"top": N, "exchanges": [names]} adds the liquidation-tab series; cvd_coins — CVD;
+    watch_px — coiny z watchlisty spoza CVD, które mają cenę z cvd.watch_prices (poprawka 67)."""
     cat = dict(CATALOG)
     for i, sym in enumerate(watchlist):
         sid = watch_id(sym)
@@ -174,6 +175,13 @@ def catalog_with_watchlist(watchlist, liq=None, cvd_coins=None):
         cat.update(liq_catalog(watchlist, liq.get("top", 30), liq.get("exchanges", [])))
     if cvd_coins:
         cat.update(cvd_catalog(cvd_coins))
+    for i, sym in enumerate(watch_px or []):
+        coin = sym.upper()
+        if coin not in ("BTC", "ETH") and f"px_{coin.lower()}" not in cat:
+            cat[f"px_{coin.lower()}"] = dict(
+                name=f"Cena {coin}", group="price", color=PX_COLORS.get(coin, PALETTE[(i + 3) % len(PALETTE)]),
+                fmt="usd", desc=f"Cena {coin} (zamknięcie świecy perpa {coin}USDT — Binance, a gdy go nie ma: Bybit, "
+                                "OKX albo Hyperliquid — przez Coinalyze). Historia od startu tego rynku.")
     return cat
 
 
@@ -371,7 +379,8 @@ def daily_from_hourly(hourly, day_from):
 # ── CVD: kupno − sprzedaż na spot i perp (poprawka 44, collector/cvd.py; pliki cvd_1h/1d.json) ──
 CVD_COLORS = {"BTC": ("#4fc3f7", "#ffb74d"), "ETH": ("#4db6ac", "#f48fb1"), "SOL": ("#80deea", "#ce93d8"),
               "BNB": ("#fff176", "#ffcc80"), "XRP": ("#b0bec5", "#ef9a9a"), "DOGE": ("#c5e1a5", "#ffab91")}
-PX_COLORS = {"SOL": "#9c6ade", "BNB": "#f3ba2f", "XRP": "#b0bec5", "DOGE": "#c2a633"}
+PX_COLORS = {"SOL": "#9c6ade", "BNB": "#f3ba2f", "XRP": "#b0bec5", "DOGE": "#c2a633", "HYPE": "#50d2c1",
+             "SUI": "#4da2ff", "TAO": "#e8e8e8"}
 
 
 def cvd_catalog(coins):
