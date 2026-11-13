@@ -3,12 +3,30 @@
 (function () {
   // Znak wodny: szare logo na środku górnego panelu wykresu — widoczne na ciemnym tle i w PDF (jasne tło),
   // trafia też do zrzutów wykresu (takeScreenshot).
+  // Znak wodny siedzi na górnym panelu; gdy strona przy przerysowaniu usunie wszystkie serie, biblioteka kasuje
+  // pusty panel razem ze znakiem wodnym (np. oi.html z dwoma panelami po kliknięciu „Log”). Dlatego po każdym
+  // przerysowaniu (addSeries / removeSeries / removePane — raz na partię zmian) znak wodny zakładamy od nowa.
   window.brandWatermark = function (chart) {
-    try {
-      var L = window.LightweightCharts;
-      if (!L || !L.createImageWatermark || !chart) return;
-      L.createImageWatermark(chart.panes()[0], 'logo-watermark.svg', {maxWidth: 260, maxHeight: 56, alpha: 0.16});
-    } catch (e) { console.warn('watermark', e); }
+    var L = window.LightweightCharts;
+    if (!L || !L.createImageWatermark || !chart) return;
+    function attach() {
+      chart.__wmPending = false;
+      try {
+        var p = chart.panes()[0];
+        if (!p) return;
+        if (chart.__wm) { try { chart.__wm.detach(); } catch (e) { /* panel już usunięty */ } }
+        chart.__wm = L.createImageWatermark(p, 'logo-watermark.svg', {maxWidth: 260, maxHeight: 56, alpha: 0.16});
+      } catch (e) { console.warn('watermark', e); }
+    }
+    function later() { if (!chart.__wmPending) { chart.__wmPending = true; Promise.resolve().then(attach); } }
+    attach();
+    if (chart.__wmHooked) return;
+    chart.__wmHooked = true;
+    ['addSeries', 'removePane', 'removeSeries'].forEach(function (name) {
+      var orig = chart[name];
+      if (typeof orig !== 'function') return;
+      chart[name] = function () { var r = orig.apply(chart, arguments); later(); return r; };
+    });
   };
 
   // Świece ceny BTC / ETH z zamknięć (px_btc) i knotów (px_btc_hi / px_btc_lo, Binance perp przez Coinalyze).
