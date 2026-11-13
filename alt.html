@@ -123,7 +123,7 @@
 <div class="panel">
   <h2>Stan teraz</h2>
   <div class="desc">Fakty z danych i to, co działo się w podobnych chwilach w przeszłości (liczone na bieżąco z historii — szacunek, nie prognoza).
-    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie 20%), najdłużej w 200 dni (fale dłuższe niż 60 dni oznaczamy jako „rajd”).</div>
+    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie 20%), zakończony spadkiem o tyle samo w drugą stronę (przy +20% to −16,7%), najdłużej w 200 dni (fale dłuższe niż 60 dni oznaczamy jako „rajd”).</div>
   <div class="stats" id="stats"></div>
 </div>
 
@@ -167,7 +167,7 @@
 
 <div class="panel">
   <h2>Wszystkie fale</h2>
-  <div class="desc">Od najnowszej. Rodzaj: fala = do 60 dni, rajd = dłużej (szeroki wzrost całego rynku). Zysk = indeks altów od dołka do szczytu fali; BTC = jak w tym czasie zmienił się BTC; alty vs BTC = o ile alty były mocniejsze (+) albo słabsze (−) od BTC.</div>
+  <div class="desc">Od najnowszej. Rodzaj: fala = do 60 dni, rajd = dłużej (szeroki wzrost całego rynku). Zysk = indeks altów od dołka do szczytu fali; potwierdzona = pierwszy dzień, w którym indeks był już o próg (np. 20%) nad dołkiem — od tej chwili falę dało się rozpoznać na bieżąco; po potwierdzeniu = ile fala dała jeszcze od tego dnia do szczytu (i ile dni zostało); BTC = jak w tym czasie zmienił się BTC; alty vs BTC = o ile alty były mocniejsze (+) albo słabsze (−) od BTC.</div>
   <div class="tbl" id="wave-tbl"></div>
 </div>
 
@@ -260,7 +260,9 @@ function phaseAt(t) {
 const phaseKey = p => !p ? null : (p.phase === 'acc' && p.confirmed === false ? 'unsure' : p.phase);
 const phaseGroup = p => !p ? null : p.phase;     // akumulacja niepotwierdzona liczy się jak akumulacja
 
-// fale: zigzag na log(indeksu) — wzrost ≥ próg od dołka, potwierdzony spadkiem ≥ próg od szczytu; najwyżej 90 dni
+// fale: zigzag na log(indeksu) — wzrost ≥ próg od dołka (np. +20%), potwierdzony spadkiem o tyle samo w skali
+// logarytmicznej od szczytu (+20% ↔ −16,7%); 3–200 dni
+const dropPct = () => (1 / (1 + S.th / 100) - 1) * 100;      // spadek kończący falę (−16,7% przy progu +20%)
 function zigzag(x, th) {
   const piv = [];
   let hi = 0, lo = 0, trend = 0;
@@ -284,21 +286,29 @@ function computeWaves(thPct) {
     if (X[b] <= X[a]) continue;
     const days = (T[b] - T[a]) / DAY;
     if (days < 3 || days > MAXD) continue;
-    out.push(waveRow(a, b, true));
+    out.push(waveRow(a, b, true, th));
   }
   let live = null;                                  // fala w toku (szczyt jeszcze niepotwierdzony)
-  if (z.trend === 1 && (T[z.hi] - T[z.lo]) / DAY <= MAXD) live = waveRow(z.lo, z.hi, false);
+  if (z.trend === 1 && (T[z.hi] - T[z.lo]) / DAY <= MAXD) live = waveRow(z.lo, z.hi, false, th);
   return {waves: out, live, z};
 }
-function waveRow(a, b, done) {
+function waveRow(a, b, done, th) {
   const ta = T[a], tb = T[b], ph = phaseAt(ta);
+  // potwierdzenie fali (ciekawostka): pierwszy dzień, w którym indeks był już ≥ próg nad dołkiem — od tej chwili
+  // falę dało się rozpoznać na bieżąco; koniec potwierdza pierwszy dzień ≥ próg pod szczytem
+  let c = null, e = null;
+  for (let i = a + 1; i <= b; i++) if (X[i] - X[a] >= th - 1e-12) { c = i; break; }
+  if (done) for (let i = b + 1; i < X.length; i++) if (X[b] - X[i] >= th - 1e-12) { e = i; break; }
   const btcA = btcAt(ta), btcB = btcAt(tb);
   let after = null;
   const j = lastLE(T, tb + 30 * DAY);
   if (done && T[j] - tb >= 29 * DAY) { let m = X[b]; for (let i = b; i <= j; i++) m = Math.min(m, X[i]); after = (Math.exp(m - X[b]) - 1) * 100; }
   const g = (Math.exp(X[b] - X[a]) - 1) * 100, bt = btcA && btcB ? (btcB / btcA - 1) * 100 : null;
   return {a, b, ta, tb, days: Math.round((tb - ta) / DAY), gain: g, btc: bt,
-    rel: bt == null ? null : ((1 + g / 100) / (1 + bt / 100) - 1) * 100, ph, after, done};
+    rel: bt == null ? null : ((1 + g / 100) / (1 + bt / 100) - 1) * 100, ph, after, done,
+    tc: c == null ? null : T[c], left: c == null ? null : (Math.exp(X[b] - X[c]) - 1) * 100, toTop: c == null ? null : Math.round((tb - T[c]) / DAY),
+    te: e == null ? null : T[e], endDrop: e == null ? null : (Math.exp(X[e] - X[b]) - 1) * 100, endDays: e == null ? null : Math.round((T[e] - tb) / DAY),
+    fromConf: c == null || e == null ? null : (Math.exp(X[e] - X[c]) - 1) * 100};
 }
 let BTC_T = [], BTC_V = [];
 function btcAt(t) { const i = lastLE(BTC_T, t); return i >= 0 && t - BTC_T[i] <= 3 * DAY ? BTC_V[i] : null; }
@@ -361,7 +371,7 @@ function renderStats(W) {
     if (live) {
       const dd = (Math.exp(X[X.length - 1] - X[live.b]) - 1) * 100;
       v = `<span class="up">fala trwa</span><small>${fmtPct(live.gain)} od dołka ${dmy(live.ta)}</small>`;
-      s = `Szczyt dotąd ${dmy(live.tb)} (${live.days} dni od dołka); indeks teraz ${fmtPct(dd, 1)} od szczytu. Fala kończy się, gdy indeks spadnie o ${S.th}% od szczytu.`;
+      s = `Szczyt dotąd ${dmy(live.tb)} (${live.days} dni od dołka); indeks teraz ${fmtPct(dd, 1)} od szczytu. Fala kończy się, gdy indeks spadnie o ${fmtPct(dropPct(), 1).slice(1)} od szczytu (odwrotność +${S.th}%).`;
       h = sum.n ? `W tej fazie (${PHASE_NAMES[phaseKey(ph)]}) fale trwały zwykle ok. ${Math.round(sum.days)} dni i dawały ${fmtPct(sum.gain)}; po szczycie indeks oddawał w 30 dni ${fmtPct(sum.after)}.` : '';
     } else {
       const lo = z.lo, up = (Math.exp(X[X.length - 1] - X[lo]) - 1) * 100;
@@ -372,6 +382,23 @@ function renderStats(W) {
         (since != null ? ` Teraz: ${since} dni.` : '') : '';
     }
     out.push(stat('Fala altów (indeks altów)', v, s, h));
+  }
+  // 1b. potwierdzenie fali (ciekawostka)
+  {
+    const done = W.waves.filter(w => w.left != null), live = W.live;
+    if (done.length) {
+      const med = median(done.map(w => w.left)), days = median(done.map(w => w.toTop));
+      const ge10 = done.filter(w => w.left >= 10).length, quick = done.filter(w => w.toTop <= 7).length;
+      const ends = W.waves.filter(w => w.endDrop != null), endDrop = median(ends.map(w => w.endDrop)), endDays = median(ends.map(w => w.endDays));
+      const net = W.waves.filter(w => w.fromConf != null), netPos = net.filter(w => w.fromConf > 0).length;
+      out.push(stat('Potwierdzenie fali — ciekawostka',
+        `${fmtPct(med)}<small>mediana: ile fala dała po potwierdzeniu · ${Math.round(days)} dni do szczytu</small>`,
+        `Dołek fali widać dopiero z perspektywy czasu. Na bieżąco falę „potwierdza” dzień, w którym indeks altów jest już +${S.th}% nad dołkiem (niebieski kwadrat na wykresie). ` +
+        `Po potwierdzeniu ${ge10} z ${done.length} fal dało jeszcze co najmniej +10%, a ${quick} skończyło się w ciągu 7 dni.` +
+        (live && live.tc ? ` Obecna fala potwierdzona ${dmy(live.tc)} — od tego dnia ${fmtPct((Math.exp(X[X.length - 1] - X[lastLE(T, live.tc)]) - 1) * 100)}.` : ''),
+        ends.length ? `Koniec fali potwierdza spadek o ${fmtPct(dropPct(), 1).slice(1)} od szczytu (odwrotność +${S.th}%) — zwykle ${Math.round(endDays)} dni po szczycie (indeks ${fmtPct(endDrop)} od szczytu). ` +
+          `Kupno w dniu potwierdzenia i sprzedaż w dniu potwierdzenia końca dawały zysk w ${netPos} z ${net.length} fal (mediana ${fmtPct(median(net.map(w => w.fromConf)))}).` : ''));
+    }
   }
   // 2. lewar altów
   {
@@ -516,9 +543,9 @@ function renderTables(W) {
     '</tbody></table><div class="hint">Mediany. Przerwa = od szczytu jednej fali do dołka następnej, gdy obie były w tej samej fazie. Lata danych = ile tej fazy obejmuje indeks altów.</div>';
   const rows = W.waves.slice().reverse();
   if (W.live) rows.unshift(W.live);
-  document.getElementById('wave-tbl').innerHTML = `<table><thead><tr><th class="l">Dołek</th><th class="l">Szczyt</th><th>Dni</th><th>Zysk</th><th>BTC</th><th>Alty vs BTC</th><th class="l">Faza</th><th class="l">Rodzaj</th><th>Oddane w 30 dni</th></tr></thead><tbody>` +
-    rows.map(w => `<tr class="${w.done ? '' : 'cur'}"><td class="l">${dmy(w.ta)}</td><td class="l">${dmy(w.tb)}${w.done ? '' : ' (trwa)'}</td><td>${w.days}</td>` +
-      `<td class="up">${fmtPct(w.gain)}</td><td class="${cls(w.btc)}">${fmtPct(w.btc)}</td><td class="${cls(w.rel)}">${fmtPct(w.rel)}</td>` +
+  document.getElementById('wave-tbl').innerHTML = `<table><thead><tr><th class="l">Dołek</th><th class="l">Potwierdzona</th><th class="l">Szczyt</th><th>Dni</th><th>Zysk</th><th>Po potwierdzeniu</th><th>BTC</th><th>Alty vs BTC</th><th class="l">Faza</th><th class="l">Rodzaj</th><th>Oddane w 30 dni</th></tr></thead><tbody>` +
+    rows.map(w => `<tr class="${w.done ? '' : 'cur'}"><td class="l">${dmy(w.ta)}</td><td class="l">${w.tc ? dmy(w.tc) : '—'}</td><td class="l">${dmy(w.tb)}${w.done ? '' : ' (trwa)'}</td><td>${w.days}</td>` +
+      `<td class="up">${fmtPct(w.gain)}</td><td class="${cls(w.left)}">${w.left == null ? '—' : fmtPct(w.left) + ` <span style="color:var(--text3)">${w.toTop} d</span>`}</td><td class="${cls(w.btc)}">${fmtPct(w.btc)}</td><td class="${cls(w.rel)}">${fmtPct(w.rel)}</td>` +
       `<td class="l"><span class="ph" style="--c:${PHASE_COLORS[phaseKey(w.ph)] || '#888'}"></span>${w.ph ? PHASE_NAMES[phaseKey(w.ph)] : '—'}</td><td class="l">${w.days > RALLY ? 'rajd' : 'fala'}</td><td class="dn">${w.after == null ? '—' : fmtPct(w.after)}</td></tr>`).join('') +
     '</tbody></table>';
 }
@@ -575,6 +602,7 @@ function drawChart(W, resetRange) {
   const mk = [];
   for (const w of W.waves.concat(W.live ? [W.live] : [])) {
     mk.push({time: w.ta, position: 'belowBar', color: '#4caf7d', shape: 'arrowUp', size: .7});
+    if (w.tc && w.tc !== w.tb) mk.push({time: w.tc, position: 'belowBar', color: '#5b9cf6', shape: 'square', size: .5});
     mk.push({time: w.tb, position: 'aboveBar', color: w.done ? '#e05252' : '#ffc107', shape: 'circle', size: .6, text: fmtPct(w.gain) + (w.done ? '' : ' (trwa)')});
   }
   if (LWC.createSeriesMarkers) LWC.createSeriesMarkers(si, mk.sort((a, b) => a.time - b.time));
@@ -669,7 +697,7 @@ function banner(kind, html) { const b = document.getElementById('banner'); b.cla
   document.getElementById('hint').textContent =
     `Różowa linia: indeks altów (skala logarytmiczna) = „przeciętny alt”: średnia dziennych zmian wszystkich coinów */USDT z Binance poza BTC i stablecoinami (średnia geometryczna, skoki ponad −63% / +172% w dzień obcięte), ` +
     `także ${IDX.delisted || 0} par wycofanych już z giełdy (bez błędu przeżywalności), skumulowana od 100 (start ${dmy(T[0])}); coin liczy się od ${IDX.skip_days + 1}. dnia notowań. ` +
-    `Pokazuje, jak zachowywał się typowy alt, a nie największe coiny — dlatego w długim terminie spada (większość altów traci). Zielona strzałka = dołek fali, kropka = szczyt fali z jej wzrostem (żółta = fala trwa). ` +
+    `Pokazuje, jak zachowywał się typowy alt, a nie największe coiny — dlatego w długim terminie spada (większość altów traci). Zielona strzałka = dołek fali, niebieski kwadrat = dzień potwierdzenia fali (indeks już o próg nad dołkiem — od tej chwili falę widać na bieżąco), kropka = szczyt fali z jej wzrostem (żółta = fala trwa). ` +
     `Dolny panel: lewar altów (OI OTHERS / OI BTC) z progami alertów 0,95 i 1,0. Małe coiny na DEX-ach zwykle ruszają się mocniej niż ta mediana.`;
   document.getElementById('foot-info').textContent = `Indeks: ${IDX.source || 'Binance spot'} · dni z co najmniej ${IDX.min_coins} coinami`;
   refresh(true);
