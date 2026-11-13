@@ -102,7 +102,7 @@ def build_catalog(cfg):
     liq = None
     if liq_enabled(cfg):
         liq = {"top": int(cfg["liquidations"].get("top_alts", 30)), "exchanges": cfg["coinalyze"]["exchanges"]}
-    cat = S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None, V.watch_coins(cfg))
+    cat = S.catalog_with_watchlist(watch, liq, V.settings(cfg)["coins"] if V.enabled(cfg) else None, V.watch_close_coins(cfg))
     if A is not None and A.enabled(cfg):
         cat.update(A.catalog())
     return cat
@@ -306,7 +306,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
             log.exception("CVD")
             results["CVD"] = str(e)
 
-    # ceny coinów z watchlisty spoza CVD (poprawka 67): jeden perp na coin, historia dzienna od startu rynku
+    # ceny i knoty coinów z watchlisty (poprawki 67–68): jeden perp na coin, historia dzienna od startu rynku
     if V.watch_coins(cfg):
         try:
             if client is None:
