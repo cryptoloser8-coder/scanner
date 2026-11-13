@@ -36,7 +36,7 @@ coinalyze:
 
 # Coiny, których OI ma być dostępne osobno na wykresach (oprócz BTC i ETH).
 # Te same coiny mają osobne likwidacje i funding w zakładce Likwidacje.
-watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI]
+watchlist: [SOL, XRP, BNB, DOGE, HYPE, SUI, TAO]
 
 # ─────────────────────────────────────────────────────────────
 #  LIKWIDACJE I FUNDING (zakładka liq.html)
