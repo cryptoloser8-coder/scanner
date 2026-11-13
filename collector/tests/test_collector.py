@@ -714,3 +714,49 @@ def test_price_wicks_repair_bad_day_and_hourly_backfill(tmp_path):
     assert min(h["px_btc_lo"]) < cut - 1000 * H and set(h["px_btc_lo"]) <= set(h["px_btc"])   # wstecz, tylko przy zamknięciach
     today = NOW - NOW % D
     assert store.series["1d"]["px_btc_lo"][today] != 100000 - 500               # dzień w toku: z godzin, nie ze świecy dziennej
+
+
+# ── poprawka 63: historyczne wydarzenia i kierunek alertu poziomu ──
+def test_history_events_from_config():
+    cfg = {"history_events": [
+        {"date": "2022-11-08", "label": "FTX", "kind": "upadek", "desc": "Upadek FTX"},
+        {"date": "2020-03-12", "label": "COVID", "kind": "KRACH"},
+        {"date": "zła data", "label": "X"},
+        {"date": "2021-01-01", "label": ""},
+        {"date": "2024-01-10", "label": "ETF BTC", "kind": "coś innego"},
+    ]}
+    ev = main.history_events(cfg)
+    assert [e["label"] for e in ev] == ["COVID", "FTX", "ETF BTC"]
+    assert ev[0]["t"] == 1583971200 and ev[0]["kind"] == "krach" and ev[0]["date"] == "2020-03-12"
+    assert ev[1]["desc"] == "Upadek FTX" and ev[2]["kind"] == "inne"
+    assert main.history_events({}) == []
+    real = main.history_events(main.load_config(os.path.join(os.path.dirname(__file__), "..", "config.yaml")))
+    assert len(real) >= 15 and all(e["kind"] in main.HIST_KINDS for e in real)
+
+
+def test_level_direction_up(tmp_path):
+    from store import Store
+    st_ = Store(str(tmp_path))
+    cat = S.catalog_with_watchlist([])
+    sid = "oi_others_vs_btc"
+    lv = [{"series": sid, "level": 0.95, "near_pct": 3, "direction": "up", "label": "Lewar altów"}]
+    state = {}
+
+    def at(v, k):
+        st_.put("1h", sid, {NOW + k * H: v})
+        return alerts.check_levels(st_, cat, lv, state)
+    assert at(0.80, 0) == []                                   # daleko
+    m = at(0.93, 1)
+    assert len(m) == 1 and "zbliża" in m[0] and "od dołu" in m[0]
+    m = at(0.96, 2)
+    assert len(m) == 1 and "przebił" in m[0] and "górę" in m[0]
+    assert at(0.97, 3) == []                                   # od góry — bez „zbliża się”
+    assert at(0.94, 4) == []                                   # przebicie w dół — pominięte
+    assert at(0.70, 5) == []                                   # daleko → strefa uzbrojona na nowo
+    assert "zbliża" in at(0.93, 6)[0]
+    both = [{"series": sid, "level": 0.95, "near_pct": 3}]
+    s2 = {}
+    st_.put("1h", sid, {NOW + 7 * H: 0.97})
+    alerts.check_levels(st_, cat, both, s2)
+    st_.put("1h", sid, {NOW + 8 * H: 0.90})
+    assert "w dół" in alerts.check_levels(st_, cat, both, s2)[0]   # bez direction — obie strony jak dawniej

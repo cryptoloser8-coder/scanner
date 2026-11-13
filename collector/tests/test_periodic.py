@@ -432,3 +432,47 @@ def test_report_price_charts_have_candles(tmp_path):
     assert [c[0] for c in s0["ohlc"]] == [p[0] for p in s0["data"]] and len(s0["ohlc"]) > 150
     assert all(P._dt(c[0]).day >= 28 for c in s0["ohlc"])                   # ostatni dzień miesiąca
     assert "świece" in report.to_markdown(rep) or "Cena BTC" in report.to_markdown(rep)
+
+
+# ── poprawka 63: historyczne wydarzenia na wykresach BTC od 2011 ──
+def _add_events(data):
+    p = os.path.join(data, "meta.json")
+    with open(p, encoding="utf-8") as f:
+        meta = json.load(f)
+    meta["history_events"] = [
+        {"t": ts(2020, 3, 12), "date": "2020-03-12", "label": "COVID", "desc": "Krach", "kind": "krach"},
+        {"t": ts(2022, 11, 8), "date": "2022-11-08", "label": "FTX", "desc": "", "kind": "upadek"},
+        {"t": ts(2030, 1, 1), "date": "2030-01-01", "label": "Przyszłość", "desc": "", "kind": "inne"}]
+    _w(p, meta)
+
+
+def test_history_markers_weekly_and_monthly(tmp_path):
+    now = ts(2026, 11, 2, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    _add_events(data)
+    rep = report.build(data, ema, "weekly", now=now, cfg={}, macro={"events": [], "error": None})
+    ch = {b.get("title"): b for b in rep["blocks"]}["BTC i średnie tygodniowe — od 2011"]
+    mk = {m["text"]: m for m in ch["markers"]}
+    assert set(mk) == {"COVID", "FTX"}                          # wydarzenie spoza wykresu pominięte
+    assert mk["COVID"]["t"] == ts(2020, 3, 15) and mk["COVID"]["when"] == "12.03.2020"   # niedziela kończąca tydzień
+    assert mk["FTX"]["color"] == P.HIST_COLORS["upadek"] and "historyczne wydarzenia" in ch["desc"]
+    times = {c[0] for c in ch["series"][0]["ohlc"]}
+    assert all(m["t"] in times for m in ch["markers"])
+    assert "Znaczniki na wykresie: 12.03.2020 • COVID; 08.11.2022 • FTX." in report.to_markdown(rep)
+    now = ts(2026, 11, 1, 0, 50)
+    rep = report.build(data, ema, "monthly", now=now, cfg={}, macro={"events": [], "error": None})
+    ch = {b.get("title"): b for b in rep["blocks"]}["Cena BTC i fazy cyklu — od 2011"]
+    mk = {m["label"]: m for m in ch["markers"]}
+    assert all(m["text"] == "" for m in ch["markers"])            # miesięczne od 2011: same kropki, nazwy w notce
+    assert "Kropki — historyczne wydarzenia: 03.2020 COVID · 11.2022 FTX." in ch["note"]
+    assert "Znaczniki na wykresie: 12.03.2020 • COVID" in report.to_markdown(rep)
+    assert mk["COVID"]["t"] == ts(2020, 3, 31) and mk["FTX"]["t"] == ts(2022, 11, 30)
+    assert {p[0] for p in ch["series"][0]["data"]} >= {m["t"] for m in ch["markers"]}
+
+
+def test_no_markers_without_events(tmp_path):
+    now = ts(2026, 11, 2, 0, 50)
+    data, ema = make_dirs(tmp_path, now)
+    rep = report.build(data, ema, "weekly", now=now, cfg={}, macro={"events": [], "error": None})
+    ch = {b.get("title"): b for b in rep["blocks"]}["BTC i średnie tygodniowe — od 2011"]
+    assert "markers" not in ch and "historyczne" not in ch["desc"]
