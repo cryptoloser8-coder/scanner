@@ -432,3 +432,38 @@ def test_chart_files_carry_wicks_for_recent_days(tmp_path):
     E.run(cfg(), st, now=NOW, client=FakeBinance(), telegram=FakeTG(), publish=True, remote=None)
     a = json.load(open(tmp_path / "st" / "pub" / "hist" / "AAA.json"))["d"]
     assert len(a[0]) == 3 and len(a[-1]) == 5 and a[-1][4] <= a[-1][1] <= a[-1][3]
+
+
+# ── poprawka 64: indeks altów (zakładka Altsezon) ──
+def test_alt_index_median_delisted_and_exclusions():
+    now = 100 * D + 6 * 3600
+    days = [i * D for i in range(101)]                       # dzień 100 = dziś (niezamknięty) — pomijany
+    up = [[t, 1.0 * 1.1 ** i] for i, t in enumerate(days)]   # +10% dziennie
+    flat = [[t, 5.0] for t in days]
+    down = [[t, 1.0 * 0.95 ** i] for i, t in enumerate(days)]
+    candles = {"AAAUSDT": up, "BBBUSDT": flat, "BTCUSDT": [[t, 1e5 * 2 ** i] for i, t in enumerate(days)],
+               "USDCUSDT": up, "AAAUPUSDT": up, "NEWUSDT": up[-6:]}
+    sym_base = {"AAAUSDT": "AAA", "BBBUSDT": "BBB", "BTCUSDT": "BTC", "USDCUSDT": "USDC", "AAAUPUSDT": "AAAUP",
+                "NEWUSDT": "NEW"}
+    delisted = {"OLDUSDT": {"b": "OLD", "c": down}}
+    out = E.alt_index(candles, sym_base, delisted, {"alt_index_skip_days": 5, "alt_index_min_coins": 3}, now)
+    # liczą się AAA, BBB i wycofany OLD (BTC, stablecoin, token z dźwignią i NEW < 6 dni pominięte)
+    assert out[0][0] == 6 * D and out[-1][0] == 99 * D and all(n == 3 for _, _, n in out)
+    day = (math.log(1.1) + 0 + math.log(0.95)) / 3                  # średnia zmian logarytmicznych
+    assert abs(out[1][1] / out[0][1] - math.exp(day)) < 1e-4 and abs(out[0][1] - 100 * math.exp(day)) < 1e-3
+    out2 = E.alt_index(candles, sym_base, {}, {"alt_index_skip_days": 5, "alt_index_min_coins": 2}, now)
+    assert out2[-1][2] == 2 and out2[-1][1] > out2[0][1]       # bez OLD: średnia z AAA i BBB rośnie
+    jump = dict(candles, BBBUSDT=[[t, 5.0 if t < 50 * D else 5000.0] for t in days])   # przeliczenie tokena ×1000
+    out3 = E.alt_index(jump, sym_base, delisted, {"alt_index_skip_days": 5, "alt_index_min_coins": 3}, now)
+    d50 = [v for t, v, _ in out3 if t in (49 * D, 50 * D)]
+    assert abs(math.log(d50[1] / d50[0]) - (math.log(1.1) + 1.0 + math.log(0.95)) / 3) < 1e-4     # skok obcięty do 1,0
+    assert E.alt_index(candles, sym_base, {}, {"alt_index_skip_days": 5, "alt_index_min_coins": 3}, now) == []
+
+
+def test_run_publishes_alt_index(tmp_path):
+    st = str(tmp_path / "st")
+    E.run(cfg(alt_index_min_coins=2), st, now=NOW, client=FakeBinance(), telegram=FakeTG(), publish=True, remote=None)
+    ai = json.load(open(tmp_path / "st" / "pub" / "altindex.json"))
+    assert ai["d"] and ai["d"][-1][0] == NOW - NOW % D - D and ai["d"][-1][2] >= 2 and ai["skip_days"] == 30
+    state = json.load(open(tmp_path / "st" / "state.json"))
+    assert state["altidx"]["v"] == E.ALT_INDEX_VERSION
