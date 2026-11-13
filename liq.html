@@ -176,6 +176,7 @@
         <button class="pill" id="px-btn" title="Cena na lewej osi (BTC; dla ETH cena ETH)">Cena</button>
         <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance perp): pusta = wzrost, pełna = spadek. Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="fund-btn" title="Panel fundingu (% rocznie) pod wykresem">Funding</button>
+        <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis.">Historyczne wydarzenia</button>
       </div>
     </div>
   </div>
@@ -243,7 +244,7 @@ const store = {
 };
 let META = null, CAT = {}, TIPS = {};
 const DATA = {'1h': null, '1d': null};
-let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true}, store.get('view', {}), parseHash());
+let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true, hev: false}, store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = {};
@@ -253,11 +254,12 @@ function parseHash() {
   if (h.get('p')) o.px = h.get('p') === '1';
   if (h.get('f')) o.fund = h.get('f') === '1';
   if (h.get('k')) o.cdl = h.get('k') === '1';
+  if (h.get('hw')) o.hev = h.get('hw') === '1';
   return o;
 }
 function persist() {
   store.set('view', S);
-  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0}));
+  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0, ...(S.hev ? {hw: 1} : {})}));
 }
 
 // ── formatting ──────────────────────────────────────────────
@@ -437,6 +439,7 @@ bindPills('range-pills', 'range', Number);
 document.getElementById('px-btn').addEventListener('click', () => { S.px = !S.px; refresh(); });
 document.getElementById('fund-btn').addEventListener('click', () => { S.fund = !S.fund; refresh(); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; refresh(); });
+document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
 function syncControls() {
   for (const [id, key] of [['iv-pills', 'iv'], ['range-pills', 'range']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(key === 'iv' ? IV() : S[key]) === b.dataset.val));
@@ -444,12 +447,14 @@ function syncControls() {
   const wick = pts(resOf(IV()), pxId(S.asset) + '_hi').length > 0;
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.px && S.cdl && wick); kb.disabled = !S.px || !wick;
   document.getElementById('fund-btn').classList.toggle('active', S.fund);
+  const hb = document.getElementById('hev-btn'), hasHev = ((META || {}).history_events || []).length > 0;
+  hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
   document.querySelectorAll('#iv-pills [data-val="1h"], #iv-pills [data-val="4h"]').forEach(b => b.disabled = !has1h());
   document.querySelectorAll('.tile[data-asset]').forEach(t => t.classList.toggle('on', t.dataset.asset === S.asset && t.querySelector('[data-tip^="liq_"]')));
 }
 
 // ── chart ───────────────────────────────────────────────────
-let chart = null, mounted = [], lastCrosshair = null;
+let chart = null, mounted = [], lastCrosshair = null, HEV = null;
 function makeChart() {
   chart = LWC.createChart(document.getElementById('chart'), {
     autoSize: true,
@@ -464,6 +469,7 @@ function makeChart() {
   });
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
+  if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set((META || {}).history_events); HEV.show(S.hev); }
 }
 function drawChart(resetRange) {
   if (!chart) makeChart();
@@ -554,6 +560,7 @@ function drawChart(resetRange) {
   }
   updateLegend();
   requestAnimationFrame(() => requestAnimationFrame(placeLegend));   // axis width is known after layout
+  if (HEV) HEV.update();
 }
 function updateLegend(param) {
   lastCrosshair = param && param.time ? param : null;

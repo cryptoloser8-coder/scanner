@@ -163,7 +163,8 @@
     </div>
     <div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna">Log</button>
       <button class="pill" id="sma-btn" title="Zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym) — tylko na świecy 1W">Średnie 20/50 tyg.</button>
-      <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot): BTC i ETH od 2017, pozostałe coiny z ostatnich ok. 400 dni — wcześniej linia zamknięć">Świece</button></div>
+      <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot): BTC i ETH od 2017, pozostałe coiny z ostatnich ok. 400 dni — wcześniej linia zamknięć">Świece</button>
+      <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis.">Historyczne wydarzenia</button></div>
   </div>
   <div class="chart-wrap">
     <div id="chart"></div>
@@ -251,7 +252,7 @@ const store = {
 };
 
 let DATA = null, HIST = {};
-let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sma: true, sort: 'ad', dir: 1, filter: 'all', q: ''},
+let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sma: true, hev: false, sort: 'ad', dir: 1, filter: 'all', q: ''},
   store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1)), o = {};
@@ -262,12 +263,14 @@ function parseHash() {
   if (h.get('f')) o.filter = h.get('f');
   if (h.get('i')) o.tf = h.get('i') === '1w' ? 'w' : 'd';
   if (h.get('k')) o.cdl = h.get('k') !== '0';
+  if (h.get('hw')) o.hev = h.get('hw') === '1';
   return o;
 }
 function persist() {
-  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sma: S.sma, sort: S.sort, dir: S.dir, filter: S.filter});
+  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sma: S.sma, hev: S.hev, sort: S.sort, dir: S.dir, filter: S.filter});
   const h = new URLSearchParams({c: S.coin, v: S.view, i: S.tf === 'w' ? '1w' : '1d', z: S.range, f: S.filter});
   if (!S.cdl) h.set('k', '0');
+  if (S.hev) h.set('hw', '1');
   history.replaceState(null, '', '#' + h);
 }
 
@@ -431,6 +434,16 @@ document.getElementById('range-pills').addEventListener('click', e => { const b 
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; persist(); refreshChart(false); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; persist(); refreshChart(false); });
 document.getElementById('sma-btn').addEventListener('click', () => { S.sma = !S.sma; persist(); refreshChart(false); });
+document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncHev(); if (HEV) HEV.show(S.hev); });
+// historyczne wydarzenia (poprawka 63): lista z meta.json na gałęzi data (config.yaml → history_events)
+let HEV = null, HEV_LIST = [];
+function syncHev() { const b = document.getElementById('hev-btn'); b.classList.toggle('active', S.hev && HEV_LIST.length > 0); b.disabled = !HEV_LIST.length; }
+async function loadHev() {
+  try { const r = await fetch(`${DATA_BASE}meta.json?${bust()}`, {cache: 'no-cache'}); if (r.ok) HEV_LIST = (await r.json()).history_events || []; }
+  catch (e) { HEV_LIST = []; }
+  syncHev();
+  if (HEV) { HEV.set(HEV_LIST); HEV.show(S.hev); HEV.update(); }
+}
 
 // ── chart ───────────────────────────────────────────────────
 let chart = null, mounted = [];
@@ -446,6 +459,7 @@ function makeChart() {
   });
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
+  if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(HEV_LIST); HEV.show(S.hev); }
 }
 let aux = [];                                   // linia zamknięć sprzed pierwszego knota (bez wpisu w legendzie)
 function clearChart() { for (const m of mounted) chart.removeSeries(m.series); for (const x of aux) chart.removeSeries(x); mounted = []; aux = []; }
@@ -507,6 +521,10 @@ function setRange(first, last) {
   requestAnimationFrame(() => requestAnimationFrame(apply));   // again once the chart knows its real width
 }
 async function refreshChart(resetRange) {
+  await drawChartView(resetRange);
+  if (HEV) HEV.update();
+}
+async function drawChartView(resetRange) {
   syncControls();
   if (!chart) makeChart();
   const empty = document.getElementById('empty');
@@ -753,6 +771,7 @@ async function boot() {
   if (!DATA.coins.some(c => c.s === S.coin)) S.coin = DATA.coins.length ? (DATA.coins.find(c => c.s === 'BTC') || DATA.coins[0]).s : '';
   document.getElementById('search').value = S.q;
   renderTiles(); renderTable(); renderRules();
+  syncHev(); loadHev();
   await refreshChart(true);
 }
 if (!LWC) setStatus('error', 'Błąd ładowania biblioteki wykresów'); else boot();

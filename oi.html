@@ -206,6 +206,7 @@
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
         <button class="pill" id="cdl-btn" title="Cena BTC i ETH jako świece z knotami (tryb Wartości). Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
+        <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis. Działa w każdym trybie.">Historyczne wydarzenia</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
       </div>
     </div>
@@ -312,7 +313,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, candles: true, grp: ''},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, hev: false, candles: true, grp: ''},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -325,6 +326,7 @@ function parseHash() {
   if (h.get('log')) o.log = h.get('log') === '1';
   if (h.get('lines')) o.levels = h.get('lines') !== '0';
   if (h.get('cyc')) o.cycle = h.get('cyc') === '1';
+  if (h.get('hw')) o.hev = h.get('hw') === '1';
   if (h.get('cdl')) o.candles = h.get('cdl') !== '0';
   return o;
 }
@@ -334,6 +336,7 @@ function persist() {
   if (S.log) h.set('log', '1');
   if (!S.levels) h.set('lines', '0');
   if (S.cycle) h.set('cyc', '1');
+  if (S.hev) h.set('hw', '1');
   if (!S.candles) h.set('cdl', '0');
   history.replaceState(null, '', '#' + h.toString());
 }
@@ -623,6 +626,7 @@ bindPills('mode-pills', 'mode');
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
 document.getElementById('lvl-btn').addEventListener('click', () => { S.levels = !S.levels; refresh(); });
 document.getElementById('cyc-btn').addEventListener('click', () => { S.cycle = !S.cycle; refresh(); });
+document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.candles = !S.candles; refresh(); });
 function syncControls() {
   for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
@@ -636,11 +640,14 @@ function syncControls() {
   const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
   cb.classList.toggle('active', S.cycle && hasCyc); cb.disabled = !hasCyc;
   if (!hasCyc) cb.title = 'Fazy cyklu pojawią się po najbliższym skanie (meta.json bez cycle_marks).';
+  const hb = document.getElementById('hev-btn'), hasHev = ((META || {}).history_events || []).length > 0;
+  hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
+  if (!hasHev) hb.title = 'Historyczne wydarzenia pojawią się po najbliższym skanie (meta.json bez history_events).';
   document.querySelectorAll('#res-pills [data-val="1h"], #res-pills [data-val="4h"]').forEach(b => b.disabled = !DATA['1h'] && DATA._1hFailed);
 }
 
 // ── chart ───────────────────────────────────────────────────
-let chart = null, mounted = [];
+let chart = null, mounted = [], HEV = null;
 function makeChart() {
   chart = LWC.createChart(document.getElementById('chart'), {
     autoSize: true,
@@ -658,6 +665,7 @@ function makeChart() {
   chart.subscribeCrosshairMove(updateLegend);
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); });
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
+  if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
 }
 
 // ── fazy cyklu BTC: tło i pionowe linie (meta.cycle_marks — te same reguły co raport miesięczny) ──
@@ -877,6 +885,7 @@ function drawChart(resetRange) {
   updateLegend();
   renderCycLegend();
   requestAnimationFrame(drawVLines);
+  if (HEV) HEV.update();
 }
 
 function updateLegend(param) {
