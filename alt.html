@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Altsezon — fale altów · Crypto Loser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="Fale altów („mini altsezony”): indeks altów, długość i zysk fal, przerwy w fazach cyklu i sygnały liczone z historii.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crypto Loser Analytics Tools">
+<meta property="og:title" content="Altsezon — fale altów · Crypto Loser">
+<meta property="og:description" content="Fale altów („mini altsezony”): indeks altów, długość i zysk fal, przerwy w fazach cyklu i sygnały liczone z historii.">
+<meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crypto Loser Analytics Tools — The best tools for buying high and selling low.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Crypto Loser">
+<script src="app.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--pink:#f48fb1;--amber-bg:rgba(255,193,7,.1);--red-bg:rgba(224,82,82,.12);
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);}
+  .menu-link:hover{color:var(--text);border-color:rgba(255,255,255,.25);background:var(--bg3);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);} .status-dot.stale{background:var(--amber);} .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:14px;}
+  .panel h2{font-size:13px;font-weight:600;margin-bottom:4px;}
+  .desc{font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .pill:disabled{opacity:.35;cursor:not-allowed;}
+  .sep{width:1px;height:18px;background:var(--border2);}
+  .chart-wrap{position:relative;height:min(62vh,600px);min-height:360px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;}
+  .lg-row .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);}
+  .lg-name{color:var(--text2);} .lg-val{font-family:var(--mono);color:var(--text);}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+  .cyc-legend{display:none;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-top:6px;}
+  .cyc-legend.on{display:flex;}
+  .cyc-legend span::before{content:'';display:inline-block;width:12px;height:10px;border-radius:2px;background:var(--c);opacity:.45;margin-right:5px;vertical-align:-1px;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
+  .stat .t{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+  .stat .v{font-family:var(--mono);font-size:20px;font-weight:600;}
+  .stat .v small{font-size:12px;color:var(--text2);font-weight:400;margin-left:6px;}
+  .stat .s{font-size:11px;color:var(--text2);line-height:1.5;}
+  .stat .h{font-size:11px;color:var(--text);line-height:1.5;border-top:1px solid var(--border);padding-top:6px;margin-top:2px;}
+  .up{color:var(--green);} .dn{color:var(--red);} .warn{color:var(--amber);}
+  .bar{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(76,175,125,.35),rgba(255,193,7,.3),rgba(224,82,82,.4));margin:14px 0 16px;}
+  .bar .now{position:absolute;top:-4px;width:3px;height:16px;border-radius:2px;background:#fff;transform:translateX(-1px);}
+  .bar .mk{position:absolute;top:-3px;width:0;height:14px;border-left:1px dashed var(--c,#aaa);}
+  .bar .mk span{position:absolute;top:15px;left:0;transform:translateX(-50%);font-size:9px;color:var(--c,#aaa);white-space:nowrap;font-family:var(--mono);}
+  .bar .lo,.bar .hi{position:absolute;top:-15px;font-size:9px;color:var(--text3);font-family:var(--mono);}
+  .bar .lo{left:0;} .bar .hi{right:0;}
+
+  .tbl{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500;text-align:right;padding:6px 8px;border-bottom:1px solid var(--border2);white-space:nowrap;}
+  td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono);white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;}
+  td.l,th.l{text-align:left;font-family:inherit;}
+  tr.cur td{background:rgba(244,143,177,.06);}
+  .ph{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:5px;}
+  .footer{text-align:center;margin-top:22px;font-size:10px;color:var(--text3);line-height:1.7;}
+  .footer a{color:var(--text3);}
+  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} .stats{grid-template-columns:1fr;} td,th{padding:5px 6px;} }
+  .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
+  .brand img{display:block;height:52px;max-width:100%;}
+  @media (max-width:640px){ .brand{margin-bottom:14px;} .brand img{height:36px;} }
+  @media print{ .brand{display:none !important;} }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="brand" title="Menu"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Altsezon — fale altów</h1>
+      <p>Indeks altów (Binance, Orange Pi) · lewar altów, stablecoiny (Coinalyze, TradingView) · sieci (DefiLlama)</p>
+    </div>
+  </div>
+  <div style="text-align:right"><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="panel">
+  <h2>Stan teraz</h2>
+  <div class="desc">Fakty z danych i to, co działo się w podobnych chwilach w przeszłości (liczone na bieżąco z historii — szacunek, nie prognoza).
+    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie 20%), najdłużej w 200 dni (fale dłuższe niż 60 dni oznaczamy jako „rajd”).</div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="ctrl-group"><span class="ctrl-label">Fala od</span>
+      <div class="pills" id="th-pills">
+        <button class="pill" data-val="15" title="Fala = wzrost indeksu altów o co najmniej 15% (więcej, mniejszych fal)">+15%</button>
+        <button class="pill" data-val="20" title="Fala = wzrost o co najmniej 20% — przy tym progu wychodzi ok. 10–15 fal na cykl">+20%</button>
+        <button class="pill" data-val="25" title="Fala = wzrost o co najmniej 25% (tylko większe fale)">+25%</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group"><span class="ctrl-label">Zakres</span>
+      <div class="pills" id="range-pills">
+        <button class="pill" data-val="365">1R</button><button class="pill" data-val="1095">3L</button>
+        <button class="pill" data-val="1825">5L</button><button class="pill" data-val="0">ALL</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl-group"><div class="pills">
+      <button class="pill" id="btc-btn" title="Cena BTC na lewej osi (log) — porównanie z altami">BTC na tle</button>
+      <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) — te same reguły co w raporcie miesięcznym">Fazy cyklu</button>
+      <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku — lista w config.yaml (history_events). Kliknij podpis, żeby zobaczyć opis.">Historyczne wydarzenia</button>
+    </div></div>
+  </div>
+  <div class="chart-wrap">
+    <div id="chart"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty" id="empty">Ładowanie…</div>
+  </div>
+  <div class="cyc-legend" id="cyc-legend"></div>
+  <div class="hint" id="hint"></div>
+</div>
+
+<div class="panel">
+  <h2>Fale według faz cyklu</h2>
+  <div class="desc">Ile fal było w każdej fazie cyklu BTC, jak długo trwały, ile dawały i ile czasu mijało między nimi. „Oddane po szczycie” = ile indeks altów tracił w 30 dni po szczycie fali — czyli co zostawało, gdy się nie sprzedało.</div>
+  <div class="tbl" id="phase-tbl"></div>
+</div>
+
+<div class="panel">
+  <h2>Wszystkie fale</h2>
+  <div class="desc">Od najnowszej. Rodzaj: fala = do 60 dni, rajd = dłużej (szeroki wzrost całego rynku). Zysk = indeks altów od dołka do szczytu fali; BTC = jak w tym czasie zmienił się BTC; alty vs BTC = o ile alty były mocniejsze (+) albo słabsze (−) od BTC.</div>
+  <div class="tbl" id="wave-tbl"></div>
+</div>
+
+<div class="footer">
+  Dane: <a href="https://www.binance.com" target="_blank" rel="noopener">Binance</a> (ceny coinów, liczone na Orange Pi) ·
+  <a href="https://coinalyze.net" target="_blank" rel="noopener">Coinalyze</a> (open interest) ·
+  <a href="https://www.tradingview.com" target="_blank" rel="noopener">TradingView</a> (kapitalizacje) ·
+  <a href="https://defillama.com" target="_blank" rel="noopener">DefiLlama</a> (sieci) ·
+  Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener">TradingView Lightweight Charts™</a><br>
+  <span id="foot-info"></span>
+</div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+const qs = new URLSearchParams(location.search);
+function branchBase(param, branch) {
+  if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+  }
+  return branch + '/';
+}
+const DATA_BASE = branchBase('data', 'data'), EMA_BASE = branchBase('ema', 'ema'), CH_BASE = branchBase('chains', 'chains');
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(base, name) {
+  const r = await fetch(`${base}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const DAY = 86400;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('alt.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('alt.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+function parseHash() {
+  const h = new URLSearchParams(location.hash.slice(1)), o = {};
+  if (h.get('p')) o.th = +h.get('p');
+  if (h.get('z')) o.range = +h.get('z');
+  if (h.get('b')) o.btc = h.get('b') === '1';
+  if (h.get('cyc')) o.cyc = h.get('cyc') === '1';
+  if (h.get('hw')) o.hev = h.get('hw') === '1';
+  return o;
+}
+let S = Object.assign({th: 20, range: 1095, btc: !matchMedia('(max-width:640px)').matches, cyc: false, hev: false}, store.get('view', {}), parseHash());
+if (![15, 20, 25].includes(S.th)) S.th = 20;
+function persist() {
+  store.set('view', S);
+  const h = new URLSearchParams({p: S.th, z: S.range, b: S.btc ? 1 : 0});
+  if (S.cyc) h.set('cyc', '1');
+  if (S.hev) h.set('hw', '1');
+  history.replaceState(null, '', '#' + h.toString());
+}
+
+// ── liczby ──────────────────────────────────────────────────
+const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(d) + '%';
+const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
+const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
+const my = t => dmy(t).slice(3);
+function fmtUsd(v) {
+  if (v == null || isNaN(v)) return '—';
+  const a = Math.abs(v);
+  if (a >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
+  if (a >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M';
+  return '$' + Math.round(v).toLocaleString('pl-PL');
+}
+const fmtIdx = v => v == null ? '—' : v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(3);
+function price(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString('pl-PL'); }
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+function lastLE(times, t) {                       // indeks ostatniego czasu ≤ t
+  let lo = 0, hi = times.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (times[m] <= t) lo = m + 1; else hi = m; }
+  return lo - 1;
+}
+
+// ── dane ────────────────────────────────────────────────────
+let IDX = null, EMA = null, META = {}, D1 = {}, LQ = {}, CH = {};
+let T = [], X = [], NC = [];                       // indeks altów: czasy, log(wartości), liczba coinów
+const pts = (src, id) => ((src.series || {})[id] || []).filter(p => p[1] != null);
+const PHASE_COLORS = {bull: '#4caf7d', bear: '#e05252', acc: '#5b9cf6', unsure: '#b39ddb'};
+const PHASE_NAMES = {bull: 'hossa', bear: 'bessa', acc: 'akumulacja', unsure: 'akumulacja (niepotwierdzona)'};
+function phaseAt(t) {
+  for (const p of ((META.cycle_marks || {}).phases || [])) if (t >= p.from && (p.to == null || t < p.to)) return p;
+  return null;
+}
+const phaseKey = p => !p ? null : (p.phase === 'acc' && p.confirmed === false ? 'unsure' : p.phase);
+const phaseGroup = p => !p ? null : p.phase;     // akumulacja niepotwierdzona liczy się jak akumulacja
+
+// fale: zigzag na log(indeksu) — wzrost ≥ próg od dołka, potwierdzony spadkiem ≥ próg od szczytu; najwyżej 90 dni
+function zigzag(x, th) {
+  const piv = [];
+  let hi = 0, lo = 0, trend = 0;
+  for (let i = 1; i < x.length; i++) {
+    if (trend >= 0) {
+      if (x[i] > x[hi]) hi = i;
+      if (x[hi] - x[i] >= th) { if (trend === 0 && lo < hi) piv.push(lo); piv.push(hi); trend = -1; lo = i; }
+    }
+    if (trend <= 0) {
+      if (x[i] < x[lo]) lo = i;
+      if (x[i] - x[lo] >= th) { if (trend === 0 && hi < lo) piv.push(hi); piv.push(lo); trend = 1; hi = i; }
+    }
+  }
+  return {piv: [...new Set(piv)].sort((a, b) => a - b), trend, hi, lo};
+}
+const MAXD = 200, RALLY = 60;                     // fala najwyżej 200 dni; powyżej 60 dni = szeroki rajd
+function computeWaves(thPct) {
+  const th = Math.log(1 + thPct / 100), z = zigzag(X, th), out = [];
+  for (let k = 0; k + 1 < z.piv.length; k++) {
+    const a = z.piv[k], b = z.piv[k + 1];
+    if (X[b] <= X[a]) continue;
+    const days = (T[b] - T[a]) / DAY;
+    if (days < 3 || days > MAXD) continue;
+    out.push(waveRow(a, b, true));
+  }
+  let live = null;                                  // fala w toku (szczyt jeszcze niepotwierdzony)
+  if (z.trend === 1 && (T[z.hi] - T[z.lo]) / DAY <= MAXD) live = waveRow(z.lo, z.hi, false);
+  return {waves: out, live, z};
+}
+function waveRow(a, b, done) {
+  const ta = T[a], tb = T[b], ph = phaseAt(ta);
+  const btcA = btcAt(ta), btcB = btcAt(tb);
+  let after = null;
+  const j = lastLE(T, tb + 30 * DAY);
+  if (done && T[j] - tb >= 29 * DAY) { let m = X[b]; for (let i = b; i <= j; i++) m = Math.min(m, X[i]); after = (Math.exp(m - X[b]) - 1) * 100; }
+  const g = (Math.exp(X[b] - X[a]) - 1) * 100, bt = btcA && btcB ? (btcB / btcA - 1) * 100 : null;
+  return {a, b, ta, tb, days: Math.round((tb - ta) / DAY), gain: g, btc: bt,
+    rel: bt == null ? null : ((1 + g / 100) / (1 + bt / 100) - 1) * 100, ph, after, done};
+}
+let BTC_T = [], BTC_V = [];
+function btcAt(t) { const i = lastLE(BTC_T, t); return i >= 0 && t - BTC_T[i] <= 3 * DAY ? BTC_V[i] : null; }
+function idxAt(t) { const i = lastLE(T, t); return i >= 0 && t - T[i] <= 3 * DAY ? i : -1; }
+
+// co działo się z altami w 30 dni po sygnale (przebicie poziomu w górę; między sygnałami ≥ 30 dni)
+function afterCross(series, level) {
+  const out = [];
+  let last = -Infinity;
+  for (let k = 1; k < series.length; k++) {
+    const [t, v] = series[k], pv = series[k - 1][1];
+    if (!(v >= level && pv < level) || t - last < 30 * DAY) continue;
+    last = t;
+    const i = idxAt(t);
+    if (i < 0) continue;
+    const j = lastLE(T, t + 30 * DAY);
+    if (T[j] - t < 29 * DAY) { out.push({t, open: true}); continue; }
+    let mx = X[i], mn = X[i];
+    for (let q = i; q <= j; q++) { mx = Math.max(mx, X[q]); mn = Math.min(mn, X[q]); }
+    out.push({t, r30: (Math.exp(X[j] - X[i]) - 1) * 100, mx: (Math.exp(mx - X[i]) - 1) * 100, mn: (Math.exp(mn - X[i]) - 1) * 100});
+  }
+  return out;
+}
+// szansa, że w kolejnych 30 dniach indeks altów urośnie o ≥ próg (od dnia t) — ogólnie i gdy warunek spełniony
+function chance(cond, thPct) {
+  const th = Math.log(1 + thPct / 100);
+  let n = 0, y = 0, nc = 0, yc = 0;
+  for (let i = 0; i < T.length; i++) {
+    const j = lastLE(T, T[i] + 30 * DAY);
+    if (T[j] - T[i] < 29 * DAY) break;
+    let mx = X[i];
+    for (let q = i + 1; q <= j; q++) mx = Math.max(mx, X[q]);
+    const hit = mx - X[i] >= th, c = cond(T[i]);
+    n++; if (hit) y++;
+    if (c) { nc++; if (hit) yc++; }
+  }
+  return {base: n ? y / n * 100 : null, cond: nc ? yc / nc * 100 : null, days: nc};
+}
+function chgAt(series, t, back) {                  // zmiana serii w `back` dniach do dnia t (w %)
+  const ts = series.map(p => p[0]), i = lastLE(ts, t), j = lastLE(ts, t - back * DAY);
+  if (i < 0 || j < 0 || t - ts[i] > 3 * DAY || series[j][1] <= 0) return null;
+  return (series[i][1] / series[j][1] - 1) * 100;
+}
+function bar(lo, hi, v, marks, fmt, log) {
+  const pos = x => { const a = log ? Math.log(x) : x, l = log ? Math.log(lo) : lo, h = log ? Math.log(hi) : hi; return Math.max(0, Math.min(100, (a - l) / (h - l) * 100)); };
+  return `<div class="bar"><span class="lo">${fmt(lo)}</span><span class="hi">${fmt(hi)}</span>` +
+    (marks || []).map(m => `<div class="mk" style="left:${pos(m.v)}%;--c:${m.c || '#aaa'}" title="${esc(m.label)}"><span>${esc(m.short || '')}</span></div>`).join('') +
+    (v == null ? '' : `<div class="now" style="left:${pos(v)}%" title="teraz"></div>`) + '</div>';
+}
+
+// ── kafelki „Stan teraz” ────────────────────────────────────
+function renderStats(W) {
+  const out = [];
+  const tNow = T[T.length - 1];
+  // 1. fala altów
+  {
+    const {live, z} = W, ph = phaseAt(tNow), grp = phaseGroup(ph);
+    const sum = phaseSummary(W.waves)[grp] || {};
+    let v, s, h;
+    if (live) {
+      const dd = (Math.exp(X[X.length - 1] - X[live.b]) - 1) * 100;
+      v = `<span class="up">fala trwa</span><small>${fmtPct(live.gain)} od dołka ${dmy(live.ta)}</small>`;
+      s = `Szczyt dotąd ${dmy(live.tb)} (${live.days} dni od dołka); indeks teraz ${fmtPct(dd, 1)} od szczytu. Fala kończy się, gdy indeks spadnie o ${S.th}% od szczytu.`;
+      h = sum.n ? `W tej fazie (${PHASE_NAMES[phaseKey(ph)]}) fale trwały zwykle ok. ${Math.round(sum.days)} dni i dawały ${fmtPct(sum.gain)}; po szczycie indeks oddawał w 30 dni ${fmtPct(sum.after)}.` : '';
+    } else {
+      const lo = z.lo, up = (Math.exp(X[X.length - 1] - X[lo]) - 1) * 100;
+      const last = W.waves[W.waves.length - 1], since = last ? Math.round((tNow - last.tb) / DAY) : null;
+      v = `brak fali<small>${fmtPct(up)} od dołka ${dmy(T[lo])}</small>`;
+      s = `Fala zaczyna się przy +${S.th}% od dołka.` + (last ? ` Ostatnia fala: ${dmy(last.ta)}–${dmy(last.tb)} (${fmtPct(last.gain)}), od jej szczytu minęło ${since} dni.` : '');
+      h = sum.gapN ? `W tej fazie (${PHASE_NAMES[phaseKey(ph)]}) między falami mijało zwykle ${Math.round(sum.gap)} dni (od ${sum.gapMin} do ${sum.gapMax}).` +
+        (since != null ? ` Teraz: ${since} dni.` : '') : '';
+    }
+    out.push(stat('Fala altów (indeks altów)', v, s, h));
+  }
+  // 2. lewar altów
+  {
+    const lev = pts(D1, 'oi_others_vs_btc');
+    if (lev.length) {
+      const v = lev[lev.length - 1][1], vals = lev.map(p => p[1]);
+      const c95 = afterCross(lev, 0.95).filter(x => !x.open), c100 = afterCross(lev, 1.0).filter(x => !x.open);
+      const neg = a => a.filter(x => x.r30 < 0).length;
+      const rng = a => a.length ? `${fmtPct(Math.min(...a.map(x => x.r30)))}…${fmtPct(Math.max(...a.map(x => x.r30)))}` : '';
+      const tops = topsOf(lev, 0.9);
+      out.push(stat('Lewar altów (OI OTHERS / OI BTC)', `${v.toFixed(3)}×<small>${fmtPct(chgAt(lev, lev[lev.length - 1][0], 30))} w 30 dni</small>`,
+        bar(Math.min(...vals), Math.max(...vals), v, [{v: 0.95, short: '0,95', c: '#ffc107', label: 'próg alertu 0,95'}, {v: 1.0, short: '1,0', c: '#e05252', label: 'próg alertu 1,0'}], x => x.toFixed(2)) +
+        `Ile open interest altów (bez ETH) przypada na open interest BTC. Szczyty: ${tops.map(x => `${x[1].toFixed(2)} (${my(x[0])})`).join(', ') || '—'}.`,
+        (c95.length ? `Po przebiciu 0,95 w górę indeks altów był niżej po 30 dniach ${neg(c95)} z ${c95.length} razy (${rng(c95)}).` : '') +
+        (c100.length ? ` Po przebiciu 1,0: ${neg(c100)} z ${c100.length} razy (${rng(c100)}).` : '') + ' Alert na Telegramie przy obu progach.'));
+    }
+  }
+  // 3. stablecoiny
+  {
+    const sm = pts(D1, 'stable_mcap');
+    if (sm.length) {
+      const t = sm[sm.length - 1][0], c30 = chgAt(sm, t, 30);
+      const ch = chance(tt => { const c = chgAt(sm, tt, 30); return c != null && c < 0; }, S.th);
+      const hist = [];
+      for (let k = 0; k < sm.length; k += 7) { const c = chgAt(sm, sm[k][0], 30); if (c != null && sm[k][0] >= t - 730 * DAY) hist.push(c); }
+      out.push(stat('Stablecoiny — zmiana w 30 dni', `<span class="${cls(c30)}">${fmtPct(c30, 1)}</span><small>${fmtUsd(sm[sm.length - 1][1])}</small>`,
+        (hist.length ? bar(Math.min(...hist, c30), Math.max(...hist, c30), c30, [{v: 0, short: '0', c: '#888', label: 'bez zmian'}], x => fmtPct(x, 0)) : '') +
+        'Kapitalizacja stablecoinów (TOTAL − TOTALES): rośnie = do krypto wpływają pieniądze, spada = wypływają. Pasek: ostatnie 2 lata.',
+        ch.base != null && ch.cond != null ? `Gdy stablecoiny spadały w 30 dni, fala altów (+${S.th}% w ciągu kolejnych 30 dni) startowała w ${ch.cond.toFixed(0)}% dni — zwykle w ${ch.base.toFixed(0)}%.` : ''));
+    }
+  }
+  // 4. szerokość rynku
+  {
+    const br = (EMA && EMA.breadth || []).map(p => [p[0], p[1]]);
+    if (br.length) {
+      const v = br[br.length - 1][1], c80 = afterCross(br, 80).filter(x => !x.open);
+      out.push(stat('Szerokość rynku', `${v.toFixed(0)}%<small>coinów nad EMA200 (świeca dzienna)</small>`,
+        bar(0, 100, v, [{v: 80, short: '80', c: '#ffc107', label: '80%'}, {v: 90, short: '90', c: '#e05252', label: 'szczyty altów ≥ 90%'}], x => x + '%') +
+        'Przy szczytach altów ≥ 90%, przy dnach blisko 0%. Liczone także z coinów wycofanych z Binance.',
+        c80.length ? `Po przebiciu 80% w górę indeks altów był niżej po 30 dniach ${c80.filter(x => x.r30 < 0).length} z ${c80.length} razy.` : ''));
+    }
+  }
+  // 5. RSI 1W
+  {
+    const r = EMA && EMA.rsi, w = r && r.w || [];
+    if (w.length) {
+      const now = (r.now || {}).w || [], lo = now[0] ?? w[w.length - 1][1], hi = now[1] ?? w[w.length - 1][2];
+      const mxLo = w.reduce((a, p) => p[1] > a[1] ? [p[0], p[1]] : a, [0, -1]), mxHi = w.reduce((a, p) => p[2] > a[1] ? [p[0], p[2]] : a, [0, -1]);
+      out.push(stat('RSI 1W — skrajności', `<span class="up">${lo.toFixed(0)}%</span> / <span class="dn">${hi.toFixed(0)}%</span><small>wyprzedane / wykupione</small>`,
+        `Jaki % coinów ma RSI(14) na świecy tygodniowej poniżej ${r.low} (wyprzedane) i powyżej ${r.high} (wykupione). Rekordy: wyprzedane ${mxLo[1].toFixed(0)}% (${my(mxLo[0])}), wykupione ${mxHi[1].toFixed(0)}% (${my(mxHi[0])}).`,
+        'Duży odsetek wyprzedanych to głęboka wyprzedaż, ale historycznie nie zapowiadał fali w najbliższym miesiącu; dużo wykupionych = rynek rozgrzany.'));
+    }
+  }
+  // 6. Alty / BTC
+  {
+    const ab = pts(D1, 'alts_vs_btc');
+    if (ab.length) {
+      const v = ab[ab.length - 1][1], t = ab[ab.length - 1][0], last2 = ab.filter(p => p[0] >= t - 730 * DAY).map(p => p[1]);
+      out.push(stat('Alty / BTC', `${v.toFixed(3)}<small>${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
+        bar(Math.min(...last2), Math.max(...last2), v, [], x => x.toFixed(2)) +
+        'Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ kapitalizacja BTC. Pasek: ostatnie 2 lata.',
+        `Szczyty cykli: ${topsOf(ab, 0.3, 365).slice(-4).map(x => `${x[1].toFixed(2)} (${my(x[0])})`).join(' → ')}.`));
+    }
+  }
+  // 7. sieci — skoki wolumenu DEX
+  {
+    const rows = dexSurges();
+    if (rows) {
+      const cur = rows.filter(r => r.cur), recent = rows.filter(r => !r.cur).slice(-4).reverse();
+      out.push(stat('Skoki wolumenu DEX na sieciach', cur.length ? `<span class="warn">${cur.map(r => esc(r.name)).join(', ')}</span>` : 'brak',
+        `Tydzień, w którym wolumen DEX sieci był co najmniej 2× większy niż mediana 8 poprzednich tygodni — pokazuje, gdzie trwa rotacja (np. Base 03.2024, BSC 05.2025). Ostatni pełny tydzień: ${dmy(rows.week)}.` +
+        (cur.length ? ' Teraz: ' + cur.map(r => `${esc(r.name)} ×${r.x.toFixed(1)}`).join(', ') + '.' : ''),
+        recent.length ? 'Ostatnie skoki: ' + recent.map(r => `${esc(r.name)} ${dmy(r.t)} (×${r.x.toFixed(1)})`).join(', ') + '.' : ''));
+    }
+  }
+  document.getElementById('stats').innerHTML = out.join('');
+}
+function stat(t, v, s, h) {
+  return `<div class="stat"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${s}</div>${h ? `<div class="h">${h}</div>` : ''}</div>`;
+}
+function topsOf(series, minV, gapDays = 120) {        // lokalne szczyty ≥ minV, co najmniej gapDays od siebie
+  const out = [];
+  for (let k = 0; k < series.length; k++) {
+    const [t, v] = series[k];
+    if (v < minV) continue;
+    let ok = true;
+    for (let q = Math.max(0, k - gapDays); q < Math.min(series.length, k + gapDays + 1) && ok; q++) if (series[q][1] > v) ok = false;
+    if (ok && (!out.length || t - out[out.length - 1][0] > gapDays * DAY)) out.push([t, v]);
+  }
+  return out;
+}
+const CH_NAMES = {ethereum: 'Ethereum', robinhood: 'Robinhood Chain', solana: 'Solana', bsc: 'BSC', ton: 'TON', base: 'Base', tron: 'Tron', hyperliquid: 'Hyperliquid L1'};
+function dexSurges() {
+  const ser = (CH.series || {});
+  const keys = Object.keys(ser).filter(k => k.endsWith('_dex') && k !== 'ch_all_dex');
+  if (!keys.length) return null;
+  const out = [];
+  let week = 0;
+  for (const k of keys) {
+    const W = new Map();
+    for (const [t, v] of ser[k]) { if (v == null) continue; const d = Math.floor(t / DAY), w = (d - ((d + 3) % 7)) * DAY; const x = W.get(w) || [0, 0]; x[0] += v; x[1]++; W.set(w, x); }
+    const ws = [...W.entries()].filter(([, x]) => x[1] === 7).sort((a, b) => a[0] - b[0]);
+    if (!ws.length) continue;
+    week = Math.max(week, ws[ws.length - 1][0]);
+    let lastHit = -Infinity;
+    for (let i = 8; i < ws.length; i++) {
+      const base = median(ws.slice(i - 8, i).map(x => x[1][0])), v = ws[i][1][0];
+      if (base > 0 && v >= 2 * base && v >= 20e6) {
+        if (ws[i][0] - lastHit > 28 * DAY) out.push({name: CH_NAMES[k.slice(3, -4)] || k.slice(3, -4), t: ws[i][0], x: v / base});
+        lastHit = ws[i][0];
+        if (i === ws.length - 1) out[out.length - 1].cur = true, out[out.length - 1].x = v / base;
+      }
+    }
+  }
+  out.sort((a, b) => a.t - b.t);
+  out.week = week;
+  return out;
+}
+
+// ── tabele ──────────────────────────────────────────────────
+function phaseSummary(waves) {
+  const ph = (META.cycle_marks || {}).phases || [], t0 = T[0], t1 = T[T.length - 1], res = {};
+  for (const g of ['acc', 'bull', 'bear']) {
+    const yrs = ph.filter(p => p.phase === g).reduce((a, p) => a + Math.max(0, Math.min(p.to ?? t1, t1) - Math.max(p.from, t0)), 0) / DAY / 365.25;
+    const E = waves.filter(w => phaseGroup(w.ph) === g);
+    const gaps = [];
+    for (let k = 1; k < waves.length; k++)
+      if (phaseGroup(waves[k].ph) === g && phaseGroup(waves[k - 1].ph) === g) gaps.push(Math.round((waves[k].ta - waves[k - 1].tb) / DAY));
+    res[g] = {n: E.length, yrs, rate: yrs > 0.2 ? E.length / yrs : null, days: median(E.map(w => w.days)), gain: median(E.map(w => w.gain)),
+      after: median(E.filter(w => w.after != null).map(w => w.after)), gap: median(gaps), gapMin: gaps.length ? Math.min(...gaps) : null,
+      gapMax: gaps.length ? Math.max(...gaps) : null, gapN: gaps.length};
+  }
+  return res;
+}
+function renderTables(W) {
+  const sum = phaseSummary(W.waves), cur = phaseGroup(phaseAt(T[T.length - 1]));
+  const NAMES = {acc: 'akumulacja', bull: 'hossa', bear: 'bessa'};
+  document.getElementById('phase-tbl').innerHTML = `<table><thead><tr><th class="l">Faza</th><th>Fal</th><th>Lat danych</th><th>Fal na rok</th><th>Czas fali</th><th>Zysk</th><th>Przerwa między falami</th><th>Oddane po szczycie</th></tr></thead><tbody>` +
+    ['acc', 'bull', 'bear'].map(g => { const s = sum[g]; return `<tr class="${g === cur ? 'cur' : ''}"><td class="l"><span class="ph" style="--c:${PHASE_COLORS[g]}"></span>${NAMES[g]}${g === cur ? ' (teraz)' : ''}</td>` +
+      `<td>${s.n}</td><td>${s.yrs.toFixed(1)}</td><td>${s.rate == null ? '—' : s.rate.toFixed(1)}</td><td>${s.days == null ? '—' : Math.round(s.days) + ' dni'}</td>` +
+      `<td class="up">${s.gain == null ? '—' : fmtPct(s.gain)}</td><td>${s.gap == null ? '—' : `${Math.round(s.gap)} dni (${s.gapMin}–${s.gapMax})`}</td><td class="dn">${s.after == null ? '—' : fmtPct(s.after)}</td></tr>`; }).join('') +
+    '</tbody></table><div class="hint">Mediany. Przerwa = od szczytu jednej fali do dołka następnej, gdy obie były w tej samej fazie. Lata danych = ile tej fazy obejmuje indeks altów.</div>';
+  const rows = W.waves.slice().reverse();
+  if (W.live) rows.unshift(W.live);
+  document.getElementById('wave-tbl').innerHTML = `<table><thead><tr><th class="l">Dołek</th><th class="l">Szczyt</th><th>Dni</th><th>Zysk</th><th>BTC</th><th>Alty vs BTC</th><th class="l">Faza</th><th class="l">Rodzaj</th><th>Oddane w 30 dni</th></tr></thead><tbody>` +
+    rows.map(w => `<tr class="${w.done ? '' : 'cur'}"><td class="l">${dmy(w.ta)}</td><td class="l">${dmy(w.tb)}${w.done ? '' : ' (trwa)'}</td><td>${w.days}</td>` +
+      `<td class="up">${fmtPct(w.gain)}</td><td class="${cls(w.btc)}">${fmtPct(w.btc)}</td><td class="${cls(w.rel)}">${fmtPct(w.rel)}</td>` +
+      `<td class="l"><span class="ph" style="--c:${PHASE_COLORS[phaseKey(w.ph)] || '#888'}"></span>${w.ph ? PHASE_NAMES[phaseKey(w.ph)] : '—'}</td><td class="l">${w.days > RALLY ? 'rajd' : 'fala'}</td><td class="dn">${w.after == null ? '—' : fmtPct(w.after)}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+// ── wykres ──────────────────────────────────────────────────
+let chart = null, mounted = [], HEV = null;
+function makeChart() {
+  chart = LWC.createChart(document.getElementById('chart'), {
+    autoSize: true,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 11,
+      panes: {separatorColor: 'rgba(255,255,255,.1)', separatorHoverColor: 'rgba(255,255,255,.2)'}},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    leftPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', rightOffset: 3, minBarSpacing: 0.05},
+    crosshair: {mode: LWC.CrosshairMode.Normal},
+    localization: {locale: 'pl-PL'},
+  });
+  if (window.brandWatermark) brandWatermark(chart);
+  chart.subscribeCrosshairMove(updateLegend);
+  if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
+}
+function drawChart(W, resetRange) {
+  if (!chart) makeChart();
+  const prev = chart.timeScale().getVisibleRange();
+  for (const m of mounted) chart.removeSeries(m.series);
+  mounted = [];
+  while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+  // tło faz cyklu
+  if (S.cyc) {
+    for (const p of ((META.cycle_marks || {}).phases || [])) {
+      const data = T.filter((t, i) => t >= p.from && (p.to == null || t <= p.to)).map(t => ({time: t, value: 1}));
+      if (data.length < 2) continue;
+      const c = PHASE_COLORS[phaseKey(p)] || '#888';
+      const bg = chart.addSeries(LWC.AreaSeries, {priceScaleId: 'cyc', lineColor: 'rgba(0,0,0,0)', lineWidth: 1, topColor: c + '2e', bottomColor: c + '2e',
+        lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => ({priceRange: {minValue: 0, maxValue: 1}})}, 0);
+      bg.setData(data);
+      mounted.push({series: bg, aux: true});
+    }
+    try { chart.priceScale('cyc').applyOptions({scaleMargins: {top: 0, bottom: 0}, visible: false}); } catch (e) {}
+  }
+  // BTC na lewej osi
+  if (S.btc && BTC_T.length) {
+    const sb = chart.addSeries(LWC.LineSeries, {color: 'rgba(247,147,26,.55)', lineWidth: 1, priceScaleId: 'left', lastValueVisible: true, priceLineVisible: false,
+      priceFormat: {type: 'custom', minMove: 1, formatter: price}}, 0);
+    sb.setData(BTC_T.map((t, i) => ({time: t, value: BTC_V[i]})).filter(p => p.time >= T[0]));
+    mounted.push({series: sb, name: 'BTC', color: '#f7931a', fmt: price});
+  }
+  // indeks altów + fale
+  const si = chart.addSeries(LWC.LineSeries, {color: '#f48fb1', lineWidth: 2, priceScaleId: 'right', priceLineVisible: false,
+    priceFormat: {type: 'custom', minMove: 1e-9, formatter: v => fmtIdx(v)}}, 0);
+  si.setData(T.map((t, i) => ({time: t, value: Math.exp(X[i])})));
+  mounted.push({series: si, name: 'Indeks altów', color: '#f48fb1', fmt: fmtIdx, idx: true});
+  const mk = [];
+  for (const w of W.waves.concat(W.live ? [W.live] : [])) {
+    mk.push({time: w.ta, position: 'belowBar', color: '#4caf7d', shape: 'arrowUp', size: .7});
+    mk.push({time: w.tb, position: 'aboveBar', color: w.done ? '#e05252' : '#ffc107', shape: 'circle', size: .6, text: fmtPct(w.gain) + (w.done ? '' : ' (trwa)')});
+  }
+  if (LWC.createSeriesMarkers) LWC.createSeriesMarkers(si, mk.sort((a, b) => a.time - b.time));
+  // lewar altów (dolny panel)
+  const lev = pts(D1, 'oi_others_vs_btc');
+  if (lev.length) {
+    const sl = chart.addSeries(LWC.LineSeries, {color: '#ce93d8', lineWidth: 1.5, priceLineVisible: false,
+      priceFormat: {type: 'custom', minMove: .001, formatter: v => v.toFixed(2) + '×'}}, 1);
+    sl.setData(lev.map(([t, v]) => ({time: t, value: v})));
+    for (const [lv, col] of [[0.95, 'rgba(255,193,7,.6)'], [1.0, 'rgba(224,82,82,.6)']])
+      sl.createPriceLine({price: lv, color: col, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+    mounted.push({series: sl, name: 'Lewar altów (OI OTHERS / OI BTC)', color: '#ce93d8', fmt: v => v.toFixed(3) + '×'});
+  }
+  chart.panes().forEach((p, i) => {
+    p.priceScale('right').applyOptions({mode: i === 0 ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal, scaleMargins: {top: .1, bottom: .08}});
+    try { p.priceScale('left').applyOptions({visible: !!S.btc, mode: LWC.PriceScaleMode.Logarithmic, scaleMargins: {top: .1, bottom: .08}}); } catch (e) {}   // ta sama widoczność we wszystkich panelach (inaczej błąd biblioteki)
+  });
+  const panes = chart.panes();
+  if (panes.length > 1) { panes[0].setStretchFactor(0.74); panes[1].setStretchFactor(0.26); }
+  const end = T[T.length - 1];
+  if (resetRange || !prev) {
+    if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(T[0], end - S.range * DAY), to: end});
+    else chart.timeScale().fitContent();
+  } else chart.timeScale().setVisibleRange(prev);
+  updateLegend();
+  renderCycLegend();
+  if (HEV) HEV.update();
+}
+function updateLegend(param) {
+  const live = param && param.time;
+  const rows = mounted.filter(m => !m.aux).map(m => {
+    const d = live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0];
+    const v = d ? d.value : null;
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span></div>`;
+  });
+  const t = live ? param.time : T[T.length - 1], i = idxAt(t);
+  if (i >= 0) rows.unshift(`<div class="lg-row"><span class="lg-name">${dmy(T[i])} · indeks z ${NC[i]} coinów</span></div>`);
+  document.getElementById('legend').innerHTML = rows.join('');
+}
+function renderCycLegend() {
+  const el = document.getElementById('cyc-legend');
+  el.classList.toggle('on', !!S.cyc);
+  el.innerHTML = S.cyc ? ['bull', 'bear', 'acc', 'unsure'].map(k => `<span style="--c:${PHASE_COLORS[k]}">${PHASE_NAMES[k]}</span>`).join('') : '';
+}
+function syncControls() {
+  for (const [id, key] of [['th-pills', 'th'], ['range-pills', 'range']])
+    document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
+  document.getElementById('btc-btn').classList.toggle('active', S.btc);
+  const cb = document.getElementById('cyc-btn'), hasCyc = ((META.cycle_marks || {}).phases || []).length > 0;
+  cb.classList.toggle('active', S.cyc && hasCyc); cb.disabled = !hasCyc;
+  const hb = document.getElementById('hev-btn'), hasHev = (META.history_events || []).length > 0;
+  hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
+}
+let WAVES = null;
+function refresh(resetRange) {
+  persist();
+  syncControls();
+  WAVES = computeWaves(S.th);
+  renderStats(WAVES);
+  renderTables(WAVES);
+  drawChart(WAVES, resetRange);
+}
+document.getElementById('th-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.th = +b.dataset.val; refresh(false); } });
+document.getElementById('range-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.range = +b.dataset.val; refresh(true); } });
+document.getElementById('btc-btn').addEventListener('click', () => { S.btc = !S.btc; refresh(false); });
+document.getElementById('cyc-btn').addEventListener('click', () => { S.cyc = !S.cyc; refresh(false); });
+document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
+
+function setStatus(c, t) { document.getElementById('dot').className = 'status-dot ' + c; document.getElementById('status').textContent = t; }
+function banner(kind, html) { const b = document.getElementById('banner'); b.className = 'banner ' + kind; b.innerHTML = html; }
+(async () => {
+  if (!LWC) { setStatus('error', 'Błąd ładowania biblioteki wykresów'); return; }
+  try {
+    [IDX, EMA, META, D1, LQ, CH] = await Promise.all([
+      getJSON(EMA_BASE, 'altindex.json').catch(() => null), getJSON(EMA_BASE, 'ema.json').catch(() => null),
+      getJSON(DATA_BASE, 'meta.json').catch(() => ({})), getJSON(DATA_BASE, '1d.json').catch(() => ({})),
+      getJSON(DATA_BASE, 'liq_1d.json').catch(() => ({})), getJSON(CH_BASE, 'chains_1d.json').catch(() => ({}))]);
+  } catch (e) { setStatus('error', 'Błąd danych'); banner('err', 'Nie udało się wczytać danych: ' + esc(e.message)); return; }
+  const btc = pts(LQ, 'px_btc');
+  BTC_T = btc.map(p => p[0]); BTC_V = btc.map(p => p[1]);
+  if (!IDX || !(IDX.d || []).length) {
+    setStatus('stale', 'Brak indeksu altów');
+    banner('warn', 'Indeks altów liczy Orange Pi (plik <code>altindex.json</code> na gałęzi <code>ema</code>) — pojawi się po pierwszym przebiegu Pi z poprawką 64 (do kilkunastu minut po wgraniu).');
+    document.getElementById('empty').textContent = 'Czekam na indeks altów z Orange Pi';
+    return;
+  }
+  T = IDX.d.map(p => p[0]); X = IDX.d.map(p => Math.log(p[1])); NC = IDX.d.map(p => p[2]);
+  document.getElementById('empty').style.display = 'none';
+  const age = (Date.now() / 1000 - (IDX.updated || 0)) / 3600;
+  setStatus(age > 3 ? 'stale' : 'live', `Indeks do ${dmy(T[T.length - 1])} · aktualizacja ${Math.round(age * 60) < 90 ? Math.round(age * 60) + ' min' : Math.round(age) + ' h'} temu`);
+  if (age > 30) banner('warn', `Indeks altów nie był odświeżany od ${Math.round(age)} h — sprawdź Orange Pi.`);
+  document.getElementById('hint').textContent =
+    `Różowa linia: indeks altów (skala logarytmiczna) = „przeciętny alt”: średnia dziennych zmian wszystkich coinów */USDT z Binance poza BTC i stablecoinami (średnia geometryczna, skoki ponad −63% / +172% w dzień obcięte), ` +
+    `także ${IDX.delisted || 0} par wycofanych już z giełdy (bez błędu przeżywalności), skumulowana od 100 (start ${dmy(T[0])}); coin liczy się od ${IDX.skip_days + 1}. dnia notowań. ` +
+    `Pokazuje, jak zachowywał się typowy alt, a nie największe coiny — dlatego w długim terminie spada (większość altów traci). Zielona strzałka = dołek fali, kropka = szczyt fali z jej wzrostem (żółta = fala trwa). ` +
+    `Dolny panel: lewar altów (OI OTHERS / OI BTC) z progami alertów 0,95 i 1,0. Małe coiny na DEX-ach zwykle ruszają się mocniej niż ta mediana.`;
+  document.getElementById('foot-info').textContent = `Indeks: ${IDX.source || 'Binance spot'} · dni z co najmniej ${IDX.min_coins} coinami`;
+  refresh(true);
+})();
+</script>
+</body>
+</html>
