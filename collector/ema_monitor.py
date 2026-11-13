@@ -541,6 +541,44 @@ def delisted_series(delisted, cfg):
     return out
 
 
+ALT_INDEX_VERSION = 2      # zmiana sposobu liczenia → indeks liczony od nowa przy następnym przebiegu
+
+
+def alt_index(candles, sym_base, delisted, cfg, now):
+    """Indeks altów równoważony (poprawka 64, zakładka Altsezon) = „przeciętny alt”: średnia dziennych zmian
+    logarytmicznych (średnia geometryczna) wszystkich coinów */USDT poza BTC — także wycofanych już z Binance
+    (delisted.json, bez błędu przeżywalności) — skumulowana od 100. Średnia, nie mediana: mediana dziennych zmian
+    (rozkład skośny) zaniża wynik o kilkadziesiąt % rocznie względem typowego coina. Dzienna zmiana obcięta do
+    ±alt_index_clip (log; 1,0 = −63% / +172%) — błędy danych i przeliczenia tokenów nie psują indeksu.
+    Coin liczy się od (alt_index_skip_days + 1). dnia notowań (bez skoków po listingu), tylko dni z ciągłym zamknięciem.
+    → [[t, wartość, coinów], ...] po zamkniętych dniach; dni z mniej niż alt_index_min_coins coinami pomijane."""
+    excl = ALWAYS_EXCLUDE | {e.upper() for e in cfg.get("exclude") or []} | {"BTC"}
+    skip, min_n = int(cfg.get("alt_index_skip_days", 30)), int(cfg.get("alt_index_min_coins", 30))
+    clip = float(cfg.get("alt_index_clip", 1.0))
+    today = now - now % DAY
+    pairs = [(base, candles.get(sym) or []) for sym, base in sym_base.items()]
+    pairs += [(rec.get("b"), rec.get("c") or []) for sym, rec in (delisted or {}).items() if sym not in sym_base]
+    bases = {b for b, _ in pairs if b}
+    rets = {}
+    for b, cs in pairs:
+        if not b or b in excl or any(b.endswith(x) and b[:-len(x)] in bases for x in LEVERAGED):
+            continue
+        for i in range(skip + 1, len(cs)):
+            (t0, c0), (t1, c1) = cs[i - 1], cs[i]
+            if t1 >= today or t1 - t0 != DAY or not c0 or not c1 or c0 <= 0 or c1 <= 0:
+                continue
+            rets.setdefault(t1, []).append(max(-clip, min(clip, math.log(c1 / c0))))
+    out, v = [], 0.0
+    for t in sorted(rets):
+        r = rets[t]
+        n = len(r)
+        if n < min_n:
+            continue
+        v += sum(r) / n
+        out.append([t, float(f"{100 * math.exp(v):.6g}"), n])   # 6 cyfr znaczących — indeks długo spada (typowy alt traci)
+    return out
+
+
 def breadth(series, cfg, now, extra=None):
     """% of coins (with ≥ min_days of history at that day) closing above their EMA, per day.
     extra = series of delisted pairs (counted on the days they were trading)."""
@@ -851,6 +889,12 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         st["breadth_w"] = {"sig": weekly_sig(cfg), "d": breadth_weekly(series, cfg, now,
                                                                        extra=delisted_series(delisted, cfg))}
     st["breadth"] = br
+    # indeks altów (zakładka Altsezon) — raz na dobę, po zmianie listy wycofanych albo wersji liczenia
+    if daily_due or backfilled or d_new or (st.get("altidx") or {}).get("v") != ALT_INDEX_VERSION:
+        try:
+            st["altidx"] = {"v": ALT_INDEX_VERSION, "d": alt_index(candles, sym_base, delisted, cfg, now)}
+        except Exception as e:  # noqa: BLE001 — indeks to dodatek, nie zatrzymuje EMA ani alertów
+            log.exception("Indeks altów: %s", e)
     wrows = [r for r in rows if r.get("wside") is not None]
     payload = {
         "updated": now, "daily_at": st.get("daily_day"), "period": int(cfg["period"]),
@@ -904,6 +948,12 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             write_outputs(pub, payload, series, cfg, write_hist=write_hist,
                           hl={r["s"]: hld.get(r["sym"]) for r in rows})
             _write(os.path.join(pub, "fib.json"), fib_payload)
+            if (st.get("altidx") or {}).get("d"):
+                _write(os.path.join(pub, "altindex.json"), {
+                    "updated": now, "daily_at": st.get("daily_day"), "source": f"Binance spot */{cfg['quote']}",
+                    "skip_days": int(cfg.get("alt_index_skip_days", 30)),
+                    "min_coins": int(cfg.get("alt_index_min_coins", 30)),
+                    "delisted": len(delisted or {}), "d": st["altidx"]["d"]})
             st["hist_dirty"] = False
             if write_hist:
                 st["hist_version"] = HIST_VERSION
