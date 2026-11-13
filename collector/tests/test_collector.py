@@ -92,7 +92,9 @@ class FakeCoinalyze:
 
     def history(self, path, symbols, interval, frm, to, fields, usd=False, progress=None):
         # /ohlcv-history (v, bv, c) — ceny coinów z watchlisty (poprawka 67)
-        return self._hist(symbols, interval, max(frm, 1_600_000_000), to, lambda s, t: (1.0, 0.5, 25.0))
+        val = {"v": 1.0, "bv": 0.5, "c": 25.0, "h": 26.0, "l": 24.0}
+        f = (fields,) if isinstance(fields, str) else tuple(fields)
+        return self._hist(symbols, interval, max(frm, 1_600_000_000), to, lambda s, t: tuple(val[k] for k in f))
 
 
 class FakeTV:
