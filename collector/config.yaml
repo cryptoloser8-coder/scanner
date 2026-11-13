@@ -237,10 +237,24 @@ reports:
 #  near_pct: alert, gdy wartość jest bliżej niż X% od poziomu
 #  label:    Twój opis, pojawi się w alercie i na wykresie
 #
+#  direction: up = tylko przebicie w górę (i zbliżanie od dołu), down = odwrotnie; brak = obie strony
+#
 #  Bot wysyła alert raz przy wejściu w strefę i raz przy przebiciu poziomu.
 #  Ponowny alert dopiero po wyjściu ze strefy (1.5 × near_pct).
 # ─────────────────────────────────────────────────────────────
-levels: []
+levels:
+  # Lewar altów (poprawka 63, badanie mini altsezonów 13.11.2026 — claude/mini-altsezony.md): od 09.2022 po każdym
+  # przebiciu 0,95 w górę mediana altów była niżej po 30 dniach (6 z 6; −18…−42%), po przebiciu 1,0 — 4 z 4.
+  - series: oi_others_vs_btc
+    level: 0.95
+    near_pct: 3
+    direction: up
+    label: "historycznie koniec fali altów"
+  - series: oi_others_vs_btc
+    level: 1.0
+    near_pct: 0
+    direction: up
+    label: "historycznie szczyt fali altów"
 #  - series: total3
 #    level: 1.0e12
 #    near_pct: 3
@@ -396,3 +410,34 @@ cycle:
   # halvingi po 2024 (dzień UTC z eksploratora bloków) — dopisz po halvingu, potem /raport_teraz halving;
   # 2012, 2016, 2020 i 2024 są w kodzie (cycle.py)
   halvings: []
+
+# ─────────────────────────────────────────────────────────────
+#  HISTORYCZNE WYDARZENIA (poprawka 63) — pionowe linie na wykresach (przycisk „Historyczne wydarzenia”
+#  w oi.html, liq.html i ema.html) i znaczniki na wykresach BTC od 2011 w raportach tygodniowym i miesięcznym.
+#  date:  dzień UTC (RRRR-MM-DD)
+#  label: krótka nazwa na wykresie (kilka znaków–słów)
+#  desc:  opis po najechaniu / kliknięciu
+#  kind:  krach | upadek | hack | prawo | etf | polityka | inne  (kolor linii)
+#  Nowy wpis widać po najbliższym skanie (meta.json), w raportach od następnego raportu.
+# ─────────────────────────────────────────────────────────────
+history_events:
+  - {date: "2014-02-24", label: "Mt. Gox", kind: upadek, desc: "Upadek Mt. Gox, wtedy największej giełdy BTC — wstrzymane wypłaty, potem bankructwo."}
+  - {date: "2016-08-02", label: "Hack Bitfinex", kind: hack, desc: "Kradzież ok. 120 tys. BTC z giełdy Bitfinex."}
+  - {date: "2017-09-04", label: "Chiny: zakaz ICO", kind: prawo, desc: "Chiny zakazują ICO, potem zamykają krajowe giełdy krypto."}
+  - {date: "2017-12-17", label: "Kontrakty CME", kind: etf, desc: "Start kontraktów terminowych na BTC na CME (tydzień wcześniej CBOE) — w dniu szczytu cyklu 2017."}
+  - {date: "2020-03-12", label: "COVID", kind: krach, desc: "Krach covidowy („czarny czwartek”): BTC −40% w jeden dzień."}
+  - {date: "2021-05-19", label: "Krach majowy", kind: krach, desc: "Krach 19.05.2021 po zaostrzeniu kursu Chin wobec krypto (tydzień wcześniej Tesla wycofała płatności w BTC)."}
+  - {date: "2022-05-09", label: "LUNA", kind: upadek, desc: "Upadek Terra/LUNA: stablecoin UST traci powiązanie z dolarem, LUNA spada do zera."}
+  - {date: "2022-06-13", label: "Celsius / 3AC", kind: upadek, desc: "Celsius wstrzymuje wypłaty, kilka dni później upada fundusz Three Arrows Capital."}
+  - {date: "2022-11-08", label: "FTX", kind: upadek, desc: "Upadek giełdy FTX (bankructwo 11.11.2022)."}
+  - {date: "2023-03-10", label: "SVB / USDC", kind: krach, desc: "Upadek banku SVB; USDC na chwilę traci powiązanie z dolarem (11.03)."}
+  - {date: "2023-06-05", label: "SEC vs Binance", kind: prawo, desc: "SEC pozywa Binance (05.06) i Coinbase (06.06)."}
+  - {date: "2023-11-21", label: "Ugoda Binance", kind: prawo, desc: "Ugoda Binance z Departamentem Sprawiedliwości USA, CZ odchodzi ze stanowiska."}
+  - {date: "2024-01-10", label: "ETF BTC", kind: etf, desc: "SEC zgadza się na spotowe ETF-y BTC (handel od 11.01.2024)."}
+  - {date: "2024-07-23", label: "ETF ETH", kind: etf, desc: "Start handlu spotowymi ETF-ami ETH."}
+  - {date: "2024-08-05", label: "Krach jena", kind: krach, desc: "Krach na rynkach po umocnieniu jena (zamykanie carry trade)."}
+  - {date: "2024-11-05", label: "Wybory USA", kind: polityka, desc: "Wybory w USA — wygrywa Donald Trump."}
+  - {date: "2025-01-17", label: "Memecoin TRUMP", kind: polityka, desc: "Start memecoina TRUMP (Solana) — wysysa kapitał z reszty altów."}
+  - {date: "2025-02-21", label: "Hack Bybit", kind: hack, desc: "Kradzież ok. 1,5 mld $ w ETH z giełdy Bybit."}
+  - {date: "2025-04-02", label: "Cła Trumpa", kind: polityka, desc: "„Liberation Day” — ogłoszenie ceł USA, spadki na wszystkich rynkach."}
+  - {date: "2025-10-10", label: "Krach 10.10", kind: krach, desc: "Krach i rekordowe likwidacje (ok. 19 mld $ w dobę według CoinGlass) po groźbie nowych ceł na Chiny."}

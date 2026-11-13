@@ -223,6 +223,32 @@ def ohlc_groups(d, sid, t_end, key, since):
     return [x[:5] for x in out if x[0] >= since]
 
 
+# historyczne wydarzenia (poprawka 63) — kolory jak w zakładkach (app.js HIST_KINDS)
+HIST_COLORS = {"krach": "#e05252", "upadek": "#ff7043", "hack": "#ffb74d", "prawo": "#b39ddb", "etf": "#4dd0e1",
+               "polityka": "#f48fb1", "inne": "#9e9e9e"}
+HIST_NOTE = ("Kółka z podpisami = historyczne wydarzenia (COVID, LUNA, FTX, ETF-y…; lista w config.yaml → history_events), "
+             "na świecy, w której się zdarzyły.")
+
+
+def hist_markers(d, times, key, text=True):
+    """Znaczniki historycznych wydarzeń (meta.history_events) na świecach wykresu: świeca z tym samym okresem (key).
+    text=False → same kropki (gęsty wykres, np. świece miesięczne od 2011); nazwa zostaje w polu label (wersja dla AI)."""
+    evs = (getattr(d, "meta", None) or {}).get("history_events") or []
+    by_key = {key(t): t for t in times}
+    out = []
+    for e in evs:
+        try:
+            t = by_key.get(key(int(e["t"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if t is None or not e.get("label"):
+            continue
+        out.append({"t": t, "shape": "circle", "pos": "above", "color": HIST_COLORS.get(e.get("kind"), "#9e9e9e"),
+                    "text": str(e["label"]) if text else "", "label": str(e["label"]),
+                    "when": R.utc(int(e["t"]), "%d.%m.%Y")})
+    return out
+
+
 def _week_key(t):
     return (int(t) // DAY + 3) // 7                       # tydzień pon.–nd. UTC
 
@@ -265,6 +291,7 @@ def btc_weekly_mas(d, t_end):
     candles = [c for c in ohlc_groups(d, "px_btc", t_end, _week_key, since) if _dt(c[0]).weekday() == 6]
     series = [{"name": "BTC — świece tygodniowe", "color": "#f7931a", "fmt": "price", "scale": "right",
                "data": [p for p in wk if p[0] >= since], "ohlc": candles}]
+    marks = hist_markers(d, [c[0] for c in candles] if candles else [p[0] for p in series[0]["data"]], _week_key)
     for n, col in ((20, "#4fc3f7"), (50, "#ffd54f"), (200, "#e05252")):
         ma_pts = [[wk[i][0], sum(vals[i - n + 1:i + 1]) / n] for i in range(n - 1, len(vals))
                   if wk[i][0] >= since]
@@ -276,9 +303,11 @@ def btc_weekly_mas(d, t_end):
              "desc": "Gdzie jest zamknięcie tygodnia BTC względem średnich z 20, 50 i 200 tygodni (zwykłe średnie z "
                      "zamknięć tygodni). Długo nad średnimi = trend wzrostowy, pod = spadkowy.",
              "note": f"Zamknięcie tygodnia: {R.fmt_price(vals[-1])} ({R.utc(wk[-1][0], '%d.%m.%Y')})."},
-            {"type": "chart", "title": "BTC i średnie tygodniowe — od 2011", "log": True, "series": series, "view": 1095,
-             "desc": "Świece tygodniowe BTC (poniedziałek–niedziela UTC, skala logarytmiczna) ze średnimi 20, 50 i 200 tygodni "
-                     "z zamknięć tygodni. Knoty z dziennych świec: do 2019–2020 indeks TradingView, potem Binance perp."}]
+            dict({"type": "chart", "title": "BTC i średnie tygodniowe — od 2011", "log": True, "series": series, "view": 1095,
+                  "desc": "Świece tygodniowe BTC (poniedziałek–niedziela UTC, skala logarytmiczna) ze średnimi 20, 50 i 200 "
+                          "tygodni z zamknięć tygodni. Knoty z dziennych świec: do 2019–2020 indeks TradingView, potem "
+                          "Binance perp." + (" " + HIST_NOTE if marks else "")},
+                 **({"markers": marks} if marks else {}))]
 
 
 # ── derywaty ─────────────────────────────────────────────────
@@ -681,18 +710,23 @@ def price_chart(d, px, t_end, phs, manual_note=""):
         series.append({"name": "Realized price", "color": "#ffd54f", "fmt": "price", "scale": "right", "data": rpp})
     if sma:
         series.append({"name": "Średnia 200 tygodni", "color": "#4dd0e1", "fmt": "price", "scale": "right", "data": sma})
+    marks = hist_markers(d, [x[0] for x in p], _month_key, text=False)
+    hist_list = ("Kropki — historyczne wydarzenia: " + " · ".join(f"{m['when'][3:]} {m['label']}" for m in marks) + "."
+                 if marks else "")
     return {"type": "chart", "title": "Cena BTC i fazy cyklu — od 2011", "log": True, "series": series,
             "bands": [b for b in phase_bands(phs, ts[-1]) if b["to"] >= since],
+            **({"markers": marks} if marks else {}),
             "desc": "Tło: zielone = hossa, czerwone = bessa, niebieskie = akumulacja, fioletowe = akumulacja niepotwierdzona "
                     "(dno uznane przez nas, jeszcze bez pewności — reguła w opisie pod wykresem). "
                     "Skala logarytmiczna, świece miesięczne (knoty: do 2019–2020 indeks TradingView, potem Binance perp). "
                     "Realized price = średnia cena, po której monety ostatnio się ruszały; średnia 200 tygodni = 1400 dni "
-                    "(obie linie: wartość z ostatniego dnia miesiąca).",
+                    "(obie linie: wartość z ostatniego dnia miesiąca)." + (" " + HIST_NOTE.replace("Kółka z podpisami", "Kropki")
+                                                                            if marks else ""),
             "note": "Fazy wyznaczone z dziennych zamknięć ceny BTC: bessa = od szczytu cyklu do dna cyklu; akumulacja = od "
                     "dna do pierwszego zamknięcia powyżej poprzedniego szczytu (cena odrobiła bessę); hossa = od tego "
                     "zamknięcia do kolejnego szczytu. Szczyt = najwyższe zamknięcie w 2 latach po halvingu (liczy się po "
                     "spadku o ≥ 50%), dno = najniższe zamknięcie między szczytem a następnym halvingem (reguła potwierdza "
-                    "je dopiero po halvingu)." + (" " + manual_note if manual_note else "")}
+                    "je dopiero po halvingu)." + (" " + manual_note if manual_note else "") + (" " + hist_list if hist_list else "")}
 
 
 def projection_block(px, phs, t_end, cc):

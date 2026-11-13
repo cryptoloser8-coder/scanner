@@ -45,6 +45,28 @@ def report_lines(cfg):
         return {}
 
 
+HIST_KINDS = ("krach", "upadek", "hack", "prawo", "etf", "polityka", "inne")
+
+
+def history_events(cfg):
+    """config history_events → [{"t", "date", "label", "desc", "kind"}] posortowane po dacie (poprawka 63).
+    Historyczne wydarzenia rysowane w oi/liq/ema i na wykresach BTC od 2011 w raportach. Błędne wpisy pomijane."""
+    out = []
+    for e in cfg.get("history_events") or []:
+        try:
+            d = datetime.strptime(str(e.get("date"))[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            label = str(e.get("label") or "").strip()
+            if not label:
+                raise ValueError("brak label")
+        except Exception as ex:  # noqa: BLE001
+            log.warning("Historyczne wydarzenie pominięte (%s): %s", ex, e)
+            continue
+        kind = str(e.get("kind") or "inne").strip().lower()
+        out.append({"t": int(d.timestamp()), "date": d.strftime("%Y-%m-%d"), "label": label,
+                    "desc": str(e.get("desc") or "").strip(), "kind": kind if kind in HIST_KINDS else "inne"})
+    return sorted(out, key=lambda x: x["t"])
+
+
 def load_config(path):
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
@@ -370,6 +392,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         # reference lines from the report (config reports.lines) — drawn in oi.html too, one source for both
         "ref_lines": {**cyc_lines, **report_lines(cfg)},
         "cycle_marks": cyc_marks,
+        "history_events": history_events(cfg),
         "watchlist": [w.upper() for w in cfg["watchlist"]],
         "exchanges": cfg["coinalyze"]["exchanges"],
         "health": {k: (v or "ok") for k, v in results.items()},

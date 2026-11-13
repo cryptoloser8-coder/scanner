@@ -32,7 +32,7 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                     grey band = usual range; scale per part (poprawka 44)
   chart series: "fmt": "flow" = signed $ (CVD), "scale": "hidden" = own scale without an axis (e.g. price behind CVD),
                 "dash": true = dashed line
-  chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text"}] — on the first series;
+  chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text", "when"?}] — on the first series;
   chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
          optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
 
@@ -1397,7 +1397,7 @@ def to_markdown(rep, page_url=""):
                 L += _md_series(s_, b.get("lines") if i == 0 else None)
             if b.get("markers"):
                 L.append("Znaczniki na wykresie: " + "; ".join(
-                    f"{utc(m['t'], '%d.%m.%Y')} {MARK_MD.get(m.get('shape'), '•')}{(' ' + m['text']) if m.get('text') else ''}"
+                    f"{m.get('when') or utc(m['t'], '%d.%m.%Y')} {MARK_MD.get(m.get('shape'), '•')}{(' ' + (m.get('text') or m.get('label'))) if (m.get('text') or m.get('label')) else ''}"
                     for m in b["markers"]) + ".")
             if b.get("bands"):
                 L.append("Tło wykresu (okresy): " + "; ".join(

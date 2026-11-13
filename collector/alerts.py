@@ -127,7 +127,8 @@ def _chunks_text(text, n):
 
 # ── rules ────────────────────────────────────────────────────
 def check_levels(store, catalog, levels, state, page_url=""):
-    """Alert once when entering the `near_pct` zone and once on each cross."""
+    """Alert once when entering the `near_pct` zone and once on each cross.
+    direction (optional): up = only crosses upward and approaching from below; down = the opposite; default both."""
     msgs = []
     st = state.setdefault("levels", {})
     active_keys = set()
@@ -150,11 +151,15 @@ def check_levels(store, catalog, levels, state, page_url=""):
         meta = catalog[sid]
         label = html.escape(lv.get("label") or f"{meta['name']} {fmt_value(level, meta['group'])}")
         head = f"<b>{html.escape(meta['name'])}</b> {fmt_value(v, meta['group'])}"
+        want = str(lv.get("direction") or "both").lower()
+        ok_side = want not in ("up", "down") or (want == "up") == (side == "above")   # przebicie w tę stronę się liczy
+        ok_near = want not in ("up", "down") or (want == "up") == (side == "below")   # zbliżanie z tej strony
         if s.get("side") and s["side"] != side:
-            direction = "w górę ⬆️" if side == "above" else "w dół ⬇️"
-            msgs.append(f"🚨 {head} przebił poziom {direction}\n{label} ({fmt_value(level, meta['group'])})")
+            if ok_side:
+                direction = "w górę ⬆️" if side == "above" else "w dół ⬇️"
+                msgs.append(f"🚨 {head} przebił poziom {direction}\n{label} ({fmt_value(level, meta['group'])})")
             s["zone"] = "near"
-        elif abs(dist) <= near and s.get("zone") != "near":
+        elif abs(dist) <= near and s.get("zone") != "near" and ok_near:
             where = "od dołu" if side == "below" else "od góry"
             msgs.append(f"⚠️ {head} zbliża się do poziomu {where}: {dist:+.2f}%\n{label} "
                         f"({fmt_value(level, meta['group'])})")
