@@ -281,3 +281,20 @@ def test_alts_table_rsi_rows_and_chart(tmp_path):
     assert "Maks. wyprzedanych 45%" in ch["note"] and "maks. wykupionych 60%" in ch["note"] and ch["lines"][0]["value"] == 2.0
     md = report.to_markdown(rep)
     assert "RSI 1W: wyprzedane / wykupione | 6%\u00a0/\u00a00%" in md and "ostatni odczyt" in md and "dziś 2" not in md
+
+
+def test_data_skips_points_before_catalog_since(tmp_path):
+    """Serie z `since` w katalogu (CRYPTOCAP przed 14.07.2017 — niepełny rynek) raport czyta dopiero od tej chwili."""
+    import series as S
+    data = str(tmp_path / "data")
+    t0 = S.TV_FULL_FROM
+    pts = [[t0 - 2 * DAY, 75.6], [t0 - DAY, 75.6], [t0, 52.5], [t0 + DAY, 52.7]]
+    _w(os.path.join(data, "1d.json"), {"updated": t0, "series": {"btc_d": pts, "px_x": pts}})
+    _w(os.path.join(data, "meta.json"), {"catalog": {"btc_d": {"name": "BTC.D", "since": t0}, "px_x": {"name": "X"}}})
+    d = report.Data(data)
+    assert d.pts("1d", "btc_d") == [[t0, 52.5], [t0 + DAY, 52.7]]
+    assert len(d.pts("1d", "px_x")) == 4                                  # bez `since` — wszystko
+    cat = S.catalog_with_watchlist([])
+    for sid in S.TV_PARTIAL:
+        assert cat[sid]["since"] == t0 and "14.07.2017" in cat[sid]["desc"]
+    assert "since" not in cat["eth_d"] and "since" not in cat["stable_mcap"]
