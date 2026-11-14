@@ -1,5 +1,196 @@
 /* Crypto Loser Analytics Tools — wspólne dla wszystkich zakładek:
-   znak wodny na wykresach i odświeżanie w trybie aplikacji (ikona na ekranie głównym). */
+   menu i pasek z logo (poprawka 77), znak wodny na wykresach i odświeżanie w trybie aplikacji (ikona na ekranie głównym). */
+
+/* Wspólny układ (poprawka 77): menu dla wszystkich zakładek.
+   Pulpit (index.html, <html data-shell="full">) — pełne lewe menu z nazwami.
+   Zakładki — wąskie menu (ikona + krótki podpis) i pasek z logo na górze, zawsze widoczny.
+   Telefon (≤ 640 px) — pasek z logo na górze i dolny pasek: Pulpit / OI / Altsezon / Raporty / Więcej.
+   Treść stron bez zmian: znika tylko stare logo nad nagłówkiem i link „← Menu” (zastępuje je menu).
+   Kropki w menu: stan źródeł i świecąca lampka Altsezonu (meta.json z gałęzi data). Druk (PDF) — bez menu. */
+(function () {
+  var html = document.documentElement;
+  if (html.dataset.shell === 'off') return;
+  var full = html.dataset.shell === 'full';
+  html.classList.add('cl-shell', full ? 'cl-full' : 'cl-narrow');
+
+  var NAV = [
+    {sec: 'Rynek'},
+    {href: 'oi.html', ic: 'OI', name: 'OI & TOTAL', short: 'OI', rgb: '206,147,216', fg: '#ce93d8'},
+    {href: 'liq.html', ic: 'LIQ', name: 'Likwidacje i funding', short: 'Likwid.', rgb: '224,82,82', fg: '#e05252'},
+    {href: 'sieci.html', ic: 'NET', name: 'Sieci', short: 'Sieci', rgb: '129,199,132', fg: '#81c784'},
+    {sec: 'Alty'},
+    {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true},
+    {href: 'ema.html', ic: 'EMA', name: 'EMA200 i RSI', short: 'EMA200', rgb: '255,193,7', fg: '#ffc107'},
+    {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d'},
+    {sec: 'Raporty'},
+    {href: 'raporty.html', ic: 'RAP', name: 'Raporty', short: 'Raporty', rgb: '38,198,218', fg: '#26c6da'},
+    {href: 'fib.html', ic: 'Fib', name: 'Fibo · zawieszone', short: 'Fibo', rgb: '255,255,255', fg: '#8a8a8a', paused: true}
+  ];
+  var MOBILE = ['index.html', 'oi.html', 'alt.html', 'raporty.html'];
+  var page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  if (page.indexOf('.') < 0) page = 'index.html';
+
+  var css = '@media screen{' +
+    'html.cl-shell .brand,html.cl-shell .menu-link{display:none!important}' +
+    '.cl-ico{width:34px;height:24px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;letter-spacing:-.2px;flex:none}' +
+    '.cl-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#555}' +
+    '.cl-dot.ok{background:#4caf7d}.cl-dot.bad{background:#e05252}.cl-dot.warn{background:#ffc107}' +
+    '.cl-lamp{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--lc,#5b9cf6);box-shadow:0 0 8px var(--lc,#5b9cf6);animation:cl-blink 1.4s ease-in-out infinite}' +
+    '@keyframes cl-blink{0%,100%{opacity:1}50%{opacity:.2}}' +
+    '@media (prefers-reduced-motion:reduce){.cl-lamp{animation:none}}' +
+    // wąskie menu (zakładki)
+    '.cl-rail{position:fixed;left:0;top:0;bottom:0;width:76px;z-index:40;box-sizing:border-box;padding:8px 6px 10px;background:#121212;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none}' +
+    '.cl-rail a{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:9px;color:#a8a8a8;text-decoration:none;font-size:10px;line-height:1.1;text-align:center}' +
+    '.cl-rail a:hover{background:#1c1c1c;color:#fff}.cl-rail a.on{background:#262626;color:#fff}' +
+    '.cl-rail .cl-home img{width:30px;height:30px;display:block}' +
+    '.cl-rail .cl-sep{height:1px;background:rgba(255,255,255,.08);margin:5px 8px;flex:none}' +
+    '.cl-rail .cl-lamp{top:5px;right:12px}' +
+    '.cl-rail .cl-stat{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:#8a8a8a;padding-top:8px}' +
+    // pasek z logo (zakładki; na telefonie także Pulpit)
+    '.cl-top{position:fixed;top:0;left:76px;right:0;height:56px;z-index:39;box-sizing:border-box;padding:0 24px;display:flex;align-items:center;gap:16px;background:rgba(15,15,15,.94);border-bottom:1px solid rgba(255,255,255,.08);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}' +
+    '.cl-top .cl-logo{display:block;line-height:0}.cl-top .cl-logo img{height:32px;width:auto;display:block}' +
+    '.cl-top .cl-stat{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11px;color:#8a8a8a;white-space:nowrap}' +
+    'html.cl-narrow body{padding-left:100px!important;padding-top:74px!important}' +
+    'html.cl-narrow .layout .side{top:72px}' +
+    // pełne menu (Pulpit)
+    '.cl-side{position:fixed;left:0;top:0;bottom:0;width:232px;z-index:40;box-sizing:border-box;padding:18px 12px 14px;background:#121212;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px;overflow-y:auto}' +
+    '.cl-side .cl-logo{display:block;margin:2px 6px 16px;line-height:0}.cl-side .cl-logo img{width:186px;height:auto}' +
+    '.cl-side a.it{position:relative;display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;color:#c8c8c8;text-decoration:none;font-size:13px;min-height:24px}' +
+    '.cl-side a.it:hover{background:#1c1c1c;color:#fff}.cl-side a.it.on{background:#242424;color:#fff}' +
+    '.cl-side a.it.paused{color:#8a8a8a}' +
+    '.cl-side .cl-lamp{position:static;margin-left:auto}' +
+    '.cl-side .cl-h{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#7a7a7a;padding:14px 9px 5px}' +
+    '.cl-side .cl-stat{margin-top:auto;padding:12px 9px 2px;border-top:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:5px;font-size:11px;color:#8a8a8a}' +
+    '.cl-side .cl-stat span{display:flex;align-items:center;gap:8px}' +
+    'html.cl-full body{padding-left:256px!important}' +
+    'html.cl-full .cl-top{display:none}' +
+    // dolny pasek i „Więcej” (telefon)
+    '.cl-bottom,.cl-sheet{display:none}' +
+    '@media (max-width:640px){' +
+    '.cl-rail,.cl-side{display:none}' +
+    'html.cl-shell .cl-top{display:flex;left:0;height:48px;padding:0 14px}.cl-top .cl-logo img{height:26px}' +
+    'html.cl-shell body{padding-left:14px!important;padding-top:60px!important;padding-bottom:calc(76px + env(safe-area-inset-bottom))!important}' +
+    'html.cl-narrow .layout .side{top:60px}' +
+    '.cl-bottom{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:41;box-sizing:border-box;height:calc(60px + env(safe-area-inset-bottom));padding:4px 4px env(safe-area-inset-bottom);background:#121212;border-top:1px solid rgba(255,255,255,.1)}' +
+    '.cl-bottom a,.cl-bottom button{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;color:#9a9a9a;font:inherit;font-size:10px;text-decoration:none;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
+    '.cl-bottom .on{color:#fff}.cl-bottom .on .cl-ico{outline:1px solid rgba(255,255,255,.35)}' +
+    '.cl-bottom .cl-lamp{top:4px;right:calc(50% - 22px)}' +
+    '.cl-sheet{position:fixed;left:8px;right:8px;bottom:calc(68px + env(safe-area-inset-bottom));z-index:42;background:#1a1a1a;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:6px;box-shadow:0 -10px 40px rgba(0,0,0,.6);flex-direction:column}' +
+    '.cl-sheet.open{display:flex}' +
+    '.cl-sheet a{position:relative;display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;color:#d8d8d8;text-decoration:none;font-size:14px;min-height:22px}' +
+    '.cl-sheet a.on{background:#262626;color:#fff}.cl-sheet .cl-lamp{position:static;margin-left:auto}' +
+    '}' +
+    '}' +
+    '@media print{.cl-rail,.cl-side,.cl-top,.cl-bottom,.cl-sheet{display:none!important}}';
+  var st = document.createElement('style');
+  st.id = 'cl-shell-css';
+  st.textContent = css;
+  document.head.appendChild(st);
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function ico(n, size) {
+    return '<span class="cl-ico" style="background:rgba(' + n.rgb + ',' + (n.paused ? '.06' : '.14') + ');color:' + n.fg + (size ? ';' + size : '') + '">' + n.ic + '</span>';
+  }
+  var items = NAV.filter(function (n) { return n.href; });
+  function build() {
+    if (document.getElementById('cl-top')) return;
+    var b = document.body, h = [];
+    if (full) {
+      h.push('<nav class="cl-side" aria-label="Menu"><a class="cl-logo" href="index.html"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>');
+      h.push('<a class="it' + (page === 'index.html' ? ' on' : '') + '" href="index.html"><span class="cl-ico" style="background:rgba(255,255,255,.1);color:#f0f0f0">◧</span>Pulpit</a>');
+      NAV.forEach(function (n) {
+        if (n.sec) { h.push('<div class="cl-h">' + n.sec + '</div>'); return; }
+        h.push('<a class="it' + (page === n.href ? ' on' : '') + (n.paused ? ' paused' : '') + '" href="' + n.href + '">' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
+      });
+      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-time></span></div></nav>');
+    } else {
+      h.push('<nav class="cl-rail" aria-label="Menu"><a class="cl-home" href="index.html" title="Pulpit"><img src="favicon.svg" alt="">Pulpit</a>');
+      NAV.forEach(function (n) {
+        if (n.sec) { h.push('<span class="cl-sep"></span>'); return; }
+        h.push('<a href="' + n.href + '"' + (page === n.href ? ' class="on" aria-current="page"' : '') + ' title="' + esc(n.name) + '">' + ico(n) + esc(n.short) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
+      });
+      h.push('<span class="cl-stat" data-cl-tip><i class="cl-dot" data-cl-dot></i><span data-cl-hm></span></span></nav>');
+    }
+    h.push('<header class="cl-top" id="cl-top"><a class="cl-logo" href="index.html" aria-label="Pulpit"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>' +
+      '<span class="cl-stat"><i class="cl-dot" data-cl-dot></i><span data-cl-line></span></span></header>');
+    // telefon
+    h.push('<nav class="cl-bottom" aria-label="Menu">');
+    MOBILE.forEach(function (href) {
+      var n = href === 'index.html' ? {ic: '◧', rgb: '255,255,255', fg: '#f0f0f0', short: 'Pulpit'} : items.filter(function (x) { return x.href === href; })[0];
+      h.push('<a href="' + href + '"' + (page === href ? ' class="on" aria-current="page"' : '') + '>' + ico(n) + esc(n.short) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
+    });
+    var other = MOBILE.indexOf(page) < 0;
+    h.push('<button type="button" id="cl-more"' + (other ? ' class="on"' : '') + ' aria-expanded="false" aria-controls="cl-sheet"><span class="cl-ico" style="background:rgba(255,255,255,.08);color:#d8d8d8">•••</span>Więcej</button></nav>');
+    h.push('<div class="cl-sheet" id="cl-sheet" role="menu">');
+    items.forEach(function (n) {
+      h.push('<a role="menuitem" href="' + n.href + '"' + (page === n.href ? ' class="on"' : '') + '>' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
+    });
+    h.push('</div>');
+    b.insertAdjacentHTML('afterbegin', h.join(''));
+    var more = document.getElementById('cl-more'), sheet = document.getElementById('cl-sheet');
+    more.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var o = sheet.classList.toggle('open');
+      more.setAttribute('aria-expanded', o ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (e) {
+      if (sheet.classList.contains('open') && !sheet.contains(e.target)) { sheet.classList.remove('open'); more.setAttribute('aria-expanded', 'false'); }
+    });
+    loadStatus();
+  }
+
+  // stan źródeł i lampki Altsezonu — meta.json z gałęzi data (ta sama ścieżka co na stronach)
+  function dataBase() {
+    var q = new URLSearchParams(location.search);
+    if (q.get('data')) return q.get('data').replace(/\/?$/, '/');
+    if (location.hostname.slice(-9) === 'github.io') {
+      var owner = location.hostname.split('.')[0], repo = location.pathname.split('/').filter(Boolean)[0] || '';
+      return 'https://raw.githubusercontent.com/' + owner + '/' + repo + '/data/';
+    }
+    return 'data/';
+  }
+  var GROUP_COL = {rajd: '#4caf7d', przegrzanie: '#ff5a36', 'wyprzedaż': '#5b9cf6'};
+  function all(sel, f) { Array.prototype.forEach.call(document.querySelectorAll(sel), f); }
+  function loadStatus() {
+    fetch(dataBase() + 'meta.json?v=' + Math.floor(Date.now() / 300000), {cache: 'no-cache'}).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (m) {
+      window.CL_META = m;
+      var hl = m.health || {}, keys = Object.keys(hl), ok = keys.filter(function (k) { return hl[k] === 'ok'; }).length;
+      var bad = keys.filter(function (k) { return hl[k] !== 'ok'; });
+      var t = m.updated ? new Date(m.updated * 1000) : null;
+      var tz = {timeZone: 'Europe/Warsaw'};
+      var hm = t ? t.toLocaleTimeString('pl-PL', Object.assign({hour: '2-digit', minute: '2-digit'}, tz)) : '—';
+      var sameDay = t && t.toLocaleDateString('pl-PL', tz) === new Date().toLocaleDateString('pl-PL', tz);
+      var when = t ? (sameDay ? 'dziś ' + hm : t.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, tz)) + ' ' + hm) : '—';
+      var cls = !keys.length ? '' : ok === keys.length ? 'ok' : ok ? 'warn' : 'bad';
+      var src = keys.length ? 'Źródła: ' + ok + ' z ' + keys.length + ' ok' : 'Źródła: brak danych';
+      var tip = src + (bad.length ? ' (problem: ' + bad.join(', ') + ')' : '') + ' · ostatni skan: ' + when;
+      all('[data-cl-dot]', function (el) { el.className = 'cl-dot ' + cls; });
+      all('[data-cl-src]', function (el) { el.textContent = src; });
+      all('[data-cl-time]', function (el) { el.textContent = 'Ostatni skan: ' + when; });
+      all('[data-cl-hm]', function (el) { el.textContent = hm; });
+      all('[data-cl-line]', function (el) { el.textContent = src + ' · skan ' + when; });
+      all('[data-cl-tip]', function (el) { el.title = tip; });
+      var L = (m.alt_lamps || {}).lamps || {}, on = Object.keys(L).filter(function (k) { return L[k] && L[k].on; });
+      all('[data-cl-lamp]', function (el) {
+        el.hidden = !on.length;
+        if (!on.length) return;
+        el.style.setProperty('--lc', GROUP_COL[L[on[0]].group] || '#5b9cf6');
+        el.title = 'Świeci: ' + on.map(function (k) { return L[k].name; }).join(', ');
+      });
+      document.dispatchEvent(new CustomEvent('cl-meta', {detail: m}));
+    }).catch(function () {
+      all('[data-cl-src]', function (el) { el.textContent = 'Źródła: brak połączenia'; });
+      all('[data-cl-line]', function (el) { el.textContent = 'Brak połączenia z danymi'; });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
+  else build();
+})();
+
+
 (function () {
   // Znak wodny: szare logo na środku górnego panelu wykresu — widoczne na ciemnym tle i w PDF (jasne tło),
   // trafia też do zrzutów wykresu (takeScreenshot).

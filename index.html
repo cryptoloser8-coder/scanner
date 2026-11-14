@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" data-shell="full">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -28,41 +28,86 @@
   :root{
     --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
     --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
-    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --text:#f0f0f0;--text2:#9a9a9a;--text3:#666;
     --green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--purple:#ce93d8;
     --radius:8px;--radius-lg:12px;
   }
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    background:var(--bg);color:var(--text);min-height:100vh;
-    display:flex;align-items:center;justify-content:center;padding:24px;
-  }
-  .container{max-width:900px;width:100%;}
-
-  .hero{text-align:center;margin-bottom:48px;}
-  .hero h1{margin:0 0 14px;}
-  .hero h1 img{display:block;margin:0 auto;height:88px;max-width:100%;}
-  .hero p{font-size:13px;color:var(--text2);}
-  .hero .tagline{font-size:16px;font-weight:500;color:#d6d6d6;margin-bottom:8px;letter-spacing:-.1px;text-wrap:balance;}
-  @media (max-width:640px){ .hero{margin-bottom:32px;} .hero h1 img{height:auto;width:100%;max-width:340px;} }
-
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;}
-
-  .tile{
-    background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
-    padding:24px;text-decoration:none;color:var(--text);
-    display:flex;flex-direction:column;gap:10px;
-    transition:all .2s;cursor:pointer;position:relative;overflow:hidden;
-  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px 28px 40px;font-size:13px;font-variant-numeric:tabular-nums;}
+  a{color:inherit;}
+  .wrap{display:flex;flex-direction:column;gap:16px;}
+  .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;}
+  .top h1{font-size:24px;font-weight:650;letter-spacing:-.3px;}
+  .top p{font-size:12px;color:var(--text2);margin-top:4px;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{font-size:12px;padding:8px 13px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);text-decoration:none;color:#ddd;}
+  .btn:hover{background:var(--bg3);color:#fff;}
+  .banner{display:none;padding:10px 14px;border-radius:var(--radius);border:1px solid rgba(255,193,7,.35);background:rgba(255,193,7,.08);color:#ffe082;font-size:12px;}
+  .banner.on{display:block;}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;min-width:0;}
+  .card h2{font-size:15px;font-weight:600;}
+  .card .hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .card .hd a{font-size:12px;color:var(--text2);text-decoration:none;}
+  .card .hd a:hover{color:#fff;}
+  .lbl{font-size:11px;color:var(--text2);}
+  .up{color:var(--green);}.dn{color:#ef6b6b;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+  .kpi{display:flex;flex-direction:column;gap:5px;padding:14px 16px;text-decoration:none;}
+  a.kpi:hover{border-color:var(--border2);background:#1c1c1c;}
+  .kpi .v{font-size:21px;font-weight:650;}
+  .kpi .s{font-size:12px;color:var(--text2);}
+  .kpi svg{width:100%;height:32px;display:block;margin-top:2px;}
+  .row{display:grid;gap:16px;}
+  .row.r1{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);}
+  .row.r2{grid-template-columns:repeat(3,minmax(0,1fr));}
+  @media (max-width:1100px){.row.r1,.row.r2{grid-template-columns:1fr;}}
+  .lgrid{display:grid;grid-template-columns:2fr 2fr 1.2fr;gap:12px;}
+  @media (max-width:1250px){.lgrid{grid-template-columns:1fr 1fr;}.lgroup:last-child{grid-column:1/-1;}}
+  @media (max-width:640px){.lgrid{grid-template-columns:1fr;}}
+  .lgroup{border:1px solid color-mix(in srgb,var(--g) 40%,transparent);border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:9px;min-width:0;}
+  .lgroup.lit{border-color:var(--g);background:color-mix(in srgb,var(--g) 6%,transparent);}
+  .lgroup h3{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--g);display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
+  .lgroup h3 span{font-weight:400;letter-spacing:0;color:var(--text2);}
+  .lgroup .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;}
+  .lmp{background:#141414;border:1px solid var(--border);border-radius:9px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;text-decoration:none;min-width:0;}
+  .lmp:hover{border-color:var(--border2);}
+  .lmp .st{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;display:flex;align-items:center;gap:6px;}
+  .lmp .st i{width:8px;height:8px;border-radius:50%;background:#333;flex:none;}
+  .lmp.on{border-color:var(--g);}
+  .lmp.on .st{color:var(--g);}
+  .lmp.on .st i{background:var(--g);box-shadow:0 0 8px var(--g);animation:blink 1.4s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.lmp.on .st i{animation:none;}}
+  .lmp .nm{display:flex;align-items:baseline;gap:8px;}
+  .lmp .nm b{font-weight:600;flex:1;font-size:13px;}
+  .lmp .nm em{font-style:normal;font-size:17px;font-weight:650;}
+  .lmp.on .nm em{color:var(--g);}
+  .lmp .now{font-size:11px;color:var(--text2);line-height:1.45;}
+  .lmp .chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .chip{font-size:10.5px;padding:2px 7px;border-radius:5px;background:#1e1e1e;border:1px solid var(--border);color:#c8c8c8;white-space:nowrap;}
+  .lamps-top{font-size:12px;color:var(--text2);margin:-4px 0 10px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
+  .m{display:flex;flex-direction:column;gap:3px;}
+  .m b{font-size:18px;font-weight:600;}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.05);font-size:13px;}
+  .kv:first-of-type{border-top:0;}
+  .kv>span:first-child{color:#b8b8b8;}
+  .wl{display:flex;flex-wrap:wrap;gap:8px;}
+  .wl a{display:flex;flex-direction:column;gap:2px;min-width:76px;padding:8px 11px;border-radius:9px;background:var(--bg3);text-decoration:none;font-size:12px;}
+  .wl a:hover{background:#2a2a2a;}
+  .wl a b{font-weight:600;}
+  .rep{display:flex;flex-direction:column;gap:3px;padding:8px 0;border-top:1px solid rgba(255,255,255,.05);text-decoration:none;}
+  .rep:first-of-type{border-top:0;}
+  .rep:hover b{text-decoration:underline;}
+  .rep b{font-weight:600;font-size:13px;}
+  .tools h2{font-size:15px;font-weight:600;margin:10px 0 4px;}
+  .tools .intro{font-size:12px;color:var(--text2);margin-bottom:12px;}
+  .tools .intro b{color:#d6d6d6;font-weight:500;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
+  .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;transition:all .2s;cursor:pointer;position:relative;overflow:hidden;}
   .tile:hover{border-color:var(--border2);transform:translateY(-2px);background:var(--bg3);}
   .tile.disabled{opacity:.4;cursor:not-allowed;}
   .tile.disabled:hover{transform:none;background:var(--bg2);border-color:var(--border);}
-
-  .tile-icon{
-    width:44px;height:44px;border-radius:10px;
-    display:flex;align-items:center;justify-content:center;
-    font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;
-  }
+  .tile-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;}
   .tile-icon.rsi{background:rgba(76,175,125,.12);color:var(--green);}
   .tile-icon.oi{background:rgba(206,147,216,.12);color:var(--purple);}
   .tile-icon.liq{background:rgba(224,82,82,.12);color:var(--red);}
@@ -72,37 +117,76 @@
   .tile-icon.net{background:rgba(129,199,132,.12);color:#81c784;font-size:16px;}
   .tile-icon.alt{background:rgba(244,143,177,.12);color:#f48fb1;font-size:16px;}
   .tile-icon.soon{background:var(--bg3);color:var(--text3);}
-
   .tile-title{font-size:16px;font-weight:600;letter-spacing:-.2px;}
   .tile-desc{font-size:12px;color:var(--text2);line-height:1.5;flex:1;}
-
-  .tile-tag{
-    font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
-    padding:3px 7px;border-radius:4px;background:var(--bg3);color:var(--text3);
-    align-self:flex-start;margin-top:4px;
-  }
+  .tile-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 7px;border-radius:4px;background:var(--bg3);color:var(--text3);align-self:flex-start;margin-top:4px;}
   .tile-tag.live{background:rgba(76,175,125,.15);color:var(--green);}
   .tile-tag.beta{background:rgba(91,156,246,.15);color:var(--blue);}
   .tile-tag.soon{background:var(--bg3);color:var(--text3);}
   .tile-tag.paused{background:rgba(255,193,7,.14);color:var(--amber);}
   .tile.paused{opacity:.6;}
   .tile.paused:hover{opacity:.85;}
-
-  .footer{text-align:center;margin-top:40px;font-size:10px;color:var(--text3);}
+  .footer{text-align:center;margin-top:24px;font-size:10px;color:var(--text3);}
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
   .footer a:hover{color:var(--text2);}
+  @media (max-width:640px){
+    body{font-size:13px;}
+    .top h1{font-size:20px;}
+    .kpis{grid-template-columns:1fr 1fr;gap:8px;}
+    .kpi{padding:11px 12px;}
+    .kpi .v{font-size:17px;}
+    .card{padding:13px 14px;}
+  }
 </style>
 </head>
 <body>
-<div class="container">
+<div class="wrap">
 
-  <div class="hero">
-    <h1><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></h1>
-    <p class="tagline">The best tools for buying high and selling low.</p>
-    <p>Własne narzędzia do analizy rynku krypto: dane na jednym wykresie, raporty i alerty na Telegram</p>
+  <div class="top">
+    <div>
+      <h1>Pulpit</h1>
+      <p id="sub">Ładowanie danych…</p>
+    </div>
+    <div class="btns">
+      <a class="btn" id="latest-btn" href="raporty.html">Ostatni raport →</a>
+      <a class="btn" href="alt.html">Altsezon →</a>
+    </div>
+  </div>
+  <div class="banner" id="banner"></div>
+
+  <section class="kpis" id="kpis" aria-label="Najważniejsze liczby"></section>
+
+  <div class="row r1">
+    <section class="card" aria-label="Lampki Altsezonu">
+      <div class="hd"><h2>Lampki Altsezonu</h2><a href="alt.html">Altsezon — opisy, wykres, fale →</a></div>
+      <div class="lamps-top" id="lamps-top"></div>
+      <div class="lgrid" id="lamps"><div class="lbl">Ładowanie…</div></div>
+    </section>
+    <section class="card" aria-label="Cykl i tło">
+      <div class="hd"><h2>Cykl BTC i tło</h2><a href="oi.html#s=px_btc,mvrvz_btc&amp;m=val&amp;r=1d&amp;z=1095&amp;log=1">OI &amp; TOTAL →</a></div>
+      <div class="grid2" id="bg"><div class="lbl">Ładowanie…</div></div>
+    </section>
   </div>
 
-  <div class="grid">
+  <div class="row r2">
+    <section class="card" aria-label="Derywaty">
+      <div class="hd"><h2>Derywaty</h2><a href="liq.html">Likwidacje i funding →</a></div>
+      <div id="deriv"><div class="lbl">Ładowanie…</div></div>
+    </section>
+    <section class="card" aria-label="Watchlista">
+      <div class="hd"><h2>Watchlista</h2><span class="lbl">cena · 24 h · klik → likwidacje i funding</span></div>
+      <div class="wl" id="watch"><div class="lbl">Ładowanie…</div></div>
+    </section>
+    <section class="card" aria-label="Raporty">
+      <div class="hd"><h2>Raporty</h2><a href="raporty.html">Wszystkie →</a></div>
+      <div id="reps"><div class="lbl">Ładowanie…</div></div>
+    </section>
+  </div>
+
+  <section class="tools" aria-label="Narzędzia">
+    <h2>Narzędzia</h2>
+    <p class="intro"><b>The best tools for buying high and selling low.</b> Własne narzędzia do analizy rynku krypto: dane na jednym wykresie, raporty i alerty na Telegram</p>
+    <div class="grid">
 
     <a href="rsi.html" class="tile">
       <div class="tile-icon rsi">RSI</div>
@@ -169,11 +253,254 @@
     </div>
 
   </div>
+  </section>
 
   <div class="footer">
     Dane: <a href="https://coinalyze.net" target="_blank">Coinalyze</a>, <a href="https://www.tradingview.com" target="_blank">TradingView</a>, <a href="https://www.binance.com" target="_blank">Binance</a>, <a href="https://coinmetrics.io" target="_blank">Coin Metrics</a>, <a href="https://www.coingecko.com" target="_blank">CoinGecko</a>, <a href="https://defillama.com" target="_blank">DefiLlama</a>, <a href="https://hyperliquid.xyz" target="_blank">Hyperliquid</a> &nbsp;·&nbsp; Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank">TradingView Lightweight Charts</a>
   </div>
-
 </div>
+
+<script>
+'use strict';
+// Pulpit (poprawka 77): najważniejsze liczby z gałęzi data i reports — liczy kod, bez interpretacji.
+// meta.json (lampki, stan źródeł), liq_1h.json (ceny, likwidacje, funding — godzinowo), 1d.json (TOTAL, dominacja, cykl, makro), reports/index.json.
+const qs = new URLSearchParams(location.search);
+function branchBase(param, branch, local) {
+  if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+  }
+  return local;
+}
+const DATA_BASE = branchBase('data', 'data', 'data/'), REP_BASE = branchBase('reports', 'reports', 'reports/');
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(base, name) {
+  const r = await fetch(`${base}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const DAY = 86400, HOUR = 3600;
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const num = (v, d) => v == null || isNaN(v) ? '—' : v.toFixed(d).replace('.', ',');
+const pct = (v, d = 1) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d).replace('.', ',') + '%';
+const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(d) + '%';
+const cls = v => v == null || isNaN(v) ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
+function usd(v) {
+  if (v == null || isNaN(v)) return '—';
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if (a >= 1e12) return s + '$' + (a / 1e12).toFixed(2) + 'T';
+  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M';
+  if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(0) + 'K';
+  return s + '$' + a.toFixed(0);
+}
+const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(4));
+const TZ = {timeZone: 'Europe/Warsaw'};
+const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
+const plTime = t => new Date(t * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}, TZ));
+// wartość w chwili ≤ t (szereg [[t, v], …] posortowany rosnąco)
+function at(arr, t) {
+  let lo = 0, hi = arr.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m][0] <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r < 0 ? null : arr[r][1];
+}
+const last = arr => arr && arr.length ? arr[arr.length - 1] : null;
+const chg = (arr, sec) => { const l = last(arr); if (!l) return null; const p = at(arr, l[0] - sec); return p ? (l[1] / p - 1) * 100 : null; };
+function spark(arr, days, color, step) {
+  const l = last(arr); if (!l) return '';
+  let a = arr.filter(p => p[0] >= l[0] - days * DAY && p[1] != null);
+  if (step) a = a.filter((p, i) => (a.length - 1 - i) % step === 0);
+  if (a.length < 2) return '';
+  const vs = a.map(p => p[1]), mn = Math.min(...vs), mx = Math.max(...vs), sp = (mx - mn) || 1;
+  const pts = a.map((p, i) => `${(i / (a.length - 1) * 120).toFixed(1)},${(30 - (p[1] - mn) / sp * 28).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke" points="${pts}"/></svg>`;
+}
+function kpi(href, label, value, sub, svg, title) {
+  return `<a class="card kpi" href="${href}"${title ? ` title="${esc(title)}"` : ''}><span class="lbl">${label}</span><span class="v">${value}</span><span class="s">${sub}</span>${svg || ''}</a>`;
+}
+
+let META = null, LIQ = null, D1 = null, REPS = null;
+
+// ── najważniejsze liczby ──
+function renderKpis() {
+  const out = [];
+  const S = (LIQ && LIQ.series) || {}, D = (D1 && D1.series) || {};
+  for (const [c, nm, col] of [['btc', 'BTC', '#f7931a'], ['eth', 'ETH', '#8c9eff']]) {
+    const a = S['px_' + c] || [], l = last(a);
+    if (!l) continue;
+    const d1 = chg(a, DAY), d7 = chg(a, 7 * DAY);
+    out.push(kpi(`oi.html#s=px_${c}&m=val&r=1d&z=365`, `${nm} <span style="color:var(--text3)">· 60 dni</span>`, price(l[1]),
+      `<span class="${cls(d1)}">${pct(d1)} 24 h</span> · <span class="${cls(d7)}">${pct(d7)} 7 dni</span>`, spark(a, 60, col, 24),
+      `Cena ${nm} (Binance perp, Coinalyze) z ${plTime(l[0])}`));
+  }
+  const tot = D.total || [], lt = last(tot);
+  if (lt) {
+    const d7 = chg(tot, 7 * DAY), d30 = chg(tot, 30 * DAY);
+    out.push(kpi('oi.html#s=total&m=val&r=1d&z=365', 'TOTAL <span style="color:var(--text3)">· 90 dni</span>', usd(lt[1]),
+      `<span class="${cls(d7)}">${pct(d7)} 7 dni</span> · <span class="${cls(d30)}">${pct(d30)} 30 dni</span>`, spark(tot, 90, '#ce93d8'),
+      'Kapitalizacja całego rynku krypto (TradingView CRYPTOCAP:TOTAL), zamknięcie dnia ' + dmy(lt[0])));
+  }
+  const ab = D.alts_vs_btc || [], la = last(ab);
+  if (la) out.push(kpi('alt.html', 'Alty/BTC <span style="color:var(--text3)">· 90 dni</span>', num(la[1], 3),
+    `30 dni temu ${num(at(ab, la[0] - 30 * DAY), 3)}`, spark(ab, 90, '#f48fb1'),
+    'Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — kreski i wynik z historii: Altsezon → Tło'));
+  const bd = D.btc_d || [], lb = last(bd);
+  if (lb) out.push(kpi('oi.html#s=btc_d&m=val&r=1d&z=365', 'Dominacja BTC <span style="color:var(--text3)">· 90 dni</span>', num(lb[1], 1) + '%',
+    `7 dni temu ${num(at(bd, lb[0] - 7 * DAY), 1)}% · 30 dni ${num(at(bd, lb[0] - 30 * DAY), 1)}%`, spark(bd, 90, '#f7931a')));
+  const lv = D.oi_others_vs_btc || [], ll = last(lv);
+  if (ll) {
+    const lev = (((META || {}).alt_lamps || {}).cfg || {}).leverage, k = lev ? lev.levels.map(v => num(v, 2)).join(' / ') : '0,90 / 0,95 / 1,00';
+    out.push(kpi('alt.html', 'Lewar altów <span style="color:var(--text3)">· 90 dni</span>', num(ll[1], 3) + '×',
+      `kreski ${k}`, spark(lv, 90, '#ff5a36'), 'OI OTHERS ÷ OI BTC — lampka „Lewar altów” w Altsezonie'));
+  }
+  document.getElementById('kpis').innerHTML = out.join('') || '<div class="lbl">Brak danych.</div>';
+}
+
+// ── lampki Altsezonu (to samo co w alt.html, w skrócie: stan, wartość, próg, wynik z historii) ──
+const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
+const LAMP_GROUPS = [
+  ['rajd', 'Rajd', '▲', '#4caf7d', 'sygnał: trzymaj — alty rosną szeroko'],
+  ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'sygnał: sprzedawaj w częściach'],
+  ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: rynek zjeżdża — nie sygnał kupna'],
+];
+const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Duża fala w toku', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
+const LAMP_UI = {
+  rally: {fmt: v => num(v, 0) + '%', lvl: c => c.rally.levels.map(v => `≥ ${v}%`),
+    now: (x, c) => `Teraz <b>${num(x.value, 0)}%</b> coinów nad EMA200 · próg ${c.rally.levels.join(' / ')}%`},
+  big_wave: {fmt: v => fmtPct(v), lvl: c => [`+${c.big_wave.wave_pct}%`],
+    now: (x, c) => `Teraz <b>${fmtPct(x.value)}</b> nad dołkiem${x.low_t ? ' ' + dmy(x.low_t) : ''} · próg +${c.big_wave.wave_pct}%`},
+  leverage: {fmt: v => num(v, 3) + '×', lvl: c => c.leverage.levels.map(v => `≥ ${num(v, 2)}`),
+    now: (x, c) => `Teraz <b>${num(x.value, 3)}×</b> · progi ${c.leverage.levels.map(v => num(v, 2)).join(' / ')}`},
+  rsi3d: {fmt: v => num(v, 0) + '%', lvl: c => [`≥ ${c.rsi3d.overbought_pct}%`],
+    now: (x, c) => `Teraz <b>${num(x.value, 1)}%</b> coinów wykupionych · próg ${c.rsi3d.overbought_pct}%`},
+  selloff: {fmt: v => fmtPct(v), lvl: () => ['wyprzedaż'],
+    now: (x, c) => `Alty <b>${fmtPct(x.value)}</b> w ${c.selloff.days} d (próg −${c.selloff.alt_drop_pct}%) · MVRV-Z <b>${num(x.mvrvz, 2)}</b> lub BTC <b>${fmtPct(x.btc_chg)}</b>`},
+};
+function renderLamps() {
+  const A = META && META.alt_lamps, box = document.getElementById('lamps'), top = document.getElementById('lamps-top');
+  if (!A || !A.lamps) { box.innerHTML = '<div class="lbl">Brak lampek w meta.json — liczy je bot GitHuba przy skanie.</div>'; top.textContent = ''; return; }
+  const c = A.cfg, L = A.lamps, tNow = Date.now() / 1000;
+  const gcol = g => (LAMP_GROUPS.find(x => x[0] === g) || [])[3] || '#888';
+  const lit = LAMP_ORDER.filter(k => L[k] && L[k].on);
+  top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${gcol(L[k].group)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
+    : 'Żadna lampka nie świeci.') + ` Stan z ${plTime(A.updated)}.`;
+  box.innerHTML = LAMP_GROUPS.map(([g, title, icon, col, sub]) => {
+    const ks = LAMP_ORDER.filter(k => L[k] && L[k].group === g);
+    if (!ks.length) return '';
+    const any = ks.some(k => L[k].on);
+    return `<div class="lgroup${any ? ' lit' : ''}" style="--g:${col}"><h3>${icon} ${title.toUpperCase()} <span>${sub}</span></h3><div class="cards">` + ks.map(k => {
+      const x = L[k], ui = LAMP_UI[k], names = ui.lvl(c), word = x.want_up ? 'wyżej' : 'niżej';
+      let st;
+      if (x.on) st = `Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.round((tNow - x.since) / DAY) + 1)} dni`;
+      else if (!x.fresh) st = `Brak świeżych danych · ostatnie z ${dmy(x.value_t)}`;
+      else if (x.since) st = `Przygasła · świeciła od ${dmy(x.since)}`;
+      else { const e = (x.episodes || []).slice(-1)[0]; st = 'Nie świeci · ' + (e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'); }
+      const chips = (x.stats || []).map((s, i) => {
+        const lab = names.length > 1 ? esc(names[i]) + ' · ' : '';
+        return s.n ? `<span class="chip" title="30 dni po zapaleniu alty były ${word} ${s.good} z ${s.n} razy">${lab}${word} ${s.good}/${s.n}${s.med == null ? '' : ' · ' + fmtPct(s.med)}</span>`
+          : `<span class="chip">${lab}jeszcze bez wyniku</span>`;
+      }).join('');
+      return `<a class="lmp${x.on ? ' on' : ''}" href="alt.html"><span class="st"><i></i>${st}</span>` +
+        `<span class="nm"><b>${LAMP_NAMES[k]}</b><em>${x.value == null ? '—' : ui.fmt(x.value)}</em></span>` +
+        (x.value == null ? '' : `<span class="now">${ui.now(x, c)}</span>`) + `<span class="chips">${chips}</span></a>`;
+    }).join('') + '</div></div>';
+  }).join('');
+}
+
+// ── cykl BTC i tło ──
+function renderBg() {
+  const D = (D1 && D1.series) || {}, out = [];
+  const item = (id, label, f, sub) => {
+    const a = D[id] || [], l = last(a);
+    if (!l) return;
+    const p = at(a, l[0] - 30 * DAY);
+    out.push(`<div class="m"><span class="lbl">${label}</span><b>${f(l[1])}</b><span class="lbl">${sub || ''}30 dni temu ${p == null ? '—' : f(p)}</span></div>`);
+  };
+  item('mvrvz_btc', 'MVRV-Z BTC', v => num(v, 2));
+  item('mayer_btc', 'Mayer BTC', v => num(v, 2));
+  item('mvrv_btc', 'MVRV BTC', v => num(v, 2));
+  item('dxy', 'Dolar (DXY)', v => num(v, 1));
+  item('stable_mcap', 'Stablecoiny', usd);
+  item('us10y', 'USA 10Y', v => num(v, 2) + '%');
+  document.getElementById('bg').innerHTML = out.join('') || '<div class="lbl">Brak danych.</div>';
+}
+
+// ── derywaty: OI, likwidacje 24 h, funding ──
+function renderDeriv() {
+  const S = (LIQ && LIQ.series) || {}, D = (D1 && D1.series) || {}, rows = [];
+  const oi = D.oi_total || [], lo = last(oi);
+  if (lo) { const c30 = chg(oi, 30 * DAY); rows.push(['OI łącznie', `${usd(lo[1])} <span class="${cls(c30)}">${pct(c30)} 30 dni</span>`]); }
+  const L = S.liq_total_long || [], Sh = S.liq_total_short || [], tl = last(L);
+  if (tl) {
+    const sum = (a, t0) => a.reduce((s, p) => p[0] > t0 ? s + p[1] : s, 0);
+    const l24 = sum(L, tl[0] - DAY), s24 = sum(Sh, tl[0] - DAY);
+    rows.push(['Likwidacje 24 h', `${usd(l24 + s24)} <span class="lbl">(<span class="dn">L ${usd(l24)}</span> · <span class="up">S ${usd(s24)}</span>)</span>`]);
+  }
+  for (const [id, nm] of [['fund_btc', 'Funding BTC'], ['fund_eth', 'Funding ETH'], ['fund_others', 'Funding altów']]) {
+    const a = S[id] || [], l = last(a);
+    if (l) rows.push([nm, `<span class="${cls(l[1])}">${pct(l[1], 1)}</span> <span class="lbl">rocznie</span>`]);
+  }
+  const lv = D.oi_others_vs_btc || [], ll = last(lv);
+  document.getElementById('deriv').innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('') ||
+    '<div class="lbl">Brak danych.</div>';
+}
+
+// ── watchlista: cena i zmiana 24 h (Binance perp / Bybit / Hyperliquid — jak w likwidacjach) ──
+function renderWatch() {
+  const S = (LIQ && LIQ.series) || {}, list = ((META && META.watchlist) || []);
+  document.getElementById('watch').innerHTML = list.map(c => {
+    const a = S['px_' + c.toLowerCase()] || [], l = last(a), d = chg(a, DAY);
+    return `<a href="liq.html#a=${encodeURIComponent(c.toLowerCase())}" title="${esc(c)} — likwidacje, funding, cena"><b>${esc(c)}</b><span>${l ? price(l[1]) : '—'}</span><span class="${cls(d)}">${pct(d)}</span></a>`;
+  }).join('') || '<div class="lbl">Brak watchlisty w meta.json.</div>';
+}
+
+// ── raporty: ostatnie 3 i najbliższe planowe (harmonogram z config.yaml: poranny ~07:00, wieczorny ~22:50, tygodniowy pon., miesięczny 1.) ──
+const KIND = {morning: 'Poranny', evening: 'Wieczorny', weekly: 'Tygodniowy', monthly: 'Miesięczny', yearly: 'Roczny', halving: 'Po halvingu', adhoc: 'Specjalny', manual: 'Na żądanie', daily: 'Dzienny'};
+function nextTimes() {
+  const now = new Date(), parts = new Intl.DateTimeFormat('en-GB', {timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit', weekday: 'short', day: '2-digit'}).formatToParts(now);
+  const g = t => (parts.find(p => p.type === t) || {}).value;
+  const mins = +g('hour') * 60 + +g('minute');
+  const out = [];
+  out.push(['Wieczorny', mins < 22 * 60 + 50 ? 'dziś ok. 22:50' : 'jutro ok. 22:50']);
+  out.push(['Poranny', mins < 7 * 60 ? 'dziś ok. 07:00' : 'jutro ok. 07:00']);
+  const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')), toMon = (7 - wd) % 7 || 7;
+  const mon = new Date(now.getTime() + toMon * DAY * 1000);
+  out.push(['Tygodniowy', 'pon. ' + mon.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, TZ)) + ', w nocy']);
+  out.sort((a, b) => (a[1].startsWith('dziś') ? 0 : 1) - (b[1].startsWith('dziś') ? 0 : 1));
+  return out;
+}
+function renderReps() {
+  const list = ((REPS && REPS.reports) || []).slice().sort((a, b) => b.created - a.created).slice(0, 3);
+  const rows = list.map(r => `<a class="rep" href="raporty.html?id=${encodeURIComponent(r.id)}"><b>${esc(KIND[r.kind] || r.title || r.kind)} <span class="lbl" style="font-weight:400">· ${plTime(r.created)}</span></b><span class="lbl">${esc(r.summary || r.title || '')}</span></a>`);
+  if (list[0]) document.getElementById('latest-btn').href = 'raporty.html?id=' + encodeURIComponent(list[0].id);
+  const nx = nextTimes().map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('');
+  document.getElementById('reps').innerHTML = (rows.join('') || '<div class="lbl">Brak raportów.</div>') +
+    `<div class="lbl" style="margin:12px 0 2px;text-transform:uppercase;letter-spacing:.08em;font-size:10px">Najbliższe</div>${nx}`;
+}
+
+function renderSub() {
+  const parts = [];
+  const now = new Date().toLocaleDateString('pl-PL', Object.assign({weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'}, TZ));
+  parts.push(now.charAt(0).toUpperCase() + now.slice(1));
+  if (META && META.updated) parts.push('skan z ' + plTime(META.updated) + ' czasu polskiego');
+  if (D1 && D1.updated) parts.push('dane dzienne do ' + dmy(last((D1.series || {}).total || [[D1.updated]])[0]));
+  document.getElementById('sub').textContent = parts.join(' · ');
+}
+function err(msg) { const b = document.getElementById('banner'); b.classList.add('on'); b.textContent = msg; }
+
+(async function main() {
+  const [m, l, r] = await Promise.allSettled([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, 'liq_1h.json'), getJSON(REP_BASE, 'index.json')]);
+  META = m.status === 'fulfilled' ? m.value : null;
+  LIQ = l.status === 'fulfilled' ? l.value : null;
+  REPS = r.status === 'fulfilled' ? r.value : null;
+  const bad = [[m, 'meta.json'], [l, 'liq_1h.json'], [r, 'raporty']].filter(x => x[0].status !== 'fulfilled').map(x => x[1]);
+  if (bad.length) err('Nie udało się wczytać: ' + bad.join(', ') + ' — część Pulpitu jest pusta. Odśwież za chwilę.');
+  renderSub(); renderKpis(); renderLamps(); renderWatch(); renderReps(); renderDeriv();
+  try { D1 = await getJSON(DATA_BASE, '1d.json'); } catch (e) { err('Nie udało się wczytać 1d.json (' + e.message + ') — brak TOTAL, dominacji i cyklu.'); }
+  renderSub(); renderKpis(); renderBg(); renderDeriv();
+})();
+</script>
 </body>
 </html>
