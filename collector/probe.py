@@ -12,7 +12,6 @@ Sprawdzane (dla serii, które już mamy):
   coinalyze   — dzienne OI, funding, likwidacje, cena: od kiedy dla każdego rynku BTC/ETH i kilku altów,
   tradingview — dzienne ceny BTC/ETH z różnych giełd i indeksów (Bitstamp od 2011?),
   coinmetrics — Coin Metrics Community: cena, kapitalizacja, realized cap BTC/ETH (od 2010?),
-  bitmex      — funding XBTUSD/ETHUSD (od 2016?),
   binance     — funding perpetuali BTCUSDT/ETHUSDT (od 2019?), tylko z Pi,
   vision      — archiwum data.binance.vision: dzienne metryki futures (OI, long/short) i lista par spot
                 (także zdelistowanych — szerokość rynku bez błędu przeżywalności),
@@ -51,8 +50,8 @@ log = logging.getLogger("probe")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) scanner-probe"}
 START_2010 = int(datetime(2010, 1, 1, tzinfo=timezone.utc).timestamp())
 CHECKS = {       # domyślny zestaw; coingecko, dexscreener i defillama tylko przez --only (nowe źródła, osobne pytanie)
-    "github": ("coinalyze", "tradingview", "coinmetrics", "bitmex", "binance", "vision", "cvd"),
-    "pi": ("binance", "vision", "bitmex", "coinmetrics"),
+    "github": ("coinalyze", "tradingview", "coinmetrics", "binance", "vision", "cvd"),
+    "pi": ("binance", "vision", "coinmetrics"),
 }
 
 
@@ -221,27 +220,6 @@ def check_coinmetrics(session=None, sleep=time.sleep, **_):
     return rows
 
 
-# ── BitMEX ───────────────────────────────────────────────────
-def check_bitmex(session=None, **_):
-    s = session or requests.Session()
-    rows = []
-    for sym in ("XBTUSD", "ETHUSD"):
-        try:
-            first = _get(s, "https://www.bitmex.com/api/v1/funding",
-                         params={"symbol": sym, "count": 1, "reverse": "false"}).json()
-            last = _get(s, "https://www.bitmex.com/api/v1/funding",
-                        params={"symbol": sym, "count": 1, "reverse": "true"}).json()
-            if not first:
-                rows.append(row("bitmex", f"funding {sym}", "brak"))
-                continue
-            rows.append(row("bitmex", f"funding {sym}", "ok", first[0]["timestamp"],
-                            last[0]["timestamp"] if last else None,
-                            note=f"okres {first[0].get('fundingInterval', '?')}; pierwsza stawka {first[0].get('fundingRate')}"))
-        except Exception as e:  # noqa: BLE001
-            rows.append(err_row("bitmex", f"funding {sym}", e))
-    return rows
-
-
 # ── Binance futures (tylko Pi — GitHub zablokowany) ──────────
 def check_binance(session=None, **_):
     s = session or requests.Session()
@@ -343,7 +321,7 @@ def check_vision(session=None, **_):
 # są te pola, od kiedy, jak głęboka jest historia 1h i czy bv zgadza się z „taker buy volume” Binance
 # (archiwum data.binance.vision) — czyli czy naprawdę znaczy to, co myślimy.
 CVD_COINS = ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE")
-CVD_PERP_EXCHANGES = ("Binance", "Bybit", "OKX", "Hyperliquid", "Deribit", "BitMEX")   # jak OI (config)
+CVD_PERP_EXCHANGES = ("Binance", "Bybit", "OKX", "Hyperliquid", "Deribit")   # jak OI (config)
 CVD_SPOT_EXCHANGES = ("Binance", "Coinbase", "Bybit", "OKX", "Kraken", "Bitstamp", "Bitfinex")
 CVD_QUOTES = ("USDT", "USD", "USDC", "FDUSD")
 CVD_1H_DAYS = 120
@@ -670,7 +648,7 @@ def check_cvd(session=None, client=None, now=None):
 
 
 FUNCS = {"coinalyze": check_coinalyze, "tradingview": check_tradingview, "coinmetrics": check_coinmetrics,
-         "bitmex": check_bitmex, "binance": check_binance, "vision": check_vision, "cvd": check_cvd}
+         "binance": check_binance, "vision": check_vision, "cvd": check_cvd}
 
 
 # ── CoinGecko: koszyki kapitalizacji altów ───────────────────

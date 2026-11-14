@@ -7,8 +7,8 @@
 coinalyze:
   # Giełdy, z których sumujemy open interest (perpetuale).
   # Nazwy porównywane z listą /exchanges w Coinalyze (bez rozróżniania wielkości liter).
-  # (Bitget nie ma w Coinalyze. BitMEX jest, ale na razie nie trafia do listy rynków — do sprawdzenia.)
-  exchanges: [Binance, Bybit, OKX, Hyperliquid, Deribit, BitMEX]
+  # (Bitget nie ma w Coinalyze. BitMEX zamknięty 23.09.2026 — usunięty z listy, poprawka 69.)
+  exchanges: [Binance, Bybit, OKX, Hyperliquid, Deribit]
   # Ile największych (wg OI) coinów liczymy. 0 = wszystkie.
   # Ogon poza top 200 to zwykle ~1–2% całego OI, a mocno skraca czas pobierania
   # (limit API: 40 zapytań/min, każdy rynek = 1 zapytanie).
