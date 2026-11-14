@@ -469,3 +469,4 @@ history_events:
   - {date: "2025-02-21", label: "Hack Bybit", kind: hack, desc: "Kradzież ok. 1,5 mld $ w ETH z giełdy Bybit."}
   - {date: "2025-04-02", label: "Cła Trumpa", kind: polityka, desc: "„Liberation Day” — ogłoszenie ceł USA, spadki na wszystkich rynkach."}
   - {date: "2025-10-10", label: "Krach 10.10", kind: krach, desc: "Krach i rekordowe likwidacje (ok. 19 mld $ w dobę według CoinGlass) po groźbie nowych ceł na Chiny."}
+  - {date: "2026-10-29", label: "Hack Binance", kind: hack, desc: "Kradzież ok. 6,3 mld $ z gorących portfeli Binance na 10 sieciach — największa kradzież krypto w historii; Binance pokrył straty."}
