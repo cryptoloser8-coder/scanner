@@ -54,6 +54,10 @@
   .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
   .banner code{font-family:var(--mono);font-size:11px;}
 
+  #tiles{display:flex;flex-wrap:wrap;column-gap:16px;}
+  .tsec{flex:var(--n) 1 calc(var(--n) * 172px);min-width:0;}
+  .tsec.wide{flex-basis:100%;}
+  @media (min-width:900px){ .tsec .tiles{grid-template-columns:repeat(var(--n),minmax(0,1fr));} }
   .section-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 7px;}
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:8px;}
   .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px 8px;cursor:pointer;transition:border-color .15s,background .15s;position:relative;user-select:none;min-width:0;}
@@ -110,6 +114,7 @@
   #tip b{display:block;margin-bottom:3px;font-size:12px;}
   #tip .tid{display:block;margin-top:5px;font-family:var(--mono);font-size:10px;color:var(--text3);}
   @media (max-width:760px){ .grid2{grid-template-columns:1fr;} }
+  #ex-table,#top-table{overflow-x:auto;}   /* poprawka 77: na telefonie tabela przewija się w bok (wcześniej rozpychała stronę do 441 px) */
   @media (max-width:640px){
     body{padding:14px;}
     .tiles{grid-template-columns:repeat(2,1fr);}
@@ -407,11 +412,13 @@ function renderTiles() {
   const watch = as.filter(([g]) => !['total', 'btc', 'eth', 'others'].includes(g));
   let html = '';
   const lt = main.map(([g, l]) => liqTile(g, l)).join('');
-  if (lt) html += `<div class="section-label">Likwidacje 24h</div><div class="tiles">${lt}</div>`;
+  // poprawka 77: likwidacje 24h i funding w jednym rzędzie (szeroki ekran), watchlista pod nimi na całą szerokość
+  const nf = ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]).length;
+  if (lt) html += `<div class="tsec" style="--n:${main.length}"><div class="section-label">Likwidacje 24h</div><div class="tiles">${lt}</div></div>`;
   const ft = ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]).map(fundTile).join('');
-  if (ft) html += `<div class="section-label">Funding (ważony OI, % rocznie)</div><div class="tiles">${ft}</div>`;
+  if (ft) html += `<div class="tsec" style="--n:${nf}"><div class="section-label">Funding (ważony OI, % rocznie)</div><div class="tiles">${ft}</div></div>`;
   const wt = watch.map(([g, l]) => liqTile(g, l)).join('');
-  if (wt) html += `<div class="section-label">Watchlista: likwidacje 24h</div><div class="tiles">${wt}</div>`;
+  if (wt) html += `<div class="tsec wide" style="--n:${watch.length}"><div class="section-label">Watchlista: likwidacje 24h</div><div class="tiles">${wt}</div></div>`;
   document.getElementById('tiles').innerHTML = html;
 }
 document.getElementById('tiles').addEventListener('click', e => {

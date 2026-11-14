@@ -95,6 +95,32 @@
   .grp-search{font-size:12px;padding:6px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;font-family:inherit;width:190px;margin-left:auto;}
   .grp-tiles{margin-top:10px;}
   .grp-tiles:empty{display:none;}
+  /* poprawka 77: serie w kolumnie po prawej obok wykresu (szeroki ekran); na węższym — nad wykresem jak wcześniej */
+  .oi-layout{display:flex;flex-direction:column;gap:0;}
+  .oi-side{display:flex;flex-direction:column;gap:8px;}
+  .oi-side-hd{display:none;}
+  .oi-side .grp-search{order:2;}
+  .oi-side .grp-bar{order:1;}
+  .oi-side .grp-tiles{order:3;}
+  @media (min-width:1200px){
+    .oi-layout{flex-direction:row-reverse;align-items:flex-start;gap:16px;}
+    .oi-main{flex:1;min-width:0;margin-top:0;}
+    .oi-side{width:400px;flex:none;position:sticky;top:74px;max-height:calc(100vh - 92px);overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;gap:6px;scrollbar-width:thin;}
+    .oi-side-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+    .oi-side-hd h2{font-size:13px;font-weight:600;}
+    .oi-side-sub{font-size:10px;color:var(--text3);}
+    .oi-side .grp-search{order:0;width:100%;margin:0 0 4px;}
+    .oi-side .grp-bar{flex-direction:column;align-items:stretch;gap:4px;}
+    .oi-side .grp{justify-content:space-between;width:100%;padding:8px 11px;}
+    .oi-side .grp .caret{margin-left:auto;}
+    .oi-side .grp .cnt{margin-left:auto;}
+    .oi-side .grp .cnt + .caret{margin-left:6px;}
+    .oi-side .grp-tiles{margin:2px 0 6px;}
+    .oi-side .grp-bar .grp-tiles{order:0;}
+    .oi-side .tiles{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .oi-side .tile-chg{flex-wrap:wrap;column-gap:6px;row-gap:0;}
+    .chart-wrap{height:min(70vh,700px);}
+  }
   .grp-note{font-size:10px;color:var(--text3);margin:0 0 8px;line-height:1.5;}
   .chart-wrap{position:relative;height:min(62vh,620px);min-height:340px;}
   #chart{position:absolute;inset:0;}
@@ -155,13 +181,15 @@
 
 <div class="banner" id="banner"></div>
 
-<div class="grp-bar">
-  <div class="grp-bar" id="grp-btns"></div>
+<div class="oi-layout">
+<aside class="oi-side" id="oi-side" aria-label="Serie">
+  <div class="oi-side-hd"><h2>Serie</h2><span class="oi-side-sub">grupa ▼ rozwija kafelki · klik w kafelek = na wykres</span></div>
   <input type="search" class="grp-search" id="grp-search" placeholder="Szukaj serii… (np. sol, mvrv, oi)">
-</div>
-<div class="grp-tiles" id="tiles"></div>
+  <div class="grp-bar" id="grp-btns"></div>
+  <div class="grp-tiles" id="tiles"></div>
+</aside>
 
-<div class="panel">
+<div class="panel oi-main">
   <div class="controls">
     <div class="ctrl-group">
       <span class="ctrl-label">Zestaw</span>
@@ -216,16 +244,17 @@
     <div id="chart"></div>
     <div class="legend" id="legend"></div>
     <div class="vlines" id="vlines"></div>
-    <div class="empty" id="empty">Rozwiń grupę na górze strony albo wyszukaj serię i kliknij kafelek</div>
+    <div class="empty" id="empty">Rozwiń grupę w kolumnie „Serie” (na telefonie — nad wykresem) albo wyszukaj serię i kliknij kafelek</div>
   </div>
   <div class="cyc-legend" id="cyc-legend"></div>
   <div class="hint">
-    Rozwiń grupę albo wyszukaj serię na górze strony i kliknij kafelek, żeby dodać ją do wykresu (× w legendzie usuwa). Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
+    Rozwiń grupę albo wyszukaj serię w kolumnie „Serie” (obok wykresu, na telefonie nad nim) i kliknij kafelek, żeby dodać ją do wykresu (× w legendzie usuwa). Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
     Interwały 4H, 1W i 1M są składane z danych 1H / 1D: ostatnia wartość okresu, a wolumen i CVD — suma.
     Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
     Cena BTC i ETH w trybie Wartości jest rysowana jako świece z knotami (open = zamknięcie poprzedniej świecy): dzienne od 2010 (BTC) i 2015 (ETH) — do 2019–2020 z indeksu TradingView, potem Binance perp;
     godzinowe od 08.2017 z Binance spot, a ostatnie godziny (jeszcze nie w archiwum) z Binance perp. Przycisk „Świece” przełącza na linię.
   </div>
+</div>
 </div>
 
 <div class="footer">
@@ -260,7 +289,7 @@ async function getJSON(name) {
 }
 
 // ── state ───────────────────────────────────────────────────
-// grupy kafelków (pasek na górze strony; domyślnie zwinięte). Serie spoza list trafiają do grupy według CAT.group.
+// grupy kafelków (kolumna „Serie” obok wykresu, na węższym ekranie nad nim; domyślnie zwinięte). Serie spoza list trafiają do grupy według CAT.group.
 const TILE_GROUPS = [
   {key: 'oi', label: 'Open interest', ids: ['oi_btc', 'oi_eth', 'oi_alts', 'oi_others', 'oi_total', 'oi_btc_binance', 'oi_eth_binance'], cats: ['oi'], watch: true},
   {key: 'mcap', label: 'Kapitalizacja', ids: ['total', 'total2', 'total3', 'total3es', 'others', 'stable_mcap'], cats: ['mcap']},
@@ -500,13 +529,20 @@ function groupIds() {                              // {key: [ids]} — każda do
   }
   return (GROUP_IDS = out);
 }
+function placeTiles() {
+  const el = document.getElementById('tiles'), open = !SEARCH && document.querySelector('#grp-btns .grp.open');
+  if (open && matchMedia('(min-width:1200px)').matches) open.after(el);
+  else document.getElementById('grp-btns').after(el);
+}
 function renderGroupBar() {
   const ids = groupIds();
+  document.getElementById('grp-btns').after(document.getElementById('tiles'));   // kafelki poza listą przycisków, zanim lista się przerysuje
   document.getElementById('grp-btns').innerHTML = TILE_GROUPS.filter(g => ids[g.key].length).map(g => {
     const n = ids[g.key].filter(id => S.series.includes(id)).length;
     return `<button class="grp ${S.grp === g.key && !SEARCH ? 'open' : ''}" data-g="${g.key}" title="${ids[g.key].length} serii">` +
       `${esc(g.label)}${n ? ` <span class="cnt" title="Serie z tej grupy na wykresie">${n}</span>` : ''}<span class="caret">${S.grp === g.key && !SEARCH ? '▲' : '▼'}</span></button>`;
   }).join('');
+  placeTiles();
 }
 function renderTiles() {
   renderGroupBar();
@@ -551,6 +587,7 @@ function renderTiles() {
     html += (label ? `<div class="grp-note">${esc(label)}</div>` : '') + (tiles ? `<div class="tiles">${tiles}</div>` : '');
   }
   document.getElementById('tiles').innerHTML = html;
+  placeTiles();
 }
 document.getElementById('tiles').addEventListener('click', e => {
   const t = e.target.closest('.tile');
@@ -565,6 +602,7 @@ document.getElementById('grp-btns').addEventListener('click', e => {
   renderTiles();
 });
 document.getElementById('grp-search').addEventListener('input', e => { SEARCH = e.target.value; renderTiles(); });
+if (window.matchMedia) matchMedia('(min-width:1200px)').addEventListener('change', placeTiles);
 function toggleSeries(sid) {
   const i = S.series.indexOf(sid);
   if (i >= 0) S.series.splice(i, 1); else S.series.push(sid);
