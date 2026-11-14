@@ -243,18 +243,19 @@ reports:
 #  Ponowny alert dopiero po wyjściu ze strefy (1.5 × near_pct).
 # ─────────────────────────────────────────────────────────────
 levels:
-  # Lewar altów (poprawka 63, badanie mini altsezonów 13.11.2026 — claude/mini-altsezony.md): od 09.2022 po
-  # przebiciu 0,95 w górę alty były niżej po 30 dniach 5–6 z 6 razy (zależnie od indeksu), po przebiciu 1,0 — 4 z 4.
-  # Aktualne liczby: zakładka Altsezon (alt.html) — liczone na bieżąco.
+  # Lewar altów — tylko linie na wykresach (oi.html „Linie poziomów”). Alerty lewaru daje lampka Altsezonu
+  # (alt_lamps.leverage niżej, poprawka 70) — tu alert: false, żeby nie dublować wiadomości.
+  - series: oi_others_vs_btc
+    level: 0.90
+    alert: false
+    label: "uwaga — lampka Altsezonu"
   - series: oi_others_vs_btc
     level: 0.95
-    near_pct: 3
-    direction: up
+    alert: false
     label: "historycznie koniec fali altów"
   - series: oi_others_vs_btc
     level: 1.0
-    near_pct: 0
-    direction: up
+    alert: false
     label: "historycznie szczyt fali altów"
 #  - series: total3
 #    level: 1.0e12
@@ -264,6 +265,32 @@ levels:
 #    level: 60
 #    near_pct: 1
 #    label: "BTC.D 60%"
+
+# ─────────────────────────────────────────────────────────────
+#  LAMPKI ALTSEZONU (poprawka 70) — zakładka alt.html + alerty Telegram (wątek grupy, /cisza działa)
+#  Badanie: claude/altsezon-strategia.md (14.11.2026). Liczy bot GitHuba w każdym skanie (lamps.py):
+#  indeks altów, szerokość i RSI 3D z gałęzi `ema` (Orange Pi), lewar / MVRV-Z / BTC z własnych danych.
+#  Alert: przy zapaleniu lampki, przy wyższym poziomie (np. lewar 0,90 → 0,95) i gdy lampka zgaśnie.
+#  Lampka gaśnie dopiero po gap_days dniach bez warunku (krótkie przygaśnięcie nie daje nowych alertów).
+#  Pierwszy skan po wgraniu tylko zapamiętuje stan (bez alertów o tym, co już świeci).
+# ─────────────────────────────────────────────────────────────
+alt_lamps:
+  enabled: true
+  gap_days: 14
+  notify_off: true            # wiadomość „lampka zgasła”
+  rally:                      # szeroki rajd: % coinów nad EMA200 (rajd trwa — nie sygnał sprzedaży)
+    levels: [80, 90]
+  big_wave:                   # duża fala w toku: indeks altów ≥ +wave_pct% nad dołkiem
+    wave_pct: 40
+  leverage:                   # lewar altów OI OTHERS / OI BTC: uwaga / przegrzanie / skrajne
+    levels: [0.90, 0.95, 1.0]
+  rsi3d:                      # % coinów z RSI 3D > 70 (zamknięte świece)
+    overbought_pct: 30
+  selloff:                    # wyprzedaż: indeks altów −alt_drop_pct% w `days` dni i (MVRV-Z ≤ mvrvz_max lub BTC −btc_drop_pct%)
+    alt_drop_pct: 20
+    btc_drop_pct: 10
+    mvrvz_max: 0.5
+    days: 30
 
 # ─────────────────────────────────────────────────────────────
 #  ZMIANY — alert, gdy seria zmieni się o X% w zadanym oknie

@@ -264,8 +264,46 @@ def _iso(t):
 
 
 # ── main run ─────────────────────────────────────────────────
+def alt_lamps(store, cfg, now, ema_fetch):
+    """Lampki zakładki Altsezon (lamps.py, poprawka 70) → wynik do meta.json albo None. Nigdy nie przerywa skanu.
+    ema_fetch(name) → dict z gałęzi `ema` (altindex.json, ema.json — liczy Orange Pi)."""
+    try:
+        import lamps as LP   # import w funkcji: przy wgrywaniu kilkoma uploadami brak pliku nie psuje skanu
+    except ImportError:
+        log.warning("Lampki: brak lamps.py — pomijam")
+        return None, None
+    if not LP.config(cfg).get("enabled", True) or ema_fetch is None:
+        return LP, None
+    try:
+        idx, ema = ema_fetch("altindex.json") or {}, ema_fetch("ema.json") or {}
+        d1 = store.series["1d"]
+        res = LP.build(cfg, now, idx=idx.get("d"), breadth=ema.get("breadth"), rsi_d3=(ema.get("rsi") or {}).get("d3"),
+                       lev=d1.get("oi_others_vs_btc"), lev_now=store.latest("oi_others_vs_btc"),
+                       mvrvz=d1.get("mvrvz_btc"), btc=d1.get("px_btc"))
+        return LP, res
+    except Exception:  # noqa: BLE001
+        log.exception("Lampki")
+        return LP, None
+
+
+def raw_fetcher(repo, branch, session=None, timeout=20):
+    """name → dict z raw.githubusercontent.com/<repo>/<branch>/<name> (None przy błędzie)."""
+    import requests
+
+    def get(name):
+        try:
+            r = (session or requests).get(f"https://raw.githubusercontent.com/{repo}/{branch}/{name}",
+                                          params={"t": int(time.time())}, timeout=timeout)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:  # noqa: BLE001
+            log.warning("Gałąź %s, %s: %s", branch, name, e)
+            return None
+    return get
+
+
 def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegram=None, cg_fetch=None,
-        vision_session=None, cm_session=None, alts_session=None, alts_sleep=time.sleep):
+        vision_session=None, cm_session=None, alts_session=None, alts_sleep=time.sleep, ema_fetch=None):
     now = int(now or time.time())
     store = Store(data_dir)
     st = store.state
@@ -367,9 +405,14 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         cyc_lines = C.ref_lines(store, cfg)
         cyc_marks = C.cycle_marks(store.series["1d"].get("px_btc") or {}, cfg)   # tło faz cyklu w oi.html
 
+    # lampki Altsezonu (poprawka 70): indeks altów, szerokość, RSI z gałęzi `ema` + lewar, MVRV-Z, BTC z tego skanu
+    if ema_fetch is None and repo:
+        ema_fetch = raw_fetcher(repo, "ema")
+    LP, lamps_res = alt_lamps(store, cfg, now, ema_fetch)
+
     # system messages → admin (private); market alerts → group thread (one message per run, unless muted)
     system = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
-    market = []
+    market, lamp_msgs = [], []
     if backfill:
         n1h = len(store.series["1h"].get("oi_total", {}))
         n1d = len(store.series["1d"].get("oi_total", {}))
@@ -381,20 +424,27 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         # arm level state silently so the first regular run doesn't fire stale crosses
         alerts.check_levels(store, catalog, cfg["levels"], st)
         alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
+        if LP and lamps_res:
+            LP.check(lamps_res, cfg, st, arm_only=True)
     else:
         market += alerts.check_levels(store, catalog, cfg["levels"], st, page_url)
         market += alerts.check_changes(store, catalog, cfg["changes"], st, now)
         market += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
+        if LP and lamps_res:
+            lamp_msgs = LP.check(lamps_res, cfg, st, page_url)
     for m in system:
         tg.post("system", m)
-    if market:
+    if market or lamp_msgs:
         mute_until = alerts.fetch_mute(mute_url) if mute_url else None
         if alerts.is_muted(mute_until, now):
-            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(market))
-            info["muted_alerts"] = len(market)
+            log.info("Alerty wyciszone (/cisza) — pomijam %d", len(market) + len(lamp_msgs))
+            info["muted_alerts"] = len(market) + len(lamp_msgs)
         else:
-            tg.post("market", "\n\n".join(["📊 <b>Rynek</b> (OI, TOTAL, likwidacje)"] + market))
-    msgs = system + market
+            if market:
+                tg.post("market", "\n\n".join(["📊 <b>Rynek</b> (OI, TOTAL, likwidacje)"] + market))
+            if lamp_msgs:
+                tg.post("market", "\n\n".join(["💡 <b>Altsezon — lampki</b>"] + lamp_msgs))
+    msgs = system + market + lamp_msgs
 
     meta = {
         "updated": now,
@@ -404,6 +454,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         "ref_lines": {**cyc_lines, **report_lines(cfg)},
         "cycle_marks": cyc_marks,
         "history_events": history_events(cfg),
+        "alt_lamps": lamps_res,             # lampki Altsezonu (lamps.py) — alt.html tylko je wyświetla
         "watchlist": [w.upper() for w in cfg["watchlist"]],
         "exchanges": cfg["coinalyze"]["exchanges"],
         "health": {k: (v or "ok") for k, v in results.items()},

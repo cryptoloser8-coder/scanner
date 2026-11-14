@@ -128,12 +128,15 @@ def _chunks_text(text, n):
 # ── rules ────────────────────────────────────────────────────
 def check_levels(store, catalog, levels, state, page_url=""):
     """Alert once when entering the `near_pct` zone and once on each cross.
-    direction (optional): up = only crosses upward and approaching from below; down = the opposite; default both."""
+    direction (optional): up = only crosses upward and approaching from below; down = the opposite; default both.
+    alert: false — tylko linia na wykresach, bez alertu (np. lewar altów — alerty daje lampka Altsezonu, lamps.py)."""
     msgs = []
     st = state.setdefault("levels", {})
     active_keys = set()
     for lv in levels or []:
         sid, level = lv.get("series"), lv.get("level")
+        if lv.get("alert") is False:
+            continue
         if sid not in catalog or level in (None, 0):
             log.warning("Poziom pominięty (nieznana seria lub brak level): %s", lv)
             continue
