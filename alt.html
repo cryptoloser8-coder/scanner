@@ -84,6 +84,14 @@
   .bar .now{position:absolute;top:-4px;width:3px;height:16px;border-radius:2px;background:#fff;transform:translateX(-1px);}
   .bar .mk{position:absolute;top:-3px;width:0;height:14px;border-left:1px dashed var(--c,#aaa);}
   .bar .mk span{position:absolute;top:15px;left:0;transform:translateX(-50%);font-size:9px;color:var(--c,#aaa);white-space:nowrap;font-family:var(--mono);}
+  .bar .mk[data-tip]{cursor:help;}
+  .bar .mk[data-tip]::after{content:'';position:absolute;left:-8px;top:-4px;width:16px;height:34px;}
+  .bar .mk[data-tip] span{border-bottom:1px dotted var(--c,#aaa);font-size:10px;}
+  #tip{position:fixed;z-index:50;max-width:320px;background:#1d1d1d;border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:12px;line-height:1.5;color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;pointer-events:none;}
+  #tip.on{display:block;}
+  #tip b{font-weight:600;}
+  #tip .mut{color:var(--text2);}
   .bar .lo,.bar .hi{position:absolute;top:-15px;font-size:9px;color:var(--text3);font-family:var(--mono);}
   .bar .lo{left:0;} .bar .hi{right:0;}
 
@@ -98,9 +106,13 @@
   .lamps-top{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.55;}
   .lamps-top b{color:var(--text);}
   .lgrid{display:grid;grid-template-columns:2fr 2fr 1fr;gap:12px;align-items:stretch;}
-  .lgroup{display:flex;flex-direction:column;min-width:0;}
-  .lgroup h3{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .lgroup h3 span{text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3);margin-left:6px;}
+  .lgroup{display:flex;flex-direction:column;min-width:0;padding:10px;border-radius:var(--radius-lg);
+    border:1px solid color-mix(in srgb,var(--g) 30%,var(--border));border-top:3px solid var(--g);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--g) 9%,transparent),color-mix(in srgb,var(--g) 2%,transparent) 70%);}
+  .lgroup h3{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .lgroup h3 .gt{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--g);}
+  .lgroup h3 .gs{font-size:11px;font-weight:500;color:var(--text);}
+  .lgroup h3 .gs b{color:var(--g);font-weight:600;}
   .lcards{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;flex:1;}
   .lamp{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0;
     transition:box-shadow .3s,border-color .3s;}
@@ -399,7 +411,7 @@ function chgAt(series, t, back) {                  // zmiana serii w `back` dnia
 function bar(lo, hi, v, marks, fmt, log) {
   const pos = x => { const a = log ? Math.log(x) : x, l = log ? Math.log(lo) : lo, h = log ? Math.log(hi) : hi; return Math.max(0, Math.min(100, (a - l) / (h - l) * 100)); };
   return `<div class="bar"><span class="lo">${fmt(lo)}</span><span class="hi">${fmt(hi)}</span>` +
-    (marks || []).map(m => `<div class="mk" style="left:${pos(m.v)}%;--c:${m.c || '#aaa'}" title="${esc(m.label)}"><span>${esc(m.short || '')}</span></div>`).join('') +
+    (marks || []).map(m => `<div class="mk" style="left:${pos(m.v)}%;--c:${m.c || '#aaa'}" ${m.tip ? `data-tip="${esc(m.tip)}"` : `title="${esc(m.label)}"`}><span>${esc(m.short || '')}</span></div>`).join('') +
     (v == null ? '' : `<div class="now" style="left:${pos(v)}%" title="teraz"></div>`) + '</div>';
 }
 
@@ -429,20 +441,33 @@ function renderStats(W) {
     }
     out.push(stat('Fala altów (indeks altów)', v, s, h));
   }
-  // 6. Alty / BTC — pozycja na tle 2 lat (poziom się przesuwa: szczyty cykli coraz niżej → percentyl kroczący, badanie 14.11)
+  // 6. Alty / BTC — pozycja na tle 2 lat (poziom się przesuwa: szczyty cykli coraz niżej → granice z ostatnich 2 lat)
   {
     const ab = pts(D1, 'alts_vs_btc');
     if (ab.length > 800) {
       const ts = ab.map(p => p[0]), vs = ab.map(p => p[1]), n = ab.length;
-      const pct = rollPct(ts, vs, 500), grp = fwdGroups(ts, pct);
+      const pct = rollPct(ts, vs, 500);
       const v = vs[n - 1], t = ts[n - 1], p = pct[n - 1];
       const w2 = vs.filter((x, i) => ts[i] >= t - 730 * DAY).sort((a, b) => a - b), q = f => w2[Math.min(w2.length - 1, Math.floor(f * w2.length))];
+      const lo = q(0.2), hi = q(0.8), U = usualDay();
+      const cH = crossings(ts, vs, pct, 'hi').filter(x => x.t >= T[0]), cL = crossings(ts, vs, pct, 'lo').filter(x => x.t >= T[0]);
+      const dates = c => c.map(x => `${my(x.t)}${x.f == null ? '' : ' (' + fmtPct(x.f) + ')'}`).join(', ');
+      const usual = `Zwykły dzień: alty po 90 dniach typowo ${fmtPct(U.med)} (niżej w ${U.down}% dni).`;
+      const tipHi = `<b>Wysoko: powyżej ${hi.toFixed(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były wyżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+        `<b>Po przekroczeniu w górę</b> (${cH.length} ${cH.length === 1 ? 'raz' : 'razy'} od 2019): ${crossTxt(cH, 'niżej')}.<br><span class="mut">${dates(cH)}</span><br><br>` +
+        `<span class="mut">${usual} Mało przypadków — ostrzeżenie, nie pewniak.</span>`;
+      const tipLo = `<b>Nisko: poniżej ${lo.toFixed(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były niżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+        `<b>Po przekroczeniu w dół</b> (${cL.length} ${cL.length === 1 ? 'raz' : 'razy'} od 2019): ${crossTxt(cL, 'wyżej')}.<br><br><span class="mut">${usual} Wynik mieszany — samo „tanio” nie oznacza odbicia.</span>`;
       const zone = p == null ? '' : p >= 80 ? ' — <span class="dn">wysoko</span>' : p <= 20 ? ' — <span class="up">nisko</span>' : ' — środek';
-      out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · ${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
-        bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat'}, {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat'}], x => x.toFixed(2)) +
-        `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego liczy się pozycja w ostatnich 2 latach, nie stała liczba.`,
-        grp.hi.length && grp.lo.length ? histList([['gdy Alty/BTC były w dolnych 20% z 2 lat', grp.lo], ['zwykle', grp.all], ['gdy Alty/BTC były w górnych 20% z 2 lat', grp.hi]],
-          'Wysoko na tle 2 lat → potem zwykle gorzej; różnica mała. Kierunek zgodny we wszystkich okresach od 2019 — tło, nie moment wejścia.') : ''));
+      const fH = cH.map(x => x.f).filter(x => x != null), fL = cL.map(x => x.f).filter(x => x != null);
+      out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
+        bar(w2[0], w2[w2.length - 1], v, [{v: lo, short: lo.toFixed(3), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.toFixed(3), c: '#e05252', tip: tipHi}], x => x.toFixed(2)) +
+        `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Kreski: granice „nisko” i „wysoko” z ostatnich 2 lat (najedź / dotknij po szczegóły). Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego granice liczone są z 2 lat, nie stała liczba.`,
+        `Po przekroczeniu kreski — alty 90 dni później:<br>` +
+        `• w górę nad „wysoko” (${cH.length}×): ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}<br>` +
+        `• w dół pod „nisko” (${cL.length}×): ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}<br>` +
+        `• zwykły dzień: <b class="${cls(U.med)}">${fmtPct(U.med)}</b> (niżej w ${U.down}% dni)<br>` +
+        `<span style="color:var(--text2)">Wejście nad „wysoko” trafiało w szczyty altów, ale to tylko ${cH.length} przypadki. Zejście pod „nisko” — wynik mieszany.</span>`));
     }
   }
   // 6b. Dolar (DXY) — zmiana 30 dni na tle 2 lat (badanie 14.11: spadający dolar = lepsze 90 dni dla altów we wszystkich okresach)
@@ -464,8 +489,7 @@ function renderStats(W) {
         bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat (dolar mocno spada)'}, {v: 0, short: '0', c: '#888', label: 'bez zmian'},
           {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat (dolar mocno rośnie)'}], x => fmtPct(x, 1)) +
         `Indeks dolara do koszyka walut, zmiana w 30 dni — teraz ${zone}. Słabszy dolar = tańszy pieniądz i więcej chęci do ryzyka. Pasek: zmiany 30-dniowe z ostatnich 2 lat (${dmy(t)}).`,
-        grp.hi.length && grp.lo.length ? histList([['gdy dolar mocno spadał (dolne 20% z 2 lat)', grp.lo], ['zwykle', grp.all], ['gdy dolar mocno rósł (górne 20%)', grp.hi]],
-          'Spadający dolar pomagał altom — kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła). Tło, nie moment wejścia.') : ''));
+        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy dolar mocno spadał (dolne 20% z 2 lat) — ${grpTxt(grp.lo)}; gdy mocno rósł (górne 20%) — ${grpTxt(grp.hi)}; zwykle ${grpTxt(grp.all)}. Kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła); wolne tło, nie moment wejścia.` : ''));
     }
   }
   // 7. sieci — skoki wolumenu DEX
@@ -484,10 +508,10 @@ function renderStats(W) {
 }
 // ── lampki (liczy bot GitHuba: collector/lamps.py → meta.json alt_lamps; tu tylko wyświetlanie) ──
 const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
-const LAMP_GROUPS = [
-  ['rajd', 'Rajd', 'alty rosną szeroko — trzymać, to nie sygnał sprzedaży'],
-  ['przegrzanie', 'Przegrzanie', 'czas sprzedaży — w częściach'],
-  ['wyprzedaż', 'Wyprzedaż', 'opis sytuacji, nie sygnał kupna'],
+const LAMP_GROUPS = [   // [grupa, nazwa, ikona, kolor, czego to sygnał]
+  ['rajd', 'Rajd', '▲', '#4caf7d', 'sygnał: <b>trzymaj</b> — alty rosną szeroko'],
+  ['przegrzanie', 'Przegrzanie', '⚠', '#ff7043', 'sygnał: <b>sprzedawaj w częściach</b>'],
+  ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: <b>rynek zjeżdża</b> — nie sygnał kupna'],
 ];
 const num = (v, d) => v == null ? '—' : v.toFixed(d).replace('.', ',');
 const LAMP_UI = {
@@ -548,10 +572,10 @@ function renderLamps() {
   const when = new Date(A.updated * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
   top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${lampColor(k, L[k].level)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
     : 'Żadna lampka nie świeci.') + ` <span style="color:var(--text3)">Stan z ${when}.</span>`;
-  box.innerHTML = '<div class="lgrid">' + LAMP_GROUPS.map(([g, title, sub]) => {
+  box.innerHTML = '<div class="lgrid">' + LAMP_GROUPS.map(([g, title, icon, gcol, sub]) => {
     const ks = LAMP_ORDER.filter(k => L[k] && L[k].group === g);
     if (!ks.length) return '';
-    return `<div class="lgroup"><h3 title="${esc(sub)}">${title}<span>${sub}</span></h3><div class="lcards" style="--n:${ks.length}">` +
+    return `<div class="lgroup" style="--g:${gcol}"><h3><span class="gt">${icon} ${title}</span><span class="gs">${sub}</span></h3><div class="lcards" style="--n:${ks.length}">` +
       ks.map(k => lampCard(k, L[k], c, tNow)).join('') + '</div></div>';
   }).join('') + '</div><div class="lamp-detail" id="lamp-detail"></div>';
   if (LAMP_OPEN && L[LAMP_OPEN]) showLampDetail(LAMP_OPEN);
@@ -631,11 +655,48 @@ function fwdGroups(ts, pct) {
   }
   return g;
 }
-// „co bywało potem” — lista: sytuacja → typowa zmiana altów po 3 miesiącach + wniosek
-function histList(rows, concl) {
-  return 'Indeks altów 90 dni później (mediana):<br>' +
-    rows.map(([lab, a]) => `• ${lab}: <b class="${cls(median(a))}">${fmtPct(median(a))}</b> <span style="color:var(--text3)">(wyżej w ${Math.round(a.filter(x => x > 0).length / a.length * 100)}% dni)</span>`).join('<br>') +
-    `<br><span style="color:var(--text2)">${concl} Ujemne „zwykle”, bo indeks = przeciętny alt, który z czasem traci — liczy się różnica.</span>`;
+const grpTxt = a => `mediana ${fmtPct(median(a))} (wyżej w ${Math.round(a.filter(x => x > 0).length / a.length * 100)}% dni)`;
+// dymek: najechanie (komputer) albo dotknięcie (telefon) elementu z data-tip (HTML)
+(function () {
+  const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
+  let cur = null;
+  const show = el => {
+    cur = el; tip.innerHTML = el.dataset.tip; tip.classList.add('on');
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2, y = r.bottom + 22;
+    x = Math.max(8, Math.min(innerWidth - w - 8, x));
+    if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 8);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  };
+  const hide = () => { cur = null; tip.classList.remove('on'); };
+  document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (el && el !== cur) show(el); else if (!el && cur && !matchMedia('(hover:none)').matches) hide(); });
+  document.addEventListener('click', e => { const el = e.target.closest('[data-tip]'); if (el) { if (el === cur && matchMedia('(hover:none)').matches) hide(); else show(el); } else hide(); });
+  addEventListener('scroll', hide, {passive: true});
+})();
+// przekroczenia strefy (percentyl ≥ 80 albo ≤ 20) po ≥ 30 dniach poza nią → zmiana indeksu altów po 90 dniach
+function crossings(ts, vs, pct, side) {
+  const out = []; let last = null;
+  for (let i = 0; i < ts.length; i++) {
+    if (pct[i] == null) continue;
+    if (side === 'hi' ? pct[i] >= 80 : pct[i] <= 20) {
+      if (last == null || ts[i] - last > 30 * DAY) {
+        const a = idxAt(ts[i]), j = lastLE(T, ts[i] + 90 * DAY);
+        if (a >= 0) out.push({t: ts[i], v: vs[i], f: T[j] - ts[i] < 89 * DAY ? null : (Math.exp(X[j] - X[a]) - 1) * 100});
+      }
+      last = ts[i];
+    }
+  }
+  return out;
+}
+function usualDay() {                                  // zwykły dzień: zmiana indeksu altów po 90 dniach
+  const a = [];
+  for (let i = 0; i < T.length; i++) { const j = lastLE(T, T[i] + 90 * DAY); if (T[j] - T[i] >= 89 * DAY) a.push((Math.exp(X[j] - X[i]) - 1) * 100); }
+  return {med: median(a), down: a.length ? Math.round(a.filter(x => x < 0).length / a.length * 100) : null};
+}
+function crossTxt(c, word) {                            // „niżej 3 z 3 razy, typowo −60%”
+  const f = c.map(x => x.f).filter(x => x != null);
+  if (!f.length) return 'jeszcze bez wyniku po 90 dniach';
+  return `alty po 90 dniach ${word} <b>${f.filter(x => word === 'niżej' ? x < 0 : x > 0).length} z ${f.length}</b> razy, typowo <b class="${cls(median(f))}">${fmtPct(median(f))}</b>`;
 }
 function stat(t, v, s, h) {
   return `<div class="stat"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${s}</div>${h ? `<div class="h">${h}</div>` : ''}</div>`;
