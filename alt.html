@@ -485,13 +485,26 @@ function renderStats(W) {
       const pct = rollPct(ts, vs, 300), grp = fwdGroups(ts, pct), n = ts.length;
       const v = vs[n - 1], t = ts[n - 1], p = pct[n - 1];
       const w2 = vs.filter((x, i) => ts[i] >= t - 730 * DAY).sort((a, b) => a - b), q = f => w2[Math.min(w2.length - 1, Math.floor(f * w2.length))];
-      const zone = p == null ? '' : p >= 80 ? '<span class="dn">dolar mocno rośnie</span> — tło dla altów niekorzystne' :
-        p <= 20 ? '<span class="up">dolar mocno spada</span> — tło dla altów korzystne' : p >= 60 ? 'dolar raczej rośnie' : p <= 40 ? 'dolar raczej spada' : 'dolar bez wyraźnego ruchu';
-      out.push(stat('Dolar (DXY) — tło makro', `<span class="${cls(-v)}">${fmtPct(v, 1)}</span><small>w 30 dni · ${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · DXY ${dx[dx.length - 1][1].toFixed(1)}</small>`,
-        bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat (dolar mocno spada)'}, {v: 0, short: '0', c: '#888', label: 'bez zmian'},
-          {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat (dolar mocno rośnie)'}], x => fmtPct(x, 1)) +
-        `Indeks dolara do koszyka walut, zmiana w 30 dni — teraz ${zone}. Słabszy dolar = tańszy pieniądz i więcej chęci do ryzyka. Pasek: zmiany 30-dniowe z ostatnich 2 lat (${dmy(t)}).`,
-        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy dolar mocno spadał (dolne 20% z 2 lat) — ${grpTxt(grp.lo)}; gdy mocno rósł (górne 20%) — ${grpTxt(grp.hi)}; zwykle ${grpTxt(grp.all)}. Kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła); wolne tło, nie moment wejścia.` : ''));
+      const lo = q(0.2), hi = q(0.8), U = usualDay();
+      const cH = crossings(ts, vs, pct, 'hi').filter(x => x.t >= T[0]), cL = crossings(ts, vs, pct, 'lo').filter(x => x.t >= T[0]);
+      const fH = cH.map(x => x.f).filter(x => x != null), fL = cL.map(x => x.f).filter(x => x != null);
+      const usual = `Zwykły dzień: alty po 90 dniach typowo ${fmtPct(U.med)} (niżej w ${U.down}% dni).`;
+      const days = grp.hi.length && grp.lo.length ? `Inaczej, gdy dolar był w strefie przez dłuższy czas: każdy dzień „mocno spada” — alty po 90 dniach typowo ${fmtPct(median(grp.lo))}, „mocno rośnie” — ${fmtPct(median(grp.hi))}.` : '';
+      const tipHi = `<b>Mocno rośnie: powyżej ${fmtPct(hi, 1)} w 30 dni</b><br>Przez ostatnie 2 lata dolar rósł szybciej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+        `<b>Po przekroczeniu w górę</b> (${cH.length} razy od 2019): ${crossTxt(cH, 'niżej')}.<br><br><span class="mut">${usual} Samo przekroczenie nic nie mówi — wynik jak w zwykły dzień.</span>`;
+      const tipLo = `<b>Mocno spada: poniżej ${fmtPct(lo, 1)} w 30 dni</b><br>Przez ostatnie 2 lata dolar spadał szybciej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+        `<b>Po przekroczeniu w dół</b> (${cL.length} razy od 2019): ${crossTxt(cL, 'wyżej')}.<br><br><span class="mut">${usual} Samo przekroczenie nie pomagało altom — pomagał dopiero dłuższy spadek dolara. ${days}</span>`;
+      const zone = p == null ? '' : p >= 80 ? '<span class="dn">mocno rośnie</span>' : p <= 20 ? '<span class="up">mocno spada</span>' :
+        p >= 60 ? 'raczej rośnie' : p <= 40 ? 'raczej spada' : 'bez wyraźnego ruchu';
+      out.push(stat('Dolar (DXY) — tło makro', `<span class="${cls(-v)}">${fmtPct(v, 1)}</span><small>w 30 dni · DXY ${dx[dx.length - 1][1].toFixed(1)}</small>`,
+        bar(w2[0], w2[w2.length - 1], v, [{v: lo, short: fmtPct(lo, 1), c: '#4caf7d', tip: tipLo}, {v: 0, short: '0', c: '#888', label: 'bez zmian'},
+          {v: hi, short: fmtPct(hi, 1), c: '#e05252', tip: tipHi}], x => fmtPct(x, 1)) +
+        `Indeks dolara do koszyka walut, zmiana w 30 dni — teraz dolar ${zone}. Kreski: granice „mocno spada” i „mocno rośnie” z ostatnich 2 lat (najedź / dotknij po szczegóły). Słabszy dolar = tańszy pieniądz i więcej chęci do ryzyka. Pasek: zmiany 30-dniowe z ostatnich 2 lat.`,
+        `Po przekroczeniu kreski — alty 90 dni później:<br>` +
+        `• dolar w górę nad „mocno rośnie” (${cH.length}×): ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}<br>` +
+        `• dolar w dół pod „mocno spada” (${cL.length}×): ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}<br>` +
+        `• zwykły dzień: <b class="${cls(U.med)}">${fmtPct(U.med)}</b> (niżej w ${U.down}% dni)<br>` +
+        `<span style="color:var(--text2)">Samo przekroczenie nie jest sygnałem — wyniki jak w zwykły dzień albo gorsze. ${days} To wolne tło, nie moment wejścia.</span>`));
     }
   }
   // 7. sieci — skoki wolumenu DEX
