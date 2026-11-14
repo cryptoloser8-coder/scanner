@@ -441,7 +441,8 @@ function renderStats(W) {
       out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · ${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
         bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat'}, {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat'}], x => x.toFixed(2)) +
         `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego liczy się pozycja w ostatnich 2 latach, nie stała liczba.`,
-        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy Alty/BTC były w górnych 20% swoich 2 lat — ${grpTxt(grp.hi)}; w dolnych 20% — ${grpTxt(grp.lo)}; zwykle ${grpTxt(grp.all)}. Wolny wskaźnik tła — kierunek zgodny we wszystkich okresach od 2019, ale różnica niewielka; nie moment wejścia.` : ''));
+        grp.hi.length && grp.lo.length ? histList([['gdy Alty/BTC były w dolnych 20% z 2 lat', grp.lo], ['zwykle', grp.all], ['gdy Alty/BTC były w górnych 20% z 2 lat', grp.hi]],
+          'Wysoko na tle 2 lat → potem zwykle gorzej; różnica mała. Kierunek zgodny we wszystkich okresach od 2019 — tło, nie moment wejścia.') : ''));
     }
   }
   // 6b. Dolar (DXY) — zmiana 30 dni na tle 2 lat (badanie 14.11: spadający dolar = lepsze 90 dni dla altów we wszystkich okresach)
@@ -463,7 +464,8 @@ function renderStats(W) {
         bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat (dolar mocno spada)'}, {v: 0, short: '0', c: '#888', label: 'bez zmian'},
           {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat (dolar mocno rośnie)'}], x => fmtPct(x, 1)) +
         `Indeks dolara do koszyka walut, zmiana w 30 dni — teraz ${zone}. Słabszy dolar = tańszy pieniądz i więcej chęci do ryzyka. Pasek: zmiany 30-dniowe z ostatnich 2 lat (${dmy(t)}).`,
-        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy dolar mocno spadał (dolne 20% z 2 lat) — ${grpTxt(grp.lo)}; gdy mocno rósł (górne 20%) — ${grpTxt(grp.hi)}; zwykle ${grpTxt(grp.all)}. Kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła); wolne tło, nie moment wejścia.` : ''));
+        grp.hi.length && grp.lo.length ? histList([['gdy dolar mocno spadał (dolne 20% z 2 lat)', grp.lo], ['zwykle', grp.all], ['gdy dolar mocno rósł (górne 20%)', grp.hi]],
+          'Spadający dolar pomagał altom — kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła). Tło, nie moment wejścia.') : ''));
     }
   }
   // 7. sieci — skoki wolumenu DEX
@@ -629,7 +631,12 @@ function fwdGroups(ts, pct) {
   }
   return g;
 }
-const grpTxt = a => `mediana ${fmtPct(median(a))} (wyżej w ${Math.round(a.filter(x => x > 0).length / a.length * 100)}% dni)`;
+// „co bywało potem” — lista: sytuacja → typowa zmiana altów po 3 miesiącach + wniosek
+function histList(rows, concl) {
+  return 'Indeks altów 90 dni później (mediana):<br>' +
+    rows.map(([lab, a]) => `• ${lab}: <b class="${cls(median(a))}">${fmtPct(median(a))}</b> <span style="color:var(--text3)">(wyżej w ${Math.round(a.filter(x => x > 0).length / a.length * 100)}% dni)</span>`).join('<br>') +
+    `<br><span style="color:var(--text2)">${concl} Ujemne „zwykle”, bo indeks = przeciętny alt, który z czasem traci — liczy się różnica.</span>`;
+}
 function stat(t, v, s, h) {
   return `<div class="stat"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${s}</div>${h ? `<div class="h">${h}</div>` : ''}</div>`;
 }
