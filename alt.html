@@ -72,7 +72,7 @@
   .cyc-legend.on{display:flex;}
   .cyc-legend span::before{content:'';display:inline-block;width:12px;height:10px;border-radius:2px;background:var(--c);opacity:.45;margin-right:5px;vertical-align:-1px;}
 
-  .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;}
   .stat{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
   .stat .t{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
   .stat .v{font-family:var(--mono);font-size:20px;font-weight:600;}
@@ -183,7 +183,7 @@
 
 <div class="panel">
   <h2>Tło — kontekst</h2>
-  <div class="desc">Informacje, które nie zapalają lampek: gdzie jesteśmy w fali, jak drogie są alty względem BTC i na której sieci jest ruch (liczone na bieżąco z historii — szacunek, nie prognoza).
+  <div class="desc">Informacje, które nie zapalają lampek: gdzie jesteśmy w fali, jak drogie są alty względem BTC, co robi dolar i na której sieci jest ruch (liczone na bieżąco z historii — szacunek, nie prognoza).
     „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie +40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej 200 dni.
     Usunięte po badaniu 14.11.2026 (nie dawały stałego sygnału): zmiana stablecoinów w 30 dni, RSI 1W, „potwierdzenie fali” (to samo pokazuje lampka „Duża fala” i tabela fal).</div>
   <div class="stats" id="stats"></div>
@@ -434,28 +434,36 @@ function renderStats(W) {
     const ab = pts(D1, 'alts_vs_btc');
     if (ab.length > 800) {
       const ts = ab.map(p => p[0]), vs = ab.map(p => p[1]), n = ab.length;
-      const pct = new Array(n).fill(null);
-      for (let i = 0, j = 0; i < n; i++) {            // percentyl wartości w oknie 730 dni (bez przyszłości)
-        while (ts[j] < ts[i] - 730 * DAY) j++;
-        if (i - j < 500) continue;
-        let le = 0; for (let q = j; q <= i; q++) if (vs[q] <= vs[i]) le++;
-        pct[i] = le / (i - j + 1) * 100;
-      }
-      const fwd = t => { const i = idxAt(t), j = lastLE(T, t + 90 * DAY); return i < 0 || T[j] - t < 89 * DAY ? null : (Math.exp(X[j] - X[i]) - 1) * 100; };
-      const grp = {hi: [], lo: [], all: []};
-      for (let i = 0; i < n; i++) {
-        if (pct[i] == null) continue;
-        const f = fwd(ts[i]); if (f == null) continue;
-        grp.all.push(f); if (pct[i] >= 80) grp.hi.push(f); if (pct[i] <= 20) grp.lo.push(f);
-      }
+      const pct = rollPct(ts, vs, 500), grp = fwdGroups(ts, pct);
       const v = vs[n - 1], t = ts[n - 1], p = pct[n - 1];
       const w2 = vs.filter((x, i) => ts[i] >= t - 730 * DAY).sort((a, b) => a - b), q = f => w2[Math.min(w2.length - 1, Math.floor(f * w2.length))];
-      const up = a => a.length ? Math.round(a.filter(x => x > 0).length / a.length * 100) : null;
       const zone = p == null ? '' : p >= 80 ? ' — <span class="dn">wysoko</span>' : p <= 20 ? ' — <span class="up">nisko</span>' : ' — środek';
       out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · ${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
         bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat'}, {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat'}], x => x.toFixed(2)) +
         `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego liczy się pozycja w ostatnich 2 latach, nie stała liczba.`,
-        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy Alty/BTC były w górnych 20% swoich 2 lat — mediana ${fmtPct(median(grp.hi))} (wyżej w ${up(grp.hi)}% dni); w dolnych 20% — ${fmtPct(median(grp.lo))} (wyżej w ${up(grp.lo)}%); zwykle ${fmtPct(median(grp.all))}. Wolny wskaźnik tła — kierunek zgodny we wszystkich okresach od 2019, ale różnica niewielka; nie moment wejścia.` : ''));
+        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy Alty/BTC były w górnych 20% swoich 2 lat — ${grpTxt(grp.hi)}; w dolnych 20% — ${grpTxt(grp.lo)}; zwykle ${grpTxt(grp.all)}. Wolny wskaźnik tła — kierunek zgodny we wszystkich okresach od 2019, ale różnica niewielka; nie moment wejścia.` : ''));
+    }
+  }
+  // 6b. Dolar (DXY) — zmiana 30 dni na tle 2 lat (badanie 14.11: spadający dolar = lepsze 90 dni dla altów we wszystkich okresach)
+  {
+    const dx = pts(D1, 'dxy');
+    if (dx.length > 600) {
+      const dts = dx.map(p => p[0]), ts = [], vs = [];
+      for (let i = 0; i < dx.length; i++) {
+        const j = lastLE(dts, dts[i] - 30 * DAY);
+        if (j < 0 || dts[i] - dts[j] > 34 * DAY) continue;
+        ts.push(dts[i]); vs.push((dx[i][1] / dx[j][1] - 1) * 100);
+      }
+      const pct = rollPct(ts, vs, 300), grp = fwdGroups(ts, pct), n = ts.length;
+      const v = vs[n - 1], t = ts[n - 1], p = pct[n - 1];
+      const w2 = vs.filter((x, i) => ts[i] >= t - 730 * DAY).sort((a, b) => a - b), q = f => w2[Math.min(w2.length - 1, Math.floor(f * w2.length))];
+      const zone = p == null ? '' : p >= 80 ? '<span class="dn">dolar mocno rośnie</span> — tło dla altów niekorzystne' :
+        p <= 20 ? '<span class="up">dolar mocno spada</span> — tło dla altów korzystne' : p >= 60 ? 'dolar raczej rośnie' : p <= 40 ? 'dolar raczej spada' : 'dolar bez wyraźnego ruchu';
+      out.push(stat('Dolar (DXY) — tło makro', `<span class="${cls(-v)}">${fmtPct(v, 1)}</span><small>w 30 dni · ${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · DXY ${dx[dx.length - 1][1].toFixed(1)}</small>`,
+        bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat (dolar mocno spada)'}, {v: 0, short: '0', c: '#888', label: 'bez zmian'},
+          {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat (dolar mocno rośnie)'}], x => fmtPct(x, 1)) +
+        `Indeks dolara do koszyka walut, zmiana w 30 dni — teraz ${zone}. Słabszy dolar = tańszy pieniądz i więcej chęci do ryzyka. Pasek: zmiany 30-dniowe z ostatnich 2 lat (${dmy(t)}).`,
+        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy dolar mocno spadał (dolne 20% z 2 lat) — ${grpTxt(grp.lo)}; gdy mocno rósł (górne 20%) — ${grpTxt(grp.hi)}; zwykle ${grpTxt(grp.all)}. Kierunek zgodny we wszystkich okresach od 2019 (najbardziej stały wynik tła); wolne tło, nie moment wejścia.` : ''));
     }
   }
   // 7. sieci — skoki wolumenu DEX
@@ -530,7 +538,7 @@ function renderLamps() {
   const A = META.alt_lamps, box = document.getElementById('lamps'), top = document.getElementById('lamps-top');
   if (!A || !A.lamps) {
     top.innerHTML = '';
-    box.innerHTML = '<div class="desc">Lampki liczy bot GitHuba przy każdym skanie (co ~45 min) — pojawią się po najbliższym skanie po wgraniu poprawki 70.</div>';
+    box.innerHTML = '<div class="desc">Lampki liczy bot GitHuba przy każdym skanie (co 2 godziny, o :15 czasu polskiego) — pojawią się po najbliższym skanie po wgraniu poprawki 70.</div>';
     return;
   }
   const c = A.cfg, tNow = Date.now() / 1000, L = A.lamps;
@@ -598,6 +606,30 @@ function lampCard(k, x, c, tNow) {
     `<div class="chips" title="Co działo się z altami 30 dni po wcześniejszych zapaleniach (historia, nie prognoza)">${chips}</div>` +
     `<button type="button" class="more" data-k="${k}">Więcej — warunek i zapalenia (${eps.length}) ▾</button></div>`;
 }
+// percentyl wartości w oknie 730 dni (bez przyszłości); null, gdy w oknie < minN punktów
+function rollPct(ts, vs, minN) {
+  const n = ts.length, pct = new Array(n).fill(null);
+  for (let i = 0, j = 0; i < n; i++) {
+    while (ts[j] < ts[i] - 730 * DAY) j++;
+    if (i - j < minN) continue;
+    let le = 0; for (let q = j; q <= i; q++) if (vs[q] <= vs[i]) le++;
+    pct[i] = le / (i - j + 1) * 100;
+  }
+  return pct;
+}
+// zmiana indeksu altów 90 dni po dniach z percentylem ≥ 80 (hi), ≤ 20 (lo) i wszystkich (all)
+function fwdGroups(ts, pct) {
+  const g = {hi: [], lo: [], all: []};
+  for (let i = 0; i < ts.length; i++) {
+    if (pct[i] == null) continue;
+    const a = idxAt(ts[i]), j = lastLE(T, ts[i] + 90 * DAY);
+    if (a < 0 || T[j] - ts[i] < 89 * DAY) continue;
+    const f = (Math.exp(X[j] - X[a]) - 1) * 100;
+    g.all.push(f); if (pct[i] >= 80) g.hi.push(f); if (pct[i] <= 20) g.lo.push(f);
+  }
+  return g;
+}
+const grpTxt = a => `mediana ${fmtPct(median(a))} (wyżej w ${Math.round(a.filter(x => x > 0).length / a.length * 100)}% dni)`;
 function stat(t, v, s, h) {
   return `<div class="stat"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${s}</div>${h ? `<div class="h">${h}</div>` : ''}</div>`;
 }
