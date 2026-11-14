@@ -232,17 +232,6 @@ class FakeSession:
         return self.handler(url, params or {})
 
 
-def test_probe_bitmex_and_errors():
-    def h(url, p):
-        if p["symbol"] == "ETHUSD":
-            return FakeResp(403, text="forbidden")
-        ts = "2016-05-14T12:00:00.000Z" if p["reverse"] == "false" else "2026-11-01T04:00:00.000Z"
-        return FakeResp(js=[{"timestamp": ts, "fundingRate": 0.0001, "fundingInterval": "2000-01-01T08:00"}])
-    rows = probe.check_bitmex(session=FakeSession(h))
-    assert rows[0]["first"] == "2016-05-14" and rows[0]["last"] == "2026-11-01"
-    assert rows[1]["status"] == "błąd" and "403" in rows[1]["note"]
-
-
 def test_probe_vision_listing_paged():
     pages = {
         None: "<ListBucketResult><IsTruncated>true</IsTruncated>"
@@ -261,9 +250,9 @@ def test_probe_vision_listing_paged():
 def test_probe_run_isolates_failing_source_and_markdown(tmp_path):
     def bad():
         raise RuntimeError("nie działa")
-    res = probe.run("pi", only=["bitmex", "binance"],
-                    funcs={"bitmex": lambda: [probe.row("bitmex", "x", first=1_500_000_000)], "binance": bad})
+    res = probe.run("pi", only=["coinmetrics", "binance"],
+                    funcs={"coinmetrics": lambda: [probe.row("coinmetrics", "x", first=1_500_000_000)], "binance": bad})
     assert res["rows"][0]["first"] == "2017-07-14" and res["rows"][1]["status"] == "błąd"
     probe.save(res, str(tmp_path))
     md = (tmp_path / "probe.md").read_text()
-    assert "| bitmex | x | ok | 2017-07-14 |" in md and "nie działa" in md
+    assert "| coinmetrics | x | ok | 2017-07-14 |" in md and "nie działa" in md
