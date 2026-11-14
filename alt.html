@@ -128,6 +128,11 @@
   .lamp.on .stt{color:var(--text);font-weight:500;}
   .lamp .mean{font-size:12px;color:var(--text);line-height:1.45;}
   .lamp:not(.on) .mean{color:var(--text2);}
+  .lamp .now{font-size:11px;color:var(--text2);line-height:1.5;}
+  .lamp .now b{font-family:var(--mono);color:var(--text);font-weight:600;}
+  .lamp .where{font-size:10px;color:var(--text3);line-height:1.5;}
+  .lamp .where a{color:var(--blue);text-decoration:none;}
+  .lamp .where a:hover{text-decoration:underline;}
   .lamp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto;}
   .lamp .chip{font-size:10px;font-family:var(--mono);color:var(--text2);background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:2px 6px;white-space:nowrap;}
   .lamp .chip b{color:var(--text);font-weight:600;}
@@ -177,13 +182,14 @@
 </div>
 
 <div class="panel">
-  <h2>Tło — stan teraz</h2>
-  <div class="desc">Fakty z danych i to, co działo się w podobnych chwilach w przeszłości (liczone na bieżąco z historii — szacunek, nie prognoza).
-    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie 40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej w 200 dni (fale dłuższe niż 60 dni oznaczamy jako „rajd”).</div>
+  <h2>Tło — kontekst</h2>
+  <div class="desc">Informacje, które nie zapalają lampek: gdzie jesteśmy w fali, jak drogie są alty względem BTC i na której sieci jest ruch (liczone na bieżąco z historii — szacunek, nie prognoza).
+    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie +40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej 200 dni.
+    Usunięte po badaniu 14.11.2026 (nie dawały stałego sygnału): zmiana stablecoinów w 30 dni, RSI 1W, „potwierdzenie fali” (to samo pokazuje lampka „Duża fala” i tabela fal).</div>
   <div class="stats" id="stats"></div>
 </div>
 
-<div class="panel">
+<div class="panel" id="chart-panel">
   <div class="controls">
     <div class="ctrl-group"><span class="ctrl-label">Fala od</span>
       <div class="pills" id="th-pills">
@@ -423,56 +429,33 @@ function renderStats(W) {
     }
     out.push(stat('Fala altów (indeks altów)', v, s, h));
   }
-  // 1b. potwierdzenie fali (ciekawostka)
-  {
-    const done = W.waves.filter(w => w.left != null), live = W.live;
-    if (done.length) {
-      const med = median(done.map(w => w.left)), days = median(done.map(w => w.toTop));
-      const ge10 = done.filter(w => w.left >= 10).length, quick = done.filter(w => w.toTop <= 7).length;
-      const ends = W.waves.filter(w => w.endDrop != null), endDrop = median(ends.map(w => w.endDrop)), endDays = median(ends.map(w => w.endDays));
-      const net = W.waves.filter(w => w.fromConf != null), netPos = net.filter(w => w.fromConf > 0).length;
-      out.push(stat('Potwierdzenie fali — ciekawostka',
-        `${fmtPct(med)}<small>mediana: ile fala dała po potwierdzeniu · ${Math.round(days)} dni do szczytu</small>`,
-        `Dołek fali widać dopiero z perspektywy czasu. Na bieżąco falę „potwierdza” dzień, w którym indeks altów jest już +${S.th}% nad dołkiem (niebieski kwadrat na wykresie). ` +
-        `Po potwierdzeniu ${ge10} z ${done.length} fal dało jeszcze co najmniej +10%, a ${quick} skończyło się w ciągu 7 dni.` +
-        (live && live.tc ? ` Obecna fala potwierdzona ${dmy(live.tc)} — od tego dnia ${fmtPct((Math.exp(X[X.length - 1] - X[lastLE(T, live.tc)]) - 1) * 100)}.` : ''),
-        ends.length ? `Koniec fali potwierdza spadek o ${fmtPct(dropPct(), 1).slice(1)} od szczytu (odwrotność +${S.th}%) — zwykle ${Math.round(endDays)} dni po szczycie (indeks ${fmtPct(endDrop)} od szczytu). ` +
-          `Kupno w dniu potwierdzenia i sprzedaż w dniu potwierdzenia końca dawały zysk w ${netPos} z ${net.length} fal (mediana ${fmtPct(median(net.map(w => w.fromConf)))}).` : ''));
-    }
-  }
-  // 3. stablecoiny
-  {
-    const sm = pts(D1, 'stable_mcap');
-    if (sm.length) {
-      const t = sm[sm.length - 1][0], c30 = chgAt(sm, t, 30);
-      const hist = [];
-      for (let k = 0; k < sm.length; k += 7) { const c = chgAt(sm, sm[k][0], 30); if (c != null && sm[k][0] >= t - 730 * DAY) hist.push(c); }
-      out.push(stat('Stablecoiny — zmiana w 30 dni', `<span class="${cls(c30)}">${fmtPct(c30, 1)}</span><small>${fmtUsd(sm[sm.length - 1][1])}</small>`,
-        (hist.length ? bar(Math.min(...hist, c30), Math.max(...hist, c30), c30, [{v: 0, short: '0', c: '#888', label: 'bez zmian'}], x => fmtPct(x, 0)) : '') +
-        'Kapitalizacja stablecoinów (TOTAL − TOTALES): rośnie = do krypto wpływają pieniądze, spada = wypływają. Pasek: ostatnie 2 lata.',
-        'Tło. Badanie 14.11.2026: sama zmiana stablecoinów w 30 dni nie mówiła nic stałego o kolejnych falach altów (w 2019–21 działała w jedną stronę, od 2024 w drugą).'));
-    }
-  }
-  // 5. RSI 1W
-  {
-    const r = EMA && EMA.rsi, w = r && r.w || [];
-    if (w.length) {
-      const now = (r.now || {}).w || [], lo = now[0] ?? w[w.length - 1][1], hi = now[1] ?? w[w.length - 1][2];
-      const mxLo = w.reduce((a, p) => p[1] > a[1] ? [p[0], p[1]] : a, [0, -1]), mxHi = w.reduce((a, p) => p[2] > a[1] ? [p[0], p[2]] : a, [0, -1]);
-      out.push(stat('RSI 1W — skrajności', `<span class="up">${lo.toFixed(0)}%</span> / <span class="dn">${hi.toFixed(0)}%</span><small>wyprzedane / wykupione</small>`,
-        `Jaki % coinów ma RSI(14) na świecy tygodniowej poniżej ${r.low} (wyprzedane) i powyżej ${r.high} (wykupione). Rekordy: wyprzedane ${mxLo[1].toFixed(0)}% (${my(mxLo[0])}), wykupione ${mxHi[1].toFixed(0)}% (${my(mxHi[0])}).`,
-        'Duży odsetek wyprzedanych to głęboka wyprzedaż, ale historycznie nie zapowiadał fali w najbliższym miesiącu; dużo wykupionych = rynek rozgrzany (do sprzedaży lepsza lampka RSI 3D).'));
-    }
-  }
-  // 6. Alty / BTC
+  // 6. Alty / BTC — pozycja na tle 2 lat (poziom się przesuwa: szczyty cykli coraz niżej → percentyl kroczący, badanie 14.11)
   {
     const ab = pts(D1, 'alts_vs_btc');
-    if (ab.length) {
-      const v = ab[ab.length - 1][1], t = ab[ab.length - 1][0], last2 = ab.filter(p => p[0] >= t - 730 * DAY).map(p => p[1]);
-      out.push(stat('Alty / BTC', `${v.toFixed(3)}<small>${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
-        bar(Math.min(...last2), Math.max(...last2), v, [], x => x.toFixed(2)) +
-        'Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ kapitalizacja BTC. Pasek: ostatnie 2 lata.',
-        `Szczyty cykli: ${topsOf(ab, 0.3, 365).slice(-4).map(x => `${x[1].toFixed(2)} (${my(x[0])})`).join(' → ')}.`));
+    if (ab.length > 800) {
+      const ts = ab.map(p => p[0]), vs = ab.map(p => p[1]), n = ab.length;
+      const pct = new Array(n).fill(null);
+      for (let i = 0, j = 0; i < n; i++) {            // percentyl wartości w oknie 730 dni (bez przyszłości)
+        while (ts[j] < ts[i] - 730 * DAY) j++;
+        if (i - j < 500) continue;
+        let le = 0; for (let q = j; q <= i; q++) if (vs[q] <= vs[i]) le++;
+        pct[i] = le / (i - j + 1) * 100;
+      }
+      const fwd = t => { const i = idxAt(t), j = lastLE(T, t + 90 * DAY); return i < 0 || T[j] - t < 89 * DAY ? null : (Math.exp(X[j] - X[i]) - 1) * 100; };
+      const grp = {hi: [], lo: [], all: []};
+      for (let i = 0; i < n; i++) {
+        if (pct[i] == null) continue;
+        const f = fwd(ts[i]); if (f == null) continue;
+        grp.all.push(f); if (pct[i] >= 80) grp.hi.push(f); if (pct[i] <= 20) grp.lo.push(f);
+      }
+      const v = vs[n - 1], t = ts[n - 1], p = pct[n - 1];
+      const w2 = vs.filter((x, i) => ts[i] >= t - 730 * DAY).sort((a, b) => a - b), q = f => w2[Math.min(w2.length - 1, Math.floor(f * w2.length))];
+      const up = a => a.length ? Math.round(a.filter(x => x > 0).length / a.length * 100) : null;
+      const zone = p == null ? '' : p >= 80 ? ' — <span class="dn">wysoko</span>' : p <= 20 ? ' — <span class="up">nisko</span>' : ' — środek';
+      out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${p == null ? '' : Math.round(p) + '. percentyl 2 lat'} · ${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
+        bar(w2[0], w2[w2.length - 1], v, [{v: q(0.2), short: '20%', c: '#4caf7d', label: 'dolne 20% z 2 lat'}, {v: q(0.8), short: '80%', c: '#e05252', label: 'górne 20% z 2 lat'}], x => x.toFixed(2)) +
+        `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego liczy się pozycja w ostatnich 2 latach, nie stała liczba.`,
+        grp.hi.length && grp.lo.length ? `Indeks altów 90 dni później: gdy Alty/BTC były w górnych 20% swoich 2 lat — mediana ${fmtPct(median(grp.hi))} (wyżej w ${up(grp.hi)}% dni); w dolnych 20% — ${fmtPct(median(grp.lo))} (wyżej w ${up(grp.lo)}%); zwykle ${fmtPct(median(grp.all))}. Wolny wskaźnik tła — kierunek zgodny we wszystkich okresach od 2019, ale różnica niewielka; nie moment wejścia.` : ''));
     }
   }
   // 7. sieci — skoki wolumenu DEX
@@ -519,6 +502,28 @@ const LAMP_UI = {
     cond: c => `Indeks altów ≤ −${c.selloff.alt_drop_pct}% w ${c.selloff.days} dni i (BTC tani: MVRV-Z ≤ ${num(c.selloff.mvrvz_max, 1)} albo BTC ≤ −${c.selloff.btc_drop_pct}% w ${c.selloff.days} dni).`,
     mean: () => 'Wyprzedaż altów przy tanim BTC. Opis, nie sygnał kupna — zwykle spadały dalej.'},
 };
+// wartości teraz vs progi + gdzie zobaczyć samemu
+const OK = (b, txt) => `<b style="color:${b ? 'var(--c)' : 'var(--text)'}">${txt}</b>`;
+const GO = (id, txt) => `<a href="#" data-goto="${id}">${txt}</a>`;
+const TAB = (href, txt) => `<a href="${href}" target="_blank" rel="noopener">${txt} ↗</a>`;
+const LAMP_NOW = {
+  rally: (x, c) => `Teraz ${OK(x.value >= c.rally.levels[0], num(x.value, 0) + '%')} coinów nad EMA200 · próg ${c.rally.levels.join(' / ')}%`,
+  big_wave: (x, c) => `Teraz ${OK(x.on, fmtPct(x.value))} nad dołkiem${x.low_t ? ' ' + dmy(x.low_t) : ''} · próg +${c.big_wave.wave_pct}%`,
+  leverage: (x, c) => `Teraz ${OK(x.value >= c.leverage.levels[0], num(x.value, 3) + '×')} · progi ${c.leverage.levels.map(v => num(v, 2)).join(' / ')}`,
+  rsi3d: (x, c) => `Teraz ${OK(x.value >= c.rsi3d.overbought_pct, num(x.value, 1) + '%')} coinów wykupionych · próg ${c.rsi3d.overbought_pct}%`,
+  selloff: (x, c) => {
+    const so = c.selloff, cheap = x.mvrvz != null && x.mvrvz <= so.mvrvz_max, fell = x.btc_chg != null && x.btc_chg <= -so.btc_drop_pct;
+    return `Alty ${OK(x.value <= -so.alt_drop_pct, fmtPct(x.value))} w ${so.days} d (próg −${so.alt_drop_pct}%) · ` +
+      `MVRV-Z ${OK(cheap, num(x.mvrvz, 2))} (≤ ${num(so.mvrvz_max, 1)}) lub BTC ${OK(fell, fmtPct(x.btc_chg))} (−${so.btc_drop_pct}%)`;
+  },
+};
+const LAMP_WHERE = {
+  rally: () => TAB('ema.html#v=breadth&i=1d&z=1095', 'EMA200 → szerokość rynku'),
+  big_wave: () => GO('chart-panel', 'wykres niżej (różowa linia, fala +40%)') + ' · ' + GO('wave-tbl', 'tabela fal'),
+  leverage: () => GO('chart-panel', 'wykres niżej (środkowy panel)') + ' · ' + TAB('oi.html#s=oi_others_vs_btc&m=val&r=1d&z=1095', 'OI & TOTAL'),
+  rsi3d: () => TAB('ema.html#v=rsi3', 'EMA200 → RSI 3D'),
+  selloff: () => GO('chart-panel', 'indeks altów niżej') + ' · ' + TAB('oi.html#s=px_btc,mvrvz_btc&m=val&r=1d&z=1095&log=1', 'BTC + MVRV-Z'),
+};
 const lampColor = (k, lv) => k === 'leverage' && lv >= 2 ? LAMP_UI.leverage.color2 : LAMP_UI[k].color;
 const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Duża fala w toku', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
 function renderLamps() {
@@ -554,7 +559,8 @@ function showLampDetail(k) {
   el.innerHTML = `<h4><span>${LAMP_NAMES[k]}</span><button type="button" data-close="1">zamknij ✕</button></h4>${d.html}`;
 }
 document.getElementById('lamps').addEventListener('click', e => {
-  const b = e.target.closest('.more'), x = e.target.closest('[data-close]');
+  const b = e.target.closest('.more'), x = e.target.closest('[data-close]'), g = e.target.closest('[data-goto]');
+  if (g) { e.preventDefault(); const el = document.getElementById(g.dataset.goto); if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
   if (x) showLampDetail(null);
   else if (b) showLampDetail(LAMP_OPEN === b.dataset.k ? null : b.dataset.k);
 });
@@ -566,7 +572,6 @@ function lampCard(k, x, c, tNow) {
   else if (!x.fresh) st = `brak świeżych danych (ostatnie z ${dmy(x.value_t)})`;
   else if (x.since) st = `przygasła · świeciła od ${dmy(x.since)}`;
   else { const e = (x.episodes || []).slice(-1)[0]; st = e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'; }
-  if (k === 'big_wave' && !x.on && x.low_t && x.value != null) st += ` · ${fmtPct(x.value)} nad dołkiem ${dmy(x.low_t)}`;
   const klass = x.on ? 'on' : (x.since ? 'dim' : '');
   const word = x.want_up ? 'wyżej' : 'niżej';
   const chips = (x.stats || []).map((s, i) => {
@@ -589,6 +594,7 @@ function lampCard(k, x, c, tNow) {
     (x.on ? '<span class="badge">ŚWIECI</span>' : '') +
     `<span class="val" title="${esc(ui.unit)} · dane z ${dmy(x.value_t)}">${v}</span></div>` +
     `<div class="stt">${st}</div><div class="mean">${ui.mean(c, lv || x.max_level || 1)}</div>` +
+    (x.value == null ? '' : `<div class="now">${LAMP_NOW[k](x, c)}</div>`) + `<div class="where">Sprawdź: ${LAMP_WHERE[k]()}</div>` +
     `<div class="chips" title="Co działo się z altami 30 dni po wcześniejszych zapaleniach (historia, nie prognoza)">${chips}</div>` +
     `<button type="button" class="more" data-k="${k}">Więcej — warunek i zapalenia (${eps.length}) ▾</button></div>`;
 }
