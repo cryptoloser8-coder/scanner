@@ -116,28 +116,30 @@
   .lcards{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;flex:1;}
   .lamp{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0;
     transition:box-shadow .3s,border-color .3s;}
-  .lamp.on{border-color:color-mix(in srgb,var(--c) 70%,transparent);
-    background:radial-gradient(130% 90% at 0% 0%,color-mix(in srgb,var(--c) 20%,transparent),transparent 62%),
-      linear-gradient(180deg,color-mix(in srgb,var(--c) 6%,var(--bg)),var(--bg));
-    box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 35%,transparent),0 0 22px -4px color-mix(in srgb,var(--c) 55%,transparent),
-      inset 0 0 28px -14px color-mix(in srgb,var(--c) 70%,transparent);
-    animation:lampglow 3.2s ease-in-out infinite;}
-  .lamp.on::before{content:'';position:absolute;left:12px;right:12px;top:-1px;height:2px;border-radius:2px;
-    background:linear-gradient(90deg,transparent,var(--c),transparent);}
-  @keyframes lampglow{50%{box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 55%,transparent),0 0 34px -2px color-mix(in srgb,var(--c) 70%,transparent),
-      inset 0 0 34px -12px color-mix(in srgb,var(--c) 80%,transparent);}}
-  @media (prefers-reduced-motion:reduce){.lamp.on{animation:none;}}
-  .lamp.dim{border-color:color-mix(in srgb,var(--c) 35%,var(--border));background:linear-gradient(180deg,color-mix(in srgb,var(--c) 4%,var(--bg)),var(--bg));}
+  /* zapalona lampka: miga w kolorze grupy (poprawka 73) */
+  .lamp{padding-top:0;overflow:hidden;}
+  .lamp .belt{margin:0 -12px 2px;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);
+    background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);line-height:1.45;}
+  .lamp .belt i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#111;margin-right:6px;vertical-align:0;}
+  .lamp.on{border:2px solid var(--c);background:color-mix(in srgb,var(--c) 12%,var(--bg));animation:lampglow 1.6s ease-in-out infinite;}
+  .lamp.on .belt{background:var(--c);color:#111;border-bottom-color:var(--c);animation:lampbelt 1.6s steps(1,end) infinite;}
+  @keyframes lampglow{0%,100%{box-shadow:0 0 0 0 transparent,0 0 6px -2px var(--c);}50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 30%,transparent),0 0 38px 4px var(--c);}}
+  @keyframes lampbelt{0%{filter:brightness(1.15);}50%{filter:brightness(.55);}}
+  .lamp:not(.on){opacity:.55;filter:grayscale(1);transition:opacity .2s,filter .2s;}
+  .lamp:not(.on):hover{opacity:1;filter:none;}
+  .lamp.dim{opacity:.75;filter:grayscale(.6);}
+  .lamp.dim .belt{color:color-mix(in srgb,var(--c) 75%,#fff);background:color-mix(in srgb,var(--c) 12%,transparent);}
+  /* dwie lampki w grupie naraz → miga całe pudełko grupy */
+  .lgroup.alarm{animation:groupglow 1.6s ease-in-out infinite;}
+  @keyframes groupglow{0%,100%{box-shadow:0 0 0 0 transparent;border-color:color-mix(in srgb,var(--g) 30%,var(--border));}
+    50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--g) 35%,transparent),0 0 44px 6px color-mix(in srgb,var(--g) 55%,transparent);border-color:var(--g);}}
+  .lgroup .both{font-size:10px;font-weight:700;letter-spacing:.07em;color:#111;background:var(--g);border-radius:20px;padding:2px 8px;animation:lampbelt 1.6s steps(1,end) infinite;}
+  @media (prefers-reduced-motion:reduce){.lamp.on,.lamp.on .belt,.lgroup.alarm,.lgroup .both{animation:none;}}
   .lamp .hd{display:flex;align-items:center;gap:7px;min-width:0;}
-  .lamp .dot{width:9px;height:9px;border-radius:50%;background:#333;flex:none;}
-  .lamp.on .dot{background:var(--c);box-shadow:0 0 6px var(--c);}
-  .lamp.dim .dot{background:color-mix(in srgb,var(--c) 45%,#222);}
   .lamp .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .lamp .badge{font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 6px;border-radius:20px;color:#111;background:var(--c);flex:none;}
   .lamp .val{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--text);margin-left:auto;flex:none;}
+  .lamp.on .val{color:var(--c);}
   .lamp:not(.on) .val{color:var(--text2);}
-  .lamp .stt{font-size:11px;color:var(--text2);}
-  .lamp.on .stt{color:var(--text);font-weight:500;}
   .lamp .mean{font-size:12px;color:var(--text);line-height:1.45;}
   .lamp:not(.on) .mean{color:var(--text2);}
   .lamp .now{font-size:11px;color:var(--text2);line-height:1.5;}
@@ -510,7 +512,7 @@ function renderStats(W) {
 const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
 const LAMP_GROUPS = [   // [grupa, nazwa, ikona, kolor, czego to sygnał]
   ['rajd', 'Rajd', '▲', '#4caf7d', 'sygnał: <b>trzymaj</b> — alty rosną szeroko'],
-  ['przegrzanie', 'Przegrzanie', '⚠', '#ff7043', 'sygnał: <b>sprzedawaj w częściach</b>'],
+  ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'sygnał: <b>sprzedawaj w częściach</b>'],
   ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: <b>rynek zjeżdża</b> — nie sygnał kupna'],
 ];
 const num = (v, d) => v == null ? '—' : v.toFixed(d).replace('.', ',');
@@ -558,7 +560,8 @@ const LAMP_WHERE = {
   rsi3d: () => TAB('ema.html#v=rsi3', 'EMA200 → RSI 3D'),
   selloff: () => GO('chart-panel', 'indeks altów niżej') + ' · ' + TAB('oi.html#s=px_btc,mvrvz_btc&m=val&r=1d&z=1095&log=1', 'BTC + MVRV-Z'),
 };
-const lampColor = (k, lv) => k === 'leverage' && lv >= 2 ? LAMP_UI.leverage.color2 : LAMP_UI[k].color;
+const lampColor = (k, lv) => k === 'leverage' && lv >= 2 ? LAMP_UI.leverage.color2 : LAMP_UI[k].color;   // pasek pod wykresem
+const groupColor = g => (LAMP_GROUPS.find(x => x[0] === g) || [])[3] || '#888';                         // karty lampek — kolor grupy
 const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Duża fala w toku', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
 function renderLamps() {
   const A = META.alt_lamps, box = document.getElementById('lamps'), top = document.getElementById('lamps-top');
@@ -570,12 +573,14 @@ function renderLamps() {
   const c = A.cfg, tNow = Date.now() / 1000, L = A.lamps;
   const lit = LAMP_ORDER.filter(k => L[k] && L[k].on);
   const when = new Date(A.updated * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
-  top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${lampColor(k, L[k].level)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
+  top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${groupColor(L[k].group)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
     : 'Żadna lampka nie świeci.') + ` <span style="color:var(--text3)">Stan z ${when}.</span>`;
   box.innerHTML = '<div class="lgrid">' + LAMP_GROUPS.map(([g, title, icon, gcol, sub]) => {
     const ks = LAMP_ORDER.filter(k => L[k] && L[k].group === g);
     if (!ks.length) return '';
-    return `<div class="lgroup" style="--g:${gcol}"><h3><span class="gt">${icon} ${title}</span><span class="gs">${sub}</span></h3><div class="lcards" style="--n:${ks.length}">` +
+    const nOn = ks.filter(k => L[k].on).length, alarm = ks.length > 1 && nOn >= 2;
+    return `<div class="lgroup${alarm ? ' alarm' : ''}" style="--g:${gcol}"><h3><span class="gt">${icon} ${title}</span><span class="gs">${sub}</span>` +
+      (alarm ? `<span class="both">ŚWIECĄ ${nOn === ks.length && nOn === 2 ? 'OBIE' : nOn}</span>` : '') + `</h3><div class="lcards" style="--n:${ks.length}">` +
       ks.map(k => lampCard(k, L[k], c, tNow)).join('') + '</div></div>';
   }).join('') + '</div><div class="lamp-detail" id="lamp-detail"></div>';
   if (LAMP_OPEN && L[LAMP_OPEN]) showLampDetail(LAMP_OPEN);
@@ -600,12 +605,12 @@ document.getElementById('lamps').addEventListener('click', e => {
 });
 function lampCard(k, x, c, tNow) {
   const ui = LAMP_UI[k], lv = x.level || 0, names = ui.lvl(c);
-  const col = lampColor(k, lv || x.max_level || 1);
+  const col = groupColor(x.group);
   let st;
-  if (x.on) st = `od ${dmy(x.since)} · ${Math.max(1, Math.round((tNow - x.since) / DAY) + 1)} dni` + (names.length > 1 ? ` · ${names[lv - 1]}` : '');
-  else if (!x.fresh) st = `brak świeżych danych (ostatnie z ${dmy(x.value_t)})`;
-  else if (x.since) st = `przygasła · świeciła od ${dmy(x.since)}`;
-  else { const e = (x.episodes || []).slice(-1)[0]; st = e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'; }
+  if (x.on) st = `<i></i>Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.round((tNow - x.since) / DAY) + 1)} dni` + (names.length > 1 ? ` · ${names[lv - 1]}` : '');
+  else if (!x.fresh) st = `Brak świeżych danych · ostatnie z ${dmy(x.value_t)}`;
+  else if (x.since) st = `Przygasła · świeciła od ${dmy(x.since)}, ostatnio ${dmy(x.last_true)}`;
+  else { const e = (x.episodes || []).slice(-1)[0]; st = 'Nie świeci · ' + (e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'); }
   const klass = x.on ? 'on' : (x.since ? 'dim' : '');
   const word = x.want_up ? 'wyżej' : 'niżej';
   const chips = (x.stats || []).map((s, i) => {
@@ -624,10 +629,9 @@ function lampCard(k, x, c, tNow) {
     '</tbody></table></div>' : '';
   LAMP_DETAIL[k] = {col, html: `<p>Warunek: ${ui.cond(c)}</p><p>${hist} Historia, nie prognoza.</p>${tbl}`};
   const v = x.value == null ? '—' : ui.fmt(x.value);
-  return `<div class="lamp ${klass}" style="--c:${col}"><div class="hd"><span class="dot"></span><span class="nm">${LAMP_NAMES[k]}</span>` +
-    (x.on ? '<span class="badge">ŚWIECI</span>' : '') +
+  return `<div class="lamp ${klass}" style="--c:${col}"><div class="belt" title="${esc(st.replace(/<[^>]+>/g, ''))}">${st}</div><div class="hd"><span class="nm">${LAMP_NAMES[k]}</span>` +
     `<span class="val" title="${esc(ui.unit)} · dane z ${dmy(x.value_t)}">${v}</span></div>` +
-    `<div class="stt">${st}</div><div class="mean">${ui.mean(c, lv || x.max_level || 1)}</div>` +
+    `<div class="mean">${ui.mean(c, lv || x.max_level || 1)}</div>` +
     (x.value == null ? '' : `<div class="now">${LAMP_NOW[k](x, c)}</div>`) + `<div class="where">Sprawdź: ${LAMP_WHERE[k]()}</div>` +
     `<div class="chips" title="Co działo się z altami 30 dni po wcześniejszych zapaleniach (historia, nie prognoza)">${chips}</div>` +
     `<button type="button" class="more" data-k="${k}">Więcej — warunek i zapalenia (${eps.length}) ▾</button></div>`;
