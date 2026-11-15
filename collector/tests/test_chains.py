@@ -173,3 +173,52 @@ def test_total_failure_raises(tmp_path):
     except RuntimeError as e:
         assert "żadna seria" in str(e)
     assert not os.path.exists(tmp_path / "chains.json")
+
+
+def test_trim_start_cuts_prelaunch_dust():
+    cfg = dict(chains.DEFAULTS)
+    dust = [[i * DAY, v] for i, v in enumerate([0.25, 5.91, 0.0, 174.0, 887.0, 6458.0])]
+    real = [[(10 + i) * DAY, 1.4e6 + i] for i in range(10)]
+    assert chains.trim_start(dust + real, "dex", cfg) == real
+    # przerwa pod progiem w środku startu → liczy od nowa
+    mix = [[0, 2e5], [DAY, 50.0]] + [[(2 + i) * DAY, 2e5] for i in range(7)]
+    assert chains.trim_start(mix, "dex", cfg)[0][0] == 2 * DAY
+    # nigdy nie dochodzi do progu / brak progu dla miary → bez zmian
+    small = [[i * DAY, 10.0] for i in range(20)]
+    assert chains.trim_start(small, "dex", cfg) == small
+    assert chains.trim_start(small, "dex", dict(cfg, trim_min={})) == small
+    assert chains.trim_start([], "tvl", cfg) == []
+
+
+class FakeDust(Fake):
+    """Ethereum DEX: 20 dni „pyłu” po $3 przed startem; TVL Solany: zera przez pierwsze 50 dni."""
+    def get(self, url, params=None, headers=None, timeout=None):
+        r = super().get(url, params, headers, timeout)
+        u = chains.requests.utils.unquote(url)
+        if u.endswith("/overview/dexs/Ethereum"):
+            r._d = {"totalDataChart": [[d, 3.0 if d < START + 20 * DAY else v] for d, v in r._d["totalDataChart"]]}
+        if u.endswith("/historicalChainTvl/Solana"):
+            r._d = [dict(p, tvl=0 if p["date"] < START + 50 * DAY else p["tvl"]) for p in r._d]
+        return r
+
+
+def test_run_trims_dust_from_series_and_first(tmp_path):
+    s, _ = run(tmp_path, FakeDust())
+    ser = json.load(open(tmp_path / "chains_1d.json"))["series"]
+    assert ser["ch_ethereum_dex"][0][0] == START + 20 * DAY
+    assert ser["ch_solana_tvl"][0][0] == START + 50 * DAY
+    assert min(v for _, v in ser["ch_ethereum_dex"]) >= 1e5
+    eth = next(c for c in s["chains"] if c["name"] == "Ethereum")
+    assert eth["m"]["dex"]["first"] == chains.iso(START + 20 * DAY)
+    assert ser["ch_ethereum_fees"][0][0] == START                 # bez pyłu → bez zmian
+
+
+def test_old_history_with_dust_is_trimmed_on_failure(tmp_path):
+    run(tmp_path)
+    p = tmp_path / "chains_1d.json"
+    d = json.load(open(p))
+    d["series"]["ch_solana_dex"] = [[START - (5 - i) * DAY, 1.0] for i in range(5)] + d["series"]["ch_solana_dex"]
+    json.dump(d, open(p, "w"))
+    run(tmp_path, Fake(fail=("/overview/dexs/Solana",)))
+    ser = json.load(open(p))["series"]
+    assert ser["ch_solana_dex"][0][0] == START
