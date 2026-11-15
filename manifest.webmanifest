@@ -1,6 +1,6 @@
 {
   "name": "Crypto Loser Analytics Tools",
-  "short_name": "Crypto Loser",
+  "short_name": "CL Analytics",
   "description": "The best tools for buying high and selling low.",
   "lang": "pl",
   "start_url": "./index.html",
