@@ -8,6 +8,7 @@ np. BTCUSD_PERP) mają wolumen już w $ (kontrakty × wartość kontraktu), pozo
 Serie (cvd_1h.json / cvd_1d.json, osobne pliki):
   cvd_<coin>_<spot|perp>       delta = kupno − sprzedaż w $ na świecę (CVD = suma narastająca — liczy strona)
   cvd_<coin>_<spot|perp>_vol   wolumen w $ na świecę
+  cvd_<coin>_spot_echo / _own  CVD spot = echo futures (CVD perp × mnożnik z 30 dni godzin) + spot własny (poprawka 79)
 oraz ceny coinów spoza BTC/ETH: px_<coin> (zamknięcie największego perpa USDT; pliki liq_*, jak px_btc).
 
 Rynki: pary do kwotowań z config `cvd.quotes` na giełdach spot (`cvd.spot_exchanges`) i perp (coinalyze.exchanges),
@@ -266,12 +267,190 @@ def collect(client, store, cfg, now, backfill=False):
     if ok_h:
         st["complete_until"] = now_h
         st["h_version"] = CVD_VERSION
+    echo = echo_series(store, c["coins"], now, full=full)
     failed = getattr(client, "failed_batches", 0) - failed0
-    info = {"candidates": len(cands), "selected": len(selected), "cover": st.get("cover"),
+    info = {"candidates": len(cands), "selected": len(selected), "cover": st.get("cover"), "echo": echo,
             "price_markets": st.get("px"), "calls": client.calls_made - calls0, "failed_batches": failed,
             "full": full, "daily": need_daily, "hourly_from": _iso(start)}
     log.info("CVD: %s", info)
     return info
+
+
+# ── echo futures w CVD spot (poprawka 79) ────────────────────
+# Część CVD spot, która idzie razem z perp w tej samej świecy (głównie arbitraż: futures zbija cenę, boty sprzedają spot
+# i odkupują perp) = CVD perp × mnożnik; mnożnik (β, regresja bez stałej) z poprzednich 30 dni godzin — bez bieżącej
+# świecy. Własny = spot − echo. To szacunek, nie podział transakcji: w echo wpadają też ludzie, którzy w tej samej godzinie
+# reagują na ten sam ruch (na dłuższych świecach mnożnik rośnie: BTC 1 h ≈ 0,10, 4 h ≈ 0,12, doba ≈ 0,16 — 11.2026).
+# Dzienne: suma godzin (pełne doby + bieżąca); doby sprzed godzinowych danych — mnożnik z 365 poprzednich dni (wyższy).
+# Raz policzona doba z godzin zostaje (godziny trzymamy ~62 dni).
+ECHO_VERSION = 1             # zmiana → przeliczenie całej historii dziennej
+ECHO_H_WIN, ECHO_H_MIN = 30 * 24, 7 * 24
+ECHO_D_WIN, ECHO_D_MIN = 365, 90
+ECHO_PARTS = ("echo", "own")
+
+
+def echo_sid(coin, part):
+    return f"cvd_{coin.lower()}_spot_{part}"
+
+
+def rolling_beta(xs, ys, win, min_n):
+    """β_i = Σxy / Σxx z `win` poprzednich punktów (bez i-tego); None, gdy mniej niż min_n punktów."""
+    out, sxy, sxx, n = [], 0.0, 0.0, 0
+    for i in range(len(xs)):
+        out.append(sxy / sxx if n >= min_n and sxx > 0 else None)
+        sxy += xs[i] * ys[i]
+        sxx += xs[i] * xs[i]
+        n += 1
+        if i - win >= 0:
+            j = i - win
+            sxy -= xs[j] * ys[j]
+            sxx -= xs[j] * xs[j]
+            n -= 1
+    return out
+
+
+def echo_series(store, coins, now, full=False):
+    """cvd_<coin>_spot_echo / _own (1h i 1d) z serii spot i perp w store → {coin: ostatni mnożnik godzinowy}."""
+    today = floor(int(now), DAY)
+    st = store.state.setdefault("cvd", {})
+    redo = full or st.get("echo_version") != ECHO_VERSION
+    out = {}
+    for coin in coins:
+        sp, pp = store.series["1h"].get(sid(coin, "spot")) or {}, store.series["1h"].get(sid(coin, "perp")) or {}
+        ts = sorted(set(sp) & set(pp))
+        betas = rolling_beta([pp[t] for t in ts], [sp[t] for t in ts], ECHO_H_WIN, ECHO_H_MIN)
+        eh = {t: b * pp[t] for t, b in zip(ts, betas) if b is not None}
+        store.put("1h", echo_sid(coin, "echo"), eh, replace_from=0)
+        store.put("1h", echo_sid(coin, "own"), {t: sp[t] - e for t, e in eh.items()}, replace_from=0)
+        if betas and betas[-1] is not None:
+            out[coin] = round(betas[-1], 4)
+        # doby z godzin: pełne (24 świece) + bieżąca
+        by_day = {}
+        for t, e in eh.items():
+            by_day.setdefault(t - t % DAY, []).append(e)
+        hd = {dd: sum(v) for dd, v in by_day.items() if len(v) == 24 or dd == today}
+        sd, pd = store.series["1d"].get(sid(coin, "spot")) or {}, store.series["1d"].get(sid(coin, "perp")) or {}
+        days = sorted(set(sd) & set(pd))
+        if not days:
+            continue
+        first_h = min(hd) if hd else today + DAY
+        have = store.series["1d"].get(echo_sid(coin, "echo"))
+        start = 0 if (redo or not have) else first_h
+        dbeta = dict(zip(days, rolling_beta([pd[t] for t in days], [sd[t] for t in days], ECHO_D_WIN, ECHO_D_MIN)))
+        ed = {}
+        for t in days:
+            if t < start:
+                continue
+            if t in hd:
+                ed[t] = hd[t]
+            elif dbeta.get(t) is not None:
+                ed[t] = dbeta[t] * pd[t]
+        store.put("1d", echo_sid(coin, "echo"), ed, replace_from=start)
+        store.put("1d", echo_sid(coin, "own"), {t: sd[t] - e for t, e in ed.items()}, replace_from=start)
+    st["echo_version"] = ECHO_VERSION
+    return out
+
+
+def echo_window(d, coin, t0, t1):
+    """Suma echa i własnego ($) z dni [t0, t1) → (echo, własny) albo None (brak serii albo którejś doby)."""
+    e = dict(d.pts("1d", echo_sid(coin, "echo")))
+    o = dict(d.pts("1d", echo_sid(coin, "own")))
+    days = [t for t in range(t0, t1, DAY)]
+    if not days or any(t not in e or t not in o for t in days):
+        return None
+    return sum(e[t] for t in days), sum(o[t] for t in days)
+
+
+def liq_window(d, coin, t0, t1):
+    """Likwidacje longów i shortów ($) z dni [t0, t1) → (longi, shorty) albo None (brak serii)."""
+    lg, sh = dict(d.pts("1d", f"liq_{coin.lower()}_long")), dict(d.pts("1d", f"liq_{coin.lower()}_short"))
+    if not lg and not sh:
+        return None
+    days = range(t0, t1, DAY)
+    return sum(lg.get(t, 0.0) for t in days), sum(sh.get(t, 0.0) for t in days)
+
+
+ECHO_COLOR, LIQ_COLOR, BUY_COLOR, SELL_COLOR = "#ffb74d", "#b388ff", "#4caf7d", "#e05252"
+REPORT_COINS = ("BTC", "ETH", "SOL", "BNB")
+
+
+def _share_bar(a, b, a_color):
+    """Pasek składu: [[% , kolor], [% , kolor]] — udział |a| i |b| w |a| + |b|; b zielone (kupno) albo czerwone."""
+    tot = abs(a) + abs(b)
+    if tot <= 0:
+        return None, None
+    pa = round(100.0 * abs(a) / tot)
+    return [[pa, a_color], [100 - pa, BUY_COLOR if b >= 0 else SELL_COLOR]], pa
+
+
+def _side(v):
+    return "kupno" if v >= 0 else "sprzedaż"
+
+
+def rare(imb, bnd, per):
+    """Dopisek, gdy przewaga wypada poza zwykły zakres (80% okresów z 2 lat)."""
+    if imb is None or not bnd:
+        return None
+    if imb < bnd[0]:
+        return {"t": f"rzadko mocna sprzedaż (10% najmocniejszych {per} z 2 lat)", "tone": "warn"}
+    if imb > bnd[1]:
+        return {"t": f"rzadko mocne kupno (10% najmocniejszych {per} z 2 lat)", "tone": "warn"}
+    return None
+
+
+def flow_cell(d, coin, t0, t1, wp, ws, weekly=False):
+    """Komórka „CVD: perp i spot” (poprawka 79): perp + pasek likwidacje / reszta, spot + pasek echo / własny,
+    dopiski „rzadko mocna …” (poza zwykłym zakresem z 2 lat)."""
+    per = "okresów 7-dniowych" if weekly else "dni"
+    n_days = (t1 - t0) // DAY
+    lines = []
+    if wp:
+        P = wp[1]
+        lines.append({"t": "perp " + cell(wp)})
+        r = rare(imbalance(wp), band(d, coin, "perp", t0, step_days=n_days), per)
+        if r:
+            lines.append(r)
+        lq = liq_window(d, coin, t0, t1)
+        if lq:
+            forced = lq[1] - lq[0]                      # likwidacje longów = wymuszona sprzedaż, shortów = kupno
+            segs, pf = _share_bar(forced, P - forced, LIQ_COLOR)
+            if segs:
+                lines.append({"bar": segs, "tip": f"likwidacje longów {fmt_usd(-lq[0])} (wymuszona sprzedaż), "
+                                                   f"shortów {fmt_usd(lq[1])} (wymuszone kupno) — Binance, Bybit, OKX"})
+                lines.append({"t": f"{pf}% likwidacje ({fmt_usd(forced)}) · {100 - pf}% reszta: {_side(P - forced)} "
+                                   f"({fmt_usd(P - forced)})", "tone": "mute"})
+    if ws:
+        lines.append({"t": "spot " + cell(ws)})
+        r = rare(imbalance(ws), band(d, coin, "spot", t0, step_days=n_days), per)
+        if r:
+            lines.append(r)
+        eo = echo_window(d, coin, t0, t1)
+        if eo:
+            segs, pe = _share_bar(eo[0], eo[1], ECHO_COLOR)
+            if segs:
+                lines.append({"bar": segs, "tip": f"echo futures {fmt_usd(eo[0])} · spot własny {fmt_usd(eo[1])}"})
+                lines.append({"t": f"{pe}% z futures ({fmt_usd(eo[0])}) · {100 - pe}% własny: {_side(eo[1])} "
+                                   f"({fmt_usd(eo[1])})", "tone": "mute"})
+    return lines or "—"
+
+
+NOTE_FLOW = ("Paski pod kwotami pokazują skład (udział wielkości, kierunek mówi kolor). Perp: fioletowy = likwidacje "
+             "(pozycje zamknięte siłą; likwidacje longów to sprzedaż, shortów kupno), czerwony / zielony = reszta transakcji "
+             "(sprzedaż / kupno). Likwidacje tylko z Binance, Bybit i OKX, a Binance publikuje najwyżej 1 likwidację na sekundę "
+             "na rynek — udział likwidacji jest zaniżony, możliwe, że kilkukrotnie. Spot: pomarańczowy = echo futures "
+             "(część CVD spot, która idzie razem z perp w tej samej godzinie — głównie arbitraż: CVD perp × mnożnik z 30 "
+             "poprzednich dni, osobny dla każdego coina), czerwony / zielony = spot własny (spot − echo). Echo liczone z godzin "
+             "łapie też reakcje spotu w ciągu tej samej godziny, więc jest raczej zawyżone, a spot własny zaniżony — im dłuższa "
+             "świeca, tym większy mnożnik (BTC 11.2026: 1 h ok. 0,10, 4 h ok. 0,12, doba ok. 0,16). To szacunek, nie podział "
+             "transakcji. „Rzadko mocna” = poza zwykłym zakresem (80% dni albo okresów 7-dniowych z ostatnich 2 lat).")
+
+
+def report_coins(cfg):
+    """Coiny w porannej tabeli cena + OI + CVD (`cvd.report_coins`; domyślnie BTC, ETH, SOL, BNB — decyzja 15.11.2026:
+    XRP i DOGE nie dają tła rynku). Zbieranie i oi.html dalej według `cvd.coins`."""
+    c = settings(cfg)
+    rc = [x.upper() for x in (((cfg or {}).get("cvd") or {}).get("report_coins") or REPORT_COINS)]
+    return [x for x in rc if x in c["coins"]] or c["coins"]
 
 
 # ── raporty (report.py / periodic.py) ────────────────────────
@@ -494,9 +673,10 @@ def _example(rows_src):
 
 
 def morning_blocks(d, now, cfg, table=True):
-    """Raport poranny: tabela doba / 7 dni, słupki doby na tle 2 lat, wykres BTC 7 dni co godzinę.
-    table=False (poprawka 45): tabela jest już w sekcji Derywaty, połączona z OI — tu tylko słupki i wykres."""
-    if not has_data(d):
+    """Raport poranny bez danych OI (zapas): tabela doba / 7 dni, słupki doby na tle 2 lat, wykres BTC 7 dni co godzinę.
+    table=False: tabela jest w sekcji Derywaty, połączona z OI (poprawka 45); od poprawki 79 ma też paski składu
+    i dopiski „rzadko mocna” (zamiast słupków na tle 2 lat), a wykres godzinowy stoi pod nią — tu nic."""
+    if not has_data(d) or not table:
         return []
     from report import fmt_chg, utc
     c = settings(cfg)
@@ -577,6 +757,31 @@ def btc_hour_chart(d, t_end, days=7):
                     "spada = sprzedający. Spot i perp na osobnych osiach (na perp obraca się wielokrotnie więcej), więc "
                     "ważny jest kształt i kierunek, nie wysokość linii. Szara linia = cena BTC (bez osi).",
             "note": f"Świece godzinowe do {utc(t_end, '%d.%m %H:%M UTC')}."}
+
+
+def hour_flow_chart(d, t_end, coin="BTC", days=7):
+    """Poprawka 79: słupki co godzinę — echo futures i spot własny (razem = CVD spot godziny) + cena bez osi."""
+    t0 = t_end - days * DAY
+    e = [p for p in d.pts("1h", echo_sid(coin, "echo")) if t0 <= p[0] < t_end]
+    o = [p for p in d.pts("1h", echo_sid(coin, "own")) if t0 <= p[0] < t_end]
+    if len(e) < 24 or len(o) < 24:
+        return None
+    px = [p for p in d.pts("1h", px_sid(coin)) if t0 <= p[0] < t_end]
+    series = [{"name": "Echo futures", "color": ECHO_COLOR, "fmt": "flow", "scale": "right", "hist": True, "stack": "base",
+               "data": [[t, round(v)] for t, v in e]},
+              {"name": "Spot własny", "color": BUY_COLOR, "colors": [BUY_COLOR, SELL_COLOR], "fmt": "flow", "scale": "right",
+               "hist": True, "stack": "top", "data": [[t, round(v)] for t, v in o]}]
+    if px:
+        series.append({"name": f"Cena {coin}", "color": "#9e9e9e", "fmt": "price", "scale": "hidden", "width": 1, "data": px})
+    from report import utc
+    return {"type": "chart", "title": f"{coin} — CVD spot co godzinę: echo futures i spot własny, ostatnie {days} dni",
+            "log": False, "series": series,
+            "desc": "Każdy słupek = godzina, cały słupek = CVD spot tej godziny (kupno − sprzedaż „po rynku”, w $). "
+                    "Pomarańczowa część = echo futures (to, co na spocie poszło razem z perp), zielona / czerwona = spot "
+                    "własny (kupno / sprzedaż). Gdy mają ten sam kierunek, są ułożone jedna na drugiej; gdy przeciwny — w dwie "
+                    "strony od zera. Szara linia = cena (bez osi).",
+            "note": f"Świece godzinowe do {utc(t_end, '%d.%m %H:%M UTC')}. Echo i własny — opis pod tabelą „Cena, open "
+                    "interest i CVD”."}
 
 
 def weekly_blocks(d, start, end, cfg, weeks=12, chart_coins=("BTC", "ETH")):

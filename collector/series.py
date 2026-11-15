@@ -379,6 +379,7 @@ def daily_from_hourly(hourly, day_from):
 # ── CVD: kupno − sprzedaż na spot i perp (poprawka 44, collector/cvd.py; pliki cvd_1h/1d.json) ──
 CVD_COLORS = {"BTC": ("#4fc3f7", "#ffb74d"), "ETH": ("#4db6ac", "#f48fb1"), "SOL": ("#80deea", "#ce93d8"),
               "BNB": ("#fff176", "#ffcc80"), "XRP": ("#b0bec5", "#ef9a9a"), "DOGE": ("#c5e1a5", "#ffab91")}
+ECHO_COLORS = ("#ff8a65", "#81c784")     # echo futures, spot własny (poprawka 79)
 PX_COLORS = {"SOL": "#9c6ade", "BNB": "#f3ba2f", "XRP": "#b0bec5", "DOGE": "#c2a633", "HYPE": "#50d2c1",
              "SUI": "#4da2ff", "TAO": "#e8e8e8"}
 
@@ -403,6 +404,18 @@ def cvd_catalog(coins):
             cat[f"cvd_{coin.lower()}_{kind}_vol"] = dict(
                 name=f"Wolumen {coin} {nm}", group="vol", color=cs[j], fmt="usd", axis=f"vol_{kind}",
                 desc=f"Wolumen obrotu na rynkach {nm} {coin} w $ na świecę (te same rynki co CVD {coin} {nm}).")
+        for part, (nm, col, txt) in {
+                "echo": ("echo futures", ECHO_COLORS[0], "Część CVD spot, która idzie razem z perp w tej samej godzinie "
+                         "(głównie arbitraż: futures zbija albo podbija cenę, boty kupują / sprzedają spot i odwrotnie perp) = "
+                         "CVD perp × mnożnik z 30 poprzednich dni."),
+                "own": ("spot własny", ECHO_COLORS[1], "CVD spot po odjęciu echa futures — kupno i sprzedaż na spocie, "
+                        "które nie szły razem z perp.")}.items():
+            cat[f"cvd_{coin.lower()}_spot_{part}"] = dict(
+                name=f"CVD {coin} spot — {nm}", group="cvd", color=col, fmt="flow", cum=True, axis="cvd_spot",
+                desc=f"{txt} Spot = echo + własny. Na wykresie suma narastająca od początku zakresu, na tej samej osi co CVD "
+                     f"{coin} spot. To szacunek, nie podział transakcji: echo z godzin łapie też reakcje spotu w ciągu tej "
+                     "samej godziny, więc jest raczej zawyżone, a własny zaniżony. Na świecach dziennych sprzed zbierania "
+                     "godzin (ok. 09.2026) mnożnik z 365 poprzednich dni — tam echo większe niż na godzinach.")
         if coin not in ("BTC", "ETH"):
             cat[f"px_{coin.lower()}"] = dict(
                 name=f"Cena {coin}", group="price", color=PX_COLORS.get(coin, PALETTE[i % len(PALETTE)]), fmt="usd",

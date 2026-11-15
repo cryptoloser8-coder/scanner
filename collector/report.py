@@ -20,7 +20,9 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                    "left" (optional: indexes of left-aligned columns)}
                    a cell may be a list of lines (first = main text, next = smaller): str or {"t": text,
                    "tone": ok|warn|mute|pos|neg} — e.g. the three-line reading in the OI + CVD table (poprawka 45);
-                   "even": true = all lines the same size (lists of coins, poprawka 46)
+                   "even": true = all lines the same size (lists of coins, poprawka 46);
+                   {"bar": [[%, colour], ...], "tip"} = share bar without text (poprawka 79: liquidations / rest on perp,
+                   futures echo / own spot); skipped in the AI version
   {"type": "section", "title"}                                       — section heading
   any block: optional "desc" — plain-language explanation shown above the content (bigger font than "note")
   {"type": "ranges", "title", "note", "items": [{"label", "value", "sub", "pos" 0–100, "min", "max",
@@ -31,7 +33,8 @@ Blocks (generic, rendered by raporty.html — the report layout lives only in th
                     "parts": [{"key", "name"}], "band_label", "label_col"}   — bars both ways from zero (e.g. CVD % of volume),
                     grey band = usual range; scale per part (poprawka 44)
   chart series: "fmt": "flow" = signed $ (CVD), "scale": "hidden" = own scale without an axis (e.g. price behind CVD),
-                "dash": true = dashed line
+                "dash": true = dashed line; "hist": true = bars per point ("colors": [≥0, <0] optional),
+                "stack": "base" | "top" = two hist series drawn as one bar when they have the same sign (poprawka 79)
   chart: optional "markers": [{"t", "shape": up|down|circle, "pos": above|below, "color", "text", "when"?}] — on the first series;
   chart: optional "lines": [{"value", "label", "color"}] — horizontal levels;
          optional "bands": [{"from", "to", "color", "label"}] — coloured background periods (e.g. cycle phases)
@@ -784,8 +787,8 @@ def reading(px_ch, oi_ch, cvd_perp, who_txt, flat, cflat):
 
 def cell_text(v, sep=" · "):
     """Komórka tabeli jako tekst (wersja dla AI, testy): linie komórki wieloliniowej połączone separatorem."""
-    if isinstance(v, list):
-        return sep.join(x.get("t", "") if isinstance(x, dict) else str(x) for x in v)
+    if isinstance(v, list):                    # elementy bez tekstu (pasek składu) pomijane
+        return sep.join(x["t"] if isinstance(x, dict) else str(x) for x in v if not isinstance(x, dict) or x.get("t"))
     return v
 
 
@@ -810,7 +813,8 @@ def oi_cvd_rows(d, coins, flat, cflat, now):
             ip, isp = cvd.imbalance(wp), cvd.imbalance(ws)
             who_txt = cvd.who(isp, ip, cflat) if (ws or wp) else ""
             cell = reading(px_ch, oi_coin, ip, who_txt, flat, cflat)
-            rows.append([coin, label, fmt_chg(px_ch), fmt_chg(oi_coin), cvd.cell(wp), cvd.cell(ws), cell])
+            flow = cvd.flow_cell(d, coin, t0, today, wp, ws, weekly=label == "7 dni")
+            rows.append([coin, label, fmt_chg(px_ch), fmt_chg(oi_coin), flow, cell])
             if isinstance(cell, list) and len(cell) > 1 and isinstance(cell[1], dict) and cell[1].get("tone") in ("ok", "warn"):
                 examples.setdefault(cell[1]["tone"], f"{coin}, {label}: {cell[0].lower()}; {cell[1]['t']}")
     return rows, examples
@@ -845,14 +849,14 @@ def derivatives_section(d, L, alt_t, now=None, cfg=None):
         import cvd
         if now and cvd.enabled(cfg or {}) and cvd.has_data(d):
             cflat = float(cvd.settings(cfg or {})["flat_pct"])
-            rows, ex = oi_cvd_rows(d, cvd.coins_of(cfg or {}), flat, cflat, now)
+            rows, ex = oi_cvd_rows(d, cvd.report_coins(cfg or {}), flat, cflat, now)
             if rows:
                 example = " Przykłady z tego raportu — " + "; ".join(
                     ("potwierdzone: " if k == "ok" else "bez potwierdzenia: ") + ex[k] for k in ("ok", "warn") if k in ex) + "." if ex else ""
                 blocks.append({
                     "type": "table", "title": "Cena, open interest i CVD — kto napędzał ruch",
-                    "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD perp", "CVD spot", "Typowe odczytanie"],
-                    "rows": rows, "left": [0, 6],
+                    "cols": ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD: perp i spot", "Typowe odczytanie"],
+                    "rows": rows, "left": [0, 5],
                     "desc": "Ostatnia kolumna, linia po linii. 1) Co się stało: cena i open interest — OI rośnie = przybyło pozycji, "
                             "OI maleje = pozycje są zamykane. Samo OI nie mówi, kto naciskał, bo każda pozycja ma stronę long i short. "
                             "2) Kto naciskał: CVD perp = kupno minus sprzedaż „po rynku” na kontraktach. Wniosek typu „nowe shorty” "
@@ -861,8 +865,11 @@ def derivatives_section(d, L, alt_t, now=None, cfg=None):
                     "note": "OI w coinach = OI w dolarach ÷ cena (bez tego OI rósłby i spadał razem z ceną). CVD: kwota i, w nawiasie, "
                             "% wolumenu. Doba = dzień UTC (zamknięcie dnia), 7 dni = 7 pełnych dni. "
                             f"Zmiana ceny lub OI poniżej {flat:g}% = „stoi / tyle samo”; przewaga CVD poniżej {cflat:g}% wolumenu = „bez przewagi”. "
-                            + cvd.NOTE_MARKETS.strip()})
+                            + cvd.NOTE_MARKETS + cvd.NOTE_FLOW})
                 merged = True
+                ch = cvd.hour_flow_chart(d, int(now) - int(now) % DAY)
+                if ch:
+                    blocks.append(ch)
     except Exception as e:  # noqa: BLE001 — bez CVD zostaje sama tabela OI
         log.warning("Tabela OI + CVD: %s", e)
     if not merged:
