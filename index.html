@@ -358,7 +358,7 @@ function renderWatch() {
   }).join('') || '<div class="lbl">Brak watchlisty w meta.json.</div>';
 }
 
-// ── raporty: ostatnie 3 i najbliższe planowe (harmonogram z config.yaml: poranny ~07:00, wieczorny ~22:50, tygodniowy pon., miesięczny 1.) ──
+// ── raporty: ostatnie 3 i najbliższe planowe (harmonogram z config.yaml: poranny ~06:00, wieczorny ~22:50, tygodniowy pon., miesięczny 1.) ──
 const KIND = {morning: 'Poranny', evening: 'Wieczorny', weekly: 'Tygodniowy', monthly: 'Miesięczny', yearly: 'Roczny', halving: 'Po halvingu', adhoc: 'Specjalny', manual: 'Na żądanie', daily: 'Dzienny'};
 function nextTimes() {
   const now = new Date(), parts = new Intl.DateTimeFormat('en-GB', {timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit', weekday: 'short', day: '2-digit'}).formatToParts(now);
@@ -366,7 +366,7 @@ function nextTimes() {
   const mins = +g('hour') * 60 + +g('minute');
   const out = [];
   out.push(['Wieczorny', mins < 22 * 60 + 50 ? 'dziś ok. 22:50' : 'jutro ok. 22:50']);
-  out.push(['Poranny', mins < 7 * 60 ? 'dziś ok. 07:00' : 'jutro ok. 07:00']);
+  out.push(['Poranny', mins < 6 * 60 ? 'dziś ok. 06:00' : 'jutro ok. 06:00']);
   const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')), toMon = (7 - wd) % 7 || 7;
   const mon = new Date(now.getTime() + toMon * DAY * 1000);
   out.push(['Tygodniowy', 'pon. ' + mon.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, TZ)) + ', w nocy']);
