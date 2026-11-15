@@ -99,33 +99,6 @@
   .rep:first-of-type{border-top:0;}
   .rep:hover b{text-decoration:underline;}
   .rep b{font-weight:600;font-size:13px;}
-  .tools h2{font-size:15px;font-weight:600;margin:10px 0 4px;}
-  .tools .intro{font-size:12px;color:var(--text2);margin-bottom:12px;}
-  .tools .intro b{color:#d6d6d6;font-weight:500;}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
-  .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:10px;transition:all .2s;cursor:pointer;position:relative;overflow:hidden;}
-  .tile:hover{border-color:var(--border2);transform:translateY(-2px);background:var(--bg3);}
-  .tile.disabled{opacity:.4;cursor:not-allowed;}
-  .tile.disabled:hover{transform:none;background:var(--bg2);border-color:var(--border);}
-  .tile-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;}
-  .tile-icon.rsi{background:rgba(76,175,125,.12);color:var(--green);}
-  .tile-icon.oi{background:rgba(206,147,216,.12);color:var(--purple);}
-  .tile-icon.liq{background:rgba(224,82,82,.12);color:var(--red);}
-  .tile-icon.ema{background:rgba(255,193,7,.12);color:var(--amber);}
-  .tile-icon.fib{background:rgba(91,156,246,.12);color:var(--blue);}
-  .tile-icon.rep{background:rgba(38,198,218,.12);color:#26c6da;font-size:16px;}
-  .tile-icon.net{background:rgba(129,199,132,.12);color:#81c784;font-size:16px;}
-  .tile-icon.alt{background:rgba(244,143,177,.12);color:#f48fb1;font-size:16px;}
-  .tile-icon.soon{background:var(--bg3);color:var(--text3);}
-  .tile-title{font-size:16px;font-weight:600;letter-spacing:-.2px;}
-  .tile-desc{font-size:12px;color:var(--text2);line-height:1.5;flex:1;}
-  .tile-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 7px;border-radius:4px;background:var(--bg3);color:var(--text3);align-self:flex-start;margin-top:4px;}
-  .tile-tag.live{background:rgba(76,175,125,.15);color:var(--green);}
-  .tile-tag.beta{background:rgba(91,156,246,.15);color:var(--blue);}
-  .tile-tag.soon{background:var(--bg3);color:var(--text3);}
-  .tile-tag.paused{background:rgba(255,193,7,.14);color:var(--amber);}
-  .tile.paused{opacity:.6;}
-  .tile.paused:hover{opacity:.85;}
   .footer{text-align:center;margin-top:24px;font-size:10px;color:var(--text3);}
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
   .footer a:hover{color:var(--text2);}
@@ -183,77 +156,6 @@
     </section>
   </div>
 
-  <section class="tools" aria-label="Narzędzia">
-    <h2>Narzędzia</h2>
-    <p class="intro"><b>The best tools for buying high and selling low.</b> Własne narzędzia do analizy rynku krypto: dane na jednym wykresie, raporty i alerty na Telegram</p>
-    <div class="grid">
-
-    <a href="rsi.html" class="tile">
-      <div class="tile-icon rsi">RSI</div>
-      <div class="tile-title">RSI Scanner</div>
-      <div class="tile-desc">Wykrywa rynki w stanie wykupienia (&gt;70) i wyprzedania (&lt;30) na podstawie RSI Wildera. Live WebSocket, multi-timeframe.</div>
-      <span class="tile-tag live">● Live</span>
-    </a>
-
-
-    <a href="oi.html" class="tile">
-      <div class="tile-icon oi">OI</div>
-      <div class="tile-title">OI & TOTAL — rynek, cykl i makro</div>
-      <div class="tile-desc">Open interest z wielu giełd, kapitalizacja TOTAL/TOTAL2/TOTAL3 i dominacje, dźwignia, ceny BTC i ETH na świecach (1H od 2017), cykl BTC (MVRV, Mayer, 200W), makro USA, CVD i wolumen, alty według kapitalizacji. Interwały 1H–1M, nakładanie wykresów, zestawy.</div>
-      <span class="tile-tag live">● Live</span>
-    </a>
-
-    <a href="alt.html" class="tile">
-      <div class="tile-icon alt">ALT</div>
-      <div class="tile-title">Altsezon — fale altów</div>
-      <div class="tile-desc">Indeks altów („przeciętny alt” ze wszystkich coinów Binance, także wycofanych) z zaznaczonymi falami („mini altsezony”), ich długość, zysk i przerwy w fazach cyklu, oraz sygnały liczone z historii: lewar altów, stablecoiny, szerokość rynku, RSI 1W, skoki DEX na sieciach.</div>
-      <span class="tile-tag beta">● Beta</span>
-    </a>
-
-    <a href="liq.html" class="tile">
-      <div class="tile-icon liq">LIQ</div>
-      <div class="tile-title">Likwidacje i funding</div>
-      <div class="tile-desc">Likwidacje long/short BTC, ETH i największych altów (Binance, Bybit, OKX), funding ważony OI w % rocznie (także Hyperliquid), cena na świecach, udział giełd, największe dni. Interwały 1H–1M.</div>
-      <span class="tile-tag live">● Live</span>
-    </a>
-
-    <a href="ema.html" class="tile">
-      <div class="tile-icon ema">EMA</div>
-      <div class="tile-title">EMA200 i RSI — coiny Binance</div>
-      <div class="tile-desc">Ok. 370 coinów z Binance (pary USDT): EMA200 na świecy dziennej i tygodniowej, RSI 3D i 1W, szerokość rynku od 2019, przecięcia i świece. Alerty na Telegram: przecięcie i zbliżenie (1D), zamknięcie tygodnia (1W).</div>
-      <span class="tile-tag live">● Live</span>
-    </a>
-
-    <a href="fib.html" class="tile paused">
-      <div class="tile-icon fib">Fib</div>
-      <div class="tile-title">Fibo — moje setupy</div>
-      <div class="tile-desc">Twoje ruchy szczyt–dołek (dodawane z Telegrama: /fib SOL 250 120), strefa 0.705–0.786 z linią 0.75, alerty zbliżenia, wejścia w strefę, przebicia i unieważnienia. Zawieszone — do dopracowania.</div>
-      <span class="tile-tag paused">● Zawieszone</span>
-    </a>
-
-    <a href="raporty.html" class="tile">
-      <div class="tile-icon rep">RAP</div>
-      <div class="tile-title">Raporty</div>
-      <div class="tile-desc">Raport poranny (zamknięcie dnia: rynek, alty, derywaty, EMA200) i wieczorny (krypto dziś: co ruszyło się od 00:00 UTC), tygodniowe, miesięczne (cykl BTC, makro), roczne i po halvingu. Pobieranie jako PDF, wersja dla AI, powiadomienie z linkiem na Telegram.</div>
-      <span class="tile-tag beta">● Beta</span>
-    </a>
-
-    <a href="sieci.html" class="tile">
-      <div class="tile-icon net">NET</div>
-      <div class="tile-title">Sieci</div>
-      <div class="tile-desc">Gdzie jest kapitał i ruch: stablecoiny, wolumen DEX, opłaty i TVL na Ethereum, Tron, Solana, BSC, Base, Hyperliquid, Robinhood Chain i TON — udział w rynku, cena coina na tle, sieci spoza listy, które nagle rosną (DefiLlama).</div>
-      <span class="tile-tag beta">● Beta</span>
-    </a>
-
-    <div class="tile disabled">
-      <div class="tile-icon soon">+</div>
-      <div class="tile-title">Wkrótce</div>
-      <div class="tile-desc">Miejsce na kolejne narzędzia.</div>
-      <span class="tile-tag soon">Soon</span>
-    </div>
-
-  </div>
-  </section>
 
   <div class="footer">
     Dane: <a href="https://coinalyze.net" target="_blank">Coinalyze</a>, <a href="https://www.tradingview.com" target="_blank">TradingView</a>, <a href="https://www.binance.com" target="_blank">Binance</a>, <a href="https://coinmetrics.io" target="_blank">Coin Metrics</a>, <a href="https://www.coingecko.com" target="_blank">CoinGecko</a>, <a href="https://defillama.com" target="_blank">DefiLlama</a>, <a href="https://hyperliquid.xyz" target="_blank">Hyperliquid</a> &nbsp;·&nbsp; Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank">TradingView Lightweight Charts</a>
