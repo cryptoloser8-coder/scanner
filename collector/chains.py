@@ -13,6 +13,10 @@ Co robi (GitHub, workflow „Sieci” — osobno albo równolegle ze skanem prze
       – kapitał: stablecoiny 30D ≥ `stable30` (+100%) przy stablecoinach ≥ `stable_min`,
       – nowa sieć: pierwsze dane ≤ `new_days` dni temu, a już DEX 7 dni ≥ `new_dex7` albo stablecoiny ≥ `new_stable`,
     epizod = kolejne dni nad progiem liczone z historii (przerwa ≤ `gap_days` go nie kończy) → „nowa” / „dzień N”,
+  • start sieci (poprawka 80): z historii naszych sieci i całego rynku obcinany jest „pył” sprzed startu
+    (próby za kilka dolarów, zera) — seria zaczyna się od pierwszych `trim_days` (7) dni z rzędu z wartością
+    ≥ `trim_min` (DEX $100K, opłaty $1K, stablecoiny i TVL $1M dziennie). Np. Robinhood Chain: 10–30.06.2026
+    obroty po $0,06–6 458 → od 01.07. Bez tego skala Log i Index 100 rozjeżdżały wykres. Sieci spoza listy bez zmian,
   • sprawdzanie, czy wartość z rana była kompletna: zapisuje wartości ostatniego pełnego dnia, a następnego dnia
     porównuje je z wartościami po korektach DefiLlama (lista `revisions`).
 
@@ -66,6 +70,8 @@ DEFAULTS = {
     "max_rising": 5,
     "other_days": 120,
     "sleep": 0.4,
+    "trim_min": {"dex": 1e5, "fees": 1e3, "stable": 1e6, "tvl": 1e6},   # start sieci: próg dzienny (poprawka 80)
+    "trim_days": 7,            # … przez tyle dni z rzędu
 }
 
 
@@ -152,6 +158,21 @@ def points(data, kind, today):
             if _num(p.get("tvl")) is not None and p.get("date") is not None:
                 out[_day(p["date"])] = _num(p["tvl"])
     return [[t, round(v, 2)] for t, v in sorted(out.items()) if t < today]
+
+
+def trim_start(pts, kind, cfg):
+    """Obcina „pył” sprzed startu sieci: zwraca historię od pierwszych `trim_days` punktów z rzędu
+    z wartością ≥ `trim_min[kind]`. Gdy seria nigdy nie dochodzi do progu — bez zmian."""
+    thr = (cfg.get("trim_min") or {}).get(kind)
+    n = int(cfg.get("trim_days") or 0)
+    if not pts or not thr or n <= 0:
+        return pts
+    run = 0
+    for i, p in enumerate(pts):
+        run = run + 1 if p[1] >= thr else 0
+        if run == n:
+            return pts[i - n + 1:]
+    return pts
 
 
 # ── liczenie ─────────────────────────────────────────────────
@@ -337,7 +358,7 @@ def run(data_dir, cfg, client=None, now=None):
         except Exception as e:  # noqa: BLE001
             errors.append(f"cały rynek {kind}: {e}")
             pts = []
-        market_pts[sid] = pts
+        market_pts[sid] = trim_start(pts, kind, cfg)
 
     # 2) nasze sieci
     series, ours = {}, []
@@ -357,6 +378,7 @@ def run(data_dir, cfg, client=None, now=None):
             except Exception as e:  # noqa: BLE001
                 errors.append(f"{name} {kind}: {e}")
                 pts = old.get(sid) or []             # błąd → zostaje poprzednia historia
+            pts = trim_start(pts, kind, cfg)        # też stara historia sprzed poprawki 80
             if not pts:
                 continue
             series[sid] = pts
