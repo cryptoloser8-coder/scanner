@@ -215,10 +215,9 @@ def test_report_morning_has_cvd_and_markdown(tmp_path):
     data = _data_dir(tmp_path, now)
     rep = report.build(data, None, "morning", now=now, cfg={"cvd": {"enabled": True}})
     secs = [b["title"] for b in rep["blocks"] if b["type"] == "section"]
-    assert "CVD — kto kupował: spot i perp" in secs
+    assert "CVD — kto kupował: spot i perp" not in secs          # poprawka 79: wszystko w tabeli Derywatów
     md = report.to_markdown(rep)
-    assert "spot — przewaga kupujących (% wolumenu · $)" in md and "+25.0% · +$250M" in md
-    assert "**CVD spot**" in md and "+$168M" in md
+    assert "perp +$300M (+3.0%) · spot +$250M (+25.0%) · rzadko mocne kupno (10% najmocniejszych dni z 2 lat)" in md
     # wyłączone w configu → bez sekcji
     rep2 = report.build(data, None, "morning", now=now, cfg={})
     assert "CVD — kto kupował: spot i perp" not in [b.get("title") for b in rep2["blocks"]]
@@ -285,19 +284,20 @@ def test_morning_merged_oi_cvd_table(tmp_path):
     by = {b.get("title"): b for b in rep["blocks"]}
     assert "Kupno vs sprzedaż — spot i perp" not in by and "Open interest i cena — BTC i ETH" not in by
     tab = by["Cena, open interest i CVD — kto napędzał ruch"]
-    assert tab["cols"] == ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD perp", "CVD spot", "Typowe odczytanie"]
+    assert tab["cols"] == ["Coin", "Okres", "Cena", "OI (w coinach)", "CVD: perp i spot", "Typowe odczytanie"]
     btc = tab["rows"][0]
     assert btc[:4] == ["BTC", "doba " + report.utc(today - DAY, "%d.%m"), "▲+2.0%", "▲+2.9%"]
-    assert btc[4] == "+$300M (+3.0%)" and btc[5] == "+$250M (+25.0%)"
-    assert btc[6][0] == "Cena rośnie, przybywa pozycji"
-    assert btc[6][1] == {"t": "CVD perp: przewaga kupna → potwierdza: nowe longi", "tone": "ok"}
-    assert btc[6][2] == {"t": "Spot i perp: kupują spot i perp", "tone": "mute"}
+    assert btc[4][0] == {"t": "perp +$300M (+3.0%)"} and btc[4][1] == {"t": "spot +$250M (+25.0%)"}
+    assert btc[5][0] == "Cena rośnie, przybywa pozycji"
+    assert btc[5][1] == {"t": "CVD perp: przewaga kupna → potwierdza: nowe longi", "tone": "ok"}
+    assert btc[5][2] == {"t": "Spot i perp: kupują spot i perp", "tone": "mute"}
     sol = next(r for r in tab["rows"] if r[0] == "SOL")
-    assert sol[3] == "—" and sol[6][0] == "Cena stoi (brak danych OI)"                 # coin bez serii OI
-    assert "potwierdzone: BTC, doba" in tab["desc"]
+    assert sol[3] == "—" and sol[5][0] == "Cena stoi (brak danych OI)"                 # coin bez serii OI
+    assert not {"XRP", "DOGE"} & {r[0] for r in tab["rows"]} and "SOL" in {r[0] for r in tab["rows"]}   # bez XRP i DOGE
+    assert "potwierdzone: BTC, doba" in tab["desc"] and "echo futures" in tab["note"]
     secs = [b["title"] for b in rep["blocks"] if b["type"] == "section"]
-    assert secs.index("Derywaty") < secs.index("CVD — kto kupował: spot i perp")
-    assert f"Przewaga kupujących w dobie {report.utc(today - DAY, '%d.%m')} — % wolumenu" in by
+    assert "CVD — kto kupował: spot i perp" not in secs
+    assert not any(b["type"] == "dbars" for b in rep["blocks"])
     md = report.to_markdown(rep)
     assert "Cena rośnie, przybywa pozycji · CVD perp: przewaga kupna → potwierdza: nowe longi · Spot i perp: kupują spot i perp" in md
 
@@ -386,3 +386,84 @@ def test_watch_prices_version_refetch_failure_and_catalog(tmp_path):
     assert "perpa SOLUSDT" in cat["px_sol"]["desc"]                            # SOL zostaje z CVD
     assert "px_tao_hi" not in cat and "px_tao" not in S.catalog_with_watchlist(["TAO"])
     assert cvd.watch_coins(dict(CFG, watchlist=[])) == []
+
+
+def test_rolling_beta_and_echo_series(tmp_path):
+    """Poprawka 79: echo = CVD perp × mnożnik z poprzednich świec (bez bieżącej), własny = spot − echo."""
+    assert cvd.rolling_beta([1, 1, 1, 1], [2, 2, 2, 2], 2, 2) == [None, None, 2.0, 2.0]
+    assert cvd.rolling_beta([1, 2, 3], [1, 4, 0], 5, 1) == [None, 1.0, 1.8]      # Σxy/Σxx: 1/1, (1+8)/(1+4)
+    now = T0 + 60 * DAY + 5 * HOUR
+    today = now - now % DAY
+    st = Store(str(tmp_path))
+    hours = range(today - 20 * DAY, today + 5 * HOUR, HOUR)
+    st.put("1h", "cvd_btc_perp", {t: (-1e6 if (t // HOUR) % 2 else 2e6) for t in hours})
+    st.put("1h", "cvd_btc_spot", {t: 0.1 * (-1e6 if (t // HOUR) % 2 else 2e6) + 5e3 for t in hours})
+    days = range(today - 400 * DAY, today + DAY, DAY)
+    st.put("1d", "cvd_btc_perp", {t: (-3e7 if (t // DAY) % 3 else 4e7) for t in days})
+    st.put("1d", "cvd_btc_spot", {t: 0.2 * (-3e7 if (t // DAY) % 3 else 4e7) for t in days})
+    out = cvd.echo_series(st, ["BTC"], now)
+    assert abs(out["BTC"] - 0.1) < 0.01
+    eh, oh = st.series["1h"]["cvd_btc_spot_echo"], st.series["1h"]["cvd_btc_spot_own"]
+    t = max(eh)
+    assert abs(eh[t] - 0.1 * st.series["1h"]["cvd_btc_perp"][t]) < 0.02 * 2e6 and abs(eh[t] + oh[t] - st.series["1h"]["cvd_btc_spot"][t]) < 1
+    assert min(eh) == today - 20 * DAY + 7 * DAY                                  # pierwsze 7 dni bez mnożnika
+    ed = st.series["1d"]["cvd_btc_spot_echo"]
+    first_h = today - 13 * DAY                                                    # pierwsza pełna doba z godzin
+    assert abs(ed[first_h] - sum(v for k, v in eh.items() if first_h <= k < first_h + DAY)) < 50      # zaokrąglenia
+    assert abs(ed[today] - sum(v for k, v in eh.items() if k >= today)) < 50         # bieżąca doba z godzin
+    old = today - 100 * DAY
+    assert abs(ed[old] - 0.2 * st.series["1d"]["cvd_btc_perp"][old]) < 1            # przed godzinami: mnożnik dzienny
+    assert today - 400 * DAY + 90 * DAY == min(ed)
+    # godziny wypadły z okna, a doba z godzin zostaje (kolejny przebieg nie liczy jej od nowa mnożnikiem dziennym)
+    keep = ed[first_h]
+    for k in [k for k in st.series["1h"]["cvd_btc_perp"] if k < first_h + DAY]:
+        del st.series["1h"]["cvd_btc_perp"][k]
+    cvd.echo_series(st, ["BTC"], now)
+    assert st.series["1d"]["cvd_btc_spot_echo"][first_h] == keep
+
+
+def test_flow_cell_bars_rare_and_hour_chart(tmp_path):
+    """Poprawka 79: komórka perp i spot z paskami składu, dopisek „rzadko mocne”, wykres słupków co godzinę."""
+    now = T0 + 900 * DAY + 6 * HOUR
+    data = _data_dir(tmp_path, now)
+    today = now - now % DAY
+    day = today - DAY
+    c1 = json.load(open(os.path.join(data, "cvd_1d.json")))
+    ds = [t for t, _ in c1["series"]["cvd_btc_spot"]]
+    c1["series"]["cvd_btc_spot_echo"] = [[t, 30e6] for t in ds]                  # spot doby +250M = echo +30M + własny +220M
+    c1["series"]["cvd_btc_spot_own"] = [[t, v - 30e6] for t, v in c1["series"]["cvd_btc_spot"]]
+    h1 = json.load(open(os.path.join(data, "cvd_1h.json")))
+    hours = [t for t, _ in h1["series"]["cvd_btc_spot"]]
+    h1["series"]["cvd_btc_spot_echo"] = [[t, -2e5] for t in hours]
+    h1["series"]["cvd_btc_spot_own"] = [[t, 1.2e6] for t in hours]
+    lq = json.load(open(os.path.join(data, "liq_1d.json")))
+    lq["series"]["liq_btc_long"] = [[day, 10e6]]
+    lq["series"]["liq_btc_short"] = [[day, 70e6]]                                 # wymuszone kupno netto +60M z +300M perp
+    for name, obj in (("cvd_1d.json", c1), ("cvd_1h.json", h1), ("liq_1d.json", lq)):
+        with open(os.path.join(data, name), "w") as f:
+            json.dump(obj, f)
+    d = report.Data(data)
+    wp, ws = cvd.window(d, "BTC", "perp", day, today), cvd.window(d, "BTC", "spot", day, today)
+    cell = cvd.flow_cell(d, "BTC", day, today, wp, ws)
+    assert cell[0] == {"t": "perp +$300M (+3.0%)"}
+    assert cell[1]["bar"] == [[20, cvd.LIQ_COLOR], [80, cvd.BUY_COLOR]]
+    assert cell[2]["t"] == "20% likwidacje (+$60M) · 80% reszta: kupno (+$240M)"
+    assert cell[3] == {"t": "spot +$250M (+25.0%)"}
+    assert cell[4] == {"t": "rzadko mocne kupno (10% najmocniejszych dni z 2 lat)", "tone": "warn"}
+    assert cell[5]["bar"] == [[12, cvd.ECHO_COLOR], [88, cvd.BUY_COLOR]]
+    assert cell[6]["t"] == "12% z futures (+$30M) · 88% własny: kupno (+$220M)"
+    w7 = cvd.flow_cell(d, "BTC", day - 6 * DAY, today, cvd.window(d, "BTC", "perp", day - 6 * DAY, today),
+                       cvd.window(d, "BTC", "spot", day - 6 * DAY, today), weekly=True)
+    assert all("okresów 7-dniowych" in x["t"] for x in w7 if "rzadko" in (x.get("t") or ""))
+    eth = cvd.flow_cell(d, "ETH", day, today, cvd.window(d, "ETH", "perp", day, today), None)
+    assert len(eth) == 1 or not any("bar" in x for x in eth)                    # bez likwidacji i echa → same kwoty
+    ch = cvd.hour_flow_chart(d, today)
+    assert ch["series"][0]["stack"] == "base" and ch["series"][1]["stack"] == "top" and len(ch["series"][0]["data"]) == 7 * 24
+    assert ch["series"][1]["data"][-1][1] == 1.2e6 and ch["series"][2]["scale"] == "hidden"
+    rep = report.build(data, None, "morning", now=now, cfg={"cvd": {"enabled": True}})
+    titles = [b.get("title") for b in rep["blocks"]]
+    assert titles.index("Cena, open interest i CVD — kto napędzał ruch") + 1 == titles.index(ch["title"])
+    md = report.to_markdown(rep)
+    assert "12% z futures (+$30M)" in md and "**Spot własny**" in md
+    assert cvd.report_coins({"cvd": {"coins": ["BTC", "XRP"], "report_coins": ["xrp"]}}) == ["XRP"]
+    assert cvd.report_coins({"cvd": {"coins": ["BTC", "ETH", "XRP"]}}) == ["BTC", "ETH"]
