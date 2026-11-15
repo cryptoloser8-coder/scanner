@@ -15,17 +15,23 @@
 
   var NAV = [
     {sec: 'Rynek'},
-    {href: 'oi.html', ic: 'OI', name: 'OI & TOTAL', short: 'OI', rgb: '206,147,216', fg: '#ce93d8'},
-    {href: 'liq.html', ic: 'LIQ', name: 'Likwidacje i funding', short: 'Likwid.', rgb: '224,82,82', fg: '#e05252'},
-    {href: 'sieci.html', ic: 'NET', name: 'Sieci', short: 'Sieci', rgb: '129,199,132', fg: '#81c784'},
+    {href: 'oi.html', ic: 'OI', name: 'OI & TOTAL', short: 'OI', rgb: '206,147,216', fg: '#ce93d8', status: 'live'},
+    {href: 'liq.html', ic: 'LIQ', name: 'Likwidacje i funding', short: 'Likwid.', rgb: '224,82,82', fg: '#e05252', status: 'live'},
+    {href: 'sieci.html', ic: 'NET', name: 'Sieci', short: 'Sieci', rgb: '129,199,132', fg: '#81c784', status: 'beta'},
     {sec: 'Alty'},
-    {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true},
-    {href: 'ema.html', ic: 'EMA', name: 'EMA200 i RSI', short: 'EMA200', rgb: '255,193,7', fg: '#ffc107'},
-    {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d'},
+    {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true, status: 'beta'},
+    {href: 'ema.html', ic: 'EMA', name: 'EMA200 i RSI', short: 'EMA200', rgb: '255,193,7', fg: '#ffc107', status: 'live'},
+    {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d', status: 'live'},
     {sec: 'Raporty'},
-    {href: 'raporty.html', ic: 'RAP', name: 'Raporty', short: 'Raporty', rgb: '38,198,218', fg: '#26c6da'},
-    {href: 'fib.html', ic: 'Fib', name: 'Fibo · zawieszone', short: 'Fibo', rgb: '255,255,255', fg: '#8a8a8a', paused: true}
+    {href: 'raporty.html', ic: 'RAP', name: 'Raporty', short: 'Raporty', rgb: '38,198,218', fg: '#26c6da', status: 'beta'},
+    {href: 'fib.html', ic: 'Fib', name: 'Fibo · zawieszone', short: 'Fibo', rgb: '255,255,255', fg: '#8a8a8a', paused: true, status: 'paused'}
   ];
+  // Status zakładki — znaczek przy tytule strony (poprawka 78). Zmiana statusu: pole status w NAV wyżej.
+  var STATUS = {
+    live: ['Live', 'Działa stabilnie — dane i alerty na bieżąco.'],
+    beta: ['Beta', 'Działa, ale jeszcze dopracowywane — możliwe zmiany i drobne błędy.'],
+    paused: ['Zawieszone', 'Wstrzymane do dopracowania — wyniki mogą być nietrafione.']
+  };
   var MOBILE = ['index.html', 'oi.html', 'alt.html', 'raporty.html'];
   var page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   if (page.indexOf('.') < 0) page = 'index.html';
@@ -37,6 +43,11 @@
     '.cl-dot.ok{background:#4caf7d}.cl-dot.bad{background:#e05252}.cl-dot.warn{background:#ffc107}' +
     '.cl-lamp{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--lc,#5b9cf6);box-shadow:0 0 8px var(--lc,#5b9cf6);animation:cl-blink 1.4s ease-in-out infinite}' +
     '@keyframes cl-blink{0%,100%{opacity:1}50%{opacity:.2}}' +
+    '.cl-status{display:inline-flex;align-items:center;gap:5px;margin-left:10px;vertical-align:middle;position:relative;top:-2px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;line-height:1;padding:4px 8px;border-radius:5px;white-space:nowrap;cursor:help}' +
+    '.cl-status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}' +
+    '.cl-status.live{background:rgba(76,175,125,.15);color:#4caf7d}' +
+    '.cl-status.beta{background:rgba(91,156,246,.15);color:#5b9cf6}' +
+    '.cl-status.paused{background:rgba(255,193,7,.14);color:#ffc107}' +
     '@media (prefers-reduced-motion:reduce){.cl-lamp{animation:none}}' +
     // wąskie menu (zakładki)
     '.cl-rail{position:fixed;left:0;top:0;bottom:0;width:76px;z-index:40;box-sizing:border-box;padding:8px 6px 10px;background:#121212;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none}' +
@@ -83,7 +94,7 @@
     '.cl-sheet a.on{background:#262626;color:#fff}.cl-sheet .cl-lamp{position:static;margin-left:auto}' +
     '}' +
     '}' +
-    '@media print{.cl-rail,.cl-side,.cl-top,.cl-bottom,.cl-sheet{display:none!important}}';
+    '@media print{.cl-rail,.cl-side,.cl-top,.cl-bottom,.cl-sheet,.cl-status{display:none!important}}';
   var st = document.createElement('style');
   st.id = 'cl-shell-css';
   st.textContent = css;
@@ -129,6 +140,11 @@
     });
     h.push('</div>');
     b.insertAdjacentHTML('afterbegin', h.join(''));
+    var cur = items.filter(function (n) { return n.href === page; })[0], st = cur && STATUS[cur.status];
+    var h1 = st && (document.querySelector('.header h1') || document.querySelector('main h1, body > h1'));
+    if (h1 && !h1.querySelector('.cl-status')) {
+      h1.insertAdjacentHTML('beforeend', ' <span class="cl-status ' + cur.status + '" title="' + esc(st[1]) + '">' + st[0] + '</span>');
+    }
     var more = document.getElementById('cl-more'), sheet = document.getElementById('cl-sheet');
     more.addEventListener('click', function (e) {
       e.stopPropagation();
