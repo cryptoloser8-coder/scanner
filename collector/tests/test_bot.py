@@ -218,16 +218,16 @@ def test_timetable_evening_in_new_york_time():
 
 
 def test_schedule_tick_dispatch_retry_and_pending(tmp_path):
-    c = ctx_for(tmp_path, now=pl(2026, 11, 2, 6, 16), gh=FakeGH(ok=False))
+    c = ctx_for(tmp_path, now=pl(2026, 11, 2, 5, 16), gh=FakeGH(ok=False))
     assert B.schedule_tick(c) == []
     msgs = B.report_health(c)
     assert msgs and "Uruchamianie skanów" in msgs[0]
-    c2 = ctx_for(tmp_path, now=pl(2026, 11, 2, 6, 17), st=c.st)                     # next minute: retry works
+    c2 = ctx_for(tmp_path, now=pl(2026, 11, 2, 5, 17), st=c.st)                     # next minute: retry works
     assert len(B.schedule_tick(c2)) == 1
     assert c2.gh.calls == [("oi-monitor.yml", {"mode": "run", "report": "morning"})]
     assert c2.st["pending_reports"][0]["kind"] == "morning"
     assert "znowu działa" in B.report_health(c2)[0]
-    c3 = ctx_for(tmp_path, now=pl(2026, 11, 2, 6, 18), st=c2.st)
+    c3 = ctx_for(tmp_path, now=pl(2026, 11, 2, 5, 18), st=c2.st)
     assert B.schedule_tick(c3) == [] and c3.gh.calls == []                          # started once
 
 
