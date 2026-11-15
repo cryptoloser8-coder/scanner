@@ -118,7 +118,7 @@ Uwaga: komendy odbiera tylko `bot.py` na Pi (`getUpdates`). Ten bot nie może by
 
 ## Raporty: zakładka `raporty.html` (workflow „Raport”)
 
-Raporty powstają same według harmonogramu (sekcja `schedule:` w `config.yaml`, czas polski): rano (skan 06:15 → raport ok. 07:00, „Zamknięcie dnia”: pełny stan po zamknięciu dziennej świecy) i wieczorem (skan 16:05 czasu Nowego Jorku, zwykle 22:05 PL → raport ok. 22:45, „Krypto dziś”: tylko to, co zmieniło się od 00:00 UTC — `collector/today.py`; coiny w tabeli: `reports.today.coins`, domyślnie BTC, ETH, SOL, BNB, DOGE, HYPE). Orange Pi uruchamia skan OI z parametrem `report`, a ten sam przebieg po publikacji danych buduje raport — raport nigdy nie wyprzedza danych. Na żądanie: `/raport_teraz` (z obecnych danych) albo `/raport_teraz skan`.
+Raporty powstają same według harmonogramu (sekcja `schedule:` w `config.yaml`, czas polski): rano (skan 05:15 → raport ok. 06:00, „Zamknięcie dnia”: pełny stan po zamknięciu dziennej świecy) i wieczorem (skan 16:05 czasu Nowego Jorku, zwykle 22:05 PL → raport ok. 22:45, „Krypto dziś”: tylko to, co zmieniło się od 00:00 UTC — `collector/today.py`; coiny w tabeli: `reports.today.coins`, domyślnie BTC, ETH, SOL, BNB, DOGE, HYPE). Orange Pi uruchamia skan OI z parametrem `report`, a ten sam przebieg po publikacji danych buduje raport — raport nigdy nie wyprzedza danych. Na żądanie: `/raport_teraz` (z obecnych danych) albo `/raport_teraz skan`.
 
 Raporty rzadkie (`collector/special.py`): **roczny** — 1 stycznia po zamknięciu świecy rocznej (wpis w `schedule.reports` z `monthday: 1`, `month: 1`), ręcznie `/raport_teraz rok`; **po halvingu** — ręcznie: po halvingu dopisz dzień UTC w `cycle.halvings` w `config.yaml`, potem `/raport_teraz halving` (bot przypomina przed `cycle.next_halving_estimate`). Oba trzymane bez limitu, stałe adresy `latest-yearly.md`, `latest-halving.md`.
 
@@ -158,7 +158,7 @@ Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data
 
 Komendy działają na priv u administratora i w grupie z configu; w innych czatach bot milczy. W grupie z kilkoma botami pisz `/komenda@NazwaBota`.
 
-**Harmonogram** (`schedule:` w `config.yaml`, czas polski): zwykłe skany co 2 h o :15, skany przed raportami o 06:15 i 22:05; zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany. Pilnuje go `bot.py` na Pi (token `~/.scanner_token`). Zmiana godzin = edycja configu na GitHubie.
+**Harmonogram** (`schedule:` w `config.yaml`, czas polski): zwykłe skany co 2 h o :15, skany przed raportami o 05:15 i 22:05; zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany. Pilnuje go `bot.py` na Pi (token `~/.scanner_token`). Zmiana godzin = edycja configu na GitHubie.
 
 **Nadzór:**
 - Pi: awaria Binance albo publikacji (3 przebiegi z rzędu), nieudane uruchomienie skanu (np. wygasły token), brak świeżych danych OI (> 3,5 h), raport z harmonogramu, który nie powstał → wiadomość do administratora; przypomnienie co `health_reminder_hours`; „znowu działa” po naprawie.

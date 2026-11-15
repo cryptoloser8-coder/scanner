@@ -166,7 +166,7 @@ schedule:
   scan_every_hours: 2        # zwykłe skany: co 2 h…
   scan_minute: 15            # …o :15 (00:15, 02:15, …)
   reports:
-    - scan_at: "06:15"       # raport poranny gotowy ok. 07:00 (dzienne świece zamknięte o 01:00/02:00 PL)
+    - scan_at: "05:15"       # raport poranny gotowy ok. 06:00 (dzienne świece zamknięte o 01:00/02:00 PL)
       kind: morning
     - scan_at: "16:05"       # 5 min po zamknięciu sesji w USA, liczone w czasie Nowego Jorku
       timezone: America/New_York   # → zwykle 22:05 PL, ok. 3 tygodnie w roku 21:05 PL; raport ok. 40 min później

@@ -2,7 +2,7 @@
 
 Times are wall-clock times in `timezone` (default Europe/Warsaw); summer/winter time is handled by zoneinfo.
   regular scans:  every `scan_every_hours` hours at minute `scan_minute`  (00:15, 02:15, …)
-  report scans:   reports: [{scan_at: "06:15", kind: morning}, …] — the OI scan runs (~40 min),
+  report scans:   reports: [{scan_at: "05:15", kind: morning}, …] — the OI scan runs (~40 min),
                   then the same GitHub run builds the report and posts the link.
                   An entry may have its own `timezone` (e.g. {scan_at: "16:05", timezone: America/New_York}
                   = always 5 min after the US close, whatever the summer/winter time in Poland and the US).
@@ -26,7 +26,7 @@ DEFAULTS = {
     "timezone": "Europe/Warsaw",
     "scan_every_hours": 2,
     "scan_minute": 15,
-    "reports": [{"scan_at": "06:15", "kind": "morning"}, {"scan_at": "22:05", "kind": "evening"}],
+    "reports": [{"scan_at": "05:15", "kind": "morning"}, {"scan_at": "22:05", "kind": "evening"}],
     "skip_regular_minutes": 60,
     "grace_minutes": 10,
     "report_grace_minutes": 90,
