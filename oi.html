@@ -301,8 +301,11 @@ const TILE_GROUPS = [
   {key: 'cycle', label: 'Cykl BTC', ids: ['px_btc', 'rprice_btc', 'mvrv_btc', 'mvrvz_btc', 'mayer_btc', 'p200w_btc', 'picycle_btc', 'ssr'], cats: ['cycle']},
   {key: 'macro', label: 'Makro USA', ids: ['net_liq', 'm2', 'dxy', 'spx', 'ndx', 'vix', 'us10y', 'yc_10y2y', 'gold'], cats: ['macro']},
   {key: 'cvd', label: 'CVD', ids: ['cvd_btc_spot', 'cvd_btc_perp', 'cvd_eth_spot', 'cvd_eth_perp', 'cvd_sol_spot', 'cvd_sol_perp',
-    'cvd_bnb_spot', 'cvd_bnb_perp', 'cvd_xrp_spot', 'cvd_xrp_perp', 'cvd_doge_spot', 'cvd_doge_perp'], cats: ['cvd'],
-    note: 'Kupno − sprzedaż „po rynku”, spot i perp. Kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu.'},
+    'cvd_bnb_spot', 'cvd_bnb_perp', 'cvd_xrp_spot', 'cvd_xrp_perp', 'cvd_doge_spot', 'cvd_doge_perp',
+    'cvd_btc_spot_echo', 'cvd_btc_spot_own', 'cvd_eth_spot_echo', 'cvd_eth_spot_own', 'cvd_sol_spot_echo', 'cvd_sol_spot_own',
+    'cvd_bnb_spot_echo', 'cvd_bnb_spot_own', 'cvd_xrp_spot_echo', 'cvd_xrp_spot_own', 'cvd_doge_spot_echo', 'cvd_doge_spot_own'], cats: ['cvd'],
+    note: 'Kupno − sprzedaż „po rynku”, spot i perp. Kafelek: suma z 24 h; wykres: suma od początku wybranego zakresu. ' +
+      'Spot = echo futures (część, która idzie razem z perp w tej samej godzinie) + spot własny — szacunek, nie podział transakcji.'},
   {key: 'vol', label: 'Wolumen', ids: [], cats: ['vol']},
 ];
 const BUILTIN_PRESETS = [
@@ -332,6 +335,8 @@ const BUILTIN_PRESETS = [
   {name: 'BTC: cena + CVD spot i perp', series: ['px_btc', 'cvd_btc_spot', 'cvd_btc_perp'], mode: 'val'},
   {name: 'ETH: cena + CVD spot i perp', series: ['px_eth', 'cvd_eth_spot', 'cvd_eth_perp'], mode: 'val'},
   {name: 'SOL: cena + CVD spot i perp', series: ['px_sol', 'cvd_sol_spot', 'cvd_sol_perp'], mode: 'val'},
+  {name: 'BTC: cena + CVD spot, echo futures i spot własny', series: ['px_btc', 'cvd_btc_spot', 'cvd_btc_spot_echo', 'cvd_btc_spot_own'], mode: 'val'},
+  {name: 'ETH: cena + CVD spot, echo futures i spot własny', series: ['px_eth', 'cvd_eth_spot', 'cvd_eth_spot_echo', 'cvd_eth_spot_own'], mode: 'val'},
   {name: 'BTC: OI + CVD spot i perp', series: ['oi_btc', 'cvd_btc_spot', 'cvd_btc_perp'], mode: 'val'},
   {name: 'BTC: wolumen spot vs perp', series: ['cvd_btc_spot_vol', 'cvd_btc_perp_vol'], mode: 'val'},
 ];

@@ -175,6 +175,10 @@
   .lg-mark.ref{background:var(--amber);}
   .lg-mark.top{background:var(--red);} .lg-mark.bottom{background:var(--green);}
   .lg-mark.best{background:var(--amber);} .lg-mark.worst{background:var(--purple,#ce93d8);}
+  .ln.comp{display:flex;justify-content:flex-end;padding:3px 0 1px;}
+  .comp-t{display:flex;width:180px;max-width:100%;height:8px;border-radius:2px;overflow:hidden;gap:1px;}
+  .comp-t i{display:block;height:100%;}
+  .tbl.stack .ln.comp{justify-content:flex-start;}
   .dbar-grp{padding:4px 0;border-bottom:1px solid var(--border2);}
   .dbar-grp:last-of-type{border-bottom:0;}
   .dbar-row{display:grid;grid-template-columns:62px 34px minmax(0,1fr) 170px;gap:8px;align-items:center;padding:2px 0;font-size:12px;}
@@ -430,6 +434,9 @@ function tableBlock(b) {
   // komórka z kilkoma liniami (jedna pod drugą): pierwsza = główna, kolejne mniejsze; tone ok / warn / mute
   const cell = v => !Array.isArray(v) ? esc(v) : v.map((x, k) => {
     const o = (x && typeof x === 'object') ? x : {t: x};
+    // pasek składu (poprawka 79): o.bar = [[%, kolor], …] — udziały w 100%, np. echo futures / spot własny
+    if (o.bar) return `<span class="ln comp" title="${esc(o.tip || '')}"><span class="comp-t">${o.bar.map(([w, c]) =>
+      `<i style="width:${+w}%;background:${esc(c)}"></i>`).join('')}</span></span>`;
     return `<span class="ln${b.even ? ' e' : (k ? ' s' : '')}${['ok', 'warn', 'pos', 'neg'].includes(o.tone) ? ' ' + o.tone : ''}">${esc(o.t)}</span>`;
   }).join('');
   return `<div class="tbl"><table><thead><tr>${(b.cols || []).map((c, j) => `<th${left.includes(j) ? ' style="text-align:left"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>
@@ -581,7 +588,22 @@ function drawChart(b, i) {
     }
     chart.priceScale('bands').applyOptions({scaleMargins: {top: 0, bottom: 0}, visible: false});
   }
-  for (const s of b.series) {
+  // słupki ułożone jedna na drugiej (poprawka 79): seria stack 'top' rysowana jako własna wartość + wartość serii
+  // 'base' tej samej świecy, gdy mają ten sam znak; najpierw 'top', na niej 'base' — wygląda jak jeden słupek z dwóch części
+  const baseS = b.series.find(s => s.hist && s.stack === 'base');
+  const baseAt = new Map(baseS ? baseS.data : []);
+  const order = baseS ? [...b.series].sort((a, c) => (c.stack === 'top') - (a.stack === 'top')) : b.series;
+  for (const s of order) {
+    if (s.hist) {
+      const scaleId = s.scale === 'left' ? 'left' : 'right';
+      const h = chart.addSeries(LWC.HistogramSeries, {priceScaleId: scaleId, lastValueVisible: false, priceLineVisible: false,
+        priceFormat: {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)}});
+      h.setData(s.data.map(([t, v]) => {
+        const bv = s.stack === 'top' ? (baseAt.get(t) || 0) : 0;
+        return {time: t, value: v + (bv * v > 0 ? bv : 0), color: s.colors ? (v >= 0 ? s.colors[0] : s.colors[1]) : s.color};
+      }));
+      continue;
+    }
     const scaleId = s.scale === 'left' ? 'left' : s.scale === 'hidden' ? 'hidden' : 'right';
     const pf = {type: 'custom', minMove: 0.00001, formatter: v => fmt(v, s.fmt)};
     // świece (poprawka 58): s.ohlc = [[t, open, high, low, close]]; s.data (zamknięcia) zostaje dla tła okresów i wersji dla AI
