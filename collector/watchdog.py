@@ -30,13 +30,13 @@ def check(fetch, now):
         out.append("nie da się odczytać danych EMA/Fibo (gałąź ema)")
     elif now - ema["updated"] > LIMITS["ema"]:
         out.append(f"Orange Pi nie publikuje EMA/Fibo od {(now - ema['updated']) / HOUR:.1f} h "
-                   "(Pi wyłączone, brak internetu albo błąd — log: ~/ema-monitor.log)")
+                   "(Pi wyłączone, brak internetu albo błąd — log: ~/Crypto_Loser_analytics_tool/pi/logi/ema-monitor.log)")
     meta = fetch("data", "meta.json")
     if not meta or not meta.get("updated"):
         out.append("nie da się odczytać danych OI/TOTAL (gałąź data)")
     elif now - meta["updated"] > LIMITS["data"]:
         out.append(f"skany OI/TOTAL nie działają od {(now - meta['updated']) / HOUR:.1f} h "
-                   "(uruchamia je Orange Pi: ~/scanner-bot.log; sprawdź też GitHub → Actions)")
+                   "(uruchamia je Orange Pi: ~/Crypto_Loser_analytics_tool/pi/logi/scanner-bot.log; sprawdź też GitHub → Actions)")
     return out
 
 

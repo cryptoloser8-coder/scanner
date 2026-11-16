@@ -91,28 +91,39 @@ Binance blokuje serwery GitHuba (USA), więc EMA liczy Orange Pi (`collector/ema
 Alerty: sekcja `ema: alerts:` w `config.yaml` (przecięcie w trakcie dnia albo po zamknięciu dnia, kierunek, zbliżenie na X%). Pi przy każdym uruchomieniu robi `git pull`, więc zmiany w configu i kodzie działają po commicie.
 
 Instalacja na Pi (jednorazowo):
-1. Token GitHub z `~/.scanner_token` musi mieć dodatkowo **Contents: Read and write** (GitHub → Settings → Developer settings → Fine-grained tokens → token → Edit).
-2. `git clone https://github.com/cryptoloser8-coder/scanner.git ~/scanner`
-3. `python3 -c "import requests, yaml"` — jeśli błąd: `sudo apt install -y python3-requests python3-yaml`
-4. Dane Telegrama w `~/.scanner_env` (chmod 600): `TELEGRAM_BOT_TOKEN=...` i `TELEGRAM_CHAT_ID=...`
-5. Test: `python3 ~/scanner/collector/ema_monitor.py check --test-telegram`
+1. Token GitHub z `~/Crypto_Loser_analytics_tool/pi/scanner_token` musi mieć dodatkowo **Contents: Read and write** (GitHub → Settings → Developer settings → Fine-grained tokens → token → Edit).
+2. `git clone https://github.com/cryptoloser8-coder/scanner.git ~/Crypto_Loser_analytics_tool`
+3. `mkdir -p ~/Crypto_Loser_analytics_tool/pi/{stan,archiwum,logi} && chmod 700 ~/Crypto_Loser_analytics_tool/pi` — wszystkie pliki Pi w jednym miejscu (folder `pi/` nie trafia do Gita)
+   `python3 -c "import requests, yaml"` — jeśli błąd: `sudo apt install -y python3-requests python3-yaml`
+4. Dane Telegrama w `~/Crypto_Loser_analytics_tool/pi/scanner_env` (chmod 600): `TELEGRAM_BOT_TOKEN=...` i `TELEGRAM_CHAT_ID=...`
+5. Test: `python3 ~/Crypto_Loser_analytics_tool/collector/ema_monitor.py check --test-telegram`
 6. Cron (`crontab -e`), dwie linie:
    ```
-   */5 * * * * flock -n /tmp/ema-monitor.lock bash $HOME/scanner/collector/ema_cron.sh >> $HOME/ema-monitor.log 2>&1
-   * * * * * flock -n /tmp/scanner-bot.lock python3 $HOME/scanner/collector/bot.py >> $HOME/scanner-bot.log 2>&1
+   */5 * * * * flock -n /tmp/ema-monitor.lock bash $HOME/Crypto_Loser_analytics_tool/collector/ema_cron.sh >> $HOME/Crypto_Loser_analytics_tool/pi/logi/ema-monitor.log 2>&1
+   * * * * * flock -n /tmp/scanner-bot.lock python3 $HOME/Crypto_Loser_analytics_tool/collector/bot.py >> $HOME/Crypto_Loser_analytics_tool/pi/logi/scanner-bot.log 2>&1
    ```
    Pierwsza: EMA200, Fibo, alerty, publikacja + `git pull` (aktualizacja kodu i configu). Druga: bot Telegram (komendy) i harmonogram skanów.
 
-Stan i pobrane świece: `~/.ema-monitor/` (można usunąć — przy następnym uruchomieniu pobierze wszystko od nowa).
+**Wszystko na Pi w jednym folderze** (od poprawki 83):
+```
+~/Crypto_Loser_analytics_tool/                kod (git pull co 5 min) — nie edytować ręcznie
+~/Crypto_Loser_analytics_tool/pi/stan/        stan bota, świece, setupy Fibo (dawniej ~/.ema-monitor)
+~/Crypto_Loser_analytics_tool/pi/archiwum/    codzienne kopie danych (dawniej ~/scanner-archive)
+~/Crypto_Loser_analytics_tool/pi/logi/        ema-monitor.log, scanner-bot.log
+~/Crypto_Loser_analytics_tool/pi/scanner_env  dane Telegrama; ~/Crypto_Loser_analytics_tool/pi/scanner_token — token GitHub
+```
+Uwaga: nie usuwać `~/Crypto_Loser_analytics_tool` przy ponownym klonowaniu — najpierw przenieść `pi/`. Przeniesienie ze starych miejsc (i zmiana nazwy dawnego `~/scanner`): jednorazowo `bash ~/scanner/collector/porzadki_pi.sh`. Repo na GitHubie nadal nazywa się `scanner` — zmienia się tylko nazwa folderu na Pi.
+
+Stan i pobrane świece: `~/Crypto_Loser_analytics_tool/pi/stan/` (można usunąć — przy następnym uruchomieniu pobierze wszystko od nowa, ale zniknie stan bota i setupy Fibo z Telegrama).
 
 ## Fibo — moje setupy: zakładka `fib.html` (też Orange Pi)
 Ty wybierasz ruch (szczyt i dołek, dowolny interwał), Pi co 5 min sprawdza cenę i wysyła alerty: zbliża się do strefy (`near_pct`), wejście w strefę 0.705–0.786, przebicie 0.786, unieważnienie (cena za dołkiem/szczytem ruchu). Ceny z Binance */USDT, a brakujące coiny (np. HYPE) z Hyperliquid.
 
 Dodawanie setupów:
-- z Telegrama (bot odpowiada w ciągu ~1 min): `/fib SOL 250 120 long opis` i `/usun 3` — tylko administrator; `/fiby` — każdy w grupie. Setupy zapisuje Pi (`~/.ema-monitor/bot.json`),
+- z Telegrama (bot odpowiada w ciągu ~1 min): `/fib SOL 250 120 long opis` i `/usun 3` — tylko administrator; `/fiby` — każdy w grupie. Setupy zapisuje Pi (`~/Crypto_Loser_analytics_tool/pi/stan/bot.json`),
 - na stałe w `config.yaml`, sekcja `fib: setups:` (id c1, c2…).
 
-Propozycje (automat, tylko na stronie): raz dziennie dla każdego coina z listy EMA200 bot bierze główny ruch (najniższy dołek i najwyższy szczyt z knotów) w oknach 1M, 3M i 1R; ruch musi mieć ≥ `min_move_pct` i ≥ `vol_mult` × typowy dzienny zakres coina. Strona pokazuje te, gdzie cena jest w strefie albo bliżej niż `near_pct` (domyślnie 5%), z przyciskiem „Kopiuj” (gotowa komenda `/fib …`). Ustawienia: `fib: proposals:` w `config.yaml`. Pi przechowuje szczyty i dołki ostatnich ~400 dni w `~/.ema-monitor/hl.json`.
+Propozycje (automat, tylko na stronie): raz dziennie dla każdego coina z listy EMA200 bot bierze główny ruch (najniższy dołek i najwyższy szczyt z knotów) w oknach 1M, 3M i 1R; ruch musi mieć ≥ `min_move_pct` i ≥ `vol_mult` × typowy dzienny zakres coina. Strona pokazuje te, gdzie cena jest w strefie albo bliżej niż `near_pct` (domyślnie 5%), z przyciskiem „Kopiuj” (gotowa komenda `/fib …`). Ustawienia: `fib: proposals:` w `config.yaml`. Pi przechowuje szczyty i dołki ostatnich ~400 dni w `~/Crypto_Loser_analytics_tool/pi/stan/hl.json`.
 
 Uwaga: komendy odbiera tylko `bot.py` na Pi (`getUpdates`). Ten bot nie może być używany przez inny program.
 
@@ -138,7 +149,7 @@ Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data
 - alerty rynkowe (EMA200, Fibo, poziomy, zmiany, likwidacje) i powiadomienia o raportach → **wątek grupy** (`group_chat_id`, `group_thread_id`); bez grupy → na priv,
 - awarie i sprawy systemu → **tylko administrator** na priv (`TELEGRAM_CHAT_ID`).
 
-**Podpięcie grupy (jednorazowo):** dodaj bota do grupy z tematami → w wybranym wątku napisz `/watek@NazwaTwojegoBota` → bot odpowie dwiema liczbami → wpisz je w `config.yaml` (`group_chat_id`, `group_thread_id`) i zapisz na GitHubie → po ~5 min test na Pi: `python3 ~/scanner/collector/ema_monitor.py check --test-telegram` (wiadomość na priv i do wątku).
+**Podpięcie grupy (jednorazowo):** dodaj bota do grupy z tematami → w wybranym wątku napisz `/watek@NazwaTwojegoBota` → bot odpowie dwiema liczbami → wpisz je w `config.yaml` (`group_chat_id`, `group_thread_id`) i zapisz na GitHubie → po ~5 min test na Pi: `python3 ~/Crypto_Loser_analytics_tool/collector/ema_monitor.py check --test-telegram` (wiadomość na priv i do wątku).
 
 **Komendy** (bot na Pi odpowiada w ciągu ~1 min; menu pojawia się po wpisaniu „/”; lista generuje się z `COMMANDS` w `collector/bot.py`):
 
@@ -158,12 +169,12 @@ Ręcznie: **Actions → Raport → Run workflow** buduje raport z gałęzi `data
 
 Komendy działają na priv u administratora i w grupie z configu; w innych czatach bot milczy. W grupie z kilkoma botami pisz `/komenda@NazwaBota`.
 
-**Harmonogram** (`schedule:` w `config.yaml`, czas polski): zwykłe skany co 2 h o :15, skany przed raportami o 05:15 i 22:05; zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany. Pilnuje go `bot.py` na Pi (token `~/.scanner_token`). Zmiana godzin = edycja configu na GitHubie.
+**Harmonogram** (`schedule:` w `config.yaml`, czas polski): zwykłe skany co 2 h o :15, skany przed raportami o 05:15 i 22:05; zwykły skan bliżej niż 60 min od skanu przed raportem jest pomijany. Pilnuje go `bot.py` na Pi (token `~/Crypto_Loser_analytics_tool/pi/scanner_token`). Zmiana godzin = edycja configu na GitHubie.
 
 **Nadzór:**
 - Pi: awaria Binance albo publikacji (3 przebiegi z rzędu), nieudane uruchomienie skanu (np. wygasły token), brak świeżych danych OI (> 3,5 h), raport z harmonogramu, który nie powstał → wiadomość do administratora; przypomnienie co `health_reminder_hours`; „znowu działa” po naprawie.
 - GitHub (workflow „Watchdog”, co ~3 h): czy Pi publikuje EMA (≤ 1 h) i czy skany OI są świeże (≤ 4 h) — działa także, gdy Pi jest wyłączone.
-- Logi na Pi: `~/ema-monitor.log`, `~/scanner-bot.log`. Stan bota: `~/.ema-monitor/bot.json`.
+- Logi na Pi: `~/Crypto_Loser_analytics_tool/pi/logi/ema-monitor.log`, `~/Crypto_Loser_analytics_tool/pi/logi/scanner-bot.log`. Stan bota: `~/Crypto_Loser_analytics_tool/pi/stan/bot.json`.
 
 ## Uwagi
 - **OI ALTS / OTHERS** to suma po wybranych giełdach i top `max_assets` coinach krypto (~97% całego OI). Perpy na TradFi (złoto, ropa, akcje), które giełdy też listują, są pomijane: liczą się tylko coiny z top 1500 CoinGecko, plus lista `exclude_assets` w configu. Historia sumowana jest z rynków, które istnieją dziś, więc coiny usunięte z giełd mogą lekko zaniżać dawne wartości.

@@ -12,8 +12,9 @@ Once per UTC day (first run after 00:00 UTC): exchangeInfo + daily candles (new 
 per-coin history files. Every run: one request for all prices → EMA "live" (today's candle
 counted with the current price, like on TradingView), distance, alerts.
 
-State:   ~/.ema-monitor/ (candles.json, state.json, pub/ = local clone of branch `ema`)
-Env:     ~/.scanner_env  (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), token ~/.scanner_token
+State:   ~/Crypto_Loser_analytics_tool/pi/stan/ (dawniej ~/.ema-monitor; candles.json, state.json, pub/ = local clone of branch `ema`)
+Env:     ~/Crypto_Loser_analytics_tool/pi/scanner_env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), token ~/Crypto_Loser_analytics_tool/pi/scanner_token
+         (przed przeniesieniem: ~/.scanner_env, ~/.scanner_token — zob. pi_dirs.py)
          (GitHub fine-grained token with Contents: Read and write) for publishing.
 Config:  section `ema:` in collector/config.yaml.
 """
@@ -36,6 +37,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import alerts  # noqa: E402
 import fib as F  # noqa: E402
+try:
+    import pi_dirs as _pd          # poprawka 83: pliki Pi w ~/Crypto_Loser_analytics_tool/pi
+except ImportError:                # paczka wgrywana w częściach — stare miejsca
+    _pd = None
 
 log = logging.getLogger("ema")
 DAY = 86400
@@ -977,9 +982,9 @@ def main(argv=None):
     ap.add_argument("mode", choices=["run", "check"])
     here = os.path.dirname(os.path.abspath(__file__))
     ap.add_argument("--config", default=os.path.join(here, "config.yaml"))
-    ap.add_argument("--state", default=os.path.expanduser("~/.ema-monitor"))
-    ap.add_argument("--env-file", default="~/.scanner_env")
-    ap.add_argument("--token-file", default="~/.scanner_token")
+    ap.add_argument("--state", default=_pd.state_dir() if _pd else os.path.expanduser("~/.ema-monitor"))
+    ap.add_argument("--env-file", default=_pd.env_file() if _pd else "~/.scanner_env")
+    ap.add_argument("--token-file", default=_pd.token_file() if _pd else "~/.scanner_token")
     ap.add_argument("--no-publish", action="store_true")
     ap.add_argument("--test-telegram", action="store_true")
     a = ap.parse_args(argv)
@@ -1025,7 +1030,7 @@ def main(argv=None):
             for r in info["fib"]:
                 stt = F.STATUS_PL.get(r["status"], "brak ceny")
                 print(f"  [{r['id']}] {r['coin']} {r['dir']}  0.75 = {F.fmt(r['l75'])}  cena {F.fmt(r['price'])}  {stt}")
-        print(f"\nTelegram: {'skonfigurowany' if os.environ.get('TELEGRAM_BOT_TOKEN') and os.environ.get('TELEGRAM_CHAT_ID') else 'BRAK danych w ~/.scanner_env'}")
+        print(f"\nTelegram: {'skonfigurowany' if os.environ.get('TELEGRAM_BOT_TOKEN') and os.environ.get('TELEGRAM_CHAT_ID') else 'BRAK danych w ' + a.env_file}")
         print(f"GitHub (publikacja): {'token jest' if remote else 'BRAK tokenu'}")
         if a.test_telegram:
             tg = alerts.Telegram(tg_cfg=cfg["telegram"])

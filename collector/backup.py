@@ -2,15 +2,15 @@
 
 Raz na dobę (po `backup.hour_utc`, domyślnie 02:00 UTC) pakuje do jednego pliku .tar.xz:
   - gałęzie data, ema i reports z GitHuba (cała historia danych i raporty),
-  - stan Pi: ~/.ema-monitor (świece Binance, setupy Fibo z Telegrama, stan bota) — bez katalogu pub/.
-Pliki: ~/scanner-archive/scanner-RRRR-MM-DD.tar.xz. Zostaje ostatnie `keep_daily` dni (domyślnie 14)
+  - stan Pi: ~/Crypto_Loser_analytics_tool/pi/stan (dawniej ~/.ema-monitor; świece Binance, setupy Fibo z Telegrama, stan bota) — bez katalogu pub/.
+Pliki: ~/Crypto_Loser_analytics_tool/pi/archiwum/scanner-RRRR-MM-DD.tar.xz. Zostaje ostatnie `keep_daily` dni (domyślnie 14)
 oraz na zawsze plik z 1. dnia każdego miesiąca.
 
 Uruchamiane z collector/ema_cron.sh (cron co 5 min, bez zmian w crontabie):
     python3 collector/backup.py --if-due     # robi kopię tylko, gdy dziś jej jeszcze nie ma
 Ręcznie:
-    python3 ~/scanner/collector/backup.py now     # kopia teraz
-    python3 ~/scanner/collector/backup.py list    # lista kopii
+    python3 ~/Crypto_Loser_analytics_tool/collector/backup.py now     # kopia teraz
+    python3 ~/Crypto_Loser_analytics_tool/collector/backup.py list    # lista kopii
 Awaria dwa dni z rzędu → wiadomość do admina na Telegramie (raz), po naprawie „znowu działa”.
 """
 import argparse
@@ -26,11 +26,23 @@ from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+try:
+    import pi_dirs as _pd          # poprawka 83: pliki Pi w ~/Crypto_Loser_analytics_tool/pi
+except ImportError:                # paczka wgrywana w częściach — stare miejsca
+    _pd = None
 
 log = logging.getLogger("backup")
 BRANCHES = ("data", "ema", "reports")
 DEFAULTS = {"dir": "~/scanner-archive", "keep_daily": 14, "hour_utc": 2,
             "repo": "cryptoloser8-coder/scanner"}
+
+
+def _archive_dir(configured):
+    if _pd:
+        return _pd.archive_dir(configured)
+    return os.path.expanduser(configured)
+
+
 SKIP_STATE = ("pub",)               # katalog roboczy publikacji (kopia gałęzi ema)
 SKIP_SUFFIX = (".tmp", ".lock")
 
@@ -131,7 +143,7 @@ def rotate(archive_dir, keep_daily, today):
 def do_backup(cfg, state_dir, now=None, fetch=fetch_branches):
     now = now or datetime.now(timezone.utc)
     day = now.strftime("%Y-%m-%d")
-    adir = os.path.expanduser(cfg["dir"])
+    adir = _archive_dir(cfg["dir"])
     os.makedirs(adir, exist_ok=True)
     work = tempfile.mkdtemp(prefix="scanner-backup-")
     try:
@@ -158,7 +170,7 @@ def notify(text, cfg, telegram=None):
         if telegram is None:
             import alerts
             from ema_monitor import load_env
-            load_env("~/.scanner_env")
+            load_env(_pd.env_file() if _pd else "~/.scanner_env")
             telegram = alerts.Telegram(tg_cfg=cfg.get("telegram"))
         telegram.post("system", text)
     except Exception as e:  # noqa: BLE001 — powiadomienie nie może przerwać crona
@@ -185,7 +197,7 @@ def run_if_due(cfg, state_dir, now=None, backup=do_backup, telegram=None, force=
         if len(st["failed_days"]) >= 2 and not st.get("notified"):
             notify("⚠️ Archiwum na Orange Pi: kopia danych nie powiodła się "
                    f"{len(st['failed_days'])} dni z rzędu.\nBłąd: {st['last_error']}\n"
-                   "Sprawdź: python3 ~/scanner/collector/backup.py now", cfg, telegram)
+                   "Sprawdź: python3 ~/Crypto_Loser_analytics_tool/collector/backup.py now", cfg, telegram)
             st["notified"] = True
         _write(spath, st)
         return False
@@ -204,12 +216,12 @@ def main(argv=None):
     ap.add_argument("mode", nargs="?", choices=["now", "list"], default=None)
     ap.add_argument("--if-due", action="store_true")
     ap.add_argument("--config", default=os.path.join(HERE, "config.yaml"))
-    ap.add_argument("--state", default=os.path.expanduser("~/.ema-monitor"))
+    ap.add_argument("--state", default=_pd.state_dir() if _pd else os.path.expanduser("~/.ema-monitor"))
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_cfg(a.config)
     if a.mode == "list":
-        adir = os.path.expanduser(cfg["dir"])
+        adir = _archive_dir(cfg["dir"])
         files = sorted(os.listdir(adir)) if os.path.isdir(adir) else []
         for f in files:
             print(f"{f}  {os.path.getsize(os.path.join(adir, f)) / 1e6:.1f} MB")

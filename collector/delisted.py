@@ -1,12 +1,12 @@
 """Szerokość rynku bez błędu przeżywalności: dzienne zamknięcia par */USDT wycofanych z Binance.
 
 Jednorazowo na Orange Pi (ok. 15–30 min, EMA i alerty działają w tym czasie normalnie):
-    python3 ~/scanner/collector/delisted.py
+    python3 ~/Crypto_Loser_analytics_tool/collector/delisted.py
 
 Pobiera z archiwum data.binance.vision (miesięczne + ostatnie dzienne pliki świec 1d) wszystkie pary
 */USDT, których dziś nie ma na liście ema_monitor (wycofane z giełdy), z tymi samymi filtrami
 (bez stablecoinów, fiat, złota, tokenów z dźwignią i opakowanych kopii), i zapisuje je do
-~/.ema-monitor/delisted.json. ema_monitor.py przy najbliższym przebiegu przelicza szerokość rynku
+~/Crypto_Loser_analytics_tool/pi/stan/delisted.json. ema_monitor.py przy najbliższym przebiegu przelicza szerokość rynku
 z nimi (coin liczy się w dniach, w których był notowany i miał już ≥ min_days historii).
 Pary wycofane w przyszłości ema_monitor sam przenosi do delisted.json (nie kasuje ich historii).
 
@@ -31,6 +31,10 @@ import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+try:
+    import pi_dirs as _pd          # poprawka 83: pliki Pi w ~/Crypto_Loser_analytics_tool/pi
+except ImportError:                # paczka wgrywana w częściach — stare miejsca
+    _pd = None
 
 import ema_monitor as E  # noqa: E402
 
@@ -157,7 +161,7 @@ def run(state_dir, cfg, session=None, workers=6, lock=LOCK):
     st = E._read(os.path.join(state_dir, "state.json"), {})
     current = set(st.get("symbols") or {})
     if not current:
-        raise RuntimeError("brak listy par w ~/.ema-monitor/state.json — najpierw musi zadziałać ema_monitor")
+        raise RuntimeError("brak listy par w state.json (stan Pi) — najpierw musi zadziałać ema_monitor")
     t0 = time.time()
     syms = archive_symbols(s)
     cand = candidates(syms, current, cfg)
@@ -189,7 +193,7 @@ def run(state_dir, cfg, session=None, workers=6, lock=LOCK):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=os.path.join(HERE, "config.yaml"))
-    ap.add_argument("--state", default=os.path.expanduser("~/.ema-monitor"))
+    ap.add_argument("--state", default=_pd.state_dir() if _pd else os.path.expanduser("~/.ema-monitor"))
     ap.add_argument("--workers", type=int, default=6)
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

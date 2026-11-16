@@ -11,7 +11,7 @@ Zone = 0.705–0.786 with the 0.75 line. Status: far → near → zone → deep 
 breaking through 0.786, invalidation.
 
 Setups come from config.yaml (`fib:`) and from Telegram commands handled by bot.py
-(stored on the Pi in ~/.ema-monitor/bot.json):  /fib SOL 250 120 [long|short] [opis]   /fiby   /usun ID
+(stored on the Pi in ~/Crypto_Loser_analytics_tool/pi/stan/bot.json):  /fib SOL 250 120 [long|short] [opis]   /fiby   /usun ID
 """
 import html
 import logging

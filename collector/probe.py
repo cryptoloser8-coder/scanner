@@ -3,7 +3,7 @@
 Nic nie zmienia w danych ani w produkcji — tylko pyta źródła i zapisuje tabelę wyników.
 
     python collector/probe.py github --out DIR          # na GitHub Actions (workflow „Sonda”)
-    python3 ~/scanner/collector/probe.py pi --publish   # na Orange Pi (Binance działa tylko stąd)
+    python3 ~/Crypto_Loser_analytics_tool/collector/probe.py pi --publish   # na Orange Pi (Binance działa tylko stąd)
 
 Wynik: DIR/probe.json + DIR/probe.md; z --publish także gałąź probe-<github|pi>
 (raw.githubusercontent.com/<repo>/probe-pi/probe.md).
@@ -45,6 +45,10 @@ import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+try:
+    import pi_dirs as _pd          # poprawka 83: pliki Pi w ~/Crypto_Loser_analytics_tool/pi
+except ImportError:                # paczka wgrywana w częściach — stare miejsca
+    _pd = None
 
 log = logging.getLogger("probe")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) scanner-probe"}
@@ -1127,7 +1131,7 @@ def main(argv=None):
     ap.add_argument("--only", nargs="*", choices=sorted(FUNCS))
     ap.add_argument("--out", default=None)
     ap.add_argument("--publish", action="store_true", help="opublikuj wynik na gałęzi probe-<where> (Pi)")
-    ap.add_argument("--token-file", default="~/.scanner_token")
+    ap.add_argument("--token-file", default=_pd.token_file() if _pd else "~/.scanner_token")
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     res = run(a.where, a.only)

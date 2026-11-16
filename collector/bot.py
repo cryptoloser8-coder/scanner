@@ -1,6 +1,6 @@
 """Telegram bot + scan scheduler on the Orange Pi — runs every minute from cron:
 
-  * * * * * flock -n /tmp/scanner-bot.lock python3 $HOME/scanner/collector/bot.py >> $HOME/scanner-bot.log 2>&1
+  * * * * * flock -n /tmp/scanner-bot.lock python3 $HOME/Crypto_Loser_analytics_tool/collector/bot.py >> $HOME/Crypto_Loser_analytics_tool/pi/logi/scanner-bot.log 2>&1
 
 Every run:
   1. answers commands (Telegram getUpdates; the only program reading this bot's messages),
@@ -8,8 +8,9 @@ Every run:
   3. every 15 min checks that the GitHub scans deliver fresh data and that scheduled reports appeared.
 Problems go to the admin only (private chat). Code and config update themselves (ema_cron.sh does git pull).
 
-State: ~/.ema-monitor/bot.json (Telegram Fibo setups, mute, offset, schedule) — never in the public repo.
-Env:   ~/.scanner_env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID = admin), ~/.scanner_token (GitHub token).
+State: ~/Crypto_Loser_analytics_tool/pi/stan/bot.json (Telegram Fibo setups, mute, offset, schedule) — never in the public repo.
+Env:   ~/Crypto_Loser_analytics_tool/pi/scanner_env (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID = admin), ~/Crypto_Loser_analytics_tool/pi/scanner_token
+       (GitHub token). Przed przeniesieniem (poprawka 83): ~/.ema-monitor, ~/.scanner_env, ~/.scanner_token.
 
 Commands are defined once in COMMANDS below: /pomoc and the Telegram command menu are generated from it.
 """
@@ -29,6 +30,10 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import alerts  # noqa: E402
 import fib as F  # noqa: E402
+try:
+    import pi_dirs as _pd          # poprawka 83: pliki Pi w ~/Crypto_Loser_analytics_tool/pi
+except ImportError:                # paczka wgrywana w częściach — stare miejsca
+    _pd = None
 import timetable as TT  # noqa: E402
 from ema_monitor import _read, _write, load_env  # noqa: E402
 
@@ -119,7 +124,7 @@ class GitHub:
     def dispatch(self, workflow, inputs):
         """→ (ok, error text). Starts .github/workflows/<workflow> on main."""
         if not self.token:
-            return False, "brak tokenu GitHub (~/.scanner_token)"
+            return False, "brak tokenu GitHub (~/Crypto_Loser_analytics_tool/pi/scanner_token)"
         try:
             r = self.s.post(f"https://api.github.com/repos/{self.repo}/actions/workflows/{workflow}/dispatches",
                             headers={"Authorization": f"Bearer {self.token}", "Accept": "application/vnd.github+json",
@@ -402,7 +407,7 @@ def h_watek(ctx, msg, args):
         lines.append("To czat prywatny — wyślij /watek w wątku grupy.")
     else:
         lines += ["", "Wpisz te wartości w config.yaml (sekcja telegram) i zapisz na GitHubie.",
-                  "Sprawdzenie: <code>python3 ~/scanner/collector/ema_monitor.py check --test-telegram</code>"]
+                  "Sprawdzenie: <code>python3 ~/Crypto_Loser_analytics_tool/collector/ema_monitor.py check --test-telegram</code>"]
         if not tid:
             lines.append("(brak numeru wątku = wątek „Ogólny” albo grupa bez tematów)")
     return "\n".join(lines)
@@ -610,9 +615,9 @@ def main(argv=None):
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description="Bot Telegram + harmonogram skanów (Orange Pi, co minutę)")
     ap.add_argument("--config", default=os.path.join(here, "config.yaml"))
-    ap.add_argument("--state", default=os.path.expanduser("~/.ema-monitor"))
-    ap.add_argument("--env-file", default="~/.scanner_env")
-    ap.add_argument("--token-file", default="~/.scanner_token")
+    ap.add_argument("--state", default=_pd.state_dir() if _pd else os.path.expanduser("~/.ema-monitor"))
+    ap.add_argument("--env-file", default=_pd.env_file() if _pd else "~/.scanner_env")
+    ap.add_argument("--token-file", default=_pd.token_file() if _pd else "~/.scanner_token")
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     load_env(a.env_file)
