@@ -753,7 +753,7 @@ async function boot() {
   setStatus(age < 3600 ? 'live' : 'stale', 'Aktualizacja: ' + ago(DATA.updated));
   if (age > 3 * 3600) {
     const b = document.getElementById('banner'); b.className = 'banner warn';
-    b.textContent = `⚠️ Dane nie były odświeżane od ${ago(DATA.updated)}. Sprawdź Orange Pi (cron, log ~/ema-monitor.log).`;
+    b.textContent = `⚠️ Dane nie były odświeżane od ${ago(DATA.updated)}. Sprawdź Orange Pi (cron, log ~/Crypto_Loser_analytics_tool/pi/logi/ema-monitor.log).`;
   }
   if (DATA.rsi) RSI = {low: DATA.rsi.low, high: DATA.rsi.high, period: DATA.rsi.period};
   else document.querySelectorAll('[data-val="rsiw"],[data-val="rsi3"],[data-val="wos"],[data-val="wob"],[data-val="dos"],[data-val="dob"]').forEach(b => b.style.display = 'none');
