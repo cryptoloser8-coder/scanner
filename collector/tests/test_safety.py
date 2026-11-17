@@ -256,3 +256,56 @@ def test_probe_run_isolates_failing_source_and_markdown(tmp_path):
     probe.save(res, str(tmp_path))
     md = (tmp_path / "probe.md").read_text()
     assert "| coinmetrics | x | ok | 2017-07-14 |" in md and "nie działa" in md
+
+
+# ── poprawka 84: wiadomość o blokadzie, sieci w kopii ────────
+def test_guard_block_notifies_admin(tmp_path, monkeypatch):
+    write_series(str(tmp_path / "old/chains_1d.json"), 1000)
+    write_series(str(tmp_path / "new/chains_1d.json"), 900)
+    p = guard.check(str(tmp_path / "old"), str(tmp_path / "new"))
+    assert p
+
+    class TG:
+        sent = []
+
+        def post(self, kind, text):
+            self.sent.append((kind, text))
+            return True
+    tg = TG()
+    monkeypatch.setenv("DATA_BRANCH", "chains")
+    assert guard.notify(p, telegram=tg) is True
+    kind, text = tg.sent[0]
+    assert kind == "system" and "chains" in text and "allow_shrink" in text and "chains_1d.json" in text
+    # bez danych Telegrama: cicho, bez wyjątku; wynik bezpiecznika bez zmian
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    assert guard.notify(p) is False
+    assert guard.main([str(tmp_path / "old"), str(tmp_path / "new")]) == 1
+    monkeypatch.setenv("PUBLISH_ALLOW_SHRINK", "1")
+    assert guard.main([str(tmp_path / "old"), str(tmp_path / "new")]) == 0
+
+
+def test_backup_takes_chains_when_present(tmp_path):
+    for b in backup.BRANCHES + backup.OPTIONAL_BRANCHES:
+        write_series(str(tmp_path / "br" / b / "x.json"), 3)
+    out = str(tmp_path / "a.tar.xz")
+    backup.make_archive(out, str(tmp_path / "br"), None)
+    with tarfile.open(out) as t:
+        assert "chains/x.json" in t.getnames()
+    # brak gałęzi chains nie zatrzymuje kopii
+    shutil.rmtree(tmp_path / "br" / "chains")
+    assert backup.make_archive(str(tmp_path / "b.tar.xz"), str(tmp_path / "br"), None) == 3
+
+    class R:
+        def __init__(self, rc):
+            self.returncode, self.stderr, self.stdout = rc, "Remote branch chains not found", ""
+
+    def run(cmd, **kw):
+        b = cmd[cmd.index("--branch") + 1]
+        if b in backup.OPTIONAL_BRANCHES:
+            return R(128)
+        os.makedirs(cmd[-1])
+        return R(0)
+    backup.fetch_branches("url", str(tmp_path / "f"), run=run)
+    assert sorted(os.listdir(tmp_path / "f")) == sorted(backup.BRANCHES)
+

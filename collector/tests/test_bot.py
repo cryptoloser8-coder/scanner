@@ -306,6 +306,17 @@ def test_watchdog():
     out = watchdog.check(lambda b, n: stale.get((b, n)), now)
     assert len(out) == 2 and "Orange Pi" in out[0] and "skany OI" in out[1]
     assert len(watchdog.check(lambda b, n: None, now)) == 2
+    # poprawka 84: sieci (gałąź chains) i ostatni raport — też pilnowane; brak pliku nie jest zgłaszany
+    more = dict(fresh)
+    more[("chains", "chains.json")] = {"updated": now - 20 * 3600}
+    more[("reports", "index.json")] = {"reports": [{"created": now - 5 * 3600}, {"created": now - 30 * 3600}]}
+    assert watchdog.check(lambda b, n: more.get((b, n)), now) == []
+    more[("chains", "chains.json")] = {"updated": now - 65 * 3600}
+    more[("reports", "index.json")] = {"reports": [{"created": now - 26 * 3600}]}
+    out = watchdog.check(lambda b, n: more.get((b, n)), now)
+    assert len(out) == 2 and "sieci" in out[0] and "65 h" in out[0] and "raport" in out[1]
+    out = watchdog.check(lambda b, n: more.get((b, n)), now, chains=False)       # sieci wyłączone w config.yaml
+    assert len(out) == 1 and "raport" in out[0]
 
 
 def test_report_kinds():
