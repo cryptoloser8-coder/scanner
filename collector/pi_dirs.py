@@ -8,7 +8,7 @@ w podfolderze `pi/` (nie trafia do Gita — .gitignore):
     ~/Crypto_Loser_analytics_tool/pi/logi/         ema-monitor.log, scanner-bot.log (dawniej w ~)
     ~/Crypto_Loser_analytics_tool/pi/scanner_env   dane Telegrama (dawniej ~/.scanner_env)
     ~/Crypto_Loser_analytics_tool/pi/scanner_token token GitHub (dawniej ~/.scanner_token)
-Przeniesienie: jednorazowo `bash ~/scanner/collector/porzadki_pi.sh` (zmienia też nazwę ~/scanner).
+Przeniesienie wykonane 16.11.2026 jednorazowym skryptem porzadki_pi.sh (usunięty z repo w poprawce 84).
 Dopóki nie przeniesione — używane są stare miejsca, więc nic się nie psuje w trakcie.
 """
 import os

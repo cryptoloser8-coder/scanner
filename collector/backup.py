@@ -1,7 +1,7 @@
 """Codzienne archiwum danych na Orange Pi (druga kopia obok wydań „Archiwum” na GitHubie).
 
 Raz na dobę (po `backup.hour_utc`, domyślnie 02:00 UTC) pakuje do jednego pliku .tar.xz:
-  - gałęzie data, ema i reports z GitHuba (cała historia danych i raporty),
+  - gałęzie data, ema i reports z GitHuba (cała historia danych i raporty) oraz chains (sieci; gdy istnieje),
   - stan Pi: ~/Crypto_Loser_analytics_tool/pi/stan (dawniej ~/.ema-monitor; świece Binance, setupy Fibo z Telegrama, stan bota) — bez katalogu pub/.
 Pliki: ~/Crypto_Loser_analytics_tool/pi/archiwum/scanner-RRRR-MM-DD.tar.xz. Zostaje ostatnie `keep_daily` dni (domyślnie 14)
 oraz na zawsze plik z 1. dnia każdego miesiąca.
@@ -33,6 +33,7 @@ except ImportError:                # paczka wgrywana w częściach — stare mie
 
 log = logging.getLogger("backup")
 BRANCHES = ("data", "ema", "reports")
+OPTIONAL_BRANCHES = ("chains",)     # sieci (poprawka 84): brak gałęzi nie zatrzymuje kopii
 DEFAULTS = {"dir": "~/scanner-archive", "keep_daily": 14, "hour_utc": 2,
             "repo": "cryptoloser8-coder/scanner"}
 
@@ -82,11 +83,15 @@ def _write(path, obj):
 
 def fetch_branches(repo_url, dest, run=subprocess.run):
     """Shallow clone of every data branch into dest/<branch> (without .git). Raises on failure."""
-    for b in BRANCHES:
+    for b in BRANCHES + OPTIONAL_BRANCHES:
         target = os.path.join(dest, b)
         r = run(["git", "clone", "-q", "--depth", "1", "--branch", b, repo_url, target],
                 capture_output=True, text=True)
         if r.returncode != 0:
+            if b in OPTIONAL_BRANCHES:
+                log.warning("Kopia bez gałęzi %s: %s", b, (r.stderr or r.stdout).strip()[:200])
+                shutil.rmtree(target, ignore_errors=True)
+                continue
             raise RuntimeError(f"git clone {b}: {(r.stderr or r.stdout).strip()[:200]}")
         shutil.rmtree(os.path.join(target, ".git"), ignore_errors=True)
 
@@ -104,7 +109,7 @@ def make_archive(out_path, branches_dir, state_dir):
     """Write out_path (.tar.xz) atomically: <branch>/… + pi-state/…; → number of files."""
     tmp = out_path + ".part"
     with tarfile.open(tmp, "w:xz") as tar:
-        for b in BRANCHES:
+        for b in BRANCHES + OPTIONAL_BRANCHES:
             p = os.path.join(branches_dir, b)
             if os.path.isdir(p):
                 tar.add(p, arcname=b)

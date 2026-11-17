@@ -112,7 +112,7 @@ Instalacja na Pi (jednorazowo):
 ~/Crypto_Loser_analytics_tool/pi/logi/        ema-monitor.log, scanner-bot.log
 ~/Crypto_Loser_analytics_tool/pi/scanner_env  dane Telegrama; ~/Crypto_Loser_analytics_tool/pi/scanner_token — token GitHub
 ```
-Uwaga: nie usuwać `~/Crypto_Loser_analytics_tool` przy ponownym klonowaniu — najpierw przenieść `pi/`. Przeniesienie ze starych miejsc (i zmiana nazwy dawnego `~/scanner`): jednorazowo `bash ~/scanner/collector/porzadki_pi.sh`. Repo na GitHubie nadal nazywa się `scanner` — zmienia się tylko nazwa folderu na Pi.
+Uwaga: nie usuwać `~/Crypto_Loser_analytics_tool` przy ponownym klonowaniu — najpierw przenieść `pi/`. Przeniesienie ze starych miejsc (i zmiana nazwy dawnego `~/scanner`) wykonane 16.11.2026 (jednorazowy skrypt usunięty z repo w poprawce 84). Repo na GitHubie nadal nazywa się `scanner` — zmienia się tylko nazwa folderu na Pi.
 
 Stan i pobrane świece: `~/Crypto_Loser_analytics_tool/pi/stan/` (można usunąć — przy następnym uruchomieniu pobierze wszystko od nowa, ale zniknie stan bota i setupy Fibo z Telegrama).
 

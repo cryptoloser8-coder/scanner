@@ -8,6 +8,8 @@ Reguły:
     MIN_KEEP (95%) punktów z obecnej wersji (pojedyncza usunięta seria nie blokuje),
   - pozostałe pliki: liczba plików w każdym katalogu nie może spaść (np. reports/*.json).
 Celowe przeliczenie historii (backfill) → zmienna PUBLISH_ALLOW_SHRINK=1.
+Blokada = wiadomość do administratora na Telegram (poprawka 84; gdy w środowisku są TELEGRAM_BOT_TOKEN
+i TELEGRAM_CHAT_ID) — dawniej publikacja padała po cichu i dane na stronie stały (Sieci 15–17.11.2026).
 """
 import json
 import os
@@ -72,6 +74,39 @@ def check(old_dir, new_dir, min_keep=MIN_KEEP):
     return problems
 
 
+HOW_TO = {
+    "chains": "Jeśli mniej danych jest zamierzone: GitHub → Actions → Sieci → Run workflow → zaznacz „allow_shrink”.",
+    "data": "Jeśli to zamierzone przeliczenie historii: GitHub → Actions → OI Monitor → Run workflow → mode: backfill.",
+}
+
+
+def block_message(branch, problems):
+    """Tekst (HTML) dla administratora: która gałąź, co straciłaby, co zrobić."""
+    import html
+    lines = [f"⛔ <b>Bezpiecznik zablokował publikację</b> — gałąź <b>{html.escape(branch)}</b>. "
+             "Nowa wersja miałaby mniej danych niż obecna, więc na stronie zostają stare dane:"]
+    lines += ["• " + html.escape(p) for p in problems[:8]]
+    if len(problems) > 8:
+        lines.append(f"… i {len(problems) - 8} więcej")
+    lines.append(HOW_TO.get(branch, "Szczegóły: GitHub → Actions → ostatni czerwony przebieg."))
+    return "\n".join(lines)
+
+
+def notify(problems, telegram=None):
+    """Wiadomość o blokadzie do administratora (priv). Nigdy nie zmienia wyniku bezpiecznika."""
+    try:
+        if telegram is None:
+            if not (os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID")):
+                return False
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import alerts
+            telegram = alerts.Telegram()
+        return bool(telegram.post("system", block_message(os.environ.get("DATA_BRANCH") or "data", problems)))
+    except Exception as e:  # noqa: BLE001
+        print(f"Bezpiecznik: nie udało się wysłać wiadomości ({e})")
+        return False
+
+
 def main(argv=None):
     a = argv if argv is not None else sys.argv[1:]
     if len(a) != 2:
@@ -89,6 +124,7 @@ def main(argv=None):
     print("::error::Bezpiecznik zablokował publikację — nowa wersja straciłaby historię:")
     for p in problems:
         print("  - " + p)
+    notify(problems)
     return 1
 
 
