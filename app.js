@@ -6,7 +6,10 @@
    Zakładki — wąskie menu (ikona + krótki podpis) i pasek z logo na górze, zawsze widoczny.
    Telefon (≤ 640 px) — pasek z logo na górze i dolny pasek: Pulpit / OI / Altsezon / Raporty / Więcej.
    Treść stron bez zmian: znika tylko stare logo nad nagłówkiem i link „← Menu” (zastępuje je menu).
-   Kropki w menu: stan źródeł i świecąca lampka Altsezonu (meta.json z gałęzi data). Druk (PDF) — bez menu. */
+   Kropki w menu: stan źródeł i świecąca lampka Altsezonu (meta.json z gałęzi data). Druk (PDF) — bez menu.
+   Stan źródeł (poprawka 84) liczy też wiek danych: skan OI/TOTAL (4 h), EMA/Fibo z Orange Pi (1 h), Sieci (30 h) —
+   wcześniej kropka była zielona także wtedy, gdy dane stały.
+   Po zmianie tego pliku podnieś numer w <script src="app.js?v=NN"> we wszystkich stronach (zamiast Ctrl+F5). */
 (function () {
   var html = document.documentElement;
   if (html.dataset.shell === 'off') return;
@@ -115,7 +118,7 @@
         if (n.sec) { h.push('<div class="cl-h">' + n.sec + '</div>'); return; }
         h.push('<a class="it' + (page === n.href ? ' on' : '') + (n.paused ? ' paused' : '') + '" href="' + n.href + '">' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
       });
-      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-time></span></div></nav>');
+      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span></div></nav>');
     } else {
       h.push('<nav class="cl-rail" aria-label="Menu"><a class="cl-home" href="index.html" title="Pulpit"><img src="favicon.svg" alt="">Pulpit</a>');
       NAV.forEach(function (n) {
@@ -169,28 +172,63 @@
   }
   var GROUP_COL = {rajd: '#4caf7d', przegrzanie: '#ff5a36', 'wyprzedaż': '#5b9cf6'};
   function all(sel, f) { Array.prototype.forEach.call(document.querySelectorAll(sel), f); }
+  // gałąź obok `data` (ema, chains) — ta sama zasada co na stronach; własny adres ?data=… → nie zgadujemy
+  function branchBase(branch) {
+    var q = new URLSearchParams(location.search);
+    if (q.get(branch)) return q.get(branch).replace(/\/?$/, '/');
+    if (q.get('data')) return null;
+    if (location.hostname.slice(-9) === 'github.io') return dataBase().replace(/data\/$/, branch + '/');
+    return branch === 'ema' ? 'ema-data/' : branch + '/';
+  }
+  var MAX_AGE_H = {scan: 4, ema: 1, chains: 30};     // jak w collector/watchdog.py
+  function ageTxt(sec) { var h = sec / 3600; return h < 48 ? Math.round(h) + ' h' : Math.round(h / 24) + ' dni'; }
+  function renderStatus(m, ages) {
+    var hl = m.health || {}, keys = Object.keys(hl), now = Date.now() / 1000;
+    var bad = keys.filter(function (k) { return hl[k] !== 'ok'; });
+    var total = keys.length, stale = false;
+    // wiek danych: [nazwa, czas zapisu, limit w godzinach]
+    [['Skan OI/TOTAL', m.updated, MAX_AGE_H.scan], ['EMA/Fibo (Orange Pi)', ages.ema, MAX_AGE_H.ema], ['Sieci', ages.chains, MAX_AGE_H.chains]].forEach(function (x) {
+      if (!x[1] || !keys.length) return;
+      total++;
+      if (now - x[1] > x[2] * 3600) { bad.push(x[0] + ' — dane sprzed ' + ageTxt(now - x[1])); if (x[0].indexOf('Skan') === 0) stale = true; }
+    });
+    var ok = total - bad.length;
+    var t = m.updated ? new Date(m.updated * 1000) : null;
+    var tz = {timeZone: 'Europe/Warsaw'};
+    var hm = t ? t.toLocaleTimeString('pl-PL', Object.assign({hour: '2-digit', minute: '2-digit'}, tz)) : '—';
+    var sameDay = t && t.toLocaleDateString('pl-PL', tz) === new Date().toLocaleDateString('pl-PL', tz);
+    var when = t ? (sameDay ? 'dziś ' + hm : t.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, tz)) + ' ' + hm) : '—';
+    var cls = !keys.length ? '' : ok === total ? 'ok' : (ok && !stale) ? 'warn' : 'bad';
+    var src = keys.length ? 'Źródła: ' + ok + ' z ' + total + ' ok' : 'Źródła: brak danych';
+    var short = bad.map(function (b) { return b.split(' — ')[0]; });
+    var prob = bad.length ? 'Problem: ' + short.slice(0, 2).join(', ') + (short.length > 2 ? ' +' + (short.length - 2) : '') : '';
+    var tip = src + (bad.length ? ' (problem: ' + bad.join(', ') + ')' : '') + ' · ostatni skan: ' + when;
+    all('[data-cl-dot]', function (el) { el.className = 'cl-dot ' + cls; el.title = tip; });
+    all('[data-cl-src]', function (el) { el.textContent = src; });
+    all('[data-cl-bad]', function (el) { el.textContent = bad.join(' · '); el.style.display = bad.length ? '' : 'none'; });
+    all('[data-cl-time]', function (el) { el.textContent = 'Ostatni skan: ' + when; });
+    all('[data-cl-hm]', function (el) { el.textContent = hm; });
+    all('[data-cl-line]', function (el) { el.textContent = (prob || src) + ' · skan ' + when; el.title = tip; });
+    all('[data-cl-tip]', function (el) { el.title = tip; });
+  }
   function loadStatus() {
     fetch(dataBase() + 'meta.json?v=' + Math.floor(Date.now() / 300000), {cache: 'no-cache'}).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (m) {
       window.CL_META = m;
-      var hl = m.health || {}, keys = Object.keys(hl), ok = keys.filter(function (k) { return hl[k] === 'ok'; }).length;
-      var bad = keys.filter(function (k) { return hl[k] !== 'ok'; });
-      var t = m.updated ? new Date(m.updated * 1000) : null;
-      var tz = {timeZone: 'Europe/Warsaw'};
-      var hm = t ? t.toLocaleTimeString('pl-PL', Object.assign({hour: '2-digit', minute: '2-digit'}, tz)) : '—';
-      var sameDay = t && t.toLocaleDateString('pl-PL', tz) === new Date().toLocaleDateString('pl-PL', tz);
-      var when = t ? (sameDay ? 'dziś ' + hm : t.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, tz)) + ' ' + hm) : '—';
-      var cls = !keys.length ? '' : ok === keys.length ? 'ok' : ok ? 'warn' : 'bad';
-      var src = keys.length ? 'Źródła: ' + ok + ' z ' + keys.length + ' ok' : 'Źródła: brak danych';
-      var tip = src + (bad.length ? ' (problem: ' + bad.join(', ') + ')' : '') + ' · ostatni skan: ' + when;
-      all('[data-cl-dot]', function (el) { el.className = 'cl-dot ' + cls; });
-      all('[data-cl-src]', function (el) { el.textContent = src; });
-      all('[data-cl-time]', function (el) { el.textContent = 'Ostatni skan: ' + when; });
-      all('[data-cl-hm]', function (el) { el.textContent = hm; });
-      all('[data-cl-line]', function (el) { el.textContent = src + ' · skan ' + when; });
-      all('[data-cl-tip]', function (el) { el.title = tip; });
+      renderStatus(m, {});
+      // wiek danych z pozostałych gałęzi: EMA/Fibo (Orange Pi) i Sieci — małe pliki; błąd pobrania = nie liczymy
+      var ages = {};
+      [['ema', 'fib.json'], ['chains', 'chains.json']].forEach(function (x) {
+        var base = branchBase(x[0]);
+        if (!base) return;
+        fetch(base + x[1] + '?v=' + Math.floor(Date.now() / 300000), {cache: 'no-cache'}).then(function (r) {
+          return r.ok ? r.json() : null;
+        }).then(function (j) {
+          if (j && j.updated) { ages[x[0]] = j.updated; renderStatus(m, ages); }
+        }).catch(function () { /* brak pliku / sieci — bez zmian */ });
+      });
       var L = (m.alt_lamps || {}).lamps || {}, on = Object.keys(L).filter(function (k) { return L[k] && L[k].on; });
       all('[data-cl-lamp]', function (el) {
         el.hidden = !on.length;

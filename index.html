@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js"></script>
+<script src="app.js?v=84"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{
@@ -67,7 +67,7 @@
   .lgroup.lit{border-color:var(--g);background:color-mix(in srgb,var(--g) 6%,transparent);}
   .lgroup h3{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--g);display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
   .lgroup h3 span{font-weight:400;letter-spacing:0;color:var(--text2);}
-  .lgroup .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;}
+  .lgroup .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:8px;}
   .lmp{background:#141414;border:1px solid var(--border);border-radius:9px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;text-decoration:none;min-width:0;}
   .lmp:hover{border-color:var(--border2);}
   .lmp .st{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;display:flex;align-items:center;gap:6px;}
@@ -77,12 +77,13 @@
   .lmp.on .st i{background:var(--g);box-shadow:0 0 8px var(--g);animation:blink 1.4s ease-in-out infinite;}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
   @media (prefers-reduced-motion:reduce){.lmp.on .st i{animation:none;}}
-  .lmp .nm{display:flex;align-items:baseline;gap:8px;}
+  .lmp .nm{display:flex;align-items:baseline;gap:2px 8px;flex-wrap:wrap;}
   .lmp .nm b{font-weight:600;flex:1;font-size:13px;}
   .lmp .nm em{font-style:normal;font-size:17px;font-weight:650;}
   .lmp.on .nm em{color:var(--g);}
   .lmp .now{font-size:11px;color:var(--text2);line-height:1.45;}
   .lmp .chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .lmp .chip{max-width:100%;box-sizing:border-box;white-space:normal;}   /* wąski kafelek: znaczek łamie się zamiast wystawać (poprawka 84) */
   .chip{font-size:10.5px;padding:2px 7px;border-radius:5px;background:#1e1e1e;border:1px solid var(--border);color:#c8c8c8;white-space:nowrap;}
   .lamps-top{font-size:12px;color:var(--text2);margin:-4px 0 10px;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
