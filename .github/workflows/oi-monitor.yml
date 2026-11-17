@@ -58,6 +58,8 @@ jobs:
           # bezpiecznik (collector/guard.py) blokuje publikację, która traci historię;
           # backfill celowo przelicza historię → bez blokady
           PUBLISH_ALLOW_SHRINK: ${{ inputs.mode == 'backfill' && '1' || '0' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # wiadomość do admina, gdy bezpiecznik zablokuje publikację
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: bash collector/publish.sh data-branch "$REMOTE"
 
   # sieci (DefiLlama, poprawka 48): raz na dobę, równolegle ze skanem przed raportem porannym

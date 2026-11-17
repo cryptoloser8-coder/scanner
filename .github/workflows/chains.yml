@@ -5,9 +5,22 @@ name: Sieci
 # (wywołuje go „OI Monitor”), albo ręcznie: Actions → Sieci → Run workflow. Trwa ok. 15–20 min.
 # Wynik: gałąź `chains` (chains_1d.json, chains.json, chains_other.json, state.json).
 
+# Bezpiecznik publikacji (collector/guard.py) blokuje wersję, która ma wyraźnie mniej punktów niż obecna.
+# Gdy spadek jest zamierzony (np. poprawka 80 obcięła „pył” sprzed startu sieci): uruchom ręcznie z zaznaczonym
+# polem „allow_shrink” — jednorazowo. O każdej blokadzie bot pisze do administratora (poprawka 84).
+
 on:
   workflow_dispatch:
+    inputs:
+      allow_shrink:
+        description: "Pozwól opublikować mniej danych niż jest teraz (jednorazowo, po zamierzonym obcięciu historii)"
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      allow_shrink:
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -46,6 +59,9 @@ jobs:
         env:
           REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
           DATA_BRANCH: chains
+          PUBLISH_ALLOW_SHRINK: ${{ inputs.allow_shrink && '1' || '0' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # wiadomość do admina, gdy bezpiecznik zablokuje publikację
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GIT_AUTHOR_NAME: chains-bot
           GIT_AUTHOR_EMAIL: chains-bot@users.noreply.github.com
         run: bash collector/publish.sh chains-branch "$REMOTE"
