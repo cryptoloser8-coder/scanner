@@ -1,0 +1,4 @@
+# pliki Orange Pi (token GitHuba, dane Telegrama, stan, logi, kopie) — nigdy do repo (poprawka 83/84)
+pi/
+__pycache__/
+*.pyc
