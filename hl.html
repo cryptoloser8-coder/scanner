@@ -289,6 +289,7 @@ function comp(l) {
 }
 function lsTxt(l) { return l == null ? '—' : `<span class="up">${Math.round(l)}% long</span> · <span class="dn">${Math.round(100 - l)}% short</span>`; }
 
+let COMP = [];
 let NOW = null, META = null, SER = {}, WALLETS = null, HTP = null, HTS = null, HTG = null, PX1H = null, OTH = null;
 const S = {coin: 'ALT', range: '30D', show: 'usd', on: {L: true, S: true, R: true, px: true}, htCoin: null, htShow: 'lpct', bestOpen: {}};
 const BEST_SHOW = 3;
@@ -298,15 +299,21 @@ function valAt(arr, t) {
   for (const [tt, v] of arr || []) { if (tt <= t + 1800) best = v; else break; }
   return best;
 }
+// 93: zmiana składu grupy (sito) — duża = > 5% portfeli albo ręcznie opisana (g: '*')
+function bigComp(e) { return e.g === '*' || (e.n && (e.in + e.out) / e.n > 0.05); }
+function compBetween(g, t0, t1) { return COMP.some(e => (e.g === g || e.g === '*') && e.t > t0 && e.t <= t1 && bigComp(e)); }
 function delta(key, sec) {
   const arr = SER[key] || [];
   if (arr.length < 2) return null;
   const last = arr[arr.length - 1];
   if (arr[0][0] > last[0] - sec + 1800) return null;
+  if (compBetween(key.split('_')[0], last[0] - sec, last[0])) return 'comp';
   const a = valAt(arr, last[0] - sec);
   return a == null || last[1] == null ? null : last[1] - a;
 }
 
+const dTxt = d => d === 'comp' ? '<span style="color:var(--text3)" title="W tym okresie zmienił się skład grupy (sito) — porównanie udziału nie miałoby sensu; zmiany na tych samych portfelach: „Największe zmiany”.">zm. składu</span>'
+  : `<span class="${(d || 0) >= 0 ? 'up' : 'dn'}">${pp(d)}</span>`;
 // ── kafelki ──
 function levTable(b) {
   let mx = 1;
@@ -324,7 +331,7 @@ function groupCard(g, st, sub) {
   return `<div class="gcard" data-g="${g.id}" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
     `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : Math.round(100 - l) + '%'} <small>short</small></span></div>` + comp(l) +
     `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` +
-    `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span><span class="${(d24 || 0) >= 0 ? 'up' : 'dn'}">${pp(d24)}</span> / <span class="${(d7 || 0) >= 0 ? 'up' : 'dn'}">${pp(d7)}</span></span>` +
+    `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span>${dTxt(d24)} / ${dTxt(d7)}</span>` +
     `<span>Portfeli w grupie (teraz w pozycjach)</span><span>${st.n} (${st.in_pos})</span>` +
     `<span>Portfele: tylko long / tylko short / oba</span><span>${st.only_long} / ${st.only_short} / ${st.both}</span>` +
     `<span>Dźwignia rzeczywista (pozycje ÷ konta)</span><span>×${num(st.eff_lev)}</span></div>` + levTable(st.lev_buckets) +
@@ -381,9 +388,9 @@ function pills(id, items, cur) {
   return `<div class="pills" id="${id}">` + items.map(([v, l, dis]) => `<button class="pill${v === cur ? ' active' : ''}" data-v="${v}"${dis ? ' disabled title="' + esc(dis) + '"' : ''}>${l}</button>`).join('') + '</div>';
 }
 function chartPanel() {
-  return `<div class="panel"><h2>Longi i shorty w czasie</h2><div class="desc">Udział longów, udział shortów albo kwoty (longi linią ciągłą, shorty przerywaną). Cena na prawej osi (koszyk altów: kapitalizacja OTHERS). Zapis co ~2 h od startu zbierania.</div>` +
+  return `<div class="panel"><h2>Longi i shorty w czasie</h2><div class="desc">Udział longów, udział shortów, kwoty (longi linią ciągłą, shorty przerywaną) albo przepływy — ile grupa otworzyła minus zamknęła, liczone na tych samych portfelach (bez skoków przy rundach sita i bez ruchu ceny). Cena na prawej osi (koszyk altów: kapitalizacja OTHERS). Zapis co ~2 h od startu zbierania.</div>` +
     `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-coin', COINS.map(c => [c, CNAME(c)]), S.coin)}<span class="ctrl-label">Zakres</span>${pills('p-range', [['7D', '7D'], ['30D', '30D'], ['ALL', 'ALL']], S.range)}</div>` +
-    `<div class="controls"><span class="ctrl-label">Pokaż</span>${pills('p-show', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty: longi i shorty ($)']], S.show)}</div>` +
+    `<div class="controls"><span class="ctrl-label">Pokaż</span>${pills('p-show', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty: longi i shorty ($)'], ['flow', 'Przepływy: otwarte − zamknięte ($)']], S.show)}</div>` +
     `<div class="controls" id="chips">` + G.map(g => `<button class="chip${S.on[g.id] ? ' on' : ''}" data-k="${g.id}" style="--c:${g.hex}"><span class="swatch"></span>${g.name}</button>`).join('') +
     `<button class="chip${S.on.px ? ' on' : ''}" data-k="px" style="--c:#888"><span class="swatch"></span>Cena</button></div>` +
     `<div class="chart-wrap"><div class="legend" id="lg1"></div><div class="chart" id="ch1"></div><div class="empty" id="em1"></div></div></div>`;
@@ -393,10 +400,16 @@ function changesPanel() {
   const body = ch.length ? '<div class="changes">' + ch.map(x => {
     const g = GB[x.g];
     const verb = x.side === 'long' ? (x.delta > 0 ? 'otworzyli / dokupili longi' : 'zamknęli część longów') : (x.delta > 0 ? 'otworzyli / dokupili shorty' : 'zamknęli część shortów');
-    const lp = x.lpct_from != null && x.lpct_to != null ? ` (longi ${Math.round(x.lpct_from)}% → ${Math.round(x.lpct_to)}%)` : '';
-    return `<div class="chg" style="--c:${g.hex}"><div class="when">${x.win} · ${g.name}</div>${g.name} ${verb} na ${CLOC(x.c)}: <b class="${x.side === 'long' ? 'up' : 'dn'}">${sgnUsd(x.delta)}</b> <span style="color:var(--text2)">${lp}</span></div>`;
+    const since = x.since ? ` <span style="color:var(--text3)">(liczone od ${plTime(x.since)})</span>` : '';
+    return `<div class="chg" style="--c:${g.hex}"><div class="when">${x.win} · ${g.name}${since}</div>${g.name} ${verb} na ${CLOC(x.c)}: <b class="${x.side === 'long' ? 'up' : 'dn'}">${sgnUsd(x.delta)}</b></div>`;
   }).join('') + '</div>' : '<div class="hint">Za mało zapisów — zmiany pojawią się po kilku przebiegach.</div>';
-  return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100k).</div>${body}</div>`;
+  return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100k). Liczone tylko na portfelach, które były w grupie przed i po (portfele dochodzące i odchodzące przy rundzie sita się nie liczą), jako zmiana wielkości pozycji × cena — sam ruch ceny nie jest „otwarciem”.</div>${body}${compList()}</div>`;
+}
+function compList() {
+  const ev = COMP.filter(e => e.t > (Date.now() / 1000) - 7 * 86400 && bigComp(e)).slice(-6).reverse();
+  if (!ev.length) return '';
+  return '<div class="hint" style="margin-top:8px"><b>Zmiany składu grup (ostatnie 7 dni):</b><br>' + ev.map(e => e.note ? `${plTime(e.t)} — ${esc(e.note)}`
+    : `${plTime(e.t)} — ${GB[e.g].name}: +${e.in} / −${e.out} portfeli (weszli z longami ${usd(e.long_in)} i shortami ${usd(e.short_in)}; odeszli z longami ${usd(e.long_out)} i shortami ${usd(e.short_out)})`).join('<br>') + '</div>';
 }
 // ── 92: młodsze konta vs starsze ──
 function splitPanel() {
@@ -510,6 +523,7 @@ function notesPanel() {
 <tr><td>Wynik każdego śledzonego portfela (grupa, wynik dnia, wynik od początku, konto) — „zyskowny czy stratny” dzień po dniu</td><td>raz na dobę, od 18.11.2026 (ok. 10 MB na rok)</td></tr>
 <tr><td>Kto był w sicie w danej rundzie (strony, wiek, skuteczność longów i shortów, konto)</td><td>co rundę sita (~tydzień)</td></tr>
 <tr><td>Sumy longów i shortów grup na coinach</td><td>co ~2 h</td></tr>
+<tr><td>Przepływy grup — ile otworzyły / zamknęły te same portfele (zmiana wielkości pozycji × cena) — i zmiany składu grup przy rundach sita</td><td>co ~2 h, od 18.11.2026 (poprawka 93)</td></tr>
 <tr><td>Pozycje i zlecenia portfeli</td><td>tylko bieżący stan (bez biblioteki starych transakcji)</td></tr>
 </tbody></table></div>
 <p style="margin-top:6px">Historia grup sprzed startu — z HyperTrackera (od 19.02.2026), wg ich podziału: zysk / strata od założenia konta liczona dziś.</p>
@@ -700,17 +714,27 @@ async function drawMain() {
   if (!ch) return;
   ch._id = 'ch1';
   const lg = [], em = document.getElementById('em1');
-  let any = false, first = null;
+  let any = false, first = null, mser = null;
+  const mk = sr => { if (!mser) mser = sr; return sr; };
   G.forEach(g => {
     if (!S.on[g.id]) return;
     const L = cut(SER[`${g.id}_${S.coin}_long`], S.range), Sh = cut(SER[`${g.id}_${S.coin}_short`], S.range), P = cut(SER[`${g.id}_${S.coin}_lpct`], S.range);
+    if (S.show === 'flow') {
+      const cum = a => { let x = 0; return a.map(p => [p[0], x += p[1] || 0]); };
+      const FL = cum(cut(SER[`${g.id}_${S.coin}_flowL`], S.range)), FS = cum(cut(SER[`${g.id}_${S.coin}_flowS`], S.range));
+      if (FL.length) { mk(ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_USD})).setData(pts(FL)); any = true; }
+      if (FS.length) { ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, lineStyle: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(FS)); any = true; }
+      if (FL.length) lg.push(`<div class="lg-row" style="--c:${g.hex}"><span class="swatch"></span><span class="lg-name">${g.name}</span><span class="lg-val"><span class="up">longi ${sgnUsd(FL[FL.length - 1][1])}</span> · <span class="dn">shorty ${sgnUsd(FS.length ? FS[FS.length - 1][1] : null)}</span></span></div>`);
+      if (FL.length && (first == null || FL[0][0] < first)) first = FL[0][0];
+      return;
+    }
     if (S.show === 'usd') {
-      if (L.length) { ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(L)); any = true; }
+      if (L.length) { mk(ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_USD})).setData(pts(L)); any = true; }
       if (Sh.length) { ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, lineStyle: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(Sh)); any = true; }
       if (L.length) lg.push(`<div class="lg-row" style="--c:${g.hex}"><span class="swatch"></span><span class="lg-name">${g.name}</span><span class="lg-val"><span class="up">longi ${usd(L[L.length - 1][1])}</span> · <span class="dn">shorty ${usd(Sh.length ? Sh[Sh.length - 1][1] : null)}</span></span></div>`);
     } else if (P.length) {
       const d = S.show === 'lpct' ? P : P.map(p => [p[0], p[1] == null ? null : 100 - p[1]]);
-      ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_PCT}).setData(pts(d));
+      mk(ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_PCT})).setData(pts(d));
       const v = d[d.length - 1][1];
       lg.push(`<div class="lg-row" style="--c:${g.hex}"><span class="swatch"></span><span class="lg-name">${g.name}</span><span class="lg-val">${lsTxt(P[P.length - 1][1])}</span></div>`);
       any = true;
@@ -719,6 +743,17 @@ async function drawMain() {
     if (P.length && (first == null || P[0][0] < first)) first = P[0][0];
   });
   if (S.show === 'usd') lg.push('<div class="lg-row"><span class="lg-name">── longi · - - - shorty</span></div>');
+  if (S.show === 'flow') lg.push('<div class="lg-row"><span class="lg-name">── longi · - - - shorty · suma od początku zakresu: + otwierali / dokupywali, − zamykali (te same portfele, bez ruchu ceny)</span></div>');
+  // 93: zmiany składu grup (sito) — znacznik na wykresie
+  const vis = G.filter(g => S.on[g.id]).map(g => g.id);
+  const ev = COMP.filter(e => bigComp(e) && (e.g === '*' || vis.includes(e.g)));
+  let marks = null;
+  if (mser && ev.length && LWC.createSeriesMarkers) {
+    const by = {};
+    ev.forEach(e => { (by[e.t] = by[e.t] || []).push(e.g === '*' ? 'sito' : `${e.g} +${e.in}/−${e.out}`); });
+    marks = Object.keys(by).map(Number).sort((a, b) => a - b).map(t => ({time: t, position: 'aboveBar', color: '#888', shape: 'arrowDown', text: 'skład: ' + by[t].join(', ')}));
+    lg.push('<div class="lg-row"><span class="lg-name">▼ skład = zmiana składu grupy (runda sita) — skok kwot i udziałów w tym miejscu to nowe / odchodzące portfele, nie rynek</span></div>');
+  }
   if (S.on.px && any) {
     const ps = await priceSeries(S.coin);
     const arr = ps.arr.filter(p => first == null || p[0] >= first - 3600);
@@ -727,6 +762,7 @@ async function drawMain() {
       lg.push(`<div class="lg-row" style="--c:#aaa"><span class="swatch"></span><span class="lg-name">${ps.name}</span></div>`);
     }
   }
+  if (marks) LWC.createSeriesMarkers(mser, marks);       // po wszystkich seriach (cena zmienia oś czasu)
   document.getElementById('lg1').innerHTML = lg.join('');
   em.textContent = any ? '' : 'Brak danych dla tego wyboru — zapis dopiero się zaczyna.';
   ch.timeScale().fitContent();
@@ -813,7 +849,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') mclose(); })
     getJSON(HL_BASE, 'hl_groups.json').catch(() => null), getJSON(HT_BASE, 'ht_progress.json').catch(() => null),
     getJSON(HT_BASE, 'ht_summary.json').catch(() => null), getJSON(HT_BASE, 'ht_groups.json').catch(() => null),
     getJSON(HL_BASE, 'hl_wallets.json').catch(() => null)]);
-  NOW = now; META = meta; SER = (ser && ser.series) || {}; HTP = htp; HTS = hts; HTG = htg && htg.series; WALLETS = wal ? wal.wallets || [] : null;
+  NOW = now; META = meta; SER = (ser && ser.series) || {}; COMP = (ser && ser.comp) || []; HTP = htp; HTS = hts; HTG = htg && htg.series; WALLETS = wal ? wal.wallets || [] : null;
   // dane niepełne — wyraźna informacja, dopóki zbieranie się nie rozkręci
   const b = document.getElementById('banner2'), why = [];
   const s = META && META.sito;
