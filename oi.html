@@ -244,6 +244,7 @@
     </div>
   </div>
 
+    <div class="why-off" id="range-info" style="color:var(--text2)"></div>
     <div class="why-off" id="why-off" style="display:none"></div>
   <div class="chart-wrap">
     <div id="chart"></div>
@@ -626,7 +627,11 @@ function renderTiles() {
 }
 document.getElementById('tiles').addEventListener('click', e => {
   const t = e.target.closest('.tile');
-  if (t && !e.target.closest('.info')) toggleSeries(t.dataset.sid);
+  if (!t || e.target.closest('.info')) return;
+  const phone = window.matchMedia && matchMedia('(max-width:640px)').matches;
+  if (phone) { S.grp = ''; SEARCH = ''; document.getElementById('grp-search').value = ''; }   // 104: wykres jest pod kafelkami — zwijamy grupę
+  toggleSeries(t.dataset.sid);
+  if (phone) { renderTiles(); setTimeout(() => document.querySelector('.chart-wrap').scrollIntoView({behavior: 'smooth', block: 'center'}), 60); }
 });
 document.getElementById('grp-btns').addEventListener('click', e => {
   const b = e.target.closest('.grp');
@@ -729,8 +734,15 @@ function syncControls() {
   hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
   if (!hasHev) hb.title = 'Historyczne wydarzenia pojawią się po najbliższym skanie (meta.json bez history_events).';
   document.querySelectorAll('#res-pills [data-val="1h"], #res-pills [data-val="4h"]').forEach(b => b.disabled = !DATA['1h'] && DATA._1hFailed);
+  const sp = hourSpanDays(), longOff = [];
+  document.querySelectorAll('#range-pills .pill').forEach(b => {
+    const off = rangeTooLong(+b.dataset.val);
+    b.disabled = off; if (off) longOff.push(b.textContent.trim());
+    b.title = off ? `Dane godzinowe (1H, 4H) sięgają ${Math.round(sp)} dni — dłuższy zakres na interwale 1D` : '';
+  });
   // 103: widoczne wyjaśnienie, dlaczego przycisk jest wyszarzony (dymek na telefonie nie działa)
   const why = [];
+  if (longOff.length) why.push(`zakres ${longOff.join(', ')} — dane godzinowe (1H, 4H) sięgają ${Math.round(sp)} dni; dłuższy zakres na interwale 1D`);
   const off = [lb.disabled && 'Log', vb.disabled && val === false && 'Linie poziomów', kb.disabled && !val && 'Świece'].filter(Boolean);
   if (off.length) why.push(`${off.join(', ')} — tylko w trybie „Wartości”`);
   if (val && kb.disabled) why.push('Świece — tylko gdy na wykresie jest cena (BTC, ETH albo coin z watchlisty)');
@@ -758,7 +770,7 @@ function makeChart() {
   });
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
-  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); });
+  chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); rangeInfo(); });
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
 }
@@ -978,12 +990,23 @@ function drawChart(resetRange) {
       chart.timeScale().setVisibleRange(prevRange);
     }
   }
-  updateLegend();
+  updateLegend(); rangeInfo();
   renderCycLegend();
   requestAnimationFrame(drawVLines);
   if (HEV) HEV.update();
 }
 
+// 104: zawsze widoczny zakres wykresu — od tej daty liczą się procenty w legendzie (tryby „% zmiana” i „Index 100”)
+function rangeInfo() {
+  const el = document.getElementById('range-info'); if (!el || !chart) return;
+  const vr = chart.timeScale().getVisibleRange();
+  if (!vr || typeof vr.from !== 'number') { el.textContent = ''; return; }
+  const hourly = S.res === '1h' || S.res === '4h';
+  const f = t => new Date(t * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', year: 'numeric', timeZone: hourly ? 'Europe/Warsaw' : 'UTC'}, hourly ? {hour: '2-digit', minute: '2-digit'} : {}));
+  const days = (vr.to - vr.from) / 86400;
+  el.textContent = `Zakres na wykresie: ${f(vr.from)} – ${f(vr.to)} (${days >= 2 ? Math.round(days) + ' dni' : Math.round(days * 24) + ' h'})` +
+    (S.mode !== 'val' ? ' · procenty w legendzie liczone od początku tego zakresu' : '');
+}
 function updateLegend(param) {
   lastCrosshair = param && param.time ? param : null;
   const rows = mounted.map(({id, series, candle}) => {
@@ -1062,8 +1085,17 @@ async function ensureRes() {
     }
   }
 }
+// 104: dane godzinowe sięgają ok. 2 miesięcy — na 1H / 4H zakres dłuższy niż dane wprowadzał w błąd (przycisk „1R”, a na wykresie 2 miesiące)
+function hourSpanDays() {
+  const s = (DATA['1h'] || {}).series || {};
+  let lo = Infinity, hi = 0;
+  for (const id of S.series) { const a = s[id]; if (a && a.length) { lo = Math.min(lo, a[0][0]); hi = Math.max(hi, a[a.length - 1][0]); } }
+  return hi ? (hi - lo) / 86400 : null;
+}
+function rangeTooLong(days) { const sp = hourSpanDays(); return (S.res === '1h' || S.res === '4h') && sp != null && days > 0 && days > sp + 2; }
 async function refresh(resetRange = false) {
   await ensureRes();
+  if (rangeTooLong(S.range)) { S.range = 30; resetRange = true; }
   persist();
   syncControls();
   renderPresets();
