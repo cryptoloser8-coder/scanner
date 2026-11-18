@@ -547,6 +547,39 @@ def lines_for(L, sid):
     return out
 
 
+def lamp_cfg(d):
+    """97: progi lampek Altsezonu — te same co na stronie (meta.json → alt_lamps.cfg; gdy brak, domyślne z lamps.py)."""
+    c = ((getattr(d, "meta", None) or {}).get("alt_lamps") or {}).get("cfg")
+    if not c:
+        try:
+            import lamps
+            c = lamps.DEFAULTS
+        except Exception:  # noqa: BLE001
+            c = {}
+    return c or {}
+
+
+def lamp_lines_leverage(d):
+    """Linie na wykresie lewaru = progi lampki „Lewar altów” (zamiast starych linii sprzed badania 14.11)."""
+    lv = ((lamp_cfg(d).get("leverage") or {}).get("levels")) or []
+    names = ["lampka Lewar altów: uwaga", "lampka Lewar altów: przegrzanie", "lampka Lewar altów: skrajne przegrzanie"]
+    cols = ["#ffc107", "#ff9800", "#e05252"]
+    return [{"value": float(v), "label": names[min(i, 2)], "color": cols[min(i, 2)]} for i, v in enumerate(lv)]
+
+
+def two_year_marks(pts_):
+    """Kreski Alty/BTC jak w zakładce Altsezon: poniżej dolnej / powyżej górnej wartość była tylko przez 20% ostatnich 2 lat."""
+    if not pts_:
+        return []
+    t = pts_[-1][0]
+    w = sorted(v for tt, v in pts_ if tt >= t - 730 * DAY)
+    if len(w) < 100:
+        return []
+    q = lambda f: w[min(len(w) - 1, int(f * len(w)))]  # noqa: E731
+    return [{"value": q(0.2), "label": "dolna kreska z 2 lat (niżej tylko przez 20% czasu)", "color": "#4caf7d"},
+            {"value": q(0.8), "label": "górna kreska z 2 lat (wyżej tylko przez 20% czasu)", "color": "#e05252"}]
+
+
 def alts_section(d, ema, L, refs, now):
     blocks = [{"type": "section", "title": "Alty"}]
     oi = d.pts("1d", "oi_others_vs_btc")
@@ -603,7 +636,7 @@ def alts_section(d, ema, L, refs, now):
     blocks += caps_blocks(d, now)
     blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
                               note=history_note(d, "oi_others_vs_btc")))
-    blocks[-1]["lines"] = lines_for(L, "oi_others_vs_btc")
+    blocks[-1]["lines"] = lamp_lines_leverage(d) or lines_for(L, "oi_others_vs_btc")
     blocks[-1]["desc"] = ("Ile pozycji z dźwignią jest na altach (bez ETH) w porównaniu z BTC. Rośnie = lewar przenosi się na alty. "
                           "Czytaj razem z wykresem kapitału niżej: oba rosną = kapitał naprawdę płynie w alty; "
                           "rośnie tylko lewar = ruch na dźwigni, łatwo o kaskadę likwidacji (tak było we wrześniu 2025 i 2026).")
@@ -612,11 +645,11 @@ def alts_section(d, ema, L, refs, now):
     if abw:
         hi = max(ab, key=lambda p: p[1] if p[0] >= since else -1)
         blocks.append({"type": "chart", "title": f"Kapitał: Alty / BTC — od {utc(since, '%Y')}", "log": False,
-                       "lines": lines_for(L, "alts_vs_btc"),
+                       "lines": two_year_marks(ab) or lines_for(L, "alts_vs_btc"),
                        "desc": "Ile są warte alty (bez BTC, ETH i stablecoinów) w porównaniu z BTC — realne pieniądze, bez dźwigni. "
                                "Rośnie razem z lewarem wyżej = mocny sygnał; rośnie sam, bez lewara = spokojny napływ bez przegrzania.",
                        "note": f"Maks. na wykresie {hi[1]:.3f} ({utc(hi[0], '%d.%m.%Y')}). Każdy cykl kończył się niżej, "
-                               "więc linie są z ostatnich lat.",
+                               "więc kreski liczone są z ostatnich 2 lat (te same co w zakładce Altsezon) i z czasem się przesuwają.",
                        "series": [{"name": "Alty / BTC", "color": d.color("alts_vs_btc", "#26c6da"), "fmt": "ratio",
                                    "scale": "right", "data": abw}]})
     cb = chart_block(d, "OI OTHERS i OI BTC — w dolarach", ["oi_others", "oi_btc"])
@@ -628,9 +661,12 @@ def alts_section(d, ema, L, refs, now):
     if br:
         last_t = br[-1][0]
         blocks.append({"type": "chart", "title": "Szerokość rynku — % coinów nad EMA200, 2 lata", "log": False,
-                       "range": [0, 100], "lines": [{"value": 90, "label": "rozgrzanie altów", "color": "#e05252"}],
-                       "desc": "Jaki odsetek coinów jest w trendzie wzrostowym (cena nad EMA200). Powyżej 90% = rynek altów rozgrzany, "
-                               "tak było przy szczytach altów; blisko 0% = dno.",
+                       "range": [0, 100],
+                       "lines": [{"value": float(v), "label": "lampka Szeroki rajd — altsezon trwa", "color": "#4caf7d"}
+                                 for v in ((lamp_cfg(d).get("rally") or {}).get("levels") or [80, 90])],
+                       "desc": "Jaki odsetek coinów jest w trendzie wzrostowym (cena nad EMA200). Od zielonych linii świeci lampka "
+                               "„Szeroki rajd”: aktualnie mamy altsezon — alty zwykle rosły wtedy dalej, to nie jest sygnał sprzedaży; "
+                               "blisko 0% = dno.",
                        "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"], delisted=int(ema.get("breadth_delisted") or 0)),
                        "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
