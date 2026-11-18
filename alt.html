@@ -80,7 +80,7 @@
   .stat .s{font-size:12px;color:var(--text2);line-height:1.5;}
   .stat .h{font-size:12px;color:var(--text);line-height:1.5;border-top:1px solid var(--border);padding-top:6px;margin-top:2px;}
   .up{color:var(--green);} .dn{color:var(--red);} .warn{color:var(--amber);}
-  .bar{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(76,175,125,.35),rgba(255,193,7,.3),rgba(224,82,82,.4));margin:14px 0 16px;}
+  .bar{position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(76,175,125,.35),rgba(255,193,7,.3),rgba(224,82,82,.4));margin:14px 0 26px;}
   .bar .now{position:absolute;top:-4px;width:3px;height:16px;border-radius:2px;background:#fff;transform:translateX(-1px);}
   .bar .mk{position:absolute;top:-3px;width:0;height:14px;border-left:1px dashed var(--c,#aaa);}
   .bar .mk span{position:absolute;top:15px;left:0;transform:translateX(-50%);font-size:11px;color:var(--c,#aaa);white-space:nowrap;font-family:var(--mono);}
@@ -150,6 +150,7 @@
   .lamp .where a{color:var(--blue);text-decoration:none;}
   .lamp .where a:hover{text-decoration:underline;}
   .lamp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto;}
+  .lamp .chips-h{flex-basis:100%;font-size:11px;color:var(--text3);}
   .lamp .chip{font-size:11px;font-family:var(--mono);color:var(--text2);background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:6px;padding:2px 6px;white-space:nowrap;}
   .lamp .chip b{color:var(--text);font-weight:600;}
   .lamp .more{align-self:flex-start;font:inherit;font-size:11px;color:var(--text3);background:none;border:0;padding:0;cursor:pointer;}
@@ -167,7 +168,7 @@
   .strip-legend span::before{content:'';display:inline-block;width:12px;height:8px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:0;}
   .footer{text-align:center;margin-top:22px;font-size:11px;color:var(--text3);line-height:1.7;}
   .footer a{color:var(--text3);}
-  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} .stats{grid-template-columns:1fr;} td,th{padding:5px 6px;} }
+  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} .stats{grid-template-columns:1fr;} td,th{padding:5px 6px;} .legend{right:8px;} .lg-row{width:auto;max-width:100%;flex-wrap:wrap;row-gap:0;align-self:flex-start;font-size:11px;} }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
   .brand img{display:block;height:52px;max-width:100%;}
   @media (max-width:640px){ .brand{margin-bottom:14px;} .brand img{height:36px;} }
@@ -200,8 +201,7 @@
 <div class="panel">
   <h2>Tło — kontekst</h2>
   <div class="desc">Informacje, które nie zapalają lampek: gdzie jesteśmy w fali, jak drogie są alty względem BTC, co robi dolar i na której sieci jest ruch (liczone na bieżąco z historii — szacunek, nie prognoza).
-    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie +40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej 200 dni.
-    Usunięte po badaniu 14.11.2026 (nie dawały stałego sygnału): zmiana stablecoinów w 30 dni, RSI 1W, „potwierdzenie fali” (to samo pokazuje lampka „Indeks altów” i tabela fal).</div>
+    „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie +40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej 200 dni.</div>
   <div class="stats" id="stats"></div>
 </div>
 
@@ -432,13 +432,13 @@ function renderStats(W) {
     let v, s, h;
     if (live) {
       const dd = (Math.exp(X[X.length - 1] - X[live.b]) - 1) * 100;
-      v = `<span class="up">fala trwa</span><small>${fmtPct(live.gain)} od dołka ${dmy(live.ta)}</small>`;
+      v = `<span class="up">${fmtPct(live.gain)}</span><small>od dołka ${dmy(live.ta)} · fala trwa</small>`;
       s = `Szczyt dotąd ${dmy(live.tb)} (${live.days} dni od dołka); indeks teraz ${fmtPct(dd, 1)} od szczytu. Fala kończy się, gdy indeks spadnie o ${fmtPct(dropPct(), 1).slice(1)} od szczytu (odwrotność +${S.th}%).`;
       h = sum.n ? `W tej fazie (${PHASE_NAMES[phaseKey(ph)]}${era}) fale trwały zwykle ok. ${Math.round(sum.days)} dni i dawały ${fmtPct(sum.gain)}; po szczycie indeks oddawał w 30 dni ${fmtPct(sum.after)}.` : '';
     } else {
       const lo = z.lo, up = (Math.exp(X[X.length - 1] - X[lo]) - 1) * 100;
       const last = W.waves[W.waves.length - 1], since = last ? Math.round((tNow - last.tb) / DAY) : null;
-      v = `brak fali<small>${fmtPct(up)} od dołka ${dmy(T[lo])}</small>`;
+      v = `${fmtPct(up)}<small>od dołka ${dmy(T[lo])} · brak fali (próg +${S.th}%)</small>`;
       s = `Fala zaczyna się przy +${S.th}% od dołka.` + (last ? ` Ostatnia fala: ${dmy(last.ta)}–${dmy(last.tb)} (${fmtPct(last.gain)}), od jej szczytu minęło ${since} dni.` : '');
       h = sum.gapN ? `W tej fazie (${PHASE_NAMES[phaseKey(ph)]}${era}) między falami mijało zwykle ${Math.round(sum.gap)} dni (od ${sum.gapMin} do ${sum.gapMax}).` +
         (since != null ? ` Teraz: ${since} dni.` : '') : '';
@@ -504,7 +504,7 @@ function renderStats(W) {
     const rows = dexSurges();
     if (rows) {
       const cur = rows.filter(r => r.cur), recent = rows.filter(r => !r.cur).slice(-4).reverse();
-      out.push(stat('Gdzie rotacja — skoki wolumenu DEX', cur.length ? `<span class="warn">${cur.map(r => esc(r.name)).join(', ')}</span>` : 'brak',
+      out.push(stat('Gdzie rotacja — skoki wolumenu DEX', cur.length ? `<span class="warn">${cur.length}</span><small>${cur.length === 1 ? 'sieć ze skokiem' : 'sieci ze skokiem'}: ${cur.map(r => esc(r.name)).join(', ')}</small>` : '0<small>sieci ze skokiem w ostatnim pełnym tygodniu</small>',
         `Tydzień, w którym wolumen DEX sieci był co najmniej 2× większy niż mediana 8 poprzednich tygodni — pokazuje, gdzie trwa rotacja (np. Base 03.2024, BSC 05.2025). Ostatni pełny tydzień: ${dmy(rows.week)}.` +
         (cur.length ? ' Teraz: ' + cur.map(r => `${esc(r.name)} ×${r.x.pl(1)}`).join(', ') + '.' : ''),
         (recent.length ? 'Ostatnie skoki: ' + recent.map(r => `${esc(r.name)} ${dmy(r.t)} (×${r.x.pl(1)})`).join(', ') + '. ' : '') +
@@ -516,7 +516,7 @@ function renderStats(W) {
 // ── lampki (liczy bot GitHuba: collector/lamps.py → meta.json alt_lamps; tu tylko wyświetlanie) ──
 const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
 const LAMP_GROUPS = [   // [grupa, nazwa, ikona, kolor, czego to sygnał]
-  ['rajd', 'Rajd', '▲', '#4caf7d', 'gdy świeci: <b>aktualnie mamy altsezon</b>'],
+  ['rajd', 'Rajd', '▲', '#4caf7d', 'gdy świeci: <b>altsezon trwa albo właśnie się kończy</b>'],
   ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'gdy świeci: <b>altsezon dobiega końca</b>'],
   ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: <b>rynek zjeżdża</b> — nie sygnał kupna'],
 ];
@@ -639,7 +639,7 @@ function lampCard(k, x, c, tNow) {
     `<span class="val" title="${esc(ui.unit)} · dane z ${dmy(x.value_t)}">${v}</span></div>` +
     `<div class="mean">${ui.mean(c, lv || x.max_level || 1)}</div>` +
     (x.value == null ? '' : `<div class="now">${LAMP_NOW[k](x, c)}</div>`) + `<div class="where">Sprawdź: ${LAMP_WHERE[k]()}</div>` +
-    `<div class="chips" title="Co działo się z altami 30 dni po wcześniejszych zapaleniach (historia, nie prognoza)">${chips}</div>` +
+    `<div class="chips" title="Co działo się z altami 30 dni po wcześniejszych zapaleniach (historia, nie prognoza)"><span class="chips-h">Alty 30 dni po zapaleniu — ile razy ${word}, mediana:</span>${chips}</div>` +
     `<button type="button" class="more" data-k="${k}">Więcej — warunek i zapalenia (${eps.length}) ▾</button></div>`;
 }
 // percentyl wartości w oknie 730 dni (bez przyszłości); null, gdy w oknie < minN punktów
@@ -778,7 +778,7 @@ let chart = null, mounted = [], HEV = null;
 function makeChart() {
   chart = LWC.createChart(document.getElementById('chart'), {
     autoSize: true,
-    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 12,
+    layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#888', fontSize: 12, attributionLogo: false,   // znak leżał na pasku lampek; podpis i link są w stopce
       panes: {separatorColor: 'rgba(255,255,255,.1)', separatorHoverColor: 'rgba(255,255,255,.2)'}},
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'},
@@ -872,25 +872,34 @@ function drawChart(W, resetRange) {
   const panes = chart.panes();
   if (panes.length === 2) { panes[0].setStretchFactor(0.74); panes[1].setStretchFactor(0.26); }
   if (panes.length === 3) { panes[0].setStretchFactor(0.64); panes[1].setStretchFactor(0.22); panes[2].setStretchFactor(0.14); }
-  const end = T[T.length - 1];
+  // koniec zakresu = ostatni punkt dowolnej serii (BTC i lewar mają już dzisiejszy, trwający dzień; indeks altów — do wczoraj)
+  const end = Math.max(T[T.length - 1], ...mounted.filter(m => !m.aux).map(m => (m.series.data().slice(-1)[0] || {}).time || 0));
   if (resetRange || !prev) {
     if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(T[0], end - S.range * DAY), to: end});
     else chart.timeScale().fitContent();
   } else chart.timeScale().setVisibleRange(prev);
   updateLegend();
+  requestAnimationFrame(() => requestAnimationFrame(placeLegend));   // szerokość lewej osi znana po narysowaniu
   renderCycLegend();
   if (HEV) HEV.update();
 }
 function updateLegend(param) {
-  const live = param && param.time;
+  const live = param && param.time, tIdx = T[T.length - 1];
   const rows = mounted.filter(m => !m.aux).map(m => {
     const d = live ? param.seriesData.get(m.series) : m.series.data().slice(-1)[0];
     const v = d ? d.value : null;
-    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span></div>`;
+    // bez kursora każda seria pokazuje swój ostatni punkt — z datą, gdy jest nowszy niż indeks altów (liczony raz na dobę)
+    const tag = !live && d && d.time > tIdx ? ` <span class="lg-name" title="Ta seria ma już punkt z trwającego dnia; indeks altów liczymy po zamknięciu doby — do ${dmy(tIdx)}">· ${dmy(d.time).slice(0, 5)}, dzień trwa</span>` : '';
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : m.fmt(v)}</span>${tag}</div>`;
   });
-  const t = live ? param.time : T[T.length - 1], i = idxAt(t);
-  if (i >= 0) rows.unshift(`<div class="lg-row"><span class="lg-name">${dmy(T[i])} · indeks z ${NC[i]} coinów</span></div>`);
+  const t = live ? param.time : tIdx, i = idxAt(t);
+  if (live && t > tIdx) rows.unshift(`<div class="lg-row"><span class="lg-name">${dmy(t)} · dzień trwa — indeks altów jeszcze nie policzony</span></div>`);
+  else if (i >= 0) rows.unshift(`<div class="lg-row"><span class="lg-name">${live ? dmy(T[i]) : 'Indeks altów do ' + dmy(T[i])} · indeks z ${NC[i]} coinów</span></div>`);
   document.getElementById('legend').innerHTML = rows.join('');
+}
+function placeLegend() {
+  let lw = 0; try { lw = S.btc ? chart.priceScale('left').width() : 0; } catch (e) {}
+  document.getElementById('legend').style.left = (lw + 8) + 'px';
 }
 function renderCycLegend() {
   const el = document.getElementById('cyc-legend');
