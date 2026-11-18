@@ -366,7 +366,7 @@ class HTClient:
         self.limit_headers = {}
         self.stopped = None
 
-    def get(self, path, params=None, root=HT):
+    def get(self, path, params=None, root=HT, fatal=True):
         if self.stopped:
             raise RuntimeError(f"pominięte: {self.stopped}")
         if self.calls >= self.budget:
@@ -382,13 +382,21 @@ class HTClient:
         if r.status_code == 200:
             return r.json()
         txt = (r.text or "")[:160].replace(self.key, "<klucz>") if self.key else (r.text or "")[:160]
-        if r.status_code in (401, 403):
+        if r.status_code in (401, 403) and fatal:
             self.stopped = f"HTTP {r.status_code} — klucz odrzucony albo brak dostępu w planie"
             raise RuntimeError(f"HTTP {r.status_code} {txt}")
         if r.status_code == 429:
             self.stopped = "HTTP 429 — limit zapytań wyczerpany"
             raise RuntimeError(f"HTTP 429 {txt}")
         raise RuntimeError(f"HTTP {r.status_code} {txt}")
+
+
+def clean_key(k):
+    """Klucz wklejony z „Bearer ”, w cudzysłowie albo ze spacjami / nową linią → sam token."""
+    k = (k or "").strip().strip('"').strip("'").strip()
+    if k.lower().startswith("bearer "):
+        k = k[7:].strip()
+    return k
 
 
 def spec_summary(spec):
@@ -434,7 +442,7 @@ def check_hypertracker(session=None, sleep=time.sleep, extra=None, now=None, bud
     from probe import row, err_row
     extra = extra if extra is not None else {}
     ex = extra.setdefault("hypertracker", {"samples": {}})
-    key = os.environ.get("HYPERTRACKER_API_KEY", "").strip()
+    key = clean_key(os.environ.get("HYPERTRACKER_API_KEY", ""))
     if not key:
         return [row("hypertracker", "klucz API", "brak",
                     note="dodaj sekret HYPERTRACKER_API_KEY (GitHub → Settings → Secrets and variables → Actions)")]
@@ -446,9 +454,9 @@ def check_hypertracker(session=None, sleep=time.sleep, extra=None, now=None, bud
     recent = datetime.fromtimestamp(now - 2 * day, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     yday = datetime.fromtimestamp(now - day, timezone.utc).strftime("%Y-%m-%d")
 
-    def call(label, path, params=None, root=HT):
+    def call(label, path, params=None, root=HT, fatal=True):
         try:
-            obj = ht.get(path, params, root)
+            obj = ht.get(path, params, root, fatal)
             ex["samples"][label] = _short(obj)
             return obj
         except Exception as e:  # noqa: BLE001
@@ -456,7 +464,8 @@ def check_hypertracker(session=None, sleep=time.sleep, extra=None, now=None, bud
             return None
 
     # 1) specyfikacja OpenAPI
-    spec = call("specyfikacja OpenAPI", "/external-json", root=HT_ROOT)
+    # (85b: 401 na specyfikacji nie zatrzymuje sondy — prawdziwy test klucza to /segments)
+    spec = call("specyfikacja OpenAPI", "/external-json", root=HT_ROOT, fatal=False)
     if isinstance(spec, dict) and spec.get("paths"):
         ex["samples"].pop("specyfikacja OpenAPI", None)
         ex["spec"] = spec_summary(spec)
