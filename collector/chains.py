@@ -17,6 +17,13 @@ Co robi (GitHub, workflow „Sieci” — osobno albo równolegle ze skanem prze
     (próby za kilka dolarów, zera) — seria zaczyna się od pierwszych `trim_days` (7) dni z rzędu z wartością
     ≥ `trim_min` (DEX $100K, opłaty $1K, stablecoiny i TVL $1M dziennie). Np. Robinhood Chain: 10–30.06.2026
     obroty po $0,06–6 458 → od 01.07. Bez tego skala Log i Index 100 rozjeżdżały wykres. Sieci spoza listy bez zmian,
+  • niepełny ostatni dzień (poprawka 109): wczorajszy wolumen DEX i opłaty DefiLlama podaje, zanim skończy je liczyć
+    (Solana DEX +80…99% po korekcie następnego dnia, opłaty TON ponad +1000%) → liczby przepływów (suma 7 dni,
+    zmiany, miejsce w historii, reguła „rośnie”) liczymy do dnia `end − flow_lag` (domyślnie przedostatni dzień;
+    w chains.json pole `flow_day`). Stany (stablecoiny, TVL) — do ostatniego pełnego dnia. Serie w chains_1d.json
+    zostają pełne (potrzebne do porównania korekt); zakładka i raport same ucinają przepływy na `flow_day`,
+  • sieć spoza listy pytamy tylko o te miary, które DefiLlama dla niej ma (lista stablecoinów, `allChains` z
+    /overview/dexs) — brak sieci w liście to nie błąd; „nieudane zapytania” = tylko prawdziwe awarie,
   • sprawdzanie, czy wartość z rana była kompletna: zapisuje wartości ostatniego pełnego dnia, a następnego dnia
     porównuje je z wartościami po korektach DefiLlama (lista `revisions`).
 
@@ -72,6 +79,7 @@ DEFAULTS = {
     "sleep": 0.4,
     "trim_min": {"dex": 1e5, "fees": 1e3, "stable": 1e6, "tvl": 1e6},   # start sieci: próg dzienny (poprawka 80)
     "trim_days": 7,            # … przez tyle dni z rzędu
+    "flow_lag": 1,             # przepływy (DEX, opłaty) liczone do dnia o tyle wcześniejszego niż ostatni pełny (poprawka 109)
 }
 
 
@@ -239,9 +247,10 @@ def rising_check(name, dex, stable, end, cfg, market=None):
     2× więcej (np. dzień wielkich likwidacji), sieć musi urosnąć 3× bardziej niż rynek, a nie 3× w ogóle
     (bez tego 19–25.08.2026 próg przekroczyło naraz kilkanaście sieci)."""
     first = min([p[0][0] for p in (dex, stable) if p] or [end])
-    cd = change(dex, "dex", end) if dex else {}
+    fend = end - int(cfg.get("flow_lag", 0)) * DAY          # wolumen DEX do przedostatniego dnia (ostatni bywa niepełny)
+    cd = change(dex, "dex", fend) if dex else {}
     cs = change(stable, "stable", end) if stable else {}
-    mr = market_ratio(market, end)
+    mr = market_ratio(market, fend)
     rel = (cd["ratio4w"] / mr if mr else cd["ratio4w"]) if cd.get("ratio4w") is not None else None
     kinds, strength = [], 0.0
     if rel is not None and (cd.get("s7") or 0) >= cfg["dex7_min"] and rel >= cfg["dex_ratio"]:
@@ -327,6 +336,7 @@ def run(data_dir, cfg, client=None, now=None):
     now = now or time.time()
     today = _day(now)
     end = today - DAY
+    fend = end - int(cfg.get("flow_lag", 0)) * DAY          # dzień, do którego liczymy przepływy (DEX, opłaty)
     cl = client or Client(pause=cfg["sleep"])
     os.makedirs(data_dir, exist_ok=True)
     old = _load(os.path.join(data_dir, "chains_1d.json"), {}).get("series") or {}
@@ -348,11 +358,15 @@ def run(data_dir, cfg, client=None, now=None):
         errors.append(f"lista TVL: {e}")
 
     # 1b) cały rynek: wolumen DEX i stablecoiny wszystkich sieci (do reguły „względem rynku” i udziałów w czasie)
+    dex_names = set()                                # sieci, dla których DefiLlama ma wolumen DEX (allChains)
     for sid, (url, params, kind) in {
             "ch_all_dex": (f"{LL}/overview/dexs", {"excludeTotalDataChartBreakdown": "true"}, "dex"),
             "ch_all_stable": (f"{LL_ST}/stablecoincharts/all", None, "stable")}.items():
         try:
-            pts = points(cl.get(url, params), kind, today)
+            raw = cl.get(url, params)
+            if kind == "dex" and isinstance(raw, dict):
+                dex_names = {n for n in raw.get("allChains") or [] if isinstance(n, str)}
+            pts = points(raw, kind, today)
             if not pts:
                 raise RuntimeError("pusta historia")
         except Exception as e:  # noqa: BLE001
@@ -382,8 +396,9 @@ def run(data_dir, cfg, client=None, now=None):
             if not pts:
                 continue
             series[sid] = pts
-            c = change(pts, kind, end)
-            rk, lo, hi = hist_rank(pts, kind, end)
+            at = fend if kind in FLOW else end
+            c = change(pts, kind, at)
+            rk, lo, hi = hist_rank(pts, kind, at)
             c.update(first=iso(pts[0][0]), last=iso(pts[-1][0]), rank2y=rk, min2y=lo, max2y=hi)
             row["m"][kind] = c
         ours.append(row)
@@ -410,15 +425,20 @@ def run(data_dir, cfg, client=None, now=None):
             and max(stable_now.get(n, 0), tvl_now.get(n, 0)) >= cfg["cand_min"]]
     cand.sort(key=lambda n: -max(stable_now.get(n, 0), tvl_now.get(n, 0)))
     cand = cand[:cfg["max_cand"]]
-    other, found, fails, hist = {}, [], [], {}
+    other, found, fails, hist, skipped = {}, [], [], {}, 0
     keep_from = end - cfg["other_days"] * DAY
+    has = {"dex": dex_names, "stable": set(stable_now)}     # pusta lista (błąd pobrania) → pytamy jak dawniej
     for n in cand:
         got = {}
         for kind in ("dex", "stable"):
+            if has[kind] and n not in has[kind]:    # DefiLlama nie ma tej miary dla tej sieci — to nie błąd
+                got[kind] = []
+                skipped += 1
+                continue
             url, params = url_for(kind, n)
             try:
                 got[kind] = points(cl.get(url, params), kind, today)
-            except Exception:  # noqa: BLE001 — nazwa bywa tylko w jednej liście DefiLlama (np. dYdX)
+            except Exception:  # noqa: BLE001 — prawdziwa awaria (sieć jest w liście, a zapytanie się nie udało)
                 got[kind] = []
                 fails.append(f"{n} ({kind})")
         r = rising_check(n, got["dex"], got["stable"], end, cfg, market)
@@ -439,12 +459,13 @@ def run(data_dir, cfg, client=None, now=None):
     rev_log = rev_log[-8 * len(cfg["list"]) * 3:]       # ok. 8 ostatnich dni
 
     summary = {
-        "updated": int(now), "day": iso(end), "source": "DefiLlama",
+        "updated": int(now), "day": iso(end), "flow_day": iso(fend), "source": "DefiLlama",
         "chains": ours, "share": share,
-        "market": {k: change(series.get(f"ch_all_{k}") or [], k, end) for k in ("dex", "stable") if series.get(f"ch_all_{k}")},
+        "market": {k: change(series.get(f"ch_all_{k}") or [], k, fend if k in FLOW else end)
+                   for k in ("dex", "stable") if series.get(f"ch_all_{k}")},
         "rules": {k: cfg[k] for k in ("cand_min", "dex_ratio", "dex7_min", "stable30", "stable_min", "new_days",
                                       "new_dex7", "new_stable", "gap_days", "max_rising")},
-        "candidates": len(cand), "rising": shown, "rising_all": len(found),
+        "candidates": len(cand), "skipped": skipped, "rising": shown, "rising_all": len(found),
         "new_today": [r["name"] for r in shown if r["new"]],
         "revisions": rev_log, "errors": errors + ([f"sieci spoza listy: {len(fails)} nieudanych zapytań"] if fails else []),
         "calls": cl.calls,

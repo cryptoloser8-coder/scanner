@@ -993,6 +993,12 @@ def chains_section(d, now):
         return [{"type": "section", "title": "Sieci — gdzie jest kapitał i ruch"},
                 {"type": "text", "title": "", "text": f"Dane sieci z DefiLlama są z {day_s[8:10]}.{day_s[5:7]} — nieświeże "
                                                       "(workflow „Sieci” nie zadziałał?)."}]
+    # 109: przepływy (DEX, opłaty) liczone do `flow_day` — ostatni dzień DefiLlama podaje niepełny
+    try:
+        fday = int(datetime.strptime(ch.get("flow_day") or "", "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        fday = day
+    fsfx = f" (do {utc(fday, '%d.%m')})" if fday != day else ""
     usd = fmt_usd_short
     share = {n: v for n, v in ((ch.get("share") or {}).get("rows") or [])}
     mkt = ch.get("market") or {}
@@ -1012,10 +1018,12 @@ def chains_section(d, now):
                      usd(tv.get("v")), fmt_chg(tv.get("c30"))])
     blocks = [{"type": "section", "title": "Sieci — gdzie jest kapitał i ruch"},
               {"type": "table", "title": f"Sieci — doba {utc(day, '%d.%m')} (ostatni pełny dzień UTC)",
-               "cols": ["Sieć", "Stablecoiny", "30 dni", "Udział", "Wolumen DEX — 7 dni", "vs poprzednie 7 dni",
-                        "Opłaty — 7 dni", "vs poprzednie 7 dni", "TVL", "30 dni"],
+               "cols": ["Sieć", "Stablecoiny", "30 dni", "Udział", "Wolumen DEX — 7 dni" + fsfx, "vs poprzednie 7 dni",
+                        "Opłaty — 7 dni" + fsfx, "vs poprzednie 7 dni", "TVL", "30 dni"],
                "rows": rows, "left": [0],
-               "desc": "Stablecoiny na sieci = dolary gotowe do wydania (gdzie leży kapitał). Wolumen DEX = ile handlowano "
+               "desc": (f"Wolumen DEX i opłaty liczymy do {utc(fday, '%d.%m')} (przedostatni dzień): wczorajszy dzień DefiLlama "
+                        "podaje niepełny i poprawia go dzień później. " if fday != day else "") +
+                       "Stablecoiny na sieci = dolary gotowe do wydania (gdzie leży kapitał). Wolumen DEX = ile handlowano "
                        "na giełdach zdecentralizowanych tej sieci (gdzie jest ruch). Opłaty = ile użytkownicy zapłacili "
                        "za korzystanie z sieci — najtrudniej je napompować. TVL = wartość zablokowana w aplikacjach, "
                        "rusza się razem z cenami coinów. Przepływy (DEX, opłaty) liczymy z 7 dni, bo pojedynczy dzień "
@@ -1031,8 +1039,8 @@ def chains_section(d, now):
         dx = (c.get("m") or {}).get("dex") or {}
         pts = series.get(f"ch_{c.get('slug')}_dex") or []
         v = dx.get("s7")
-        wk = dex_weeks(pts, day)
-        if wk and wk[-1][0] == day:          # ta sama suma 7 dni co minimum i maksimum paska
+        wk = dex_weeks(pts, fday)
+        if wk and wk[-1][0] == fday:          # ta sama suma 7 dni co minimum i maksimum paska
             v = wk[-1][1]
         if v is None or len(wk) < 30:
             continue
@@ -1043,10 +1051,10 @@ def chains_section(d, now):
                else f"wyżej niż w {rk:.0f}% tygodni z 2 lat")
         first = utc(min(p[0] for p in pts), "%Y-%m-%d")
         items.append({"label": c["name"], "value": usd(v), "sub": sub,
-                      "pos": pos(v), "marks": dex_marks(wk, day, events, pos),
+                      "pos": pos(v), "marks": dex_marks(wk, fday, events, pos),
                       "note": (f"Dane od {first[8:10]}.{first[5:7]}.{first[:4]} — krótsza historia niż 2 lata "
                                "(pierwsze 30 dni pomijamy: sieć dopiero startowała)."
-                               if first > utc(day - 730 * DAY, "%Y-%m-%d") else all_time_note(pts, day, hi))})
+                               if first > utc(day - 730 * DAY, "%Y-%m-%d") else all_time_note(pts, fday, hi))})
     if items:
         blocks.append({"type": "ranges", "title": "Wolumen DEX z 7 dni na tle 2 lat", "items": items,
                        "desc": "Gdzie jest dziś ruch na każdej sieci w porównaniu z jej własnymi ostatnimi 2 latami: "
