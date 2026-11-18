@@ -47,7 +47,7 @@ SEPARATE = ("BTC", "ETH", "HYPE", "SOL", "DOGE", "TAO")
 STAGES = ((9, 14), (8, 15))
 SEG_NAME = {8: "zarobili ponad $1M", 9: "zarobili $100k–1M", 14: "stracili $100k–1M", 15: "stracili ponad $1M"}
 MIN_OI = 5e6
-DAY_BUDGET = 92                       # z 100: 1 na stan grup, reszta zapasu na ponowienia
+DAY_BUDGET = 85                       # 87d: z 100 zostaje ~15 na sondy / ręczne zapytania (limit HT liczony „tokenami”, okno ~24 h)
 PER_RUN = 8                           # zapytań na jeden przebieg z crona (co 5 min)
 PAGES_GUESS = 23                      # stron na serię (sonda 86: BTC Smart Money 23 strony)
 BUCKET = 4 * 3600                     # zestawienia na stronę: co 4 h
@@ -150,6 +150,8 @@ class KeyRejected(Exception):
 
 
 def ht_get(session, key, path, params, st, now):
+    if now < (st.get("pause_until") or 0):
+        raise Budget("przerwa po braku tokenów HyperTrackera")
     d = day_key(now)
     used = st.setdefault("calls", {}).get(d, 0)
     if used >= DAY_BUDGET + 1:
@@ -164,9 +166,12 @@ def ht_get(session, key, path, params, st, now):
         return r.json()
     if r.status_code in (401, 403):
         raise KeyRejected(f"HTTP {r.status_code}")
-    if r.status_code == 429:
-        st["calls"][d] = DAY_BUDGET + 1            # dziś już nic
-        raise Budget("HTTP 429 — limit HyperTrackera")
+    if r.status_code in (402, 429):
+        # 87d: 402 „insufficient_tokens” = wyczerpany limit (okno ok. 24 h, nie doba UTC) → przerwa 1 h i ponowna próba;
+        # nieudane zapytanie nie zjada tokenu, więc go nie liczymy
+        st["calls"][d] = used
+        st["pause_until"] = int(now + 3600)
+        raise Budget(f"HTTP {r.status_code} — brak tokenów HyperTrackera, przerwa 1 h")
     raise RuntimeError(f"HTTP {r.status_code} {(r.text or '')[:120]}")
 
 
