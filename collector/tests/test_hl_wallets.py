@@ -141,3 +141,15 @@ def test_events_and_changes():
     series = {"L_ALT_long": [[t - 8 * DAY, 1e6], [t - DAY, 2e6], [t, 5e6]], "L_ALT_lpct": [[t - DAY, 50], [t, 70]]}
     ch = W.changes(series, t)
     assert ch[0]["g"] == "L" and ch[0]["c"] == "ALT" and ch[0]["delta"] == 4e6 and ch[0]["win"] == "7 dni"
+
+
+def test_hopeless_wallet_skips_portfolio(tmp_path):
+    class Few(Fake):
+        def post(self, url, json=None, headers=None, timeout=None):
+            if json["type"] == "userFills":
+                T = NOW - DAY
+                return Resp([F(T, "BTC", "B", 1, 0, 0, "Open Long"), F(T + 10, "BTC", "A", 1, 1, 5, "Close Long")])
+            return super().post(url, json, headers, timeout)
+    clk, s = Clock(), Few()
+    _, st = W.run_sito(str(tmp_path), minutes=600, session=s, sleep=clk.sleep, clock=clk)
+    assert "portfolio" not in s.calls and st["checked"][addr(0)]["why"] == "za mało zagrań"
