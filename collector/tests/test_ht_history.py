@@ -151,3 +151,29 @@ def test_publishes_pending_after_budget(tmp_path, monkeypatch):
     assert len(pubs) == n + 1
     H.run(session=s, now=NOW + 10 * 3600, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=pf)
     assert len(pubs) == n + 1                                                       # nic nowego — bez publikacji
+
+
+def test_no_tokens_pauses_one_hour(tmp_path, monkeypatch):
+    monkeypatch.setenv("HYPERTRACKER_API_KEY", "K")
+
+    class NoTok(Fake):
+        def __init__(self):
+            super().__init__(pages=30)
+            self.broke = True
+
+        def get(self, url, params=None, headers=None, timeout=None):
+            if self.broke and not url.endswith("/state/summary"):
+                self.ht.append((url, dict(params or {})))
+                return Resp({"statusCode": 402, "code": "insufficient_tokens"}, 402)
+            return super().get(url, params, headers, timeout)
+    s = NoTok()
+    H.run(session=s, now=NOW, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=lambda *a: None)
+    st = H._read(os.path.join(str(tmp_path), "state.json"), {})
+    assert st["pause_until"] == int(NOW + 3600) and st["calls"][H.day_key(NOW)] == 1    # tylko stan grup policzony
+    n = len(s.ht)
+    H.run(session=s, now=NOW + 1800, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=lambda *a: None)
+    assert len(s.ht) == n                                                           # przerwa — bez zapytań
+    s.broke = False
+    H.run(session=s, now=NOW + 3700, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=lambda *a: None)
+    st = H._read(os.path.join(str(tmp_path), "state.json"), {})
+    assert sum(t["pages"] for t in st["queue"]) == 8
