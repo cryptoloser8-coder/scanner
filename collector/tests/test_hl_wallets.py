@@ -138,9 +138,33 @@ def test_events_and_changes():
     kinds = sorted(e[1] for e in ev)
     assert kinds == ["dokupił", "otworzył", "zamknął"] and W.events(None, cur, NOW) == []
     t = int(NOW)
-    series = {"L_ALT_long": [[t - 8 * DAY, 1e6], [t - DAY, 2e6], [t, 5e6]], "L_ALT_lpct": [[t - DAY, 50], [t, 70]]}
+    series = {"L_ALT_flowL": [[t - 8 * DAY, 9e6], [t - 3 * DAY, 1e6], [t - 2 * 3600, 2e6], [t, 3e6]],
+              "S_BTC_flowS": [[t - 3600, -4e5]], "L_ALT_long": [[t - DAY, 1e9]]}
     ch = W.changes(series, t)
-    assert ch[0]["g"] == "L" and ch[0]["c"] == "ALT" and ch[0]["delta"] == 4e6 and ch[0]["win"] == "7 dni"
+    assert (ch[0]["g"], ch[0]["c"], ch[0]["side"], ch[0]["delta"], ch[0]["win"]) == ("L", "ALT", "long", 6e6, "7 dni")
+    assert "since" not in ch[0] and ch[1]["delta"] == -4e5 and ch[1]["since"] == t - 3600 and len(ch) == 2
+
+
+def test_flows_same_wallets_only():
+    """93: przepływ = zmiana ilości × cena u portfeli obecnych przed i po; nowi / odchodzący osobno; ruch ceny się nie liczy."""
+    P = lambda c, L, size, mark: {"c": c, "L": L, "size": size, "mark": mark}
+    prev = {"groups": {"L": ["a", "b", "x"], "S": [], "R": []},
+            "pos": {"a": [["BTC", True, 10, 100]], "b": [["SOL", False, 5, 10]], "x": [["ETH", True, 2, 50]]}}
+    wallets = [{"addr": "a", "g": ["L"], "pos": [P("BTC", True, 1320, 110)]},     # 10 → 12 BTC po 110: +220 (cena +10% nie liczy się)
+               {"addr": "b", "g": ["L"], "pos": []},                               # zamknął short SOL: −5 × 10 = −50
+               {"addr": "n", "g": ["L"], "pos": [P("ETH", True, 500, 50)]}]        # nowy w grupie — nie przepływ
+    f, comp = W.group_flows(prev, wallets)
+    assert round(f["L"]["BTC"]["long"]) == 220 and f["L"]["SOL"]["short"] == -50 and round(f["L"]["all"]["long"]) == 220
+    assert f["L"]["ETH"]["long"] == 0
+    assert comp["L"] == {"in": 1, "out": 1, "n": 3, "long_in": 500, "short_in": 0, "long_out": 100, "short_out": 0}
+    f2, comp2 = W.group_flows(prev, wallets[:2] + wallets[2:], failed=["x"])     # nieudane pobranie ≠ wyjście z grupy
+    assert comp2["L"]["out"] == 0
+    m = W.members_doc(wallets, prev, ["x"], NOW)
+    assert "x" in m["groups"]["L"] and m["pos"]["x"] == [["ETH", True, 2, 50]] and "b" not in m["pos"]
+    series = {}
+    W.append_flows(series, 900, f, {"L": {"n": 3}})
+    W.append_flows(series, 900, f, {"L": {"n": 3}})                             # ten sam kwadrans — sumuje
+    assert series["L_BTC_flowL"] == [[900, 440]] and series["L_n"] == [[900, 3]]
 
 
 def test_hopeless_wallet_skips_portfolio(tmp_path):
@@ -220,3 +244,17 @@ def test_best_lists():
     a = L[1]
     assert a["av"] == 2e5 and a["long"] == 1000 and a["short"] == 400 and a["upnl"] == -30 and a["npos"] == 2
     assert L[0]["upnl"] is None and L[0]["pos"] == [] and L[0]["av"] == 1e5
+
+
+def test_positions_twice_writes_flows(tmp_path):
+    clk, s = Clock(), Fake()
+    sd, dd = str(tmp_path / "sito"), str(tmp_path / "hl")
+    W.run_sito(sd, minutes=600, session=s, sleep=clk.sleep, clock=clk)
+    W.run_positions(dd, sd, session=s, sleep=clk.sleep, clock=clk)
+    g1 = W._read(os.path.join(dd, "hl_groups.json"), {})
+    assert g1["comp"] == W.FLOW_SEED and "L_all_flowL" not in g1["series"] and g1["series"]["L_n"]
+    assert W._read(os.path.join(dd, "hl_members.json"), {})["groups"]["L"]
+    clk.t += 7200
+    W.run_positions(dd, sd, session=s, sleep=clk.sleep, clock=clk)
+    g2 = W._read(os.path.join(dd, "hl_groups.json"), {})
+    assert g2["series"]["L_all_flowL"][-1][1] == 0 and len(g2["comp"]) == 1      # te same pozycje, ten sam skład
