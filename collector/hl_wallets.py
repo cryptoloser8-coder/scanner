@@ -359,6 +359,27 @@ def group_stats(wallets):
             "lev_buckets": [[LEV_BUCKETS[i][2]] + levb[i] for i in range(len(LEV_BUCKETS))], "coins": coins}
 
 
+BIG_AV = 1e6        # 100: „duże konta” w dopisku kafelka grupy
+
+
+def group_notes(wallets, g, checked):
+    """100: dopiski do kafelka grupy (skład grup bez zmian):
+    big — konta ≥ BIG_AV z otwartymi pozycjami: ile ich jest i ile trzymają (u „tracących” kilka kont to większość kwot);
+    eaten — tylko L / S: portfele, którym otwarte straty tej strony zjadły cały zysk z zamkniętych zagrań
+    (wynik z otwartymi ≤ 0) — czyli ci, którzy stratnych pozycji nie zamykają — i ile trzymają po tej stronie."""
+    ws = [w for w in wallets if g in w["g"] and w["pos"]]
+
+    def amt(lst, is_long):
+        return round(sum(p["size"] or 0 for w in lst for p in w["pos"] if bool(p["L"]) == is_long))
+    big = [w for w in ws if (w["av"] or 0) >= BIG_AV]
+    out = {"big": {"min_av": BIG_AV, "n": len(big), "long": amt(big, True), "short": amt(big, False)}}
+    if g in ("L", "S"):
+        e = [w for w in ws if ((checked.get(w["addr"]) or {}).get(g) or {}).get("n")
+             and (with_open(checked[w["addr"]][g], w["pos"], g == "L").get("pnl") or 0) <= 0]
+        out["eaten"] = {"n": len(e), "amt": amt(e, g == "L")}
+    return out
+
+
 def append_series(series, t, groups):
     def add(k, v):
         if v is None:
@@ -695,6 +716,8 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
         except Exception as e:  # noqa: BLE001
             log.warning("Dzienny zapis wyników: %s", e)
     groups = {g: group_stats([w for w in wallets if g in w["g"]]) for g in GROUPS}
+    for g in GROUPS:
+        groups[g].update(group_notes(wallets, g, checked))
     split = age_split(wallets, checked)
     best = best_lists(checked, wallets)
     best_ids = {x["addr"] for lst in best["groups"].values() for x in lst}
