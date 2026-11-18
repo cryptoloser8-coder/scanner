@@ -129,6 +129,8 @@ def test_sito_and_positions(tmp_path):
     assert now["prices"]["BTC"]["ch24"] == 11.11
     meta = W._read(os.path.join(dd, "hl_meta.json"), {})
     assert meta["sito"]["checked"] == 10 and meta["sito"]["left"] == 0 and meta["groups_n"] == {"L": 4, "S": 2, "R": 5}
+    # 99: opis na stronie bierze progi i liczby z tego samego przeliczenia co grupy
+    assert meta["sito"]["params"]["min_age_days"] == W.SITO["min_age_days"] and meta["sito"]["in_sito"] == {"L": 4, "S": 2}
 
 
 def test_events_and_changes():

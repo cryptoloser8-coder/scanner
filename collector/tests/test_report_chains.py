@@ -60,7 +60,7 @@ def test_section_table_ranges_and_rising():
     assert [x["type"] for x in b] == ["section", "table", "ranges", "table"]
     t = b[1]
     assert t["title"].startswith("Sieci — doba 11.11") and t["rows"][0][0] == "Wszystkie sieci"
-    assert t["rows"][0][1] == report.fmt_usd_short(290e9)                    # ta sama suma co „Udział”
+    assert t["rows"][0][1] == report.fmt_usd_short(291e9)                    # 99: suma doby — ta sama co w zakładce Sieci
     assert [r[0] for r in t["rows"][1:]] == ["Ethereum", "Solana", "Robinhood Chain"]   # wg stablecoinów
     assert t["rows"][1][3] == "46.2%" and t["rows"][3][6] == report.fmt_usd_short(None)  # brak opłat → —
     rg = {i["label"]: i for i in b[2]["items"]}
