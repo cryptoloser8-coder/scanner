@@ -128,3 +128,20 @@ def test_registered_only_on_demand():
     assert "hyperliquid" in probe.FUNCS and "hypertracker" in probe.FUNCS
     assert "hyperliquid" not in probe.CHECKS["github"]
     assert probe_hl.to_ts("2025-04-01T10:00:00.123Z") == 1743501600 and probe_hl.to_ts(1700000000000) == 1700000000
+
+
+class FakeHTSpec401(FakeHT):
+    def get(self, url, params=None, headers=None, timeout=None):
+        if url.endswith("/external-json"):
+            self.paths.append(url)
+            return Resp({"message": "Unauthorized"}, 401)
+        return super().get(url, params, headers, timeout)
+
+
+def test_spec_401_does_not_stop_and_key_cleaned(monkeypatch):
+    monkeypatch.setenv("HYPERTRACKER_API_KEY", ' "Bearer SEKRET123"\n')
+    s = FakeHTSpec401("SEKRET123")
+    rows = probe_hl.check_hypertracker(session=s, sleep=lambda *_: None, extra={}, now=NOW)
+    by = {r["item"]: r for r in rows}
+    assert by["specyfikacja OpenAPI"]["status"] == "błąd"
+    assert by["grupy (segments)"]["status"] == "ok" and by["metryki BTC — Smart Money (9)"]["status"] == "ok"
