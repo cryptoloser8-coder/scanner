@@ -345,11 +345,9 @@ LAYOUT = {
     "alts_ref_level": 1.0,         # kolumny tabeli altów: szczyty OI OTHERS/OI BTC ≥ poziom …
     "alts_ref_count": 3,           # … ostatnie N
     "alts_chart_from": "2020-01-01",
-    "lines": {
-        "oi_others_vs_btc": [[0.60, "strefa dołków"], [0.85, "górne 10% dni"],
-                             [0.95, "szczyty 03.2024 i 07.2025"], [1.00, "zrównanie z BTC"]],
-        "alts_vs_btc": [[0.28, "dołki 2025–2026"], [0.38, "szczyt 09.2025"], [0.47, "szczyty 12.2023 i 12.2024"]],
-    },
+    # 98: bez domyślnych linii — lewar i Alty/BTC mają w raporcie progi lampek / kreski z 2 lat (poprawka 97);
+    # własne linie (rysowane też w oi.html) można dopisać w config.yaml → reports.lines
+    "lines": {},
 }
 NEUTRAL_FUNDING = 10.95        # 0,01% na 8 h w skali roku
 LINE_COLORS = ["#4caf7d", "#ffc107", "#ff9800", "#e05252"]

@@ -151,7 +151,9 @@ def pl_dhm(ts):
 
 
 def _when(day, now_ts):
-    ny_today = datetime.fromtimestamp(now_ts, ZoneInfo(NY)).date()
+    # 98: „dziś / jutro / wczoraj” według daty w Polsce (czytelnik jest w PL). Wcześniej wg Nowego Jorku: raport poranny
+    # o 06:00 PL (= przed północą w NY) pisał „jutro” o dniu, który w Polsce już trwa.
+    ny_today = datetime.fromtimestamp(now_ts, ZoneInfo("Europe/Warsaw")).date()
     if day == ny_today:
         return "dziś"
     if day == ny_today - timedelta(days=1):
