@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama"
+        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama. Portfele: hyperliquid hypertracker"
         type: string
         default: ""
 
@@ -39,6 +39,7 @@ jobs:
         env:
           COINALYZE_API_KEY: ${{ secrets.COINALYZE_API_KEY }}
           COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+          HYPERTRACKER_API_KEY: ${{ secrets.HYPERTRACKER_API_KEY }}
           ONLY: ${{ inputs.only }}
         run: |
           if [ -n "$ONLY" ]; then
