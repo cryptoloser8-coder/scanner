@@ -54,10 +54,36 @@
   .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
   .banner code{font-family:var(--mono);font-size:12px;}
 
-  #tiles{display:flex;flex-wrap:wrap;column-gap:16px;}
-  .tsec{flex:var(--n) 1 calc(var(--n) * 172px);min-width:0;}
-  .tsec.wide{flex-basis:100%;}
-  @media (min-width:900px){ .tsec .tiles{grid-template-columns:repeat(var(--n),minmax(0,1fr));} }
+  /* poprawka 107: kafelki w rozwijanych grupach, na szerokim ekranie w kolumnie „Serie” obok wykresu — jak w OI & TOTAL */
+  .grp-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .grp{font-size:13px;padding:6px 12px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .15s;}
+  .grp:hover{color:var(--text);border-color:rgba(255,255,255,.3);background:var(--bg3);}
+  .grp.open{color:var(--text);border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08);}
+  .grp .caret{font-size:11px;opacity:.6;}
+  .grp .cnt{font-size:11px;font-family:var(--mono);padding:0 5px;border-radius:8px;background:rgba(91,156,246,.25);color:var(--text);}
+  .grp-tiles{margin-top:10px;}
+  .grp-tiles:empty{display:none;}
+  .grp-note{font-size:11px;color:var(--text3);margin:0 0 8px;line-height:1.5;}
+  .oi-layout{display:flex;flex-direction:column;gap:0;}
+  .oi-side{display:flex;flex-direction:column;gap:8px;}
+  .oi-side-hd{display:none;}
+  @media (min-width:1200px){
+    .oi-layout{flex-direction:row-reverse;align-items:flex-start;gap:16px;}
+    .oi-main{flex:1;min-width:0;margin-top:0 !important;}
+    .oi-side{width:400px;flex:none;position:sticky;top:82px;max-height:calc(100vh - 100px);overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;gap:6px;scrollbar-width:thin;}
+    .oi-side-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+    .oi-side-hd h2{font-size:14px;font-weight:600;}
+    .oi-side-sub{font-size:11px;color:var(--text3);}
+    .oi-side .grp-bar{flex-direction:column;align-items:stretch;gap:4px;}
+    .oi-side .grp{justify-content:space-between;width:100%;padding:8px 11px;}
+    .oi-side .grp .caret{margin-left:auto;}
+    .oi-side .grp .cnt{margin-left:auto;}
+    .oi-side .grp .cnt + .caret{margin-left:6px;}
+    .oi-side .grp-tiles{margin:2px 0 6px;}
+    .oi-side .tiles{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .oi-side .tile-chg{flex-wrap:wrap;column-gap:6px;row-gap:0;}
+    .chart-wrap{height:min(70vh,700px) !important;}
+  }
   .section-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 7px;}
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:8px;}
   .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px 8px;cursor:pointer;transition:border-color .15s,background .15s;position:relative;user-select:none;min-width:0;}
@@ -89,7 +115,8 @@
   .sep{width:1px;height:18px;background:var(--border2);}
   .chart-wrap{position:relative;height:min(62vh,620px);min-height:360px;}
   #chart{position:absolute;inset:0;}
-  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  /* 107: legenda jako pasek u góry (wiersze obok siebie, zawijane) — panel ceny jest niższy, kolumna 9 wierszy by go zasłoniła */
+  .legend{position:absolute;left:8px;right:76px;top:6px;z-index:3;display:flex;flex-wrap:wrap;gap:2px 4px;pointer-events:none;}
   .lg-row{display:flex;align-items:center;gap:6px;font-size:12px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;}
   .lg-name{color:var(--text2);}
   .lg-val{font-family:var(--mono);color:var(--text);}
@@ -118,6 +145,7 @@
   @media (max-width:640px){
     body{padding:14px;}
     .tiles{grid-template-columns:repeat(2,1fr);}
+    .lg-row{font-size:11px;padding:1px 5px;gap:4px;}
   }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
   .brand img{display:block;height:52px;max-width:100%;}
@@ -144,9 +172,14 @@
 
 <div class="banner" id="banner"></div>
 
-<div id="tiles"></div>
+<div class="oi-layout">
+<aside class="oi-side" id="oi-side" aria-label="Serie">
+  <div class="oi-side-hd"><h2>Serie</h2><span class="oi-side-sub">grupa ▼ rozwija kafelki · likwidacje: jeden coin · funding: kilka naraz</span></div>
+  <div class="grp-bar" id="grp-btns"></div>
+  <div class="grp-tiles" id="tiles"></div>
+</aside>
 
-<div class="panel">
+<div class="panel oi-main">
   <div class="controls">
     <div class="ctrl-group">
       <span class="ctrl-label">Aktywo</span>
@@ -178,9 +211,9 @@
     <div class="sep"></div>
     <div class="ctrl-group">
       <div class="pills">
-        <button class="pill" id="px-btn" title="Cena na lewej osi (BTC; dla ETH cena ETH)">Cena</button>
+        <button class="pill" id="px-btn" title="Cena w górnym panelu: własna cena coina, gdy ją mamy (BTC, ETH, watchlista); dla TOTAL i OTHERS cena BTC">Cena</button>
         <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance perp): pusta = wzrost, pełna = spadek. Wyłączone = linia zamknięć.">Świece</button>
-        <button class="pill" id="fund-btn" title="Panel fundingu (% rocznie) pod wykresem">Funding</button>
+        <button class="pill" id="fund-btn" title="Pokaż / ukryj panel fundingu (% rocznie) na dole wykresu. Które fundingi — wybierasz kafelkami w grupie „Funding”.">Funding</button>
         <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis.">Historyczne wydarzenia</button>
       </div>
     </div>
@@ -192,13 +225,17 @@
     <div class="empty" id="empty">Brak danych dla wybranego aktywa</div>
   </div>
   <div class="hint">
-    Słupki w górę (czerwone) = zlikwidowane longi, w dół (zielone) = zlikwidowane shorty, suma w USD na świecę.
+    <b style="color:var(--text2)">Panel likwidacji:</b> <span class="neg">czerwone słupki w dół = zlikwidowane longi</span> (dzieje się to, gdy cena spada — słupek idzie w tę samą stronę co cena),
+    <span class="pos">zielone słupki w górę = zlikwidowane shorty</span> (gdy cena rośnie). Suma w USD na świecę. Kolory jak na Pulpicie i w raportach: L czerwone, S zielone.<br>
+    <b style="color:var(--text2)">Panel fundingu:</b> % rocznie. Jeden funding = słupki od zera (zielone: dodatni — longi płacą shortom; czerwone: ujemny — shorty płacą longom);
+    kilka fundingów naraz = linie w kolorach serii. Fundingi wybierasz kafelkami w grupie „Funding” — niezależnie od coina likwidacji.<br>
     Świece 4H, 1W i 1M są sumowane z danych 1H/1D; funding na nich to średnia.
     Cena (przycisk „Świece”): świece z knotami z Binance perp — pusta = wzrost, pełna = spadek; knoty dzienne od końca 2019 i z danych godzinowych (1H/4H).
     <span id="range-info"></span><br>
     Kwoty to dolne oszacowanie: giełdy publikują tylko część likwidacji (np. Binance najwyżej jedną na sekundę na rynek),
     a Hyperliquid nie ma likwidacji w Coinalyze. Pokazują, kiedy były duże kaskady i w którą stronę, ale nie są sumą „całego rynku”.
   </div>
+</div>
 </div>
 
 <div class="grid2">
@@ -249,7 +286,7 @@ const store = {
 };
 let META = null, CAT = {}, TIPS = {};
 const DATA = {'1h': null, '1d': null};
-let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true, hev: false}, store.get('view', {}), parseHash());
+let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true, hev: false, funds: ['fund_btc', 'fund_eth', 'fund_others'], grp: 'liq'}, store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = {};
@@ -260,11 +297,12 @@ function parseHash() {
   if (h.get('f')) o.fund = h.get('f') === '1';
   if (h.get('k')) o.cdl = h.get('k') === '1';
   if (h.get('hw')) o.hev = h.get('hw') === '1';
+  if (h.has('fs')) o.funds = h.get('fs').split(',').filter(Boolean);
   return o;
 }
 function persist() {
   store.set('view', S);
-  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0, ...(S.hev ? {hw: 1} : {})}));
+  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0, fs: S.funds.join(','), ...(S.hev ? {hw: 1} : {})}));
 }
 
 // ── formatting ──────────────────────────────────────────────
@@ -341,10 +379,12 @@ function assets() {
   return [['total', 'TOTAL'], ['btc', 'BTC'], ['eth', 'ETH'], ['others', 'OTHERS'], ...watch.map(s => [s, s.toUpperCase()])]
     .filter(([g]) => pts('1d', `liq_${g}_long`).length || pts('1h', `liq_${g}_long`).length);
 }
-function fundIds(g) {
-  if (g === 'total') return ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]);
-  return CAT['fund_' + g] ? ['fund_' + g] : [];
+// 107: fundingi wybierane kafelkami (kilka naraz), niezależnie od coina likwidacji
+function allFundIds() {
+  const watch = (META.watchlist || []).map(s => 'fund_' + s.toLowerCase());
+  return ['fund_btc', 'fund_eth', 'fund_others', ...watch].filter(id => CAT[id] && (pts('1d', id).length || pts('1h', id).length));
 }
+const fundSel = () => allFundIds().filter(id => S.funds.includes(id));
 // cena na tle: własna cena coina, gdy ją mamy (ETH, coiny z watchlisty — poprawki 67–68), inaczej BTC (TOTAL, OTHERS)
 const pxId = g => (g !== 'btc' && CAT['px_' + g]) ? 'px_' + g : 'px_btc';
 
@@ -399,32 +439,61 @@ function fundTile(id) {
   const a7 = h.length ? avgSince(h, last[0] - 7 * 86400) : avgSince(d, last[0] - 7 * 86400);
   const a30 = avgSince(d, last[0] - 30 * 86400);
   const g = id.slice(5);
-  return `<div class="tile" data-asset="${g}" style="--c:${c.color}">
+  return `<div class="tile ${S.funds.includes(id) ? 'on' : ''}" data-fund="${id}" style="--c:${c.color}">
     <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="${id}">${esc(c.name)}</span><span class="info" data-tip="${id}">i</span></div>
     <div class="tile-val ${zone(last[1], c.zones)}">${fundFmt(last[1])}<small>rocznie</small></div>
     <div class="tile-chg"><span class="${zone(a7, c.zones)}">śr. 7D ${fundFmt(a7)}</span><span class="${zone(a30, c.zones)}">30D ${fundFmt(a30)}</span></div>
     ${line(d, c.color)}
   </div>`;
 }
-function renderTiles() {
+const MAIN = ['total', 'btc', 'eth', 'others'];
+const GROUPS = [
+  {key: 'liq', label: 'Likwidacje 24h', note: 'Klik w kafelek = likwidacje tego coina na wykresie (jeden naraz).'},
+  {key: 'fund', label: 'Funding (ważony OI, % rocznie)', note: 'Klik w kafelek dodaje / zdejmuje funding z dolnego panelu — można nałożyć kilka. Coin likwidacji się nie zmienia.'},
+];
+function groupItems() {
   const as = assets();
-  const main = as.filter(([g]) => ['total', 'btc', 'eth', 'others'].includes(g));
-  const watch = as.filter(([g]) => !['total', 'btc', 'eth', 'others'].includes(g));
-  let html = '';
-  const lt = main.map(([g, l]) => liqTile(g, l)).join('');
-  // poprawka 77: likwidacje 24h i funding w jednym rzędzie (szeroki ekran), watchlista pod nimi na całą szerokość
-  const nf = ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]).length;
-  if (lt) html += `<div class="tsec" style="--n:${main.length}"><div class="section-label">Likwidacje 24h</div><div class="tiles">${lt}</div></div>`;
-  const ft = ['fund_btc', 'fund_eth', 'fund_others'].filter(id => CAT[id]).map(fundTile).join('');
-  if (ft) html += `<div class="tsec" style="--n:${nf}"><div class="section-label">Funding (ważony OI, % rocznie)</div><div class="tiles">${ft}</div></div>`;
-  const wt = watch.map(([g, l]) => liqTile(g, l)).join('');
-  if (wt) html += `<div class="tsec wide" style="--n:${watch.length}"><div class="section-label">Watchlista: likwidacje 24h</div><div class="tiles">${wt}</div></div>`;
-  document.getElementById('tiles').innerHTML = html;
+  // główne (TOTAL, BTC, ETH, OTHERS), pod nimi coiny z watchlisty — jedna grupa
+  return {liq: as.filter(([g]) => MAIN.includes(g)).concat(as.filter(([g]) => !MAIN.includes(g))), fund: allFundIds()};
 }
+const wide = () => matchMedia('(min-width:1200px)').matches;
+function renderTiles() {
+  const it = groupItems(), tiles = document.getElementById('tiles'), bar = document.getElementById('grp-btns');
+  bar.after(tiles);                                   // kafelki poza listą przycisków, zanim lista się przerysuje
+  bar.innerHTML = GROUPS.filter(g => it[g.key].length).map(g => {
+    const sel = g.key === 'fund' ? (fundSel().length || '') : ((it[g.key].find(([a]) => a === S.asset) || [])[1] || '');
+    return `<button class="grp ${S.grp === g.key ? 'open' : ''}" data-g="${g.key}" title="${it[g.key].length} kafelków">${esc(g.label)}` +
+      `${sel ? ` <span class="cnt" title="${g.key === 'fund' ? 'Fundingi na wykresie' : 'Coin na wykresie'}">${esc(sel)}</span>` : ''}<span class="caret">${S.grp === g.key ? '▲' : '▼'}</span></button>`;
+  }).join('');
+  const g = GROUPS.find(x => x.key === S.grp && it[x.key].length);
+  tiles.innerHTML = !g ? '' : `<div class="grp-note">${g.note}</div><div class="tiles">` +
+    (g.key === 'fund' ? it.fund.map(fundTile).join('')
+      : it.liq.filter(([a]) => MAIN.includes(a)).map(([a, l]) => liqTile(a, l)).join('') +
+        (it.liq.some(([a]) => !MAIN.includes(a)) ? '<div class="section-label" style="grid-column:1/-1;margin:6px 0 0">Watchlista</div>' : '') +
+        it.liq.filter(([a]) => !MAIN.includes(a)).map(([a, l]) => liqTile(a, l)).join('')) + '</div>';
+  const open = bar.querySelector('.grp.open');
+  if (open && wide()) open.after(tiles);
+}
+document.getElementById('grp-btns').addEventListener('click', e => {
+  const b = e.target.closest('.grp'); if (!b) return;
+  S.grp = S.grp === b.dataset.g ? '' : b.dataset.g;
+  persist(); renderTiles();
+});
 document.getElementById('tiles').addEventListener('click', e => {
   const t = e.target.closest('.tile');
-  if (t && !e.target.closest('.info') && t.dataset.asset) { S.asset = t.dataset.asset; refresh(true); }
+  if (!t || e.target.closest('.info')) return;
+  const phone = matchMedia('(max-width:640px)').matches;
+  if (t.dataset.asset) S.asset = t.dataset.asset;
+  else if (t.dataset.fund) {
+    const id = t.dataset.fund;
+    S.funds = S.funds.includes(id) ? S.funds.filter(x => x !== id) : S.funds.concat(id);
+    if (S.funds.length) S.fund = true;                 // wybór fundingu od razu pokazuje panel
+  } else return;
+  if (phone && t.dataset.asset) S.grp = '';            // telefon: wykres jest pod kafelkami — zwijamy grupę (funding zostaje, żeby dobrać kolejne)
+  refresh(!!t.dataset.asset);
+  if (phone && t.dataset.asset) setTimeout(() => document.querySelector('.chart-wrap').scrollIntoView({behavior: 'smooth', block: 'center'}), 60);
 });
+addEventListener('resize', () => { if (META && DATA['1d']) renderTiles(); });
 
 // ── controls ────────────────────────────────────────────────
 function renderAssetPills() {
@@ -454,11 +523,10 @@ function syncControls() {
   document.getElementById('px-btn').classList.toggle('active', S.px);
   const wick = pts(resOf(IV()), pxId(S.asset) + '_hi').length > 0;
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.px && S.cdl && wick); kb.disabled = !S.px || !wick;
-  document.getElementById('fund-btn').classList.toggle('active', S.fund);
+  const fb = document.getElementById('fund-btn'); fb.classList.toggle('active', S.fund && fundSel().length > 0); fb.disabled = !fundSel().length;
   const hb = document.getElementById('hev-btn'), hasHev = ((META || {}).history_events || []).length > 0;
   hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
   document.querySelectorAll('#iv-pills [data-val="1h"], #iv-pills [data-val="4h"]').forEach(b => b.disabled = !has1h());
-  document.querySelectorAll('.tile[data-asset]').forEach(t => t.classList.toggle('on', t.dataset.asset === S.asset && t.querySelector('[data-tip^="liq_"]')));
 }
 
 // ── chart ───────────────────────────────────────────────────
@@ -491,21 +559,15 @@ function drawChart(resetRange) {
   const Sh = agg(pts(res, `liq_${g}_short`), iv, 'sum');
   document.getElementById('empty').style.display = L.length ? 'none' : 'flex';
   const usdFmt = {type: 'custom', minMove: 1, formatter: v => usd(v)};
-  if (L.length) {
-    const sl = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(224,82,82,.85)', priceScaleId: 'right', priceFormat: usdFmt,
-      lastValueVisible: false, priceLineVisible: false}, 0);
-    sl.setData(L.map(([t, v]) => ({time: t, value: v})));
-    const ss = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(76,175,125,.85)', priceScaleId: 'right', priceFormat: usdFmt,
-      lastValueVisible: false, priceLineVisible: false}, 0);
-    ss.setData(Sh.map(([t, v]) => ({time: t, value: -v})));
-    mounted.push({kind: 'long', series: sl, name: 'Long', fmt: usd, color: '#e05252'},
-      {kind: 'short', series: ss, name: 'Short', fmt: v => usd(Math.abs(v)), color: '#4caf7d'});
-  }
-  let leftUsed = false;
-  if (S.px && L.length) {
+  // 107: osobne panele — cena (góra), likwidacje (środek), funding (dół); wcześniej słupki likwidacji leżały na cenie
+  const fids = S.fund && L.length ? fundSel().filter(id => pts(res, id).length) : [];
+  const id = pxId(g);
+  const t0 = L.length ? Math.min(L[0][0], ...fids.map(f => (pts(res, f)[0] || [Infinity])[0])) : 0;
+  const hasPx = S.px && L.length && pts(res, id).some(p => p[0] >= t0);
+  const pPx = hasPx ? 0 : -1, pLiq = hasPx ? 1 : 0, pFund = pLiq + 1;
+  if (hasPx) {
     // cena od początku likwidacji/fundingu (historia ceny sięga 2009, ale tu jest tłem dla tych danych)
-    const t0 = Math.min(L[0][0], ...fundIds(g).map(f => (pts(res, f)[0] || [Infinity])[0]));
-    const id = pxId(g), arr = agg(pts(res, id).filter(p => p[0] >= t0), iv, 'last');
+    const arr = agg(pts(res, id).filter(p => p[0] >= t0), iv, 'last');
     const pf = {type: 'custom', minMove: .01, formatter: price};
     const raw = pts(res, id).filter(p => p[0] >= t0 - 86400);          // + poprzednia świeca: open pierwszej
     const pc = S.cdl && pts(res, id + '_hi').length
@@ -513,51 +575,61 @@ function drawChart(resetRange) {
     if (pc && pc.candles.length) {
       const c0 = pc.candles[0].time, line = agg(raw.filter(p => p[0] >= t0 && p[0] < c0), iv, 'last');
       if (line.length) {
-        const ls = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left', priceFormat: pf,
-          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false}, 0);
+        const ls = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'right', priceFormat: pf,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false}, pPx);
         ls.setData(line.map(([t, v]) => ({time: t, value: v})));
         mounted.push({kind: 'aux', series: ls});
       }
       // kolor ceny (nie zielony / czerwony — te są zajęte przez słupki likwidacji): wzrost = pusta świeca, spadek = pełna
       const col = CAT[id].color;
-      const cs = chart.addSeries(LWC.CandlestickSeries, {priceScaleId: 'left', priceFormat: pf, upColor: 'rgba(0,0,0,0)', downColor: col,
-        borderUpColor: col, borderDownColor: col, wickUpColor: col, wickDownColor: col, priceLineVisible: false, lastValueVisible: true}, 0);
+      const cs = chart.addSeries(LWC.CandlestickSeries, {priceScaleId: 'right', priceFormat: pf, upColor: 'rgba(0,0,0,0)', downColor: col,
+        borderUpColor: col, borderDownColor: col, wickUpColor: col, wickDownColor: col, priceLineVisible: false, lastValueVisible: true}, pPx);
       cs.setData(pc.candles.filter(k => k.time >= bucket(t0, iv)));
       mounted.push({kind: 'px', series: cs, name: CAT[id].name, fmt: price, color: CAT[id].color, candle: true});
-      leftUsed = true;
     } else if (arr.length) {
-      const sp = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'left',
-        priceFormat: pf, lastValueVisible: true, priceLineVisible: false}, 0);
+      const sp = chart.addSeries(LWC.LineSeries, {color: CAT[id].color, lineWidth: 1.5, priceScaleId: 'right',
+        priceFormat: pf, lastValueVisible: true, priceLineVisible: false}, pPx);
       sp.setData(arr.map(([t, v]) => ({time: t, value: v})));
       mounted.push({kind: 'px', series: sp, name: CAT[id].name, fmt: price, color: CAT[id].color});
-      leftUsed = true;
     }
   }
-  if (S.fund && L.length) {
-    const fids = fundIds(g).filter(id => pts(res, id).length);
-    fids.forEach((id, i) => {
-      const c = CAT[id];
-      const sf = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: 'right',
-        priceFormat: {type: 'custom', minMove: .01, formatter: v => v.pl(1) + '%'}, lastValueVisible: true, priceLineVisible: false}, 1);
-      sf.setData(agg(pts(res, id), iv, 'avg').map(([t, v]) => ({time: t, value: v})));
-      if (i === 0) {
-        sf.createPriceLine({price: 0, color: 'rgba(255,255,255,.25)', lineWidth: 1, lineStyle: LWC.LineStyle.Dotted, axisLabelVisible: false, title: ''});
-        if (c.zones) {
-          sf.createPriceLine({price: c.zones.yellow, color: 'rgba(255,193,7,.45)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
-          sf.createPriceLine({price: c.zones.red, color: 'rgba(224,82,82,.5)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
-        }
-      }
-      mounted.push({kind: 'fund', series: sf, name: c.name, fmt: fundFmt, color: c.color});
-    });
+  if (L.length) {
+    // longi w dół (likwidowane, gdy cena spada), shorty w górę (gdy cena rośnie) — słupek idzie w tę stronę co cena
+    const ss = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(76,175,125,.85)', priceScaleId: 'right', priceFormat: usdFmt,
+      lastValueVisible: false, priceLineVisible: false}, pLiq);
+    ss.setData(Sh.map(([t, v]) => ({time: t, value: v})));
+    const sl = chart.addSeries(LWC.HistogramSeries, {color: 'rgba(224,82,82,.85)', priceScaleId: 'right', priceFormat: usdFmt,
+      lastValueVisible: false, priceLineVisible: false}, pLiq);
+    sl.setData(L.map(([t, v]) => ({time: t, value: -v})));
+    const lab = (assets().find(([x]) => x === g) || [, g.toUpperCase()])[1];
+    const ph = matchMedia('(max-width:640px)').matches;   // telefon: krótsze podpisy, żeby legenda nie zasłaniała ceny
+    mounted.push({kind: 'long', series: sl, name: ph ? `${lab} long ▼` : `Likwidacje ${lab} — long ▼`, fmt: v => usd(Math.abs(v)), color: '#e05252'},
+      {kind: 'short', series: ss, name: ph ? `${lab} short ▲` : `Likwidacje ${lab} — short ▲`, fmt: usd, color: '#4caf7d'});
   }
+  const pctFmt = {type: 'custom', minMove: .01, formatter: v => v.pl(1) + '%'};
+  fids.forEach((fid, i) => {
+    const c = CAT[fid], data = agg(pts(res, fid), iv, 'avg');
+    const one = fids.length === 1;                     // jeden funding: słupki od zera, kolor wg znaku; kilka: linie w kolorach serii
+    const sf = one ? chart.addSeries(LWC.HistogramSeries, {priceScaleId: 'right', priceFormat: pctFmt, base: 0, lastValueVisible: true, priceLineVisible: false}, pFund)
+      : chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: 'right', priceFormat: pctFmt, lastValueVisible: true, priceLineVisible: false}, pFund);
+    sf.setData(data.map(([t, v]) => one ? {time: t, value: v, color: v >= 0 ? 'rgba(76,175,125,.8)' : 'rgba(224,82,82,.8)'} : {time: t, value: v}));
+    if (i === 0) {
+      sf.createPriceLine({price: 0, color: 'rgba(255,255,255,.25)', lineWidth: 1, lineStyle: LWC.LineStyle.Dotted, axisLabelVisible: false, title: ''});
+      if (c.zones) {
+        sf.createPriceLine({price: c.zones.yellow, color: 'rgba(255,193,7,.45)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+        sf.createPriceLine({price: c.zones.red, color: 'rgba(224,82,82,.5)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
+      }
+    }
+    mounted.push({kind: 'fund', series: sf, name: c.name, fmt: fundFmt, color: c.color});
+  });
   chart.panes().forEach(p => {
-    p.priceScale('left').applyOptions({visible: leftUsed, scaleMargins: {top: .1, bottom: .1}});
+    p.priceScale('left').applyOptions({visible: false});
     p.priceScale('right').applyOptions({visible: true, scaleMargins: {top: .1, bottom: .1}});
   });
-  // fixed proportions (setHeight depends on the previous layout and can squash the main pane)
+  // stałe proporcje paneli
   const panes = chart.panes();
-  if (panes.length > 1) { panes[0].setStretchFactor(0.72); panes[1].setStretchFactor(0.28); }
-  else if (panes.length) panes[0].setStretchFactor(1);
+  const f = panes.length === 3 ? [.48, .28, .24] : panes.length === 2 ? (hasPx ? [.62, .38] : [.6, .4]) : [1];
+  panes.forEach((p, i) => p.setStretchFactor(f[i] * 100));
 
   if (L.length) {
     const end = L[L.length - 1][0], start = L[0][0];
@@ -579,24 +651,24 @@ function updateLegend(param) {
     let v = null, k = null;
     if (lastCrosshair) { const d = param.seriesData.get(m.series); k = d; v = d && (m.candle ? d.close : d.value); }
     else { const data = m.series.data(); k = data.length ? data[data.length - 1] : null; v = k ? (m.candle ? k.close : k.value) : null; }
-    if (m.kind === 'long') L = v; if (m.kind === 'short') Sv = v == null ? null : Math.abs(v);
+    if (m.kind === 'long') L = v == null ? null : Math.abs(v); if (m.kind === 'short') Sv = v;
     rows.push(`<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${m.fmt(v)}</span></div>`);
     if (m.candle && k) rows.push(`<div class="lg-row"><span class="lg-name">O ${price(k.open)} · H ${price(k.high)} · L ${price(k.low)}</span></div>`);
   }
+  const at = rows.findIndex(r => r.includes('short ▲')) + 1;
   if (L != null && Sv != null && L + Sv > 0)
-    rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).pl(0)}%</span></div>`);
+    rows.splice(at, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).pl(0)}%</span></div>`);
   const iv = IV();
-  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toISOString().slice(0, iv === '1d' || iv === '1w' || iv === '1m' ? 10 : 16).replace('T', ' ') + ' UTC'
+  // dzień / tydzień / miesiąc = doba UTC (sama data); godziny w czasie polskim
+  const hourly = iv === '1h' || iv === '4h';
+  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', year: 'numeric', timeZone: hourly ? 'Europe/Warsaw' : 'UTC'}, hourly ? {hour: '2-digit', minute: '2-digit'} : {}))
     : 'ostatnia świeca';
   rows.unshift(`<div class="lg-row"><span class="lg-name">${tl} · świeca ${iv.toUpperCase()}</span></div>`);
   const lg = document.getElementById('legend');
   lg.innerHTML = rows.join('');
   placeLegend();
 }
-function placeLegend() {
-  let lw = 0; try { lw = chart.priceScale('left').width(); } catch (e) {}
-  document.getElementById('legend').style.left = (lw + 8) + 'px';
-}
+function placeLegend() { document.getElementById('legend').style.left = '8px'; }
 
 // ── tables ──────────────────────────────────────────────────
 function renderExchanges() {
@@ -646,7 +718,9 @@ document.getElementById('top-table').addEventListener('click', e => {
 function refresh(resetRange = false) {
   if (!assets().some(([g]) => g === S.asset)) S.asset = 'total';
   if (!['1h', '4h', '1d', '1w', '1m'].includes(S.iv)) S.iv = '4h';
+  if (!Array.isArray(S.funds)) S.funds = ['fund_btc', 'fund_eth', 'fund_others'];
   persist();
+  renderTiles();
   renderAssetPills();
   syncControls();
   const h1 = pts('1h', 'liq_total_long'), d1 = pts('1d', 'liq_total_long');
@@ -715,7 +789,6 @@ async function boot() {
     document.getElementById('empty').textContent = 'Brak danych o likwidacjach';
     return;
   }
-  renderTiles();
   renderExchanges();
   refresh(true);
 }
