@@ -21,9 +21,11 @@ CATALOG = {
                            desc="Open interest perpetuala ETHUSDT (USDT-M) tylko na Binance, w USD — z archiwum "
                                 "data.binance.vision, od 12.2021. Odczyt z końca dnia (23:55 UTC)."),
     "oi_alts": dict(name="OI ALTS", group="oi", color="#4caf7d",
-                    desc="Open interest wszystkich coinów OPRÓCZ BTC (z ETH). Odpowiednik TOTAL2 po stronie derywatów."),
+                    desc="Open interest wszystkich coinów OPRÓCZ BTC (z ETH). Odpowiednik TOTAL2 po stronie derywatów. "
+                         "ALTS = alty razem z ETH; OTHERS = alty bez ETH."),
     "oi_others": dict(name="OI OTHERS", group="oi", color="#ce93d8",
-                      desc="Open interest wszystkich coinów OPRÓCZ BTC i ETH. Odpowiednik TOTAL3 po stronie derywatów."),
+                      desc="Open interest wszystkich coinów OPRÓCZ BTC i ETH. Odpowiednik TOTAL3 po stronie derywatów. "
+                           "Uwaga: to inna grupa niż OTHERS (TV) z TradingView, czyli coiny spoza top 10."),
     # ── Market cap (TradingView CRYPTOCAP) ──
     "total": dict(name="TOTAL", group="mcap", color="#e0e0e0",
                   desc="Kapitalizacja całego rynku krypto (CRYPTOCAP:TOTAL z TradingView)."),
@@ -73,13 +75,15 @@ CATALOG = {
                              "Bez stablecoinów, bo te nie spadają w bessie i zawyżałyby wynik (TOTAL3/BTC w 2022 ~1,05). "
                              "Szczyty: 01.2018 ~1,17, 05.2021 ~0,91, 12.2023 i 12.2024 ~0,47–0,48, 09.2025 ~0,38 — każdy cykl niżej."),
     "oi_others_vs_btc": dict(name="OI OTHERS / OI BTC", group="ratio", color="#f06292",
-                             desc="OI altów BEZ ETH podzielone przez OI BTC. 1.0 = zrównanie. Historycznie: szczyt altów w grudniu 2024 przy ~1.1–1.27, wrzesień 2025 ~1.05–1.07, tuż przed krachem 10.10.2025 ~0.95, szczyt z marca 2024 ~0.85. Wysoko = lewar ucieka w małe alty."),
+                             desc="OI altów BEZ ETH podzielone przez OI BTC — w Altsezonie i na Pulpicie pod nazwą „Lewar altów”. 1.0 = zrównanie. Historycznie: szczyt altów w grudniu 2024 przy ~1.1–1.27, wrzesień 2025 ~1.05–1.07, tuż przed krachem 10.10.2025 ~0.95, szczyt z marca 2024 ~0.85. Wysoko = lewar ucieka w małe alty."),
     "lev_btc": dict(name="Dźwignia BTC", group="pct", color="#f7931a",
                     desc="OI BTC / kapitalizacja BTC (TOTAL − TOTAL2), w %. Ile otwartych pozycji przypada na kapitalizację BTC."),
     "lev_alts": dict(name="Dźwignia ALTS", group="pct", color="#4caf7d",
-                     desc="OI ALTS / kapitalizacja altów bez stablecoinów (TOTAL2 − stablecoiny), w %. Wysokie wartości = wzrosty altów napędzane lewarem, ryzyko kaskady likwidacji."),
+                     desc="OI ALTS / kapitalizacja altów bez stablecoinów (TOTAL2 − stablecoiny), w %. Wysokie wartości = wzrosty altów napędzane lewarem, ryzyko kaskady likwidacji. "
+                          "To nie jest lampka „Lewar altów” z Altsezonu — tamta to OI OTHERS / OI BTC."),
     "lev_others": dict(name="Dźwignia OTHERS", group="pct", color="#ce93d8",
-                       desc="OI OTHERS / TOTAL3 bez stablecoinów (TOTAL3ES), w %. Lewar na altach bez ETH względem ich kapitalizacji."),
+                       desc="OI OTHERS / TOTAL3 bez stablecoinów (TOTAL3ES), w %. Lewar na altach bez ETH względem ich kapitalizacji. "
+                            "To nie jest lampka „Lewar altów” z Altsezonu — tamta to OI OTHERS / OI BTC."),
 }
 
 
@@ -199,7 +203,7 @@ def ex_id(name):
 def liq_catalog(watchlist, top, exchanges):
     others = f"top {top} altów bez BTC i ETH" + (" + watchlista" if watchlist else "")
     who = {"btc": ("BTC", "perpetuali BTC"), "eth": ("ETH", "perpetuali ETH"),
-           "others": ("OTHERS", f"altów ({others})"),
+           "others": ("OTHERS", f"altów ({others}; węższa grupa niż OI OTHERS, które obejmuje wszystkie coiny bez BTC i ETH)"),
            "total": ("TOTAL", f"BTC, ETH i {others}")}
     colors = {"btc": "#f7931a", "eth": "#8c9eff", "others": "#ce93d8", "total": "#9e9e9e"}
     cat = {}
