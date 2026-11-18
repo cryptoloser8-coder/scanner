@@ -376,17 +376,17 @@ function liqTile(g, label) {
   const s24 = hourly ? sumSince(Sh, t - 86400) : (dS.length ? dS[dS.length - 1][1] : 0);
   const tot = l24 + s24, lp = tot ? l24 / tot * 100 : 50;
   const d7 = hourly ? sumSince(L, t - 7 * 86400) + sumSince(Sh, t - 7 * 86400) : null;
-  // average full day over the 30 days before today
+  // 98: zwykły dzień = mediana pełnych dni z 2 lat (jak w raporcie); średnią z 30 dni zawyżały pojedyncze kaskady
   const today = t - t % 86400;
   const daily = dL.map(([dt, v], i) => [dt, v + (dS[i] ? dS[i][1] : 0)]);
-  const prev = daily.filter(([dt]) => dt < today && dt >= today - 30 * 86400);
-  const avg = prev.length ? prev.reduce((s, p) => s + p[1], 0) / prev.length : null;
+  const prev = daily.filter(([dt]) => dt < today && dt >= today - 730 * 86400).map(p => p[1]).sort((a, b) => a - b);
+  const avg = prev.length >= 30 ? (prev.length % 2 ? prev[(prev.length - 1) / 2] : (prev[prev.length / 2 - 1] + prev[prev.length / 2]) / 2) : null;
   const ratio = avg ? tot / avg : null;
   const c = CAT[`liq_${g}_long`];
   const col = {btc: '#f7931a', eth: '#8c9eff', others: '#ce93d8', total: '#9e9e9e'}[g] || '#5b9cf6';
   return `<div class="tile ${S.asset === g ? 'on' : ''}" data-asset="${g}" style="--c:${col}">
     <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="liq_${g}">${esc(label)}</span><span class="info" data-tip="liq_${g}">i</span></div>
-    <div class="tile-val">${usd(tot)}${ratio != null ? `<small class="${ratio >= 3 ? 'neg' : ratio >= 1.5 ? 'warn' : ''}" title="24h względem średniej dziennej z 30 dni">×${ratio.toFixed(1)} śr.</small>` : ''}</div>
+    <div class="tile-val">${usd(tot)}${ratio != null ? `<small style="display:block;margin:2px 0 0" class="${ratio >= 3 ? 'neg' : ratio >= 1.5 ? 'warn' : ''}" title="24 h ÷ zwykły dzień (mediana dnia z 2 lat: ${usd(avg)})">×${ratio.toFixed(1)} zwykłego dnia</small>` : ''}</div>
     <div class="ls-bar" title="Udział longów: ${lp.toFixed(0)}%"><div class="l" style="width:${lp}%"></div><div class="s" style="width:${100 - lp}%"></div></div>
     <div class="tile-chg"><span class="neg">L ${usd(l24)}</span><span class="pos">S ${usd(s24)}</span>${d7 != null ? `<span>7D ${usd(d7)}</span>` : ''}</div>
     ${bars(daily, col)}
@@ -685,7 +685,7 @@ function buildTips() {
     if (!c) continue;
     TIPS[`liq_${g}`] = {name: c.name.replace(/ long$/, ''),
       desc: c.desc.replace(/^Zlikwidowane pozycje LONG/, 'Zlikwidowane pozycje (long + short)').replace(/ Duże likwidacje longów.*$/, '') +
-        ' Pasek: udział longów (czerwony) i shortów (zielony). „×N śr.” = 24h względem średniej dziennej z ostatnich 30 dni.'};
+        ' Pasek: udział longów (czerwony) i shortów (zielony). „×N zwykłego dnia” = 24 h podzielone przez zwykły dzień, czyli medianę dnia z ostatnich 2 lat (połowa dni miała więcej, połowa mniej).'};
   }
 }
 async function boot() {

@@ -368,7 +368,9 @@ const COLS = [
   }],
   ['r3', 'RSI 3D', c => rsiCell(c.r3)],
   ['rw', 'RSI 1W', c => rsiCell(c.rw)],
-  ['since', 'Od (dni)', c => `<span class="${c.side > 0 ? 'pos' : 'neg'}">${c.side > 0 ? 'nad' : 'pod'}</span> ${c.since}`],
+  // 98: „nad / pod” jest z zamknięcia dnia, odległość z aktualnej ceny — gdy się różnią, dopisek „teraz …”
+  ['since', 'Od (dni)', c => `<span class="${c.side > 0 ? 'pos' : 'neg'}">${c.side > 0 ? 'nad' : 'pod'}</span> ${c.since}` +
+    (c.d != null && c.side && (c.d >= 0) !== (c.side > 0) ? ` <small style="color:var(--text2)" title="Na zamknięciu dnia coin był ${c.side > 0 ? 'nad' : 'pod'} EMA200; z aktualną ceną jest ${c.d >= 0 ? 'nad' : 'pod'} — przecięcie liczy się dopiero na zamknięciu dnia">(teraz ${c.d >= 0 ? 'nad' : 'pod'})</small>` : '')],
   ['cross_t', 'Przecięcie', c => dateFmt(c.cross_t)],
   ['wd', 'EMA200 1W', c => c.wside == null ? `<span style="color:var(--text3)" title="Za krótka historia: ${c.weeks || 0} z ${(DATA.weekly || {}).min_weeks || 300} tygodni">—</span>`
     : `<span class="${c.wd >= 0 ? 'pos' : 'neg'}" title="EMA200 1W: ${price(c.we)}">${pct(c.wd)}</span>`],
