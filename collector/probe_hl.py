@@ -530,8 +530,8 @@ def check_hypertracker(session=None, sleep=time.sleep, extra=None, now=None, bud
 # htdepth — przewijanie historii metryk grupy Smart Money dla BTC do samego początku (≤ 25 zapytań) + próbka małego alta.
 SEPARATE = ("BTC", "ETH", "HYPE", "SOL", "DOGE", "TAO")
 SITO_TOP = 50             # najlepsi od zawsze
-SITO_RANDOM = 200         # losowo z reszty kandydatów
-SITO_DEEP = 15            # tyle portfeli: transakcje przewijane wstecz
+SITO_RANDOM = 300         # losowo z reszty kandydatów
+SITO_DEEP = 0             # tyle portfeli: transakcje przewijane wstecz
 DEEP_PAGES = 6
 WEIGHT_PER_MIN = 900      # limit giełdy 1200 „wag” na minutę na IP — zostawiamy zapas
 OI_LEVELS = (5e6, 10e6, 25e6, 100e6)
@@ -586,7 +586,10 @@ def trips(fills):
     out, cur = [], {}
     for f in sorted(fills or [], key=lambda x: (x.get("time") or 0, x.get("tid") or 0)):
         c = f.get("coin")
-        if not c or ":" in c:
+        if not c or ":" in c or c.startswith("@") or "/" in c:
+            continue
+        d = f.get("dir") or ""
+        if d and "Long" not in d and "Short" not in d:     # 86b: tylko perpy (spot: „Buy” / „Sell”)
             continue
         sz, start = _f(f.get("sz")), _f(f.get("startPosition"))
         if sz is None or start is None:
@@ -632,6 +635,7 @@ def months_positive(pnl_hist):
         ch.append(month_end[k] - prev)
         prev = month_end[k]
     ch = ch[1:] if len(ch) > 1 else ch           # pierwszy miesiąc niepełny
+    ch = [x for x in ch if abs(x) >= 1]          # 86b: tylko miesiące, w których konto grało (zmiana PnL ≥ $1)
     return (sum(1 for x in ch if x > 0) / len(ch) * 100 if ch else None), len(ch)
 
 
@@ -752,22 +756,33 @@ def check_hlsito(session=None, sleep=time.sleep, clock=time.time, extra=None, no
     if not prof:
         return rows
 
-    # 4) rozkłady
+    # 4) rozkłady — 86b: tylko konta, które grały perpami w oknie transakcji, bez botów (≥ 200 transakcji/dzień)
+    idle = [p for p in prof if p["trips"] == 0]
+    bots = [p for p in prof if p["trips"] and p["fills_per_day"] >= 200]
+    rows.append(row("hlsito", "odrzucone przed rozkładami", "ok", n=len(idle) + len(bots),
+                    note=f"bez zagrań perpami w oknie (nie grają / tylko spot / skarbce): {len(idle)}; boty / market makerzy "
+                         f"(≥ 200 transakcji/dzień): {len(bots)}; zostaje {len(prof) - len(idle) - len(bots)}"))
+    prof = [p for p in prof if p["trips"] and p["fills_per_day"] < 200]
+    if not prof:
+        return rows
+
     def dist(label, xs, note=""):
         rows.append(row("hlsito", label, "ok", n=sum(1 for x in xs if x is not None), note=_pcts(xs) + note))
     dist("wiek konta (dni)", [p["age_days"] for p in prof])
     dist("wartość konta ($k)", [(p["av"] or 0) / 1e3 for p in prof])
-    dist("% miesięcy na plusie", [p["months_pos_pct"] for p in prof if p["months"] >= 3], " — konta z ≥ 3 pełnymi miesiącami")
+    dist("% miesięcy na plusie", [p["months_pos_pct"] for p in prof if p["months"] >= 3], " — miesiące, w których konto grało; konta z ≥ 3 takimi")
     dist("transakcje w oknie (max 2000)", [p["fills"] for p in prof],
          f"; okno pełne (2000) u {sum(1 for p in prof if p['fills_capped'])} kont")
     dist("okno transakcji (dni wstecz)", [p["fills_span_days"] for p in prof])
+    dist("zagrania (w oknie)", [p["trips"] for p in prof])
     dist("zagrania na tydzień", [p["trips_per_week"] for p in prof])
     dist("transakcje na dzień", [p["fills_per_day"] for p in prof], " — bardzo dużo = bot / market maker")
     for side in ("all", "long", "short"):
         nm = {"all": "wszystkie", "long": "longi", "short": "shorty"}[side]
-        ok = [p for p in prof if p[side]["n"] >= 30]
-        dist(f"skuteczność — {nm} (% zagrań na plus)", [p[side]["win_pct"] for p in ok], " — konta z ≥ 30 zagraniami tej strony")
-        dist(f"zyski ÷ straty — {nm}", [p[side]["pf"] for p in ok], " — konta z ≥ 30 zagraniami tej strony")
+        for nmin in (10, 30):
+            ok = [p for p in prof if p[side]["n"] >= nmin]
+            dist(f"skuteczność — {nm}, ≥ {nmin} zagrań (% na plus)", [p[side]["win_pct"] for p in ok], "")
+            dist(f"zyski ÷ straty — {nm}, ≥ {nmin} zagrań", [p[side]["pf"] for p in ok], "")
     dist("% zagrań na altach (bez 6 osobnych)", [p["alt_trips_pct"] for p in prof])
     both = [p for p in prof if p["long"]["n"] >= 30 and p["short"]["n"] >= 30]
     lb = sum(1 for p in both if (p["long"]["pf"] or 0) > (p["short"]["pf"] or 0))
@@ -775,14 +790,14 @@ def check_hlsito(session=None, sleep=time.sleep, clock=time.time, extra=None, no
                     note=f"konta z ≥ 30 zagraniami w obie strony; lepsze w longach (zyski÷straty): {lb}, w shortach: {len(both) - lb}"))
     # przykładowe sito
     for age_min in (180, 365):
-        for nmin in (30,):
+        for nmin in (10, 30):
             ok = [p for p in prof if (p["age_days"] or 0) >= age_min and p["trips"] >= nmin
                   and p["fills_per_day"] < 200 and (p["all"]["pf"] or 0) > 1.2]
             rows.append(row("hlsito", f"przykładowe sito: wiek ≥ {age_min} dni, ≥ {nmin} zagrań, < 200 transakcji/dzień, "
                                       "zyski÷straty > 1,2", "ok", n=len(ok),
-                            note=f"z {len(prof)} sprawdzonych; longi dobre (≥ 30, z÷s > 1,2): "
-                                 f"{sum(1 for p in ok if p['long']['n'] >= 30 and (p['long']['pf'] or 0) > 1.2)}, shorty dobre: "
-                                 f"{sum(1 for p in ok if p['short']['n'] >= 30 and (p['short']['pf'] or 0) > 1.2)}"))
+                            note=f"z {len(prof)} grających; longi dobre (≥ {nmin}, z÷s > 1,2): "
+                                 f"{sum(1 for p in ok if p['long']['n'] >= nmin and (p['long']['pf'] or 0) > 1.2)}, shorty dobre: "
+                                 f"{sum(1 for p in ok if p['short']['n'] >= nmin and (p['short']['pf'] or 0) > 1.2)}"))
     deep = [p["deep"] for p in prof if p.get("deep")]
     if deep:
         rows.append(row("hlsito", "transakcje przewijane wstecz", "ok", n=len(deep),
