@@ -460,12 +460,13 @@ function bestTable(g, lst, bp) {
     const sd = w.side || {}, ex = w.npos > w.pos.length ? ` <span style="color:var(--text3)">+${w.npos - w.pos.length}</span>` : '';
     const now = w.npos ? `<span class="up">${usd(w.long)}</span> / <span class="dn">${usd(w.short)}</span>` + (w.upnl != null ? ` · <span class="${w.upnl >= 0 ? 'up' : 'dn'}">${sgnUsd(w.upnl)}</span>` : '') : '<span style="color:var(--text3)">bez pozycji</span>';
     return `<tr class="w${i >= BEST_SHOW ? ' bx' : ''}" data-g="${g}" data-addr="${w.addr}"${i >= BEST_SHOW && !S.bestOpen[g] ? ' hidden' : ''}><td class="num">${i + 1}</td><td class="addr">${short(w.addr)}</td><td class="num">${num(w.age, 0)} dni</td><td class="num">${usd(w.av)}</td>` +
-      `<td class="num ${(sd.pnl || 0) >= 0 ? 'up' : 'dn'}"><b>${sgnUsd(sd.pnl)}</b></td><td class="num">${sd.n}</td>` +
+      `<td class="num ${(sd.pnl || 0) >= 0 ? 'up' : 'dn'}"><b>${sgnUsd(sd.pnl)}</b>${sd.open_n && w.closed ? `<br><small style="color:var(--text3)">zamkn. ${sgnUsd(w.closed.pnl)} · otw. na minusie ${sgnUsd(sd.open_pnl)}</small>` : ''}</td>` +
+      `<td class="num">${sd.n}${sd.open_n ? `<br><small style="color:var(--text3)">w tym ${sd.open_n} otw. na minusie</small>` : ''}</td>` +
       `<td class="num">${sd.win == null ? '—' : Math.round(sd.win) + '%'}</td><td class="num">${sd.pf == null ? 'bez strat' : num(sd.pf) + '×'}</td>` +
       `<td class="num">${sideTxt(w.other)}</td><td class="num">${now}</td><td style="font-size:11px">${chips({pos: w.pos})}${ex}</td></tr>`;
   }).join('');
   return `<h3 class="bt">Najlepsi w ${nm}</h3><div class="twrap"><table><thead><tr><th class="num">#</th><th>Portfel</th><th class="num" style="text-align:right">Wiek</th><th class="num" style="text-align:right">Konto</th>` +
-    `<th class="num" style="text-align:right">Zysk z ${g === 'L' ? 'longów' : 'shortów'}</th><th class="num" style="text-align:right">Zagrania</th><th class="num" style="text-align:right">Na plus</th><th class="num" style="text-align:right">Zyski ÷ straty</th>` +
+    `<th class="num" style="text-align:right">Wynik z ${g === 'L' ? 'longów' : 'shortów'}</th><th class="num" style="text-align:right">Zagrania</th><th class="num" style="text-align:right">Na plus</th><th class="num" style="text-align:right">Zyski ÷ straty</th>` +
     `<th class="num" style="text-align:right">${oth}: na plus · z÷s</th><th class="num" style="text-align:right">Teraz: longi / shorty · wynik otwartych</th><th>Pozycje teraz</th></tr></thead><tbody>${rows}</tbody></table></div>` +
     (lst.length > BEST_SHOW ? `<button class="bexp" data-bexp="${g}">${S.bestOpen[g] ? `Zwiń do ${BEST_SHOW} ▴` : `Pokaż wszystkie ${lst.length} ▾`}</button>` : '');
 }
@@ -473,9 +474,9 @@ function bestPanel() {
   const b = NOW && NOW.best;
   if (!b || !b.groups) return '';
   const bp = b.params || {};
-  return `<div class="panel"><h2>Najlepsze konta w sicie — longi i shorty</h2><div class="desc">Po ${bp.top || 10} portfeli osobno dla longów i shortów: spośród sita tylko te z ≥ ${bp.min_trips || 20} zagraniami w danej stronie i zyskami ≥ ${num(bp.min_pf || 1.5)}× strat, ułożone wg zrealizowanego zysku z tej strony (ostatnie ≤ 2000 transakcji). Obok — co trzymają teraz. Widać pierwsze ${BEST_SHOW} — „Pokaż wszystkie” rozwija listę. Kliknij wiersz — szczegóły portfela.</div>` +
+  return `<div class="panel"><h2>Najlepsze konta w sicie — longi i shorty</h2><div class="desc">Po ${bp.top || 10} portfeli osobno dla longów i shortów: spośród sita tylko te z ≥ ${bp.min_trips || 20} zagraniami w danej stronie i zyskami ≥ ${num(bp.min_pf || 1.5)}× strat, ułożone wg wyniku z tej strony (ostatnie ≤ 2000 transakcji). ${bp.with_open ? '<b>Otwarte pozycje na minusie liczone jak przegrane zagrania</b> — wchodzą do wyniku, „na plus” i zysków ÷ strat (portfel, który nie zamyka stratnych pozycji, nie ma już „100% na plus”). Otwarte zyski nie są liczone, dopóki ich nie zamknie. ' : ''}Obok — co trzymają teraz. Widać pierwsze ${BEST_SHOW} — „Pokaż wszystkie” rozwija listę. Kliknij wiersz — szczegóły portfela.</div>` +
     bestTable('L', b.groups.L, bp) + bestTable('S', b.groups.S, bp) +
-    `<div class="hint">Zysk z transakcji zamkniętych — nie widać w nim strat na pozycjach wciąż otwartych: „na plus” blisko 100% albo „bez strat” często znaczy, że portfel nie zamyka stratnych pozycji (sprawdź „wynik otwartych”). Poniżej 30 zagrań — mało przypadków. Opis, nie sygnał.</div></div>`;
+    `<div class="hint">${bp.with_open ? 'Wynik = zamknięte zagrania − straty na otwartych pozycjach tej strony (pod kwotą: osobno zamknięte i otwarte na minusie). Każda otwarta pozycja na minusie liczy się jak jedno przegrane zagranie. Straty otwartych zmieniają się z ceną — lista przeliczana co ~2 h.' : 'Zysk z transakcji zamkniętych — nie widać w nim strat na pozycjach wciąż otwartych: „na plus” blisko 100% albo „bez strat” często znaczy, że portfel nie zamyka stratnych pozycji (sprawdź „wynik otwartych”).'} Poniżej 30 zagrań — mało przypadków. Opis, nie sygnał.</div></div>`;
 }
 function htPanel() {
   const p = HTP;
