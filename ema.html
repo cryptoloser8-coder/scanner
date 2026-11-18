@@ -54,6 +54,24 @@
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}
   .tile{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;min-width:0;}
   .tile.click{cursor:pointer;} .tile.click:hover{background:var(--bg3);border-color:var(--border2);}
+  .tile.on{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue);}
+  /* poprawka 110: kafelki przy tym, co zmieniają — „Serie” obok wykresu (jak OI, Likwidacje, Sieci), kafelki filtrów nad tabelą */
+  .tiles-lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:0 0 7px;}
+  .oi-layout{display:flex;flex-direction:column;gap:0;}
+  .oi-side{display:flex;flex-direction:column;gap:8px;}
+  .oi-side-hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .oi-side-hd h2{font-size:14px;font-weight:600;}
+  .oi-side-sub{font-size:11px;color:var(--text3);}
+  @media (min-width:1200px){
+    .oi-layout{flex-direction:row-reverse;align-items:flex-start;gap:16px;}
+    .oi-main{flex:1;min-width:0;margin-top:0 !important;}
+    .oi-side{width:400px;flex:none;position:sticky;top:82px;max-height:calc(100vh - 100px);overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;gap:6px;scrollbar-width:thin;}
+    .oi-side-hd{justify-content:space-between;}
+    .oi-side .tiles{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .oi-side .tile{background:var(--bg);}
+    .oi-side .tile.wide{grid-column:1/-1;}
+    .chart-wrap{height:min(62vh,620px) !important;}
+  }
   .tile-name{font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:6px;}
   .info{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);color:var(--text3);font-size:11px;display:flex;align-items:center;justify-content:center;cursor:help;font-style:italic;font-family:Georgia,serif;}
   .tile-val{font-family:var(--mono);font-size:17px;font-weight:600;margin:4px 0 2px;}
@@ -103,7 +121,7 @@
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
   #tip{position:fixed;z-index:50;max-width:320px;background:#262626;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:12px;line-height:1.5;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .12s;}
   #tip.show{opacity:1;}
-  @media (max-width:640px){ body{padding:14px;} .tiles{grid-template-columns:repeat(2,1fr);} input[type=search]{width:100px;} }
+  @media (max-width:640px){ body{padding:14px;} .tiles{grid-template-columns:repeat(2,1fr);} input[type=search]{width:100px;} .legend{right:8px;} .lg-row{width:auto;max-width:100%;flex-wrap:wrap;row-gap:0;align-self:flex-start;font-size:11px;} }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
   .brand img{display:block;height:52px;max-width:100%;}
   @media (max-width:640px){ .brand{margin-bottom:14px;} .brand img{height:36px;} }
@@ -129,9 +147,13 @@
 
 <div class="banner" id="banner"></div>
 
-<div class="tiles" id="tiles"></div>
+<div class="oi-layout">
+<aside class="oi-side" aria-label="Serie">
+  <div class="oi-side-hd"><h2>Serie</h2><span class="oi-side-sub">klik w kafelek = pokaż na wykresie</span></div>
+  <div class="tiles" id="tiles"></div>
+</aside>
 
-<div class="panel">
+<div class="panel oi-main">
   <div class="controls">
     <div class="ctrl-group">
       <span class="ctrl-label">Widok</span>
@@ -162,7 +184,8 @@
       </div>
     </div>
     <div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna">Log</button>
-      <button class="pill" id="sma-btn" title="Zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym) — tylko na świecy 1W">Średnie 20/50 tyg.</button>
+      <button class="pill" id="xema-btn"></button>
+      <button class="pill" id="sma-btn" title="Zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym). Na świecy 1D te same średnie tygodniowe, punkt na koniec każdego tygodnia.">Średnie 20/50 tyg.</button>
       <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance spot): BTC i ETH od 2017, pozostałe coiny z ostatnich ok. 400 dni — wcześniej linia zamknięć">Świece</button>
       <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis.">Historyczne wydarzenia</button></div>
   </div>
@@ -173,8 +196,11 @@
   </div>
   <div class="hint" id="chart-hint"></div>
 </div>
+</div>
 
 <div class="panel">
+  <div class="tiles-lbl">Tabela coinów — klik w kafelek filtruje listę poniżej</div>
+  <div class="tiles" id="ttiles" style="margin-bottom:10px"></div>
   <div class="controls">
     <div class="ctrl-group">
       <span class="ctrl-label">Pokaż</span>
@@ -252,7 +278,7 @@ const store = {
 };
 
 let DATA = null, HIST = {};
-let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sma: true, hev: false, sort: 'ad', dir: 1, filter: 'all', q: ''},
+let S = Object.assign({coin: 'BTC', view: 'coin', tf: 'd', range: 365, log: false, cdl: true, sma: true, xema: true, hev: false, sort: 'ad', dir: 1, filter: 'all', q: ''},
   store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1)), o = {};
@@ -267,7 +293,7 @@ function parseHash() {
   return o;
 }
 function persist() {
-  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sma: S.sma, hev: S.hev, sort: S.sort, dir: S.dir, filter: S.filter});
+  store.set('view', {coin: S.coin, view: S.view, tf: S.tf, range: S.range, log: S.log, cdl: S.cdl, sma: S.sma, xema: S.xema, hev: S.hev, sort: S.sort, dir: S.dir, filter: S.filter});
   const h = new URLSearchParams({c: S.coin, v: S.view, i: S.tf === 'w' ? '1w' : '1d', z: S.range, f: S.filter});
   if (!S.cdl) h.set('k', '0');
   if (S.hev) h.set('hw', '1');
@@ -321,33 +347,48 @@ function renderTiles() {
   const W = DATA.weekly && DATA.weekly.total ? DATA.weekly : null;
   const wPct = W ? W.above_close / W.total * 100 : 0;
   const wbr = W ? W.breadth || [] : [], wPrev = wbr.length > 1 ? wbr[wbr.length - 2][1] : null;
+  const rsiTip = what => `Jaki % coinów ma RSI(14) na świecy ${what} poniżej ${RSI.low} (wyprzedane) albo powyżej ${RSI.high} (wykupione), z aktualną ceną. Zwykle oba odsetki są bliskie zera — wysoki odczyt to rzadki moment.`;
+  const rsiTile = (k, go, name, what) => rsiNow(k) ? `<div class="tile click" data-go="${go}"><div class="tile-name">${name} <span class="info" data-tip="${rsiTip(what)}">i</span></div>
+      <div class="tile-val"><span class="pos">${rsiNow(k)[0].pl(0)}%</span> <span class="neg">${rsiNow(k)[1].pl(0)}%</span></div>
+      <div class="tile-sub">wyprzedane / wykupione</div></div>` : '';
+  // kafelki, które zmieniają WYKRES (kolumna „Serie”)
   document.getElementById('tiles').innerHTML = `
     <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Od 80 / 90% świeci lampka „Szeroki rajd” w Altsezonie (aktualnie mamy altsezon — to nie sygnał sprzedaży); poniżej ~30% rynek słaby. Historia liczona na zamknięciach dni${DATA.breadth_delisted ? ', także z coinów wycofanych już z Binance' : ', tylko z coinów, które są dziś na Binance'}.">i</span></div>
       <div class="tile-val ${cls}">${pctAbove.pl(0)}%</div>
       <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.pl(0)}%` : ''}${b30 != null ? ` · 30D ${b30.pl(0)}%` : ''}</div></div>
-    <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>
-      <div class="tile-val warn">${near}</div><div class="tile-sub">coinów w odległości do 3% od EMA200</div></div>
-    <div class="tile click" data-go="fresh"><div class="tile-name">Przecięcia w 7 dni (zamknięcia)</div>
-      <div class="tile-val"><span class="pos">▲${up7}</span> <span class="neg">▼${dn7}</span></div><div class="tile-sub">w górę / w dół, na świecy dziennej</div></div>
     ${W ? `<div class="tile click" data-go="breadthw"><div class="tile-name">Nad EMA200 1W <span class="info" data-tip="Jaki % coinów z co najmniej ${W.min_weeks} tygodniami historii zamknął ostatni tydzień nad swoją EMA200 liczoną na świecy tygodniowej. To samo z aktualną ceną: ${W.above} z ${W.total}.">i</span></div>
       <div class="tile-val ${wPct >= 70 ? 'warn' : wPct >= 50 ? 'pos' : 'neg'}">${wPct.pl(0)}%</div>
       <div class="tile-sub">${W.above_close} z ${W.total} coinów · zamknięcie ${dateFmt(W.t)}${wPrev != null ? ` · tydzień wcześniej ${wPrev.pl(0)}%` : ''}</div></div>` : ''}
-    ${rsiNow('w') ? `<div class="tile click" data-go="rsiw"><div class="tile-name">RSI 1W — skrajności <span class="info" data-tip="Jaki % coinów ma RSI(14) na świecy tygodniowej poniżej ${RSI.low} (wyprzedane) albo powyżej ${RSI.high} (wykupione), z aktualną ceną. Zwykle oba odsetki są bliskie zera — wysoki odczyt to rzadki moment.">i</span></div>
-      <div class="tile-val"><span class="pos">${rsiNow('w')[0].pl(0)}%</span> <span class="neg">${rsiNow('w')[1].pl(0)}%</span></div>
-      <div class="tile-sub">wyprzedane / wykupione · 3D: ${rsiNow('d3') ? rsiNow('d3')[0].pl(0) + '% / ' + rsiNow('d3')[1].pl(0) + '%' : '—'}</div></div>` : ''}
-    ${sel ? `<div class="tile click" data-go="coin"><div class="tile-name">${esc(sel.s)}</div>
+    ${rsiTile('w', 'rsiw', 'RSI 1W — skrajności', 'tygodniowej')}
+    ${rsiTile('d3', 'rsi3', 'RSI 3D — skrajności', '3-dniowej')}
+    ${sel ? `<div class="tile click wide" data-go="coin"><div class="tile-name">${esc(sel.s)} <span style="font-weight:400;color:var(--text3)">· wybrany coin (zmiana: klik w wiersz tabeli)</span></div>
       <div class="tile-val ${sel.d >= 0 ? 'pos' : 'neg'}">${pct(sel.d)}</div>
       <div class="tile-sub">${price(sel.p)} · EMA ${price(sel.e)} · ${sel.side > 0 ? 'nad' : 'pod'} od ${sel.since} dni${sel.wside != null ? `<br>1W: <span class="${sel.wd >= 0 ? 'pos' : 'neg'}">${pct(sel.wd)}</span> · EMA ${price(sel.we)} · ${sel.wside > 0 ? 'nad' : 'pod'} od ${sel.wsince} tyg.` : ''}</div></div>` : ''}`;
+  // kafelki, które filtrują TABELĘ (nad tabelą)
+  document.getElementById('ttiles').innerHTML = `
+    <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>
+      <div class="tile-val warn">${near}</div><div class="tile-sub">coinów w odległości do 3% od EMA200</div></div>
+    <div class="tile click" data-go="fresh"><div class="tile-name">Przecięcia w 7 dni (zamknięcia)</div>
+      <div class="tile-val"><span class="pos">▲${up7}</span> <span class="neg">▼${dn7}</span></div><div class="tile-sub">w górę / w dół, na świecy dziennej</div></div>`;
+  markTiles();
 }
-document.getElementById('tiles').addEventListener('click', e => {
+// podświetlenie kafelka, który odpowiada temu, co jest teraz na wykresie / w tabeli
+function markTiles() {
+  const on = {breadth: S.view === 'breadth' && S.tf !== 'w', breadthw: S.view === 'breadth' && S.tf === 'w', rsiw: S.view === 'rsiw', rsi3: S.view === 'rsi3',
+    coin: S.view === 'coin', near: S.filter === 'near', fresh: S.filter === 'fresh'};
+  document.querySelectorAll('#tiles [data-go], #ttiles [data-go]').forEach(t => t.classList.toggle('on', !!on[t.dataset.go]));
+}
+function tileClick(e) {
   const t = e.target.closest('[data-go]'); if (!t || e.target.closest('.info')) return;
   const g = t.dataset.go;
   if (g === 'breadthw') { S.view = 'breadth'; S.tf = 'w'; refreshChart(true); }
   else if (g === 'breadth') { S.view = 'breadth'; S.tf = 'd'; refreshChart(true); }
-  else if (g === 'coin' || g === 'rsiw') { S.view = g; refreshChart(true); }
-  else { S.filter = g; renderTable(); }
+  else if (g === 'coin' || g === 'rsiw' || g === 'rsi3') { S.view = g; refreshChart(true); }
+  else { S.filter = S.filter === g ? 'all' : g; renderTable(); }     // drugi klik w ten sam kafelek zdejmuje filtr
   persist(); syncControls();
-});
+}
+document.getElementById('tiles').addEventListener('click', tileClick);
+document.getElementById('ttiles').addEventListener('click', tileClick);
 
 // ── RSI helpers ─────────────────────────────────────────────
 let RSI = {low: 30, high: 70, period: 14};
@@ -426,9 +467,15 @@ function syncControls() {
   for (const [id, key] of [['view-pills', 'view'], ['tf-pills', 'tf'], ['range-pills', 'range'], ['filter-pills', 'filter']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
   document.getElementById('tf-group').style.display = DATA && DATA.weekly && (S.view === 'coin' || S.view === 'breadth') ? '' : 'none';
+  markTiles();
   document.getElementById('log-btn').classList.toggle('active', S.log);
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.cdl); kb.style.display = S.view === 'coin' ? '' : 'none';
-  const sb = document.getElementById('sma-btn'); sb.classList.toggle('active', S.sma); sb.style.display = S.view === 'coin' && S.tf === 'w' ? '' : 'none';
+  const sb = document.getElementById('sma-btn'); sb.classList.toggle('active', S.sma); sb.style.display = S.view === 'coin' ? '' : 'none';
+  // 110: te same średnie na obu świecach — na 1D można dołożyć EMA200 z tygodni, na 1W EMA200 z dni
+  const xb = document.getElementById('xema-btn'), wk = S.tf === 'w';
+  xb.textContent = `EMA${(DATA && DATA.period) || 200} ${wk ? '1D' : '1W'}`;
+  xb.title = wk ? 'Dołóż EMA200 liczoną na świecach dziennych (żółta) — wartość z ostatniego dnia każdego tygodnia.' : 'Dołóż EMA200 liczoną na świecach tygodniowych (fioletowa) — punkt na koniec każdego tygodnia, ostatni z aktualną ceną.';
+  xb.classList.toggle('active', S.xema); xb.style.display = S.view === 'coin' && DATA && DATA.weekly ? '' : 'none';
 }
 document.getElementById('view-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.view = b.dataset.val; persist(); refreshChart(true); } });
 document.getElementById('tf-pills').addEventListener('click', e => { const b = e.target.closest('.pill'); if (b) { S.tf = b.dataset.val; persist(); refreshChart(true); } });
@@ -436,6 +483,7 @@ document.getElementById('range-pills').addEventListener('click', e => { const b 
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; persist(); refreshChart(false); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; persist(); refreshChart(false); });
 document.getElementById('sma-btn').addEventListener('click', () => { S.sma = !S.sma; persist(); refreshChart(false); });
+document.getElementById('xema-btn').addEventListener('click', () => { S.xema = !S.xema; persist(); refreshChart(false); syncControls(); });
 document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncHev(); if (HEV) HEV.show(S.hev); });
 // historyczne wydarzenia (poprawka 63): lista z meta.json na gałęzi data (config.yaml → history_events)
 let HEV = null, HEV_LIST = [];
@@ -632,11 +680,19 @@ async function drawChartView(resetRange) {
   const se = chart.addSeries(LWC.LineSeries, {color: '#ffc107', lineWidth: 2, priceFormat: PF, priceLineVisible: false});
   se.setData(emaData);
   mounted.push({series: se, name: 'EMA' + DATA.period, color: '#ffc107', fmt: price, ema: true});
+  // 110: średnie z tygodni także na świecy dziennej — punkt na koniec każdego tygodnia (niedziela), ostatni = dziś z aktualną ceną
+  let extraHint = '';
+  if (DATA.weekly && (S.xema || S.sma)) {
+    const WA = weeklyAverages(c, h, today), t0 = line[0][0];
+    const toDay = arr => arr.map(([k, v]) => ({time: k === WA.cur ? today : (k * 7 + 3) * 86400, value: v})).filter(p => p.time >= t0 && p.time <= today);
+    if (S.xema && WA.ema.length) { addLine(toDay(WA.ema), `EMA${DATA.period} 1W`, '#ce93d8', {lineWidth: 2}); extraHint += ` Fioletowa: EMA${DATA.period} na świecy tygodniowej (punkt na koniec tygodnia).`; }
+    if (S.sma) { for (const [n, col] of SMA_COLS) addLine(toDay(WA.sma[n]), `Średnia ${n} tyg.`, col); extraHint += ' Niebieska i pomarańczowa: zwykłe średnie 20 i 50 tygodni z zamknięć tygodni.'; }
+  }
   if (resetRange) setRange(line[0][0], today);
   document.getElementById('chart-hint').textContent =
     (candles ? `Świece dzienne z knotami (Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}); ostatnia świeca trwa — od wczorajszego zamknięcia do aktualnej ceny, bez knotów. `
              : `Biała linia: zamknięcia dni, ostatni punkt to aktualna cena (dzień jeszcze trwa). `) +
-    `Żółta: EMA${DATA.period}. Strzałki: przecięcia na zamknięciu dnia. ` +
+    `Żółta: EMA${DATA.period}. Strzałki: przecięcia na zamknięciu dnia.${extraHint} ` +
     `Historia coina: ${c.days} dni.` + (c.alert ? ` Alert: ${c.alert.cross ? 'przecięcie' : ''}${c.alert.cross && c.alert.near ? ' + ' : ''}${c.alert.near ? `zbliżenie do ${c.alert.near}%` : ''}.` : '');
   updateLegend();
 }
@@ -651,6 +707,27 @@ function weeklyBars(h, today) {
     if (out.length && out[out.length - 1].k === k) out[out.length - 1].c = cl; else out.push({k, c: cl});
   }
   return out;
+}
+// 110: średnie z tygodni — EMA200 1W i zwykłe średnie 20 / 50 tyg. — jako listy [klucz tygodnia, wartość]; ostatni punkt z aktualną ceną
+const SMA_COLS = [[20, '#4fc3f7'], [50, '#ff8a65']];
+function weeklyAverages(c, h, today) {
+  const bars = weeklyBars(h, today), per = DATA.period, a = 2 / (per + 1), cur = weekKey(today);
+  let e = null;
+  for (const b of bars) { e = e == null ? b.c : a * b.c + (1 - a) * e; b.e = e; }
+  const ema = c.wside != null ? bars.map(b => [b.k, b.e]).concat([[cur, c.we]]) : [];
+  const closes = bars.map(b => b.c).concat([c.p]), keys = bars.map(b => b.k).concat([cur]), sma = {};
+  for (const [n] of SMA_COLS) {
+    const out = []; let sum = 0;
+    for (let k = 0; k < closes.length; k++) { sum += closes[k]; if (k >= n) sum -= closes[k - n]; if (k >= n - 1) out.push([keys[k], sum / n]); }
+    sma[n] = out;
+  }
+  return {bars, ema, sma, cur};
+}
+function addLine(data, name, color, opts) {
+  if (!data.length) return;
+  const sr = chart.addSeries(LWC.LineSeries, Object.assign({color, lineWidth: 1.5, priceFormat: PF, priceLineVisible: false, lastValueVisible: false}, opts || {}));
+  sr.setData(data);
+  mounted.push({series: sr, name, color, fmt: price});
 }
 function drawWeekly(c, h, today, resetRange) {
   const bars = weeklyBars(h, today), per = DATA.period, a = 2 / (per + 1);
@@ -681,28 +758,21 @@ function drawWeekly(c, h, today, resetRange) {
     mounted.push({series: se, name: `EMA${per} 1W`, color: '#ce93d8', fmt: price, ema: true});
   }
   // zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (jak w raporcie tygodniowym); ostatni punkt z aktualną ceną
-  if (S.sma) {
-    const closes = bars.map(b => b.c).concat([c.p]), times = line.map(p => p[0]);
-    for (const [n, col] of [[20, '#4fc3f7'], [50, '#ffd54f']]) {
-      if (closes.length < n) continue;
-      const out = [];
-      let sum = 0;
-      for (let k = 0; k < closes.length; k++) {
-        sum += closes[k];
-        if (k >= n) sum -= closes[k - n];
-        if (k >= n - 1) out.push({time: times[k], value: sum / n});
-      }
-      const sm = chart.addSeries(LWC.LineSeries, {color: col, lineWidth: 1.5, priceFormat: PF, priceLineVisible: false, lastValueVisible: false});
-      sm.setData(out);
-      mounted.push({series: sm, name: `Średnia ${n} tyg.`, color: col, fmt: price});
-    }
+  const WA = weeklyAverages(c, h, today), toWeek = arr => arr.map(([k, v]) => ({time: (k * 7 - 3) * 86400, value: v}));
+  if (S.sma) for (const [n, col] of SMA_COLS) addLine(toWeek(WA.sma[n]), `Średnia ${n} tyg.`, col);
+  // 110: EMA200 z dni na świecy tygodniowej — wartość z ostatniego dnia tygodnia; trwający tydzień = EMA teraz
+  if (S.xema) {
+    const m = new Map();
+    for (const p of h.d) if (p[0] < today && p[2] != null) m.set(weekKey(p[0]), p[2]);
+    m.set(WA.cur, c.e);
+    addLine(toWeek([...m].sort((x, y) => x[0] - y[0])), `EMA${per} 1D`, '#ffc107', {lineWidth: 2});
   }
   if (resetRange) setRange(line[0][0], now);
   const minW = DATA.weekly.min_weeks;
   document.getElementById('chart-hint').textContent =
     (candles ? `Świece tygodniowe z knotami (z dziennych świec Binance spot; knoty od ${dateFmt(wk[0][0])}${line.length && wk[0][0] > line[0][0] ? ', wcześniej biała linia zamknięć' : ''}), data = poniedziałek; ostatnia świeca trwa (aktualna cena). `
              : `Biała linia: zamknięcia tygodni (punkt = poniedziałek otwierający tydzień), ostatni punkt to aktualna cena (tydzień jeszcze trwa). `) +
-    (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` + (S.sma ? 'Niebieska i żółta: zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (ostatni punkt z aktualną ceną). ' : '') +
+    (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` + (S.xema ? `Żółta: EMA${per} z dni (wartość z końca tygodnia). ` : '') + (S.sma ? 'Niebieska i pomarańczowa: zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (ostatni punkt z aktualną ceną). ' : '') +
            `Ostatnie zamknięcie tygodnia (${dateFmt(c.wt)}): ${price(c.wc)}, EMA ${price(c.wec)}, ${c.wside > 0 ? 'nad' : 'pod'} od ${c.wsince} tyg.`
          : `EMA${per} 1W liczymy dla coinów z co najmniej ${minW} zamkniętymi tygodniami historii (ok. ${(minW * 7 / 365.25).pl(1)} roku); ${c.s} ma ${c.weeks || bars.length} — przy krótszej historii średnia za mocno zależy od pierwszych tygodni po listingu.`) +
     (((DATA.weekly.alerts || []).includes(c.s)) ? ' Alert: przecięcie na zamknięciu tygodnia.' : '');
