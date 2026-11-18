@@ -11,7 +11,9 @@
 
 Grupy: L = skuteczni w longach, S = skuteczni w shortach (portfel może być w obu), R = tracący (losowa próbka).
 Sito (start 18.11.2026, do przeglądu): konto ≥ $100k, zysk od zawsze > 0, wolumen 30 dni > 0 (wstępnie z rankingu),
-wiek konta ≥ 365 dni, < 200 transakcji / dzień; strona oceniana przy ≥ 10 zagraniach, „skuteczny” = zyski ≥ 1,2× strat.
+wiek konta ≥ 180 dni (od poprawki 92; wcześniej 365), < 200 transakcji / dzień; strona oceniana przy ≥ 10 zagraniach, „skuteczny” = zyski ≥ 1,2× strat.
+Poprawka 92: „młodsze” konta (180–365 dni) liczone też osobno (hl_now → age_split, serie Ly/Lo/Sy/So),
+żeby na przeglądzie zdecydować: śledzić dalej, zrezygnować czy zejść do 90 dni.
 Tylko krypto z głównej giełdy HL (bez rynków „dex:coin”), tylko perpy. Wszystko z darmowego API, bez klucza.
 """
 import argparse
@@ -33,11 +35,12 @@ log = logging.getLogger("hl_wallets")
 SEPARATE = ("BTC", "ETH", "HYPE", "SOL", "DOGE", "TAO")
 COINS = SEPARATE + ("ALT",)
 GROUPS = ("L", "S", "R")
-SITO = {"min_av": 100e3, "min_age_days": 365, "max_fills_day": 200, "min_trips": 10, "min_pf": 1.2,
+SITO = {"min_av": 100e3, "min_age_days": 180, "young_days": 365, "max_fills_day": 200, "min_trips": 10, "min_pf": 1.2,
         "round_days": 7, "losers": 300, "losers_min_av": 10e3}
 WEIGHT_PER_MIN = 1100                 # limit HL 1200 wag / min na IP — zostawiamy zapas
 LEV_BUCKETS = ((0, 3, "do ×3"), (3, 10, "×3–10"), (10, 20, "×10–20"), (20, 1e9, "ponad ×20"))
 KEEP_EVENTS = 10
+BEST = {"top": 10, "min_trips": 20, "min_pf": 1.5}   # 92: „najlepsze konta” — ≥ 20 zagrań w stronie, z÷s ≥ 1,5, sort wg zysku
 DAY = 86400
 
 
@@ -107,31 +110,59 @@ def evaluate(pf, fills, now, cfg=SITO):
     per = {k: v for k, v in pf} if isinstance(pf, list) else {}
     p = P.wallet_profile(pf, fills, now)
     at = per.get("perpAllTime") or per.get("allTime") or {}
-    sides = []
-    ok_base = (p["age_days"] or 0) >= cfg["min_age_days"] and p["fills_per_day"] < cfg["max_fills_day"]
-    for side, key in (("L", "long"), ("S", "short")):
-        st = p[key]
-        if ok_base and st["n"] >= cfg["min_trips"] and (st["pf"] or 0) >= cfg["min_pf"]:
-            sides.append(side)
-    reason = None
-    if not p["trips"]:
-        reason = "brak zagrań perpami"
-    elif p["fills_per_day"] >= cfg["max_fills_day"]:
-        reason = "bot / market maker"
-    elif max(p["long"]["n"], p["short"]["n"]) < cfg["min_trips"]:
-        reason = "za mało zagrań"
-    elif (p["age_days"] or 0) < cfg["min_age_days"]:
-        reason = "za młode konto"
-    elif not sides:
-        reason = "nieskuteczny"
 
     def side(st):
         return {"n": st["n"], "win": _r(st["win_pct"], 1), "pf": _r(st["pf"]), "pnl": _r(st["pnl"], 0)}
-    return {"age": _r(p["age_days"], 0), "mpos": _r(p["months_pos_pct"], 0), "tw": _r(p["trips_per_week"], 1),
-            "fpd": _r(p["fills_per_day"], 1), "trips": p["trips"], "L": side(p["long"]), "S": side(p["short"]),
-            "p7": _r(period_pnl(per, "perpWeek") or period_pnl(per, "week"), 0),
-            "p30": _r(period_pnl(per, "perpMonth") or period_pnl(per, "month"), 0),
-            "dd": _r(max_drawdown(at.get("accountValueHistory")), 1), "sides": sides, "why": reason}
+    res = {"age": _r(p["age_days"], 0), "mpos": _r(p["months_pos_pct"], 0), "tw": _r(p["trips_per_week"], 1),
+           "fpd": _r(p["fills_per_day"], 1), "trips": p["trips"], "L": side(p["long"]), "S": side(p["short"]),
+           "p7": _r(period_pnl(per, "perpWeek") or period_pnl(per, "week"), 0),
+           "p30": _r(period_pnl(per, "perpMonth") or period_pnl(per, "month"), 0),
+           "dd": _r(max_drawdown(at.get("accountValueHistory")), 1)}
+    res["sides"], res["why"] = verdict(res, cfg)      # 92: ten sam werdykt co przy przeliczaniu z zapisanych liczb
+    return res
+
+
+def _pf_ok(st, cfg):
+    """z÷s ≥ progu; brak z÷s przy zysku = same zyskowne zagrania (zapis JSON nie trzyma nieskończoności)."""
+    pf = st.get("pf")
+    return pf >= cfg["min_pf"] if pf is not None else (st.get("pnl") or 0) > 0
+
+
+def verdict(v, cfg=SITO):
+    """Werdykt z zapisanych liczb portfela (bez ponownego pobierania) — po zmianie progów działa od razu."""
+    L, S_ = v.get("L") or {}, v.get("S") or {}
+    age, fpd = v.get("age") or 0, v.get("fpd") or 0
+    ok_base = age >= cfg["min_age_days"] and fpd < cfg["max_fills_day"]
+    sides = [k for k, st in (("L", L), ("S", S_))
+             if ok_base and (st.get("n") or 0) >= cfg["min_trips"] and _pf_ok(st, cfg)]
+    if not v.get("trips"):
+        why = "brak zagrań perpami"
+    elif fpd >= cfg["max_fills_day"]:
+        why = "bot / market maker"
+    elif max(L.get("n") or 0, S_.get("n") or 0) < cfg["min_trips"]:
+        why = "za mało zagrań"
+    elif age < cfg["min_age_days"]:
+        why = "za młode konto"
+    elif not sides:
+        why = "nieskuteczny"
+    else:
+        why = None
+    return sides, why
+
+
+def reverdict(checked, cfg=SITO):
+    n = 0
+    for v in (checked or {}).values():
+        if "trips" not in v:
+            continue
+        sides, why = verdict(v, cfg)
+        n += sides != v.get("sides")
+        v["sides"], v["why"] = sides, why
+    return n
+
+
+def is_young(info, cfg=SITO):
+    return (info or {}).get("age") is not None and info["age"] < cfg.get("young_days", 365)
 
 
 def round_snapshot(st):
@@ -170,6 +201,9 @@ def run_sito(sito_dir, minutes=270, session=None, sleep=time.sleep, clock=time.t
         st.update({"queue": cand, "losers": los, "round_started": int(now), "round_total": len(cand)})
         log.info("Nowa runda sita: %d kandydatów, %d tracących", len(cand), len(los))
     st.setdefault("checked", {})
+    ch = reverdict(st["checked"], cfg)               # 92: nowe progi działają od razu na już sprawdzonych
+    if ch:
+        log.info("Nowe progi: zmiana werdyktu u %d portfeli", ch)
     st["params"] = cfg
     t_end = clock() + minutes * 60
     done = 0
@@ -381,6 +415,82 @@ def events(prev, cur, now):
     return ev[-KEEP_EVENTS:]
 
 
+def _med(xs):
+    xs = sorted(x for x in xs if x is not None)
+    if not xs:
+        return None
+    m = len(xs) // 2
+    return xs[m] if len(xs) % 2 else (xs[m - 1] + xs[m]) / 2
+
+
+def age_split(wallets, checked, cfg=SITO):
+    """92: grupy L i S osobno dla młodszych (wiek < young_days) i starszych kont — pozycje teraz + skuteczność z sita."""
+    out = {}
+    for g in ("L", "S"):
+        out[g] = {}
+        for k, young in (("mlode", True), ("starsze", False)):
+            ws = [w for w in wallets if g in w["g"] and is_young(checked.get(w["addr"]), cfg) == young]
+            st = group_stats(ws)
+            info = [checked.get(a) or {} for a, v in checked.items()
+                    if g in (v.get("sides") or []) and is_young(v, cfg) == young]
+            sd = [i.get(g) or {} for i in info]
+            out[g][k] = {x: st[x] for x in ("n", "in_pos", "long", "short", "lpct", "only_long", "only_short", "both",
+                                             "eff_lev", "lev_buckets")}
+            out[g][k].update({"members": len(info), "age_med": _r(_med([i.get("age") for i in info]), 0),
+                              "win_med": _r(_med([x.get("win") for x in sd]), 1),
+                              "pf_med": _r(_med([x.get("pf") for x in sd]), 2),
+                              "n_med": _r(_med([x.get("n") for x in sd]), 0),
+                              "av_med": _r(_med([i.get("av") for i in info]), 0)})
+    return {"young_days": cfg.get("young_days", 365), "min_age_days": cfg["min_age_days"], "groups": out}
+
+
+def best_lists(checked, wallets, cfg=BEST):
+    """92: najlepsze konta osobno w longach i w shortach — spośród portfeli sita z ≥ min_trips zagraniami w tej stronie
+    i z÷s ≥ min_pf, sortowane wg zrealizowanego zysku z tej strony (ostatnie transakcje). + co trzymają teraz."""
+    by = {w["addr"]: w for w in wallets}
+    out = {}
+    for g in ("L", "S"):
+        rows = []
+        for a, v in checked.items():
+            st = v.get(g) or {}
+            pf = st.get("pf")
+            if g not in (v.get("sides") or []) or (st.get("n") or 0) < cfg["min_trips"]:
+                continue
+            if not (pf >= cfg["min_pf"] if pf is not None else (st.get("pnl") or 0) > 0):
+                continue
+            rows.append((st.get("pnl") or 0, a, v))
+        rows.sort(key=lambda x: -x[0])
+        lst = []
+        for _, a, v in rows[:cfg["top"]]:
+            w = by.get(a) or {}
+            pos = w.get("pos") or []
+            lst.append({"addr": a, "age": v.get("age"), "av": w.get("av") if w.get("av") is not None else v.get("av"),
+                        "side": v.get(g), "other": v.get("S" if g == "L" else "L"), "sides": v.get("sides"),
+                        "tw": v.get("tw"), "p30": v.get("p30"),
+                        "long": round(sum(p["size"] or 0 for p in pos if p["L"])),
+                        "short": round(sum(p["size"] or 0 for p in pos if not p["L"])),
+                        "upnl": round(sum(p["pnl"] or 0 for p in pos)) if pos else None,
+                        "pos": [{k: p.get(k) for k in ("c", "L", "size", "lev", "pnl")}
+                                for p in sorted(pos, key=lambda p: -(p["size"] or 0))[:8]], "npos": len(pos)})
+        out[g] = lst
+    return {"params": cfg, "groups": out}
+
+
+def append_split(series, t, split):
+    """Serie Ly / Lo / Sy / So (młodsze / starsze): longi, shorty, % long, dźwignia rzeczywista — do przeglądu."""
+    for g, d in (split.get("groups") or {}).items():
+        for k, tag in (("mlode", "y"), ("starsze", "o")):
+            st = d.get(k) or {}
+            for f in ("long", "short", "lpct", "eff_lev"):
+                if st.get(f) is None:
+                    continue
+                arr = series.setdefault(f"{g}{tag}_all_{f}", [])
+                if arr and arr[-1][0] == t:
+                    arr[-1] = [t, st[f]]
+                else:
+                    arr.append([t, st[f]])
+
+
 DAILY_COLS = ["id", "grupa", "wynik_dzien", "wynik_od_poczatku", "konto"]
 
 
@@ -421,6 +531,7 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
     t0 = now
     sito = _read(os.path.join(sito_dir, "sito.json"), {})
     checked = sito.get("checked") or {}
+    reverdict(checked)                                # 92: progi z kodu, nawet jeśli sito jeszcze nie przeliczyło
     members = {a: v["sides"] for a, v in checked.items() if v.get("sides")}
     losers = sito.get("losers") or []
     hl = P.WeightedHL(s, sleep, clock, per_min=WEIGHT_PER_MIN)
@@ -453,14 +564,19 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
         except Exception as e:  # noqa: BLE001
             log.warning("Dzienny zapis wyników: %s", e)
     groups = {g: group_stats([w for w in wallets if g in w["g"]]) for g in GROUPS}
+    split = age_split(wallets, checked)
+    best = best_lists(checked, wallets)
+    best_ids = {x["addr"] for lst in best["groups"].values() for x in lst}
     gpath = os.path.join(data_dir, "hl_groups.json")
     series = (_read(gpath, {}).get("series") or {})
     t = int(now // 900 * 900)
     append_series(series, t, groups)
+    append_split(series, t, split)
     _write(gpath, {"series": series})
     _write(os.path.join(data_dir, "hl_now.json"), {"at": int(now), "groups": groups, "prices": px,
-                                                    "changes": changes(series, t)})
-    _write(os.path.join(data_dir, "hl_wallets.json"), {"at": int(now), "wallets": [w for w in wallets if w["pos"] or w["ev"]]})
+                                                    "changes": changes(series, t),
+                                                    "age_split": split, "best": best})
+    _write(os.path.join(data_dir, "hl_wallets.json"), {"at": int(now), "wallets": [w for w in wallets if w["pos"] or w["ev"] or w["addr"] in best_ids]})
     _write(os.path.join(data_dir, "hl_meta.json"), {
         "at": int(now), "seconds": round(clock() - t0), "fails": fails, "weight": hl.weight,
         "sito": {"round_started": sito.get("round_started"), "total": sito.get("round_total"),
