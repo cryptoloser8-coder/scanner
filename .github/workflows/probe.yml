@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama. Portfele: hyperliquid hypertracker hlsito htdepth"
+        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama. Portfele: hyperliquid hypertracker hlsito htdepth htwallets"
         type: string
         default: ""
 
