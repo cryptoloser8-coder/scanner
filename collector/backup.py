@@ -1,7 +1,7 @@
 """Codzienne archiwum danych na Orange Pi (druga kopia obok wydań „Archiwum” na GitHubie).
 
 Raz na dobę (po `backup.hour_utc`, domyślnie 02:00 UTC) pakuje do jednego pliku .tar.xz:
-  - gałęzie data, ema i reports z GitHuba (cała historia danych i raporty) oraz chains (sieci; gdy istnieje),
+  - gałęzie data, ema i reports z GitHuba (cała historia danych i raporty) oraz chains, hl, hl-sito, ht (gdy istnieją),
   - stan Pi: ~/Crypto_Loser_analytics_tool/pi/stan (dawniej ~/.ema-monitor; świece Binance, setupy Fibo z Telegrama, stan bota) — bez katalogu pub/.
 Pliki: ~/Crypto_Loser_analytics_tool/pi/archiwum/scanner-RRRR-MM-DD.tar.xz. Zostaje ostatnie `keep_daily` dni (domyślnie 14)
 oraz na zawsze plik z 1. dnia każdego miesiąca.
@@ -33,7 +33,7 @@ except ImportError:                # paczka wgrywana w częściach — stare mie
 
 log = logging.getLogger("backup")
 BRANCHES = ("data", "ema", "reports")
-OPTIONAL_BRANCHES = ("chains",)     # sieci (poprawka 84): brak gałęzi nie zatrzymuje kopii
+OPTIONAL_BRANCHES = ("chains", "hl", "hl-sito", "ht")   # sieci (84), Dźwignia (91): brak gałęzi nie zatrzymuje kopii
 DEFAULTS = {"dir": "~/scanner-archive", "keep_daily": 14, "hour_utc": 2,
             "repo": "cryptoloser8-coder/scanner"}
 

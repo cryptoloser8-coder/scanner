@@ -861,3 +861,100 @@ def check_htdepth(session=None, sleep=time.sleep, extra=None, now=None, budget=4
     rows.append(row("htdepth", "koszt", "ok" if not ht.stopped else "uwaga", n=ht.calls,
                     note=f"zapytań {ht.calls}" + (f"; zatrzymano: {ht.stopped}" if ht.stopped else "")))
     return rows
+
+
+# ═══ Sonda 90: czy HyperTracker ma historię pozycji portfeli z naszego sita ═══
+# htwallets — bierze portfele z gałęzi hl-sito (skuteczni L / S, największe konta + tracący), pyta /positions
+#             (pozycje od 04.2025, filtr address[]) paczkami po 10 adresów; ≤ 10 zapytań z limitu 100 / dobę.
+#             Wynik: ile portfeli ma historię, od kiedy, ile pozycji, jakie pola (czy jest wynik pozycji), próbki.
+SITO_URL = "https://raw.githubusercontent.com/{repo}/hl-sito/sito.json"
+
+
+def pick_sito_wallets(sito, n_good=20, n_bad=10):
+    ch = sito.get("checked") or {}
+    good = sorted((a for a, v in ch.items() if v.get("sides")), key=lambda a: -((ch[a].get("av") or 0)))
+    return good[:n_good], (sito.get("losers") or [])[:n_bad]
+
+
+def check_htwallets(session=None, sleep=time.sleep, extra=None, now=None, budget=10, sito=None, **_):
+    from probe import row, err_row
+    extra = extra if extra is not None else {}
+    ex = extra.setdefault("htwallets", {"samples": {}})
+    key = clean_key(os.environ.get("HYPERTRACKER_API_KEY", ""))
+    if not key:
+        return [row("htwallets", "klucz API", "brak", note="sekret HYPERTRACKER_API_KEY")]
+    s = session or requests.Session()
+    rows = []
+    if sito is None:
+        repo = os.environ.get("GITHUB_REPOSITORY", "cryptoloser8-coder/scanner")
+        try:
+            r = s.get(SITO_URL.format(repo=repo), headers=UA, timeout=60)
+            r.raise_for_status()
+            sito = r.json()
+        except Exception as e:  # noqa: BLE001
+            return [err_row("htwallets", "sito.json z gałęzi hl-sito", e)]
+    good, bad = pick_sito_wallets(sito)
+    rows.append(row("htwallets", "portfele do sprawdzenia", "ok", n=len(good) + len(bad),
+                    note=f"z sita: {len(good)} skutecznych (największe konta) + {len(bad)} tracących"))
+    ht = HTClient(key, s, sleep, budget)
+    per_addr = {}
+    keys_seen = set()
+
+    def ask(label, addrs, pages=1):
+        cursor, got = None, 0
+        for pg in range(pages):
+            params = {"start": "2025-04-01T00:00:00Z", "limit": 1000, "address[]": addrs}
+            if cursor:
+                params["nextCursor"] = cursor
+            try:
+                obj = ht.get("/positions", params)
+            except Exception as e:  # noqa: BLE001
+                rows.append(err_row("htwallets", f"{label} — strona {pg + 1}", e))
+                return
+            it = items_of(obj)
+            got += len(it)
+            if pg == 0:
+                ex["samples"][label] = _short(obj)
+            for p in it:
+                if not isinstance(p, dict):
+                    continue
+                keys_seen.update(p.keys())
+                a = (p.get("address") or p.get("user") or p.get("wallet") or "").lower()
+                d = per_addr.setdefault(a, {"n": 0, "open": 0, "first": None, "last": None, "coins": set()})
+                d["n"] += 1
+                d["coins"].add(p.get("coin"))
+                if p.get("closeTime") in (None, "") and p.get("closedAt") in (None, ""):
+                    d["open"] += 1
+                t = to_ts(p.get("openTime") or p.get("openedAt") or p.get("createdAt"))
+                if t:
+                    d["first"] = t if d["first"] is None else min(d["first"], t)
+                    d["last"] = t if d["last"] is None else max(d["last"], t)
+            cursor = obj.get("nextCursor") if isinstance(obj, dict) else None
+            if not cursor:
+                break
+        rows.append(row("htwallets", label, "ok", n=got, note=("jest kolejna strona" if cursor else "całość w odpowiedzi")))
+
+    ask("skuteczni 1–10", [a.lower() for a in good[:10]], pages=3)
+    ask("skuteczni 11–20", [a.lower() for a in good[10:20]])
+    ask("tracący 1–10", [a.lower() for a in bad[:10]])
+    if good:
+        ask("jeden portfel (kontrola filtra)", [good[0].lower()])
+
+    def summ(addrs, label):
+        have = [a for a in addrs if per_addr.get(a.lower(), {}).get("n")]
+        firsts = [per_addr[a.lower()]["first"] for a in have if per_addr[a.lower()]["first"]]
+        ns = [per_addr[a.lower()]["n"] for a in have]
+        rows.append(row("htwallets", f"{label}: z historią w HT", "ok" if have else "brak", min(firsts) if firsts else None,
+                        max(firsts) if firsts else None, len(have),
+                        note=f"z {len(addrs)}; pozycji na portfel: mediana {_median(ns) or 0:.0f}, max {max(ns) if ns else 0}; "
+                             f"najwcześniejsze otwarcie: {_iso(min(firsts)) if firsts else '—'}"))
+    summ(good[:20], "skuteczni")
+    summ(bad[:10], "tracący")
+    other = [a for a in per_addr if a not in {x.lower() for x in good + bad}]
+    rows.append(row("htwallets", "pola pozycji", "ok", n=len(keys_seen),
+                    note=", ".join(sorted(keys_seen))[:900] + (f"; UWAGA: {len(other)} adresów spoza zapytania — filtr nie działa?" if other else "")))
+    ex["per_addr"] = {a: {**v, "coins": sorted(c for c in v["coins"] if c)} for a, v in per_addr.items()}
+    rows.append(row("htwallets", "koszt", "ok" if not ht.stopped else "uwaga", n=ht.calls,
+                    note=f"zapytań {ht.calls} z dziennego limitu 100 (Pi tego dnia pobierze o tyle mniej historii)"
+                         + (f"; zatrzymano: {ht.stopped}" if ht.stopped else "")))
+    return rows

@@ -134,6 +134,26 @@ def evaluate(pf, fills, now, cfg=SITO):
             "dd": _r(max_drawdown(at.get("accountValueHistory")), 1), "sides": sides, "why": reason}
 
 
+def round_snapshot(st):
+    """Kto był w sicie w tej rundzie: {addr: [strony, wiek, L: n / % / z÷s, S: n / % / z÷s, konto]} + tracący."""
+    mem = {}
+    for a, v in (st.get("checked") or {}).items():
+        if v.get("sides"):
+            L, S_ = v.get("L") or {}, v.get("S") or {}
+            mem[a] = ["".join(v["sides"]), v.get("age"), L.get("n"), L.get("win"), L.get("pf"),
+                      S_.get("n"), S_.get("win"), S_.get("pf"), v.get("av")]
+    return {"round_started": st.get("round_started"), "total": st.get("round_total"), "params": st.get("params"),
+            "cols": ["strony", "wiek", "L_n", "L_win", "L_pf", "S_n", "S_win", "S_pf", "konto"],
+            "members": mem, "losers": st.get("losers") or []}
+
+
+def save_round(sito_dir, st, now):
+    if not st.get("round_started"):
+        return
+    d = time.strftime("%Y-%m-%d", time.gmtime(st["round_started"]))
+    _write(os.path.join(sito_dir, "rounds", d + ".json"), round_snapshot(st))
+
+
 def run_sito(sito_dir, minutes=270, session=None, sleep=time.sleep, clock=time.time, cfg=SITO):
     s = session or requests.Session()
     path = os.path.join(sito_dir, "sito.json")
@@ -145,6 +165,7 @@ def run_sito(sito_dir, minutes=270, session=None, sleep=time.sleep, clock=time.t
         board = fetch_board(s)
         cand, los = candidates(board, cfg)
         old = st.get("checked") or {}
+        save_round(sito_dir, st, now)                 # 91: zdjęcie kończącej się rundy (kto był w sicie) — na zawsze
         st["checked"] = {k: v for k, v in old.items() if v.get("at", 0) >= now - 2 * cfg["round_days"] * DAY}
         st.update({"queue": cand, "losers": los, "round_started": int(now), "round_total": len(cand)})
         log.info("Nowa runda sita: %d kandydatów, %d tracących", len(cand), len(los))
@@ -182,6 +203,7 @@ def run_sito(sito_dir, minutes=270, session=None, sleep=time.sleep, clock=time.t
     # zostają tylko kandydaci z bieżącej rundy (konto mogło wypaść z rankingu)
     st["updated"] = int(clock())
     st["in_sito"] = {k: sum(1 for v in st["checked"].values() if k in v.get("sides", [])) for k in ("L", "S")}
+    save_round(sito_dir, st, now)
     _write(path, st)
     return done, st
 
@@ -359,6 +381,40 @@ def events(prev, cur, now):
     return ev[-KEEP_EVENTS:]
 
 
+DAILY_COLS = ["id", "grupa", "wynik_dzien", "wynik_od_poczatku", "konto"]
+
+
+def daily_due(data_dir, now):
+    day = time.strftime("%Y-%m-%d", time.gmtime(now))
+    doc = _read(os.path.join(data_dir, "daily", day[:7] + ".json"), {})
+    return day not in (doc.get("days") or {})
+
+
+def save_daily(data_dir, board, members, losers, now):
+    """91: raz na dobę (UTC) wynik każdego śledzonego portfela z rankingu HL — „zyskowny czy stratny” dzień po dniu.
+    daily/RRRR-MM.json: {"cols", "ids": [adresy], "days": {"RRRR-MM-DD": [[id, grupa, wynik dnia, wynik od początku, konto]]}}"""
+    day = time.strftime("%Y-%m-%d", time.gmtime(now))
+    path = os.path.join(data_dir, "daily", day[:7] + ".json")
+    doc = _read(path, {"cols": DAILY_COLS, "ids": [], "days": {}})
+    if day in doc["days"]:
+        return False
+    idx = {a: i for i, a in enumerate(doc["ids"])}
+    by = {b["addr"]: b for b in board if b["addr"]}
+    rows = []
+    for a in list(members) + [x for x in losers if x not in members]:
+        b = by.get(a)
+        if not b:
+            continue
+        if a not in idx:
+            idx[a] = len(doc["ids"])
+            doc["ids"].append(a)
+        g = "".join(members.get(a) or []) or "R"
+        rows.append([idx[a], g, _r(b["pnl"].get("day"), 0), _r(b["pnl"].get("allTime"), 0), _r(b["av"], 0)])
+    doc["days"][day] = rows
+    _write(path, doc)
+    return True
+
+
 def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time.time):
     s = session or requests.Session()
     now = clock()
@@ -390,6 +446,12 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
              "prof": {k: info.get(k) for k in ("age", "mpos", "tw", "L", "S", "p7", "p30", "dd")} if info else None}
         w["ev"] = events(prev.get(a), pos, now)
         wallets.append(w)
+    daily_saved = False
+    if daily_due(data_dir, now):
+        try:
+            daily_saved = save_daily(data_dir, fetch_board(s), members, losers, now)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Dzienny zapis wyników: %s", e)
     groups = {g: group_stats([w for w in wallets if g in w["g"]]) for g in GROUPS}
     gpath = os.path.join(data_dir, "hl_groups.json")
     series = (_read(gpath, {}).get("series") or {})
@@ -404,7 +466,7 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
         "sito": {"round_started": sito.get("round_started"), "total": sito.get("round_total"),
                  "left": len(sito.get("queue") or []), "checked": len(checked), "in_sito": sito.get("in_sito"),
                  "losers": len(losers), "updated": sito.get("updated"), "params": sito.get("params")},
-        "groups_n": {g: groups[g]["n"] for g in GROUPS}})
+        "groups_n": {g: groups[g]["n"] for g in GROUPS}, "daily_saved": daily_saved})
     return groups
 
 

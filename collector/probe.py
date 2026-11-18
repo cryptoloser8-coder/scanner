@@ -28,6 +28,7 @@ Pozycje portfeli (poprawka 85) — tylko na życzenie (--only hyperliquid hypert
   hypertracker — co daje API HyperTracker (sekret HYPERTRACKER_API_KEY) i jak głęboka jest historia grup.
   hlsito       — (86) rynki krypto wg OI, sito ~250 kandydatów: wiek, skuteczność osobno longi / shorty, częstotliwość,
   htdepth      — (86) przewijanie historii grup HyperTrackera do początku (≤ 40 zapytań).
+  htwallets    — (90) czy HyperTracker ma historię pozycji portfeli z naszego sita (≤ 10 zapytań).
 
 Sieci (poprawka 47) — tylko na życzenie (--only defillama):
   defillama   — wolumen DEX, opłaty, stablecoiny i TVL dla 8 sieci (Ethereum, Robinhood Chain, Solana, BSC, TON, Base,
@@ -1100,7 +1101,8 @@ def _hl(name):
 
 
 FUNCS.update({"hyperliquid": _hl("hyperliquid"), "hypertracker": _hl("hypertracker"),
-              "hlsito": _hl("hlsito"), "htdepth": _hl("htdepth")})     # poprawka 86: sito portfeli, głębokość HT
+              "hlsito": _hl("hlsito"), "htdepth": _hl("htdepth"),      # poprawka 86: sito portfeli, głębokość HT
+              "htwallets": _hl("htwallets")})                           # poprawka 90: historia pozycji portfeli z sita w HT
 
 
 def run(where, only=None, funcs=None, now=None):

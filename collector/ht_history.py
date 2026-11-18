@@ -306,6 +306,7 @@ def publish(ddir, st, now, remote=None, runner=subprocess.run):
     if r.returncode != 0:
         raise RuntimeError(((r.stderr or r.stdout) or "")[-300:].replace(remote, "<remote>"))
     st["published_at"] = int(now)
+    st["summary_published"] = st.get("summary_day")
 
 
 def summarize_state(obj, now):
@@ -395,7 +396,10 @@ def run(session=None, now=None, ddir=None, telegram=None, per_run=PER_RUN, publi
         notify(m, telegram)
     used = sum((st.get("calls") or {}).values()) - calls0
     complete = all(t["done"] for t in st["queue"])
-    if used and (now - st.get("published_at", 0) >= PUBLISH_EVERY or complete or msgs):
+    pending = (st.get("last_page_at") or 0) > (st.get("published_at") or 0) or \
+        (st.get("summary_day") and st.get("summary_published") != st.get("summary_day"))
+    # 87c: publikuj też po wyczerpaniu dziennego limitu, jeśli są nieopublikowane porcje (wcześniej tylko przy nowych zapytaniach)
+    if (used or pending) and (now - st.get("published_at", 0) >= PUBLISH_EVERY or complete or msgs):
         try:
             publish_fn(ddir, st, now)
             _write(spath, st)
