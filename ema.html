@@ -322,7 +322,7 @@ function renderTiles() {
   const wPct = W ? W.above_close / W.total * 100 : 0;
   const wbr = W ? W.breadth || [] : [], wPrev = wbr.length > 1 ? wbr[wbr.length - 2][1] : null;
   document.getElementById('tiles').innerHTML = `
-    <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Powyżej ~70% rynek jest szeroko rozgrzany, poniżej ~30% słaby. Historia liczona na zamknięciach dni${DATA.breadth_delisted ? ', także z coinów wycofanych już z Binance' : ', tylko z coinów, które są dziś na Binance'}.">i</span></div>
+    <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Od 80 / 90% świeci lampka „Szeroki rajd” w Altsezonie (aktualnie mamy altsezon — to nie sygnał sprzedaży); poniżej ~30% rynek słaby. Historia liczona na zamknięciach dni${DATA.breadth_delisted ? ', także z coinów wycofanych już z Binance' : ', tylko z coinów, które są dziś na Binance'}.">i</span></div>
       <div class="tile-val ${cls}">${pctAbove.toFixed(0)}%</div>
       <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.toFixed(0)}%` : ''}${b30 != null ? ` · 30D ${b30.toFixed(0)}%` : ''}</div></div>
     <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>

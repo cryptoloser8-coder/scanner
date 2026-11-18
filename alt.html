@@ -514,8 +514,8 @@ function renderStats(W) {
 // ── lampki (liczy bot GitHuba: collector/lamps.py → meta.json alt_lamps; tu tylko wyświetlanie) ──
 const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
 const LAMP_GROUPS = [   // [grupa, nazwa, ikona, kolor, czego to sygnał]
-  ['rajd', 'Rajd', '▲', '#4caf7d', 'sygnał: <b>trzymaj</b> — alty rosną szeroko'],
-  ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'sygnał: <b>sprzedawaj w częściach</b>'],
+  ['rajd', 'Rajd', '▲', '#4caf7d', 'gdy świeci: <b>aktualnie mamy altsezon</b>'],
+  ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'gdy świeci: <b>altsezon dobiega końca</b>'],
   ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: <b>rynek zjeżdża</b> — nie sygnał kupna'],
 ];
 const num = (v, d) => v == null ? '—' : v.toFixed(d).replace('.', ',');
