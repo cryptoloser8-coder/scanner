@@ -1,0 +1,59 @@
+name: Dźwignia — sito
+
+# Sito portfeli Hyperliquid (collector/hl_wallets.py sito): raz na dobę porcja kandydatów z rankingu
+# (konto ≥ $100k, zysk > 0, obroty w ostatnim miesiącu) → wiek konta, skuteczność longi / shorty, częstotliwość.
+# Pełny przegląd co ~7 dni. Wynik: gałąź hl-sito (sito.json) — czyta ją „Dźwignia — pozycje”.
+# Darmowe API Hyperliquid, bez klucza. Ręcznie: Actions → Dźwignia — sito → Run workflow.
+
+on:
+  schedule:
+    - cron: "10 1 * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Ile minut sprawdzać portfele (reszta jutro)"
+        type: string
+        default: "270"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hl-sito
+  cancel-in-progress: false
+
+jobs:
+  sito:
+    runs-on: ubuntu-latest
+    timeout-minutes: 320
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: collector/requirements.txt
+
+      - run: pip install -r collector/requirements.txt
+
+      - name: Pobierz dotychczasowe sito (gałąź hl-sito)
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: bash collector/fetch_branch.sh hl-sito hl-sito "$REMOTE"
+
+      - name: Sprawdź porcję portfeli
+        env:
+          MINUTES: ${{ inputs.minutes || '270' }}
+        run: python collector/hl_wallets.py sito --sito-dir hl-sito --minutes "$MINUTES"
+
+      - name: Opublikuj (gałąź hl-sito)
+        if: always() && hashFiles('hl-sito/sito.json') != ''
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          DATA_BRANCH: hl-sito
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GIT_AUTHOR_NAME: hl-bot
+          GIT_AUTHOR_EMAIL: hl-bot@users.noreply.github.com
+        run: bash collector/publish.sh hl-sito "$REMOTE"
