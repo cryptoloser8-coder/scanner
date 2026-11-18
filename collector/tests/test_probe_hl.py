@@ -228,8 +228,9 @@ def test_hlsito_end_to_end_and_weights():
     assert by["profile portfeli (portfolio + userFills)"]["n"] == 10
     w = extra["hlsito"]["wallets"][0]
     assert w["long"]["n"] == 40 and w["long"]["win_pct"] == 75.0 and round(w["age_days"]) == 400
-    assert "p50 75.0" in by["skuteczność — longi (% zagrań na plus)"]["note"]
+    assert "p50 75.0" in by["skuteczność — longi, ≥ 30 zagrań (% na plus)"]["note"]
     assert any(k.startswith("przykładowe sito: wiek ≥ 365") and by[k]["n"] == 10 for k in by)
+    assert "zostaje 10" in by["odrzucone przed rozkładami"]["note"]
     # 21 zapytań po 20 wag + 10 × 80 transakcji / 20 = 460 wag
     assert "wag 460" in by["koszt"]["note"]
 
@@ -262,3 +263,15 @@ def test_htdepth_pages_to_start(monkeypatch):
     h = by["historia BTC — Smart Money (9)"]
     assert h["n"] == 3000 and "stron 3" in h["note"] and "pełna historia" in h["note"]
     assert by["koszt"]["n"] == len(s.paths)
+
+
+def test_trips_skip_spot_and_idle_months():
+    T = 1760000000
+    fills = [dict(F(T, "@107", "B", 5, 0), dir="Buy"), dict(F(T + 1, "PURR/USDC", "A", 5, 5), dir="Sell"),
+             dict(F(T + 2, "ETH", "B", 1, 0), dir="Open Long"), dict(F(T + 3, "ETH", "A", 1, 1, pnl=4), dir="Close Long")]
+    tr = probe_hl.trips(fills)
+    assert [(t["coin"], t["pnl"]) for t in tr] == [("ETH", 4.0)]
+    base = 1735689600
+    hist = [[(base + d * DAY) * 1000, str(v)] for d, v in ((0, 0), (40, 10), (70, 10), (100, 10), (130, 30))]
+    pct, n = probe_hl.months_positive(hist)
+    assert n == 2 and pct == 100.0             # miesiące bez gry pominięte
