@@ -92,14 +92,22 @@
   .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(255,255,255,.05);font-size:13px;}
   .kv:first-of-type{border-top:0;}
   .kv>span:first-child{color:#b8b8b8;}
-  .wl{display:flex;flex-wrap:wrap;gap:8px;}
-  .wl a{display:flex;flex-direction:column;gap:2px;min-width:76px;padding:8px 11px;border-radius:9px;background:var(--bg3);text-decoration:none;font-size:12px;}
-  .wl a:hover{background:#2a2a2a;}
-  .wl a b{font-weight:600;}
   .rep{display:flex;flex-direction:column;gap:3px;padding:8px 0;border-top:1px solid rgba(255,255,255,.05);text-decoration:none;}
   .rep:first-of-type{border-top:0;}
   .rep:hover b{text-decoration:underline;}
   .rep b{font-weight:600;font-size:13px;}
+  .hg{display:flex;flex-direction:column;gap:5px;padding:9px 0;border-top:1px solid rgba(255,255,255,.05);text-decoration:none;color:inherit;}
+  .hg:first-child{border-top:0;padding-top:0;}
+  .hg:hover .hn{text-decoration:underline;}
+  .hg .hn{font-size:12px;font-weight:600;color:var(--g);display:flex;justify-content:space-between;gap:8px;}
+  .hg .hn span{font-weight:400;color:var(--text2);font-size:11px;}
+  .hg .pc{display:flex;justify-content:space-between;font-size:13px;}
+  .hg .pc b{font-weight:700;}
+  .hbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:#2a2a2a;}
+  .hbar i{display:block;height:100%;}
+  .hbar i.l{background:var(--green);}.hbar i.s{background:var(--red);}
+  .hg .am{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);}
+  .hfoot{font-size:10.5px;color:var(--text3);margin-top:10px;line-height:1.45;}
   .footer{text-align:center;margin-top:24px;font-size:10px;color:var(--text3);}
   .footer a{color:var(--text3);text-decoration:none;border-bottom:1px dotted var(--text3);}
   .footer a:hover{color:var(--text2);}
@@ -147,9 +155,9 @@
       <div class="hd"><h2>Derywaty</h2><a href="liq.html">Likwidacje i funding →</a></div>
       <div id="deriv"><div class="lbl">Ładowanie…</div></div>
     </section>
-    <section class="card" aria-label="Watchlista">
-      <div class="hd"><h2>Watchlista</h2><span class="lbl">cena · 24 h · klik → likwidacje i funding</span></div>
-      <div class="wl" id="watch"><div class="lbl">Ładowanie…</div></div>
+    <section class="card" aria-label="Dźwignia — kto jak gra">
+      <div class="hd"><h2>Dźwignia — kto jak gra</h2><a href="hl.html">Dźwignia (Hyperliquid) →</a></div>
+      <div id="hlg"><div class="lbl">Ładowanie…</div></div>
     </section>
     <section class="card" aria-label="Raporty">
       <div class="hd"><h2>Raporty</h2><a href="raporty.html">Wszystkie →</a></div>
@@ -224,7 +232,7 @@ function kpi(href, label, value, sub, svg, title) {
   return `<a class="card kpi" href="${href}"${title ? ` title="${esc(title)}"` : ''}><span class="lbl">${label}</span><span class="v">${value}</span><span class="s">${sub}</span>${svg || ''}</a>`;
 }
 
-let META = null, LIQ = null, D1 = null, REPS = null;
+let META = null, LIQ = null, D1 = null, REPS = null, HL = null;
 
 // ── najważniejsze liczby ──
 function renderKpis() {
@@ -350,13 +358,26 @@ function renderDeriv() {
     '<div class="lbl">Brak danych.</div>';
 }
 
-// ── watchlista: cena i zmiana 24 h (Binance perp / Bybit / Hyperliquid — jak w likwidacjach) ──
-function renderWatch() {
-  const S = (LIQ && LIQ.series) || {}, list = ((META && META.watchlist) || []);
-  document.getElementById('watch').innerHTML = list.map(c => {
-    const a = S['px_' + c.toLowerCase()] || [], l = last(a), d = chg(a, DAY);
-    return `<a href="liq.html#a=${encodeURIComponent(c.toLowerCase())}" title="${esc(c)} — likwidacje, funding, cena"><b>${esc(c)}</b><span>${l ? price(l[1]) : '—'}</span><span class="${cls(d)}">${pct(d)}</span></a>`;
-  }).join('') || '<div class="lbl">Brak watchlisty w meta.json.</div>';
+// ── Dźwignia (Hyperliquid): kto jak gra teraz — skrót z hl.html (gałąź hl, hl_now.json) ──
+const HL_BASE = branchBase('hl', 'hl', 'hl/');
+const HLG = [['L', 'Skuteczni w longach', '#5b9cf6'], ['S', 'Skuteczni w shortach', '#ffb74d'], ['R', 'Tracący (dla porównania)', '#ce93d8']];
+function hlPct(v) { return v == null || isNaN(v) ? '—' : Math.round(v) + '%'; }
+function renderHL() {
+  const el = document.getElementById('hlg');
+  if (!HL || !HL.groups) { el.innerHTML = '<div class="lbl">Brak danych Dźwigni.</div>'; return; }
+  const G = HL.groups, out = [];
+  for (const [id, nm, col] of HLG) {
+    const g = G[id]; if (!g) continue;
+    const lp = g.lpct, sp = lp == null ? null : 100 - lp;
+    const info = `${g.in_pos} z ${g.n} w pozycjach · ×${num(g.eff_lev, 1)}`;
+    out.push(`<a class="hg" href="hl.html" style="--g:${col}"><div class="hn">${nm}<span title="portfele z otwartą pozycją z całej grupy · dźwignia rzeczywista (pozycje ÷ konta)">${info}</span></div>` +
+      `<div class="pc"><span class="up"><b>${hlPct(lp)}</b> long</span><span class="dn"><b>${hlPct(sp)}</b> short</span></div>` +
+      `<div class="hbar"><i class="l" style="width:${lp || 0}%"></i><i class="s" style="width:${sp || 0}%"></i></div>` +
+      `<div class="am"><span>longi ${usd(g.long)}</span><span>shorty ${usd(g.short)}</span></div></a>`);
+  }
+  const old = HL.at && Date.now() / 1000 - HL.at > 6 * HOUR ? ' <span style="color:var(--amber)">(starsze niż 6 h)</span>' : '';
+  out.push(`<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100k, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`);
+  el.innerHTML = out.join('');
 }
 
 // ── raporty: ostatnie 3 i najbliższe planowe (harmonogram z config.yaml: poranny ~06:00, wieczorny ~22:50, tygodniowy pon., miesięczny 1.) ──
@@ -394,13 +415,14 @@ function renderSub() {
 function err(msg) { const b = document.getElementById('banner'); b.classList.add('on'); b.textContent = msg; }
 
 (async function main() {
-  const [m, l, r] = await Promise.allSettled([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, 'liq_1h.json'), getJSON(REP_BASE, 'index.json')]);
+  const [m, l, r, h] = await Promise.allSettled([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, 'liq_1h.json'), getJSON(REP_BASE, 'index.json'), getJSON(HL_BASE, 'hl_now.json')]);
+  HL = h.status === 'fulfilled' ? h.value : null;
   META = m.status === 'fulfilled' ? m.value : null;
   LIQ = l.status === 'fulfilled' ? l.value : null;
   REPS = r.status === 'fulfilled' ? r.value : null;
   const bad = [[m, 'meta.json'], [l, 'liq_1h.json'], [r, 'raporty']].filter(x => x[0].status !== 'fulfilled').map(x => x[1]);
   if (bad.length) err('Nie udało się wczytać: ' + bad.join(', ') + ' — część Pulpitu jest pusta. Odśwież za chwilę.');
-  renderSub(); renderKpis(); renderLamps(); renderWatch(); renderReps(); renderDeriv();
+  renderSub(); renderKpis(); renderLamps(); renderHL(); renderReps(); renderDeriv();
   try { D1 = await getJSON(DATA_BASE, '1d.json'); } catch (e) { err('Nie udało się wczytać 1d.json (' + e.message + ') — brak TOTAL, dominacji i cyklu.'); }
   renderSub(); renderKpis(); renderBg(); renderDeriv();
 })();
