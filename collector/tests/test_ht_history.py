@@ -135,6 +135,6 @@ def test_publish_copies_files_and_calls_script(tmp_path):
     H._write(os.path.join(str(tmp_path), "summary_latest.json"), {"groups": []})
     H.publish(str(tmp_path), st, NOW, remote="https://x@github.com/r.git", runner=runner)
     args, branch, files = calls[0]
-    assert args[1].endswith("publish.sh") and branch == "hl"
+    assert args[1].endswith("publish.sh") and branch == "ht"
     assert files == ["ht_groups.json", "ht_progress.json", "ht_summary.json"] and not os.path.exists(args[2])
     assert st["published_at"] == int(NOW)
