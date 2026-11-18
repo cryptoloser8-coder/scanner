@@ -356,32 +356,23 @@ def append_series(series, t, groups):
             add(f"{g}_{c}_lpct", a["lpct"])
 
 
-def value_at(arr, t):
-    """Ostatnia wartość nie później niż t (± 30 min)."""
-    best = None
-    for tt, v in arr:
-        if tt <= t + 1800:
-            best = v
-        else:
-            break
-    return best
-
-
 def changes(series, now, top=8):
+    """93: największe zmiany z przepływów — tylko portfele obecne w grupie przed i po (bez wpływu zmian składu sita
+    i ruchu ceny). Gdy przepływy liczone krócej niż okno — „since” (od kiedy)."""
     out = []
     for win, sec in (("2 h", 2 * 3600), ("24 h", DAY), ("7 dni", 7 * DAY)):
+        start = now - sec + 900
         for g in GROUPS:
             for c in COINS:
-                for side in ("long", "short"):
-                    arr = series.get(f"{g}_{c}_{side}") or []
-                    if len(arr) < 2 or arr[0][0] > now - sec + 1800:
+                for side, tag in (("long", "flowL"), ("short", "flowS")):
+                    arr = series.get(f"{g}_{c}_{tag}") or []
+                    vals = [v for t, v in arr if t >= start]
+                    if not vals:
                         continue
-                    a, b = value_at(arr, now - sec), arr[-1][1]
-                    if a is None or b is None:
-                        continue
-                    lp = series.get(f"{g}_{c}_lpct") or []
-                    out.append({"g": g, "c": c, "win": win, "side": side, "delta": round(b - a), "from": a, "to": b,
-                                "lpct_from": value_at(lp, now - sec), "lpct_to": lp[-1][1] if lp else None})
+                    x = {"g": g, "c": c, "win": win, "side": side, "delta": round(sum(vals))}
+                    if arr[0][0] > start + 1800:
+                        x["since"] = arr[0][0]
+                    out.append(x)
     out.sort(key=lambda x: -abs(x["delta"]))
     res, seen = [], set()
     for x in out:
@@ -393,6 +384,90 @@ def changes(series, now, top=8):
         if len(res) >= top:
             break
     return res
+
+
+# ── 93: przepływy na tych samych portfelach ─────────────────
+FLOW_SEED = [{"t": 1795015800, "g": "*", "note": "Sito: pełna runda i konta od 180 dni — skuteczni w longach 153 → 529, "
+              "w shortach 114 → 390 portfeli (kwoty i udziały skoczyły przez zmianę składu, nie przez rynek)"}]
+KEEP_COMP = 300
+
+
+def compact_pos(pos):
+    """[[coin, long?, ilość, cena]] — do przepływów w następnym przebiegu."""
+    return [[p["c"], p["L"], _r(p["size"] / p["mark"], 8), p["mark"]] for p in pos or [] if p.get("size") and p.get("mark")]
+
+
+def wallet_flow(prev, cur):
+    """Zmiana ilości × cena na każdej (coin, strona): + otworzył / dokupił, − zmniejszył / zamknął. Ruch ceny się nie liczy."""
+    a = {(c, L): (q, m) for c, L, q, m in prev or []}
+    b = {(c, L): (q, m) for c, L, q, m in cur or []}
+    out = {}
+    for k in set(a) | set(b):
+        qa, ma = a.get(k, (0, None))
+        qb, mb = b.get(k, (0, None))
+        d = ((qb or 0) - (qa or 0)) * (mb or ma or 0)
+        if abs(d) >= 1:
+            out[k] = d
+    return out
+
+
+def group_flows(prev, wallets, failed=()):
+    """prev = {"groups": {g: [adresy]}, "pos": {adres: compact}} z poprzedniego przebiegu.
+    → (przepływy {g: {coin|all: {long, short}}}, zmiany składu {g: {in, out, long_in, short_in, long_out, short_out}})."""
+    cur = {w["addr"]: compact_pos(w["pos"]) for w in wallets}
+    ppos = prev.get("pos") or {}
+    flows, comp = {}, {}
+    for g in GROUPS:
+        pg = set((prev.get("groups") or {}).get(g) or []) - set(failed)
+        cg = {w["addr"] for w in wallets if g in w["g"]}
+        f = {k: {"long": 0.0, "short": 0.0} for k in COINS + ("all",)}
+        for a in cg & pg:
+            for (c, L), d in wallet_flow(ppos.get(a), cur[a]).items():
+                side = "long" if L else "short"
+                f[coin_key(c)][side] += d
+                f["all"][side] += d
+        flows[g] = f
+
+        def tot(addrs, src):
+            ls = [0.0, 0.0]
+            for a in addrs:
+                for c, L, q, m in src.get(a) or []:
+                    ls[0 if L else 1] += (q or 0) * (m or 0)
+            return [round(x) for x in ls]
+        new, gone = cg - pg, pg - cg
+        li, si = tot(new, cur)
+        lo, so = tot(gone, ppos)
+        comp[g] = {"in": len(new), "out": len(gone), "n": len(cg), "long_in": li, "short_in": si, "long_out": lo, "short_out": so}
+    return flows, comp
+
+
+def members_doc(wallets, prev, failed, now):
+    """Członkowie grup i pozycje (skrót) do następnego przebiegu; portfel, którego nie udało się pobrać, zostaje z poprzednim stanem."""
+    groups = {g: [w["addr"] for w in wallets if g in w["g"]] for g in GROUPS}
+    pos = {w["addr"]: compact_pos(w["pos"]) for w in wallets if w["pos"]}
+    for a in failed:
+        for g in GROUPS:
+            if a in ((prev.get("groups") or {}).get(g) or []):
+                groups[g].append(a)
+        if a in (prev.get("pos") or {}):
+            pos[a] = prev["pos"][a]
+    return {"at": int(now), "groups": groups, "pos": pos}
+
+
+def append_flows(series, t, flows, groups):
+    """Przepływy dodawane (dwa przebiegi w tym samym kwadransie się sumują) + liczba portfeli grupy."""
+    def add(k, v, plus):
+        arr = series.setdefault(k, [])
+        if arr and arr[-1][0] == t:
+            arr[-1] = [t, round(arr[-1][1] + v) if plus else v]
+        else:
+            arr.append([t, round(v) if plus else v])
+    for g, f in flows.items():
+        for c, a in f.items():
+            add(f"{g}_{c}_flowL", a["long"], True)
+            add(f"{g}_{c}_flowS", a["short"], True)
+    for g, st in groups.items():
+        add(f"{g}_n", st["n"], False)
 
 
 def events(prev, cur, now):
@@ -543,13 +618,14 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
         if nm in SEPARATE:
             mk, pd = _f(c.get("markPx")), _f(c.get("prevDayPx"))
             px[nm] = {"px": mk, "ch24": _r((mk / pd - 1) * 100, 2) if mk and pd else None}
-    wallets, fails = [], 0
+    wallets, fails, failed = [], 0, []
     for a in list(members) + [x for x in losers if x not in members]:
         try:
             av, pos = parse_state(hl.call({"type": "clearinghouseState", "user": a}, 2))
             orders = parse_orders(hl.call({"type": "frontendOpenOrders", "user": a}, 20)) if pos else []
         except Exception:  # noqa: BLE001
             fails += 1
+            failed.append(a)
             continue
         groups = list(members.get(a, [])) + (["R"] if a in losers and a not in members else [])
         info = checked.get(a) or {}
@@ -568,11 +644,25 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
     best = best_lists(checked, wallets)
     best_ids = {x["addr"] for lst in best["groups"].values() for x in lst}
     gpath = os.path.join(data_dir, "hl_groups.json")
-    series = (_read(gpath, {}).get("series") or {})
+    gdoc = _read(gpath, {})
+    series = gdoc.get("series") or {}
+    comp_ev = gdoc.get("comp") if "comp" in gdoc else list(FLOW_SEED)
     t = int(now // 900 * 900)
     append_series(series, t, groups)
     append_split(series, t, split)
-    _write(gpath, {"series": series})
+    mpath = os.path.join(data_dir, "hl_members.json")
+    prev_m = _read(mpath, None)
+    if prev_m:                                        # 93: przepływy od drugiego przebiegu z tym plikiem
+        flows, comp = group_flows(prev_m, wallets, failed)
+        append_flows(series, t, flows, groups)
+        for g, c in comp.items():
+            if c["in"] or c["out"]:
+                comp_ev.append(dict(c, t=t, g=g))
+    else:
+        append_flows(series, t, {}, groups)
+    comp_ev = comp_ev[-KEEP_COMP:]
+    _write(mpath, members_doc(wallets, prev_m or {}, failed, now))
+    _write(gpath, {"series": series, "comp": comp_ev})
     _write(os.path.join(data_dir, "hl_now.json"), {"at": int(now), "groups": groups, "prices": px,
                                                     "changes": changes(series, t),
                                                     "age_split": split, "best": best})
