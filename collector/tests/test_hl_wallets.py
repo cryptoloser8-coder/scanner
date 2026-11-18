@@ -246,6 +246,24 @@ def test_best_lists():
     assert L[0]["upnl"] is None and L[0]["pos"] == [] and L[0]["av"] == 1e5
 
 
+def test_with_open_counts_open_positions():
+    """94: otwarte straty strony liczone jak przegrane zagrania — „100% na plus / bez strat” z dużą stratą otwartą odpada."""
+    st = {"n": 23, "win": 100.0, "pf": None, "pnl": 156898.0}
+    pos = [{"c": "BTC", "L": True, "size": 1e6, "pnl": -245786.0}, {"c": "ETH", "L": False, "size": 1e3, "pnl": 500.0}]
+    o = W.with_open(st, pos, True)
+    assert o["n"] == 24 and o["open_n"] == 1 and o["open_pnl"] == -245786 and o["pnl"] == -88888
+    assert o["win"] == 95.8 and o["pf"] == 0.64
+    o2 = W.with_open({"n": 20, "win": 50.0, "pf": 2.0, "pnl": 1000.0}, pos, False)   # otwarty zysk się nie liczy
+    assert o2["n"] == 20 and o2["pnl"] == 1000 and o2["pf"] == 2.0 and o2["open_n"] == 0
+    o3 = W.with_open({"n": 20, "win": 50.0, "pf": 2.0, "pnl": 1000.0}, [{"L": False, "pnl": -1000.0}], False)
+    assert o3["n"] == 21 and o3["pnl"] == 0 and o3["pf"] == 1.0 and o3["win"] == 47.6
+    assert W.with_open({"n": 0}, [], True)["open_n"] == 0
+    ch = {"x": {"sides": ["L"], "age": 400, "L": st, "S": {"n": 0}},
+          "y": {"sides": ["L"], "age": 400, "L": {"n": 25, "win": 60, "pf": 2.0, "pnl": 500}, "S": {"n": 0}}}
+    b = W.best_lists(ch, [{"addr": "x", "av": 79e3, "pos": pos}])
+    assert [r["addr"] for r in b["groups"]["L"]] == ["y"] and b["params"]["with_open"]
+
+
 def test_positions_twice_writes_flows(tmp_path):
     clk, s = Clock(), Fake()
     sd, dd = str(tmp_path / "sito"), str(tmp_path / "hl")
