@@ -216,17 +216,6 @@ reports:
     min_importance: medium  # medium = ★★ i ★★★, high = tylko ★★★
     days_back: 5            # ile dni wstecz szukać ostatniego dnia z publikacjami (poniedziałek rano → piątek)
     days_ahead: 5           # ile dni naprzód szukać najbliższego dnia z zaplanowanymi publikacjami
-  lines:                    # linie poziomów na wykresach: [poziom, opis]
-    oi_others_vs_btc:
-      - [0.60, "strefa dołków"]
-      - [0.85, "górne 10% dni"]
-      - [0.95, "szczyty 03.2024 i 07.2025"]
-      - [1.00, "zrównanie z BTC"]
-    alts_vs_btc:
-      - [0.28, "dołki 2025–2026"]
-      - [0.38, "szczyt 09.2025"]
-      - [0.47, "szczyty 12.2023 i 12.2024"]
-
 # ─────────────────────────────────────────────────────────────
 #  POZIOMY — alerty o zbliżaniu się i przebiciu
 #
@@ -248,15 +237,15 @@ levels:
   - series: oi_others_vs_btc
     level: 0.90
     alert: false
-    label: "uwaga — lampka Altsezonu"
+    label: "lampka Lewar altów: uwaga"
   - series: oi_others_vs_btc
     level: 0.95
     alert: false
-    label: "historycznie koniec fali altów"
+    label: "lampka Lewar altów: przegrzanie"
   - series: oi_others_vs_btc
     level: 1.0
     alert: false
-    label: "historycznie szczyt fali altów"
+    label: "lampka Lewar altów: skrajne przegrzanie"
 #  - series: total3
 #    level: 1.0e12
 #    near_pct: 3
