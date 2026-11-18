@@ -93,7 +93,7 @@ def test_build_layout_v2(tmp_path):
     assert all(c != "—" for c in alt_row[1:5])                         # dziś i 7 / 30 / 365 dni temu policzone z danych
     assert not any(r[0].startswith("RSI") for r in tab["rows"])       # ema.json bez „rsi” (starszy Pi) → bez wierszy RSI
     oi_chart = by["Lewar: OI OTHERS / OI BTC — cała historia"]
-    assert [l["value"] for l in oi_chart["lines"]] == [0.60, 0.85, 0.95, 1.00]
+    assert [l["value"] for l in oi_chart["lines"]] == [0.90, 0.95, 1.00]   # 97: progi lampki „Lewar altów”
     assert by["Kapitał: Alty / BTC — od 2020"]["lines"]
     # Derywaty: OI in coins, not dollars (doba UTC — last closed day: OI $ +5%, price −2% → OI in coins +7.1%)
     oi_rows = by["Open interest i cena — BTC i ETH"]["rows"]
@@ -117,7 +117,8 @@ def test_layout_from_config(tmp_path):
            "lines": {"oi_others_vs_btc": [[0.7, "test"]]}}
     by = blocks_by_title(report.build(data, ema, "manual", now=now, cfg=cfg))
     assert len(by["Likwidacje — ostatnie 3 dni (doba UTC)"]["rows"]) == 4
-    assert [l["label"] for l in by["Lewar: OI OTHERS / OI BTC — cała historia"]["lines"]] == ["test"]
+    # 97: na wykresie lewaru linie = progi lampki (config reports.lines już ich nie zmienia)
+    assert all(l["label"].startswith("lampka Lewar altów") for l in by["Lewar: OI OTHERS / OI BTC — cała historia"]["lines"])
     ema_tab = next(b for t, b in by.items() if t and t.startswith("Bliżej niż 20%"))
     assert [r[0] for r in ema_tab["rows"]] == ["TINY", "BTC", "SOL", "DOGE"]
 
@@ -188,7 +189,7 @@ def test_markdown_for_ai(tmp_path):
     for sec in ("## Rynek", "## Alty", "## Derywaty", "## Likwidacje", "## EMA200", "## Źródła danych i metody"):
         assert sec in md
     assert "dziś na " in md and "% zakresu" in md                     # range bars as numbers
-    assert "Linie poziomów: 0.600× = strefa dołków" in md             # chart levels as numbers
+    assert "Linie poziomów: 0.900× = lampka Lewar altów: uwaga" in md             # chart levels as numbers
     assert "| Dzień (UTC) | Suma | Longi | Shorty | Udział longów |" in md
     assert "<" not in md.replace("<=", "")                            # plain text, no HTML
     out = str(tmp_path / "out")
