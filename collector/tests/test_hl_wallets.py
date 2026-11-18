@@ -263,6 +263,19 @@ def test_group_stats_net_and_top3():
     assert series["L_all_netL"] == [[100, 3]] and series["L_all_netS"] == [[100, 2]]
 
 
+def test_group_notes_big_and_eaten():
+    """100: dopiski kafelka — duże konta i portfele, którym otwarte straty zjadły zysk; skład grup się nie zmienia."""
+    ws = [{"addr": "a", "g": ["L"], "av": 2e6, "pos": [{"c": "BTC", "L": True, "size": 900, "pnl": -500.0}]},
+          {"addr": "b", "g": ["L"], "av": 5e4, "pos": [{"c": "ETH", "L": True, "size": 100, "pnl": -10.0},
+                                                       {"c": "ETH", "L": False, "size": 40, "pnl": 5.0}]},
+          {"addr": "c", "g": ["L"], "av": 3e6, "pos": []}]
+    ch = {"a": {"L": {"n": 12, "win": 100.0, "pf": None, "pnl": 300.0}}, "b": {"L": {"n": 12, "win": 60.0, "pf": 2.0, "pnl": 300.0}}}
+    n = W.group_notes(ws, "L", ch)
+    assert n["big"] == {"min_av": W.BIG_AV, "n": 1, "long": 900, "short": 0}
+    assert n["eaten"] == {"n": 1, "amt": 900}                       # „a”: 300 − 500 ≤ 0; „b”: 300 − 10 > 0
+    assert "eaten" not in W.group_notes(ws, "R", ch)
+
+
 def test_with_open_counts_open_positions():
     """94: otwarte straty strony liczone jak przegrane zagrania — „100% na plus / bez strat” z dużą stratą otwartą odpada."""
     st = {"n": 23, "win": 100.0, "pf": None, "pnl": 156898.0}
