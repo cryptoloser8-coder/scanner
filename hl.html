@@ -188,6 +188,12 @@
   .banner:empty{display:none;}
   .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
   .pill:disabled{opacity:.4;cursor:not-allowed;}
+  .notes{border:1px solid rgba(91,156,246,.35);}
+  .notes h3{font-size:12px;font-weight:600;margin:14px 0 6px;color:#9cc0fa;}
+  .notes p,.notes li{font-size:12px;color:var(--text2);line-height:1.6;}
+  .notes ul,.notes ol{margin:4px 0 0 18px;}
+  .notes b{color:var(--text);}
+  .notes table{margin-top:4px;}
   @media print{ .brand{display:none !important;} #mov{display:none !important;} }
 </style>
 </head>
@@ -424,6 +430,50 @@ function htPanel() {
     `Grupy wg dzisiejszego wyniku: pokazują, jak grali dzisiejsi zarabiający i tracący. Nie nadają się do sprawdzania, czy ich ruchy wyprzedzały rynek (do grupy trafili właśnie dlatego, że trafili z kierunkiem) — to sprawdzimy na naszym sicie.</div>` +
     prog + `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-htcoin', items, S.htCoin)}<span class="ctrl-label">Pokaż</span>${pills('p-htshow', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty ($)']], S.htShow)}</div>` +
     `<div class="chart-wrap"><div class="legend" id="lg2"></div><div class="chart" id="ch2"></div><div class="empty" id="em2"></div></div><div class="hint">Powered by HyperTracker. Punkty co 4 h.</div></div>`;
+}
+
+// ── jak wybieramy portfele — do przemyślenia (poprawka 90) ──
+function notesPanel() {
+  const p = (META && META.sito && META.sito.params) || {};
+  return `<div class="panel notes"><h2>Jak wybieramy portfele i skąd są dane — do przemyślenia</h2>
+<div class="desc">Stan na start zakładki (18.11.2026). Do przeglądu za kilka tygodni, gdy będą własne, szczegółowe dane.</div>
+<h3>Kto trafia do grup</h3>
+<ol>
+<li><b>Wynik konta od początku — liczy go Hyperliquid</b> (ranking: zysk / strata za dzień, tydzień, miesiąc i od założenia konta). Do sita: tylko konta <b>na plusie od początku</b> i z saldem ≥ ${usd(p.min_av || 1e5)}; „tracący”: konta <b>na minusie od początku</b> (≥ $10k).</li>
+<li><b>Nasze przeliczenie z transakcji</b>: przy każdej transakcji zamykającej Hyperliquid podaje zrealizowany zysk / stratę; odejmujemy opłaty i liczymy osobno longi i shorty. „Skuteczny w longach” = w ostatnich transakcjach ≥ ${p.min_trips || 10} zagrań longiem i zyski ≥ ${num(p.min_pf || 1.2)}× strat (shorty tak samo). Do tego konto ≥ ${p.min_age_days || 365} dni i mniej niż ${p.max_fills_day || 200} transakcji dziennie (bez botów).</li>
+</ol>
+<h3>Jaką historię daje Hyperliquid (darmowe API)</h3>
+<div class="twrap"><table><thead><tr><th>Co</th><th>Jak daleko wstecz</th></tr></thead><tbody>
+<tr><td>Ranking: zysk / ROI / obrót (dzień, tydzień, miesiąc, od początku)</td><td>tylko stan na dziś</td></tr>
+<tr><td>Historia wartości konta i zysku</td><td>od założenia konta (dla „od początku” punkt co 1–2 tygodnie)</td></tr>
+<tr><td>Transakcje portfela (cena, wielkość, strona, zysk, opłata)</td><td>ok. 10 000 ostatnich; bierzemy 2000 ostatnich — typowo ok. pół roku, u bardzo aktywnych kilka dni</td></tr>
+<tr><td>Otwarte pozycje i zlecenia</td><td><b>tylko teraz</b> — bez historii; zapisujemy je sami co ~2 h od 18.11.2026 (tylko bieżący stan + sumy grup)</td></tr>
+</tbody></table></div>
+<h3>Co zapisujemy u siebie na stałe</h3>
+<div class="twrap"><table><thead><tr><th>Co</th><th>Jak często</th></tr></thead><tbody>
+<tr><td>Wynik każdego śledzonego portfela (grupa, wynik dnia, wynik od początku, konto) — „zyskowny czy stratny” dzień po dniu</td><td>raz na dobę, od 18.11.2026 (ok. 10 MB na rok)</td></tr>
+<tr><td>Kto był w sicie w danej rundzie (strony, wiek, skuteczność longów i shortów, konto)</td><td>co rundę sita (~tydzień)</td></tr>
+<tr><td>Sumy longów i shortów grup na coinach</td><td>co ~2 h</td></tr>
+<tr><td>Pozycje i zlecenia portfeli</td><td>tylko bieżący stan (bez biblioteki starych transakcji)</td></tr>
+</tbody></table></div>
+<p style="margin-top:6px">Historia grup sprzed startu — z HyperTrackera (od 19.02.2026), wg ich podziału: zysk / strata od założenia konta liczona dziś.</p>
+<h3>Słabe miejsca dziś</h3>
+<ul>
+<li>Wybór opiera się na <b>ogólnych liczbach z Hyperliquid</b> (wynik od początku) i krótkim oknie transakcji — nie na szczegółowej historii pozycji.</li>
+<li>Okno transakcji to głównie spadki rynku — część „skutecznych w shortach” mogła po prostu grać z trendem.</li>
+<li>${p.min_trips || 10} zagrań to mało przypadków — część portfeli przeszła sito przypadkiem.</li>
+<li>Nie trzymamy pojedynczych transakcji portfeli (świadomie — bez biblioteki starych transakcji); historia = dzienny wynik + bieżące pozycje.</li>
+<li>Grupy HyperTrackera wg dzisiejszego wyniku: dobre do „jak grali dzisiejsi zarabiający i tracący”, nie do sprawdzania, czy ich ruchy wyprzedzały rynek.</li>
+</ul>
+<h3>Plan na przegląd (za kilka tygodni)</h3>
+<ol>
+<li><b>Czy Hyperliquid zgadza się z nami</b>: wynik konta z rankingu i historii konta vs suma zrealizowanych zysków z transakcji vs zmiana wyniku z naszych zapisów pozycji co 2 h.</li>
+<li><b>Ocena z własnych danych</b>: z dziennych wyników portfeli i zdjęć sita — czy portfel zarabiał dzień po dniu / tydzień po tygodniu, jak często zmieniał grupę — zamiast tylko z ostatnich transakcji. Ocena liczona wyłącznie z danych do danego dnia (bez patrzenia w przyszłość). Szczegółowe wejścia / wyjścia — tylko jeśli ma je HyperTracker (punkt 5).</li>
+<li><b>Progi</b>: wiek konta 365 → 180 → 90 dni, minimum zagrań 10 / 20 / 30, próg zysków ÷ strat — porównać, ile portfeli zostaje i czy wyniki grup się zmieniają.</li>
+<li><b>Okresy rynku osobno</b>: skuteczność w longach i shortach liczona osobno w okresach wzrostów i spadków (żeby odróżnić umiejętność od grania z trendem).</li>
+<li><b>HyperTracker dla portfeli z sita</b>: sprawdzić, czy ma historię pozycji naszych portfeli (od 04.2025) — wtedy szczegółowa historia od razu, bez czekania (sonda „htwallets”).</li>
+<li><b>Dopiero potem</b>: czy ruchy skutecznych wyprzedzają fale altów (test na 3 okresach, „zwykły dzień”, mało przypadków — wprost).</li>
+</ol></div>`;
 }
 
 // ── portfele: okno ──
@@ -664,7 +714,7 @@ async function drawHT() {
 // ── całość ──
 function setStatus(cls, txt) { document.getElementById('dot').className = 'status-dot ' + cls; document.getElementById('status').textContent = txt; }
 function render() {
-  document.getElementById('main').innerHTML = groupsPanel() + tablePanel() + chartPanel() + changesPanel() + sitoPanel() + htPanel();
+  document.getElementById('main').innerHTML = groupsPanel() + tablePanel() + chartPanel() + changesPanel() + sitoPanel() + htPanel() + notesPanel();
   drawMain();
   drawHT();
 }
