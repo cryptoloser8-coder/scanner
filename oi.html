@@ -159,6 +159,8 @@
     .grp{padding:5px 9px;font-size:12px;}
     .grp-search{width:100%;margin-left:0;}
     select{max-width:150px;}
+    .legend{right:8px;}                                  /* 105: długi wiersz legendy zawija się zamiast wychodzić poza ekran */
+    .lg-row{width:auto;max-width:100%;flex-wrap:wrap;row-gap:0;align-self:flex-start;}
   }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
   .brand img{display:block;height:52px;max-width:100%;}
@@ -237,6 +239,7 @@
       <div class="pills">
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
         <button class="pill" id="cdl-btn" title="Ceny jako świece z knotami (tryb Wartości): BTC, ETH i coiny z watchlisty. Wyłączone = linia zamknięć.">Świece</button>
+        <button class="pill" id="bar-btn" title="Wolumen jako słupki (tryb Wartości) z cienką linią średniej z 30 poprzednich dni. Kilka wolumenów naraz — słupki nakładają się, każdy w swoim kolorze. Wyłączone = linie, bez średniej.">Słupki wolumenu</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis. Działa w każdym trybie.">Historyczne wydarzenia</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
@@ -356,7 +359,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, hev: false, candles: true, grp: ''},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, hev: false, candles: true, bars: true, grp: ''},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -371,6 +374,7 @@ function parseHash() {
   if (h.get('cyc')) o.cycle = h.get('cyc') === '1';
   if (h.get('hw')) o.hev = h.get('hw') === '1';
   if (h.get('cdl')) o.candles = h.get('cdl') !== '0';
+  if (h.get('vb')) o.bars = h.get('vb') !== '0';
   return o;
 }
 function persist() {
@@ -381,6 +385,7 @@ function persist() {
   if (S.cycle) h.set('cyc', '1');
   if (S.hev) h.set('hw', '1');
   if (!S.candles) h.set('cdl', '0');
+  if (!S.bars) h.set('vb', '0');
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -718,6 +723,7 @@ document.getElementById('lvl-btn').addEventListener('click', () => { S.levels = 
 document.getElementById('cyc-btn').addEventListener('click', () => { S.cycle = !S.cycle; refresh(); });
 document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.candles = !S.candles; refresh(); });
+document.getElementById('bar-btn').addEventListener('click', () => { S.bars = !S.bars; refresh(); });
 function syncControls() {
   for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
@@ -725,6 +731,8 @@ function syncControls() {
   const lb = document.getElementById('log-btn'); lb.classList.toggle('active', S.log && val); lb.disabled = !val;
   const hasWicks = S.series.some(id => WICKS[id] && cp(id + '_hi').length);
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.candles && val && hasWicks); kb.disabled = !val || !hasWicks;
+  const hasVol = S.series.some(isVol);
+  const bb = document.getElementById('bar-btn'); bb.classList.toggle('active', S.bars && val && hasVol); bb.disabled = !val || !hasVol;
   const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
   const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
   const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
@@ -853,7 +861,8 @@ let lastCrosshair = null;
 // bez podziałki (wartość w legendzie). Jednostka = CAT.axis albo grupa (makro: każda seria osobno).
 const TOP_GROUPS = ['oi', 'mcap', 'price', 'macro'];
 const AXIS_ORDER = ['oi', 'mcap', 'price', 'pct', 'ratio', 'pair', 'cyc'];
-const axisKey = id => CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
+// 105: słupki wolumenu zawsze na jednej wspólnej osi — nałożone słupki muszą mieć tę samą skalę (spot i perp, różne coiny)
+const axisKey = id => asBars(id) ? 'vol' : CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
 const isTop = id => TOP_GROUPS.includes(CAT[id].group) && CAT[id].pane !== 'low';
 const isCum = id => !!(CAT[id] || {}).cum;
 let cumPane = -1;                                  // panel z CVD w trybach % zmiana / Index 100 (tam zawsze wartości)
@@ -895,6 +904,25 @@ function allocAxes(ids) {
 // knoty ma każda cena z serią <id>_hi (BTC i ETH od 2009/2015, coiny z watchlisty od poprawki 68)
 const WICKS = new Proxy({}, {get: (_, id) => typeof id === 'string' && id.startsWith('px_') && !/_(hi|lo)$/.test(id)});
 const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && cp(id + '_hi').length > 0;
+// 105: wolumen jako słupki (tryb Wartości, przycisk „Słupki wolumenu”) + średnia z 30 poprzednich dni jako linia
+const isVol = id => (CAT[id] || {}).group === 'vol';
+const asBars = id => S.bars && S.mode === 'val' && isVol(id);
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
+const AVG_DAYS = 30;
+// średnia świec z 30 dni PRZED daną świecą (bez niej samej — słupek porównujemy z tym, co było wcześniej);
+// rysowana dopiero, gdy jest pełne 30 dni historii; na 1M nie ma sensu (okno krótsze niż świeca)
+function volAvg(a, iv) {
+  if (iv === '1m') return [];
+  const win = AVG_DAYS * 86400, out = [];
+  let sum = 0, j = 0;
+  for (let i = 0; i < a.length; i++) {
+    const t = a[i][0];
+    while (j < i && a[j][0] < t - win) { sum -= a[j][1]; j++; }
+    if (i > j && t - a[0][0] >= win) out.push([t, sum / (i - j)]);
+    sum += a[i][1];
+  }
+  return out;
+}
 let aux = [];                                      // linia zamknięć sprzed pierwszego knota (bez własnego wpisu w legendzie)
 
 // dane serii do wykresu: CVD = suma narastająca od początku wybranego zakresu (przyciski 1T/1M/…; ALL = od początku)
@@ -934,7 +962,12 @@ function drawChart(resetRange) {
         aux.push(ls);
       }
     }
+    const bar = asBars(id);
+    const nBars = bar ? ids.filter(asBars).length : 0;
+    let avg = null;
     const series = candle ? chart.addSeries(LWC.CandlestickSeries, Object.assign({priceScaleId: scale, priceFormat: pf}, CANDLE_OPTS), pane)
+      : bar ? chart.addSeries(LWC.HistogramSeries, {color: hexA(c.color, nBars > 1 ? .5 : .75), priceScaleId: scale, priceFormat: pf, base: 0,
+        title: '', lastValueVisible: true, priceLineVisible: false}, pane)
       : chart.addSeries(LWC.LineSeries, {
       color: c.color, lineWidth: 2, priceScaleId: scale, title: '',
       lastValueVisible: true, priceLineVisible: false,
@@ -943,6 +976,20 @@ function drawChart(resetRange) {
         : {type: 'price', precision: 2, minMove: 0.01},
     }, pane);
     if (candle) series.setData(pc.candles);
+    else if (bar) {
+      const a = seriesData(id), nowS = Date.now() / 1000, step = {'1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800}[S.res] || 31 * 86400;
+      // ostatnia świeca jeszcze trwa → słupek bledszy (niepełny wolumen)
+      const openT = a.length && a[a.length - 1][0] + step > nowS ? a[a.length - 1][0] : null;
+      series.setData(a.map(([t, v]) => t === openT ? {time: t, value: v, color: hexA(c.color, .25)} : {time: t, value: v}));
+      const av = volAvg(a, S.res);
+      if (av.length) {
+        const ls = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: scale, priceFormat: pf,
+          lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false}, pane);
+        ls.setData(av.map(([t, v]) => ({time: t, value: v})));
+        aux.push(ls);
+        avg = {series: ls, data: av, openT};
+      }
+    }
     else series.setData(seriesData(id).map(([t, v]) => ({time: t, value: v})));
     if (S.mode === 'val' && S.levels) {
       for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
@@ -956,7 +1003,7 @@ function drawChart(resetRange) {
           axisLabelVisible: true, title: ln.label || ''});
       }
     }
-    mounted.push({id, series, pane, scale, candle});
+    mounted.push({id, series, pane, scale, candle, avg});
   }
   // scales
   const mode = S.mode === 'pct' ? LWC.PriceScaleMode.Percentage : S.mode === 'idx' ? LWC.PriceScaleMode.IndexedTo100
@@ -1009,7 +1056,7 @@ function rangeInfo() {
 }
 function updateLegend(param) {
   lastCrosshair = param && param.time ? param : null;
-  const rows = mounted.map(({id, series, candle}) => {
+  const rows = mounted.map(({id, series, candle, avg}) => {
     const c = CAT[id];
     let v = null, ohlc = null;
     if (lastCrosshair) { const d = param.seriesData.get(series); v = d && (candle ? d.close : d.value); if (candle && d) ohlc = d; }
@@ -1022,6 +1069,12 @@ function updateLegend(param) {
       const a = cp(id);
       const first = vr ? a.find(p => p[0] >= vr.from) : null;
       if (first && v != null) extra = ` <span title="Zmiana od lewej krawędzi widocznego zakresu (${new Date(first[0] * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Warsaw'})})">${chg(v, first[1])}</span>`;
+    }
+    if (avg) {                                                     // 105: średnia z 30 dni przy słupkach wolumenu
+      let m = null;
+      if (lastCrosshair) { const d = param.seriesData.get(avg.series); m = d ? d.value : null; }
+      else m = avg.data[avg.data.length - 1][1];
+      if (m) extra += ` <span class="lg-short" title="Cienka linia: średnia świec z ${AVG_DAYS} dni przed tą świecą (bez niej samej). Tło do porównania, nie sygnał.">śr. ${AVG_DAYS} dni ${fmt(m, fmtOf(c))}${v == null ? '' : (lastCrosshair ? param.time : avg.openT) === avg.openT && avg.openT ? ' · świeca trwa' : ' · ×' + (v / m).pl(1)}</span>`;
     }
     if (c.cum) {                                                   // 103: CVD na wykresie to suma narastająca — podpis, od kiedy
       const a0 = cp(id), t0 = cumFrom ? Math.max(cumFrom, a0.length ? a0[0][0] : cumFrom) : (a0.length ? a0[0][0] : null);
