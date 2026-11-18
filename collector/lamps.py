@@ -6,7 +6,7 @@ spełniony w ostatnim dniu z danymi.
 
 Lampki (progi: config.yaml → alt_lamps):
   rally     szeroki rajd: szerokość rynku ≥ 80% (poziom 2: ≥ 90%)                   — ema.json (Orange Pi)
-  big_wave  duża fala w toku: indeks altów ≥ +40% nad dołkiem, do potwierdzenia końca — altindex.json (Pi)
+  big_wave  „Indeks altów” (dawniej „Duża fala w toku”): indeks altów ≥ +40% nad dołkiem, do potwierdzenia końca — altindex.json (Pi)
   leverage  lewar altów OI OTHERS / OI BTC ≥ 0,90 / 0,95 / 1,0                         — Coinalyze (ten bot)
   rsi3d     RSI 3D: ≥ 30% coinów wykupionych (zamknięte świece 3D)                     — ema.json (Pi)
   selloff   wyprzedaż: indeks altów ≤ −20% w 30 dni i (MVRV-Z ≤ 0,5 lub BTC ≤ −10% w 30 dni)
@@ -36,7 +36,7 @@ DEFAULTS = {
 
 LAMPS = ("rally", "big_wave", "leverage", "rsi3d", "selloff")
 GROUP = {"rally": "rajd", "big_wave": "rajd", "leverage": "przegrzanie", "rsi3d": "przegrzanie", "selloff": "wyprzedaż"}
-NAME = {"rally": "Szeroki rajd", "big_wave": "Duża fala w toku", "leverage": "Lewar altów",
+NAME = {"rally": "Szeroki rajd", "big_wave": "Indeks altów", "leverage": "Lewar altów",
         "rsi3d": "RSI 3D wykupione", "selloff": "Wyprzedaż"}
 # po zapaleniu: która strona się „sprawdza” (rajd → alty wyżej, reszta → niżej)
 WANT_UP = {"rally": True, "big_wave": True, "leverage": False, "rsi3d": False, "selloff": False}
@@ -320,8 +320,9 @@ def describe(k, info, c, level):
                 "Rajd trwa — to nie jest sygnał sprzedaży.")
     if k == "big_wave":
         low = f" od dołka {dmy(info['low_t'])}" if info.get("low_t") else ""
-        return (f"🟢 <b>Duża fala altów potwierdzona</b>: indeks altów {v:+.0f}%{low} (próg +{c['big_wave']['wave_pct']:g}%). "
-                "Spora część fali zwykle już za nami — pilnuj lampek przegrzania.")
+        return (f"🟢 <b>Indeks altów</b> {v:+.0f}%{low} (próg +{c['big_wave']['wave_pct']:g}%). "
+                "Zwykle zapala się w połowie większej fali wzrostowej albo pod koniec mniejszej — przejrzyj pozostałe "
+                "wskaźniki, pilnuj rynku i miej ustaloną strategię wyjścia choćby częścią kapitału.")
     if k == "leverage":
         thr = c["leverage"]["levels"][level - 1]
         txt = {1: "uwaga, przegrzanie blisko", 2: "przegrzanie — historycznie czas sprzedaży",

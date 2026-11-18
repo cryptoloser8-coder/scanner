@@ -298,12 +298,27 @@ def group_stats(wallets):
     only_l = only_s = both = 0
     levb = [[0, 0] for _ in LEV_BUCKETS]
     coins = {k: {"long": 0.0, "short": 0.0, "nL": 0, "nS": 0} for k in COINS}
-    in_pos = 0
+    in_pos = net_l = net_s = 0
+    per = {"all": ([], [])}                  # 96: kwoty na portfel (longi, shorty) — udział 3 największych
     for w in wallets:
         pos = w["pos"]
         if not pos:
             continue
         in_pos += 1
+        wl, ws_ = {}, {}
+        for p in pos:
+            d = wl if p["L"] else ws_
+            for k in ("all", coin_key(p["c"])):
+                d[k] = d.get(k, 0.0) + (p["size"] or 0)
+        for k in set(wl) | set(ws_):
+            a, b = per.setdefault(k, ([], []))
+            if wl.get(k):
+                a.append(wl[k])
+            if ws_.get(k):
+                b.append(ws_[k])
+        net = wl.get("all", 0.0) - ws_.get("all", 0.0)
+        net_l += net > 0
+        net_s += net < 0
         av_sum += w["av"] or 0
         ls = [p for p in pos if p["L"]]
         ss = [p for p in pos if not p["L"]]
@@ -326,13 +341,20 @@ def group_stats(wallets):
                 tot_l += p["size"] or 0
             else:
                 tot_s += p["size"] or 0
+    def top3(vals):
+        """ile % kwoty strony trzymają 3 największe portfele (None, gdy portfeli ≤ 3 — wtedy to oczywiste)."""
+        tot = sum(vals)
+        return _r(sum(sorted(vals, reverse=True)[:3]) / tot * 100, 0) if tot and len(vals) > 3 else None
     for k in coins:
         a = coins[k]
+        a["top3L"], a["top3S"] = top3(per.get(k, ([], []))[0]), top3(per.get(k, ([], []))[1])
         a["lpct"] = _r(a["long"] / (a["long"] + a["short"]) * 100, 1) if a["long"] + a["short"] else None
         a["long"], a["short"] = round(a["long"]), round(a["short"])
     return {"n": len(wallets), "in_pos": in_pos, "long": round(tot_l), "short": round(tot_s),
             "lpct": _r(tot_l / (tot_l + tot_s) * 100, 1) if tot_l + tot_s else None,
             "only_long": only_l, "only_short": only_s, "both": both,
+            "net_long": net_l, "net_short": net_s,          # 96: portfele netto w longu / shorcie (wg wartości pozycji)
+            "top3L": top3(per["all"][0]), "top3S": top3(per["all"][1]),
             "eff_lev": _r((tot_l + tot_s) / av_sum, 2) if av_sum else None,
             "lev_buckets": [[LEV_BUCKETS[i][2]] + levb[i] for i in range(len(LEV_BUCKETS))], "coins": coins}
 
@@ -350,6 +372,8 @@ def append_series(series, t, groups):
         add(f"{g}_all_long", st["long"])
         add(f"{g}_all_short", st["short"])
         add(f"{g}_all_lpct", st["lpct"])
+        add(f"{g}_all_netL", st.get("net_long"))            # 96: liczba portfeli netto long / short — historia
+        add(f"{g}_all_netS", st.get("net_short"))
         for c, a in st["coins"].items():
             add(f"{g}_{c}_long", a["long"])
             add(f"{g}_{c}_short", a["short"])
