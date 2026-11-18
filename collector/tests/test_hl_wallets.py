@@ -246,6 +246,21 @@ def test_best_lists():
     assert L[0]["upnl"] is None and L[0]["pos"] == [] and L[0]["av"] == 1e5
 
 
+def test_group_stats_net_and_top3():
+    """96: portfele netto w longu / shorcie i udział 3 największych — % wg kwot bywa dziełem kilku portfeli."""
+    def w(*pos):
+        return {"av": 1e5, "pos": [{"c": c, "L": L, "size": sz, "lev": 5, "pnl": 0} for c, L, sz in pos]}
+    ws = [w(("BTC", True, 900)), w(("BTC", True, 50), ("ETH", False, 80)), w(("ETH", False, 30)),
+          w(("BTC", True, 30)), w(("BTC", True, 20)), {"av": 1e5, "pos": []}]
+    g = W.group_stats(ws)
+    assert g["net_long"] == 3 and g["net_short"] == 2 and g["in_pos"] == 5
+    assert g["top3L"] == 98 and g["top3S"] is None                 # shorty ma tylko 2 portfele → nie liczymy
+    assert g["coins"]["BTC"]["top3L"] == 98 and g["coins"]["ETH"]["top3S"] is None
+    series = {}
+    W.append_series(series, 100, {"L": g})
+    assert series["L_all_netL"] == [[100, 3]] and series["L_all_netS"] == [[100, 2]]
+
+
 def test_with_open_counts_open_positions():
     """94: otwarte straty strony liczone jak przegrane zagrania — „100% na plus / bez strat” z dużą stratą otwartą odpada."""
     st = {"n": 23, "win": 100.0, "pf": None, "pnl": 156898.0}
