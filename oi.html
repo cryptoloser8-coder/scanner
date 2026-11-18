@@ -240,6 +240,8 @@
         <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości)">Log</button>
         <button class="pill" id="cdl-btn" title="Ceny jako świece z knotami (tryb Wartości): BTC, ETH i coiny z watchlisty. Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="bar-btn" title="Wolumen jako słupki (tryb Wartości) z cienką linią średniej z 30 poprzednich dni. Kilka wolumenów naraz — słupki nakładają się, każdy w swoim kolorze. Wyłączone = linie, bez średniej.">Słupki wolumenu</button>
+        <button class="pill" id="cvb-btn" title="CVD jako słupki „na świecę”: kupno − sprzedaż w tej jednej świecy (w górę = przewaga kupna, w dół = przewaga sprzedaży) zamiast linii z sumą narastającą. Jedno CVD — słupki zielone / czerwone; kilka — każde w swoim kolorze, na wspólnej osi. Wyłączone = linia narastająca.">Słupki CVD</button>
+        <button class="pill" id="oic-btn" title="Dodatkowy panel pod wykresem: zmiana open interest w % na świecę (od zamknięcia poprzedniej świecy) dla każdej serii OI z wykresu. Linia OI zostaje. Uwaga: OI liczone w $, więc zmiana zawiera też ruch ceny coina.">Zmiana OI</button>
         <button class="pill" id="cyc-btn" title="Tło w kolorach faz cyklu BTC (hossa, bessa, akumulacja) i pionowe linie: halvingi, szczyty i dna cykli — te same reguły co w raporcie miesięcznym. Działa w każdym trybie.">Fazy cyklu</button>
         <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis. Działa w każdym trybie.">Historyczne wydarzenia</button>
         <button class="pill" id="lvl-btn" title="Pokaż / ukryj linie poziomów (te same co w raporcie + poziomy alertów z config.yaml; tryb Wartości)">Linie poziomów</button>
@@ -359,7 +361,7 @@ const store = {
 
 let META = null, CAT = {};
 const DATA = {'1d': null, '1h': null};
-let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, hev: false, candles: true, bars: true, grp: ''},
+let S = Object.assign({series: BUILTIN_PRESETS[0].series.slice(), mode: 'pct', res: '1d', range: 365, log: false, levels: true, cycle: false, hev: false, candles: true, bars: true, cvdbars: false, oichg: false, grp: ''},
   store.get('view', {}), parseHash());
 
 function parseHash() {
@@ -375,6 +377,8 @@ function parseHash() {
   if (h.get('hw')) o.hev = h.get('hw') === '1';
   if (h.get('cdl')) o.candles = h.get('cdl') !== '0';
   if (h.get('vb')) o.bars = h.get('vb') !== '0';
+  if (h.get('cb')) o.cvdbars = h.get('cb') === '1';
+  if (h.get('oc')) o.oichg = h.get('oc') === '1';
   return o;
 }
 function persist() {
@@ -386,6 +390,8 @@ function persist() {
   if (S.hev) h.set('hw', '1');
   if (!S.candles) h.set('cdl', '0');
   if (!S.bars) h.set('vb', '0');
+  if (S.cvdbars) h.set('cb', '1');
+  if (S.oichg) h.set('oc', '1');
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -724,6 +730,8 @@ document.getElementById('cyc-btn').addEventListener('click', () => { S.cycle = !
 document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.candles = !S.candles; refresh(); });
 document.getElementById('bar-btn').addEventListener('click', () => { S.bars = !S.bars; refresh(); });
+document.getElementById('cvb-btn').addEventListener('click', () => { S.cvdbars = !S.cvdbars; refresh(); });
+document.getElementById('oic-btn').addEventListener('click', () => { S.oichg = !S.oichg; refresh(); });
 function syncControls() {
   for (const [id, key] of [['res-pills', 'res'], ['range-pills', 'range'], ['mode-pills', 'mode']])
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
@@ -733,6 +741,9 @@ function syncControls() {
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.candles && val && hasWicks); kb.disabled = !val || !hasWicks;
   const hasVol = S.series.some(isVol);
   const bb = document.getElementById('bar-btn'); bb.classList.toggle('active', S.bars && val && hasVol); bb.disabled = !val || !hasVol;
+  const hasCvd = S.series.some(isCum), hasOi = S.series.some(isOi);
+  const xb = document.getElementById('cvb-btn'); xb.classList.toggle('active', S.cvdbars && hasCvd); xb.disabled = !hasCvd;
+  const ob = document.getElementById('oic-btn'); ob.classList.toggle('active', S.oichg && hasOi); ob.disabled = !hasOi;
   const anyLines = (META.levels || []).length || Object.keys(META.ref_lines || {}).length;
   const vb = document.getElementById('lvl-btn'); vb.classList.toggle('active', S.levels && val); vb.disabled = !val || !anyLines;
   const cb = document.getElementById('cyc-btn'), hasCyc = cycleOn(true);
@@ -862,10 +873,10 @@ let lastCrosshair = null;
 const TOP_GROUPS = ['oi', 'mcap', 'price', 'macro'];
 const AXIS_ORDER = ['oi', 'mcap', 'price', 'pct', 'ratio', 'pair', 'cyc'];
 // 105: słupki wolumenu zawsze na jednej wspólnej osi — nałożone słupki muszą mieć tę samą skalę (spot i perp, różne coiny)
-const axisKey = id => asBars(id) ? 'vol' : CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
+const axisKey = id => asBars(id) ? 'vol' : cvdBar(id) ? 'cvdbar' : CAT[id].axis || (CAT[id].group === 'cycle' ? 'cyc' : CAT[id].group === 'macro' ? id : CAT[id].group);
 const isTop = id => TOP_GROUPS.includes(CAT[id].group) && CAT[id].pane !== 'low';
 const isCum = id => !!(CAT[id] || {}).cum;
-let cumPane = -1;                                  // panel z CVD w trybach % zmiana / Index 100 (tam zawsze wartości)
+let cumPane = -1, chgPane = -1;                                  // panel z CVD w trybach % zmiana / Index 100 (tam zawsze wartości)
 function allocAxes(ids) {
   const out = {};
   cumPane = -1;
@@ -906,6 +917,11 @@ const WICKS = new Proxy({}, {get: (_, id) => typeof id === 'string' && id.starts
 const asCandles = id => S.candles && S.mode === 'val' && WICKS[id] && cp(id + '_hi').length > 0;
 // 105: wolumen jako słupki (tryb Wartości, przycisk „Słupki wolumenu”) + średnia z 30 poprzednich dni jako linia
 const isVol = id => (CAT[id] || {}).group === 'vol';
+// 106: CVD jako słupki „na świecę” (przycisk „Słupki CVD”) i panel ze zmianą OI w % na świecę (przycisk „Zmiana OI”)
+const cvdBar = id => S.cvdbars && isCum(id);
+const isOi = id => (CAT[id] || {}).group === 'oi';
+const UPC = '#4caf7d', DNC = '#e05252';
+function pctChg(a) { const out = []; for (let i = 1; i < a.length; i++) if (a[i - 1][1] > 0) out.push([a[i][0], (a[i][1] / a[i - 1][1] - 1) * 100]); return out; }
 const asBars = id => S.bars && S.mode === 'val' && isVol(id);
 const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 const AVG_DAYS = 30;
@@ -927,7 +943,7 @@ let aux = [];                                      // linia zamknięć sprzed pi
 
 // dane serii do wykresu: CVD = suma narastająca od początku wybranego zakresu (przyciski 1T/1M/…; ALL = od początku)
 let cumFrom = 0;
-function seriesData(id) { return isCum(id) ? cumulate(cp(id), cumFrom) : cp(id); }
+function seriesData(id) { return isCum(id) && !cvdBar(id) ? cumulate(cp(id), cumFrom) : cp(id); }
 function drawChart(resetRange) {
   if (!chart) makeChart();
   const prevRange = chart.timeScale().getVisibleRange();
@@ -966,6 +982,8 @@ function drawChart(resetRange) {
     const nBars = bar ? ids.filter(asBars).length : 0;
     let avg = null;
     const series = candle ? chart.addSeries(LWC.CandlestickSeries, Object.assign({priceScaleId: scale, priceFormat: pf}, CANDLE_OPTS), pane)
+      : cvdBar(id) ? chart.addSeries(LWC.HistogramSeries, {color: hexA(c.color, .7), priceScaleId: scale, priceFormat: pf, base: 0,
+        title: '', lastValueVisible: true, priceLineVisible: false}, pane)
       : bar ? chart.addSeries(LWC.HistogramSeries, {color: hexA(c.color, nBars > 1 ? .5 : .75), priceScaleId: scale, priceFormat: pf, base: 0,
         title: '', lastValueVisible: true, priceLineVisible: false}, pane)
       : chart.addSeries(LWC.LineSeries, {
@@ -990,6 +1008,10 @@ function drawChart(resetRange) {
         avg = {series: ls, data: av, openT};
       }
     }
+    else if (cvdBar(id)) {
+      const one = ids.filter(cvdBar).length === 1;      // jedno CVD: zielony / czerwony; kilka: kolor serii (kierunek = góra / dół)
+      series.setData(seriesData(id).map(([t, v]) => one ? {time: t, value: v, color: hexA(v >= 0 ? UPC : DNC, .8)} : {time: t, value: v}));
+    }
     else series.setData(seriesData(id).map(([t, v]) => ({time: t, value: v})));
     if (S.mode === 'val' && S.levels) {
       for (const lv of (META.levels || []).filter(l => l.series === id && l.level)) {
@@ -1005,6 +1027,24 @@ function drawChart(resetRange) {
     }
     mounted.push({id, series, pane, scale, candle, avg});
   }
+  // 106: panel „Zmiana OI” — słupki zmiany w % na świecę pod wykresem (linie OI zostają)
+  chgPane = -1;
+  const oiIds = S.oichg ? ids.filter(isOi) : [];
+  if (oiIds.length) {
+    chgPane = Math.max(...mounted.map(m => m.pane)) + 1;
+    const pfp = {type: 'custom', minMove: 0.01, formatter: v => (v > 0 ? '+' : '') + v.pl(1) + '%'};
+    for (const id of oiIds) {
+      const d = pctChg(cp(id)); if (!d.length) continue;
+      const one = oiIds.length === 1, col = CAT[id].color;
+      const hs = chart.addSeries(LWC.HistogramSeries, {color: hexA(col, .7), priceScaleId: 'right', priceFormat: pfp, base: 0,
+        title: '', lastValueVisible: false, priceLineVisible: false}, chgPane);
+      hs.setData(d.map(([t, v]) => one ? {time: t, value: v, color: hexA(v >= 0 ? UPC : DNC, .8)} : {time: t, value: v}));
+      aux.push(hs);
+      const m = mounted.find(x => x.id === id); m.chg = {series: hs, data: d};
+    }
+    used[chgPane + ':right'] = true;
+    if (cycTimes.length) addBands([chgPane], cycTimes);
+  }
   // scales
   const mode = S.mode === 'pct' ? LWC.PriceScaleMode.Percentage : S.mode === 'idx' ? LWC.PriceScaleMode.IndexedTo100
     : (S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal);
@@ -1012,7 +1052,7 @@ function drawChart(resetRange) {
   const sideUsed = side => Object.keys(used).some(k => k.endsWith(':' + side));
   // log (tryb Wartości) — tylko górny panel z USD / cenami / makro; wskaźniki w dolnym zostają liniowe
   const logTop = S.mode === 'val' && ids.some(isTop);
-  const modeFor = pane => pane === cumPane ? LWC.PriceScaleMode.Normal
+  const modeFor = pane => pane === cumPane || pane === chgPane ? LWC.PriceScaleMode.Normal
     : (S.mode !== 'val' || (pane === 0 && logTop)) ? mode : LWC.PriceScaleMode.Normal;
   chart.panes().forEach((p, i) => {
     for (const side of ['left', 'right']) {
@@ -1024,7 +1064,10 @@ function drawChart(resetRange) {
     m.series.priceScale().applyOptions({mode: modeFor(m.pane), scaleMargins: {top: .12, bottom: .08}});
   if (chart.panes().length > 1) {
     const total = document.getElementById('chart').clientHeight;
-    chart.panes()[1].setHeight(Math.round(total * .3));
+    const ps = chart.panes();
+    const f = ps.length === 2 ? (chgPane === 1 ? [.78, .22] : [.7, .3]) : [.56, .26, .18];
+    if (ps[0].setStretchFactor) ps.forEach((p, i) => p.setStretchFactor(f[i] * 100));
+    else ps.slice(1).forEach((p, i) => p.setHeight(Math.round(total * f[i + 1])));
   }
   // range
   const all = mounted.flatMap(m => { const a = seriesData(m.id); return a.length ? [a[0][0], a[a.length - 1][0]] : []; });
@@ -1056,7 +1099,7 @@ function rangeInfo() {
 }
 function updateLegend(param) {
   lastCrosshair = param && param.time ? param : null;
-  const rows = mounted.map(({id, series, candle, avg}) => {
+  const rows = mounted.map(({id, series, candle, avg, chg: oc}) => {
     const c = CAT[id];
     let v = null, ohlc = null;
     if (lastCrosshair) { const d = param.seriesData.get(series); v = d && (candle ? d.close : d.value); if (candle && d) ohlc = d; }
@@ -1076,7 +1119,14 @@ function updateLegend(param) {
       else m = avg.data[avg.data.length - 1][1];
       if (m) extra += ` <span class="lg-short" title="Cienka linia: średnia świec z ${AVG_DAYS} dni przed tą świecą (bez niej samej). Tło do porównania, nie sygnał.">śr. ${AVG_DAYS} dni ${fmt(m, fmtOf(c))}${v == null ? '' : (lastCrosshair ? param.time : avg.openT) === avg.openT && avg.openT ? ' · świeca trwa' : ' · ×' + (v / m).pl(1)}</span>`;
     }
-    if (c.cum) {                                                   // 103: CVD na wykresie to suma narastająca — podpis, od kiedy
+    if (oc) {                                                      // 106: zmiana OI na świecę (panel słupków)
+      let m = null;
+      if (lastCrosshair) { const d = param.seriesData.get(oc.series); m = d ? d.value : null; }
+      else m = oc.data[oc.data.length - 1][1];
+      if (m != null) extra += ` <span class="lg-short" title="Zmiana OI od zamknięcia poprzedniej świecy — słupki w dolnym panelu. OI w $, więc zawiera też ruch ceny coina.">świeca ${m > 0 ? '+' : ''}${m.pl(1)}%</span>`;
+    }
+    if (cvdBar(id)) extra += ` <span class="lg-short" title="Kupno − sprzedaż w tej jednej świecy (słupek). Linia z sumą narastającą: wyłącz „Słupki CVD”.">na świecę</span>`;
+    else if (c.cum) {                                              // 103: CVD na wykresie to suma narastająca — podpis, od kiedy
       const a0 = cp(id), t0 = cumFrom ? Math.max(cumFrom, a0.length ? a0[0][0] : cumFrom) : (a0.length ? a0[0][0] : null);
       if (t0) extra += ` <span class="lg-short" title="CVD na wykresie = kupno − sprzedaż zsumowane od tej daty (początek wybranego zakresu). Sam poziom zależy od daty startu — patrz na kierunek linii.">suma od ${new Date(t0 * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'UTC'})}</span>`;
     }
