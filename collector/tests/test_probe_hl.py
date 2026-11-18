@@ -145,3 +145,120 @@ def test_spec_401_does_not_stop_and_key_cleaned(monkeypatch):
     by = {r["item"]: r for r in rows}
     assert by["specyfikacja OpenAPI"]["status"] == "błąd"
     assert by["grupy (segments)"]["status"] == "ok" and by["metryki BTC — Smart Money (9)"]["status"] == "ok"
+
+
+# ── sonda 86 ──
+DAY = 86400
+
+
+def F(t, coin, side, sz, start, pnl=0.0, fee=0.0, tid=0):
+    return {"time": t * 1000, "coin": coin, "side": side, "sz": str(sz), "startPosition": str(start),
+            "closedPnl": str(pnl), "fee": str(fee), "tid": tid}
+
+
+def test_trips_long_short_flip_and_partial_window():
+    T = 1760000000
+    fills = [
+        F(T, "BTC", "A", 1, 2, pnl=5),               # okno zaczyna się w środku longa (2 → 1)
+        F(T + 10, "BTC", "A", 1, 1, pnl=5),          # long zamknięty: +10
+        F(T + 20, "PEPE", "A", 100, 0),              # short 100
+        F(T + 30, "PEPE", "B", 150, -100, pnl=-7, fee=1),   # odwrócenie: short −8 zamknięty, long 50 otwarty
+        F(T + 40, "PEPE", "A", 50, 50, pnl=3),       # long +3
+        F(T + 50, "xyz:IBM", "B", 1, 0),             # pomijane
+        F(T + 60, "SOL", "B", 1, 0),                 # otwarte — nie liczone
+    ]
+    tr = probe_hl.trips(fills)
+    assert [(t["coin"], t["side"], round(t["pnl"], 6)) for t in tr] == [("BTC", "long", 10.0), ("PEPE", "short", -8.0),
+                                                                          ("PEPE", "long", 3.0)]
+    st = probe_hl.side_stats([t for t in tr if t["side"] == "long"])
+    assert st["n"] == 2 and st["win_pct"] == 100 and st["pf"] == float("inf")
+
+
+def test_months_positive():
+    base = 1735689600  # 2025-01-01
+    hist = [[(base + d * DAY) * 1000, str(v)] for d, v in ((0, 0), (40, 10), (70, 5), (100, 20), (130, 30))]
+    pct, n = probe_hl.months_positive(hist)
+    assert n == 4 and pct == 75.0
+
+
+class Clock:
+    def __init__(self):
+        self.t = 1763424000.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, s):
+        self.t += s
+
+
+class FakeSito(FakeHL):
+    def __init__(self, clock):
+        super().__init__()
+        self.n429 = 0
+        self.clock = clock
+
+    def post(self, url, json=None, headers=None, timeout=None):
+        t = json["type"]
+        if t == "metaAndAssetCtxs":
+            return Resp([{"universe": [{"name": "BTC"}, {"name": "PEPE"}, {"name": "xyz:IBM"}, {"name": "OLD", "isDelisted": True}]},
+                         [{"markPx": "100000", "openInterest": "1000"}, {"markPx": "0.00001", "openInterest": "2e12"},
+                          {"markPx": "300", "openInterest": "1e6"}, {"markPx": "1", "openInterest": "1e9"}]])
+        if t == "portfolio":
+            return Resp([["perpAllTime", {"pnlHistory": [[(NOW - 400 * DAY) * 1000, "0"], [(NOW - 10 * DAY) * 1000, "5"]]}]])
+        if t == "userFills":
+            T = NOW - 20 * DAY
+            out = []
+            for i in range(40):
+                out.append(F(T + i * 100, "PEPE", "B", 1, 0, tid=2 * i))
+                out.append(F(T + i * 100 + 50, "PEPE", "A", 1, 1, pnl=(2 if i % 4 else -1), tid=2 * i + 1))
+            return Resp(out)
+        return super().post(url, json, headers, timeout)
+
+
+def test_hlsito_end_to_end_and_weights():
+    clk = Clock()
+    extra = {}
+    rows = probe_hl.check_hlsito(session=FakeSito(clk), sleep=clk.sleep, clock=clk, extra=extra, now=NOW,
+                                 n_top=5, n_random=5, n_deep=2)
+    by = {r["item"]: r for r in rows}
+    mk = by["rynki krypto (główna giełda HL)"]
+    assert mk["n"] == 2 and "koszyk altów (reszta) $20.0M" in mk["note"]
+    assert by["pominięte rynki z „:”"]["n"] == 1
+    assert by["profile portfeli (portfolio + userFills)"]["n"] == 10
+    w = extra["hlsito"]["wallets"][0]
+    assert w["long"]["n"] == 40 and w["long"]["win_pct"] == 75.0 and round(w["age_days"]) == 400
+    assert "p50 75.0" in by["skuteczność — longi (% zagrań na plus)"]["note"]
+    assert any(k.startswith("przykładowe sito: wiek ≥ 365") and by[k]["n"] == 10 for k in by)
+    # 21 zapytań po 20 wag + 10 × 80 transakcji / 20 = 460 wag
+    assert "wag 460" in by["koszt"]["note"]
+
+
+def test_weighted_client_waits_for_limit():
+    clk = Clock()
+    hl = probe_hl.WeightedHL(FakeSito(clk), clk.sleep, clk, per_min=50)
+    t0 = clk.t
+    for _ in range(3):
+        hl.call({"type": "portfolio", "user": "0x1"}, 20)
+    assert clk.t - t0 >= 59 and hl.weight == 60
+
+
+class FakeHTPages(FakeHT):
+    def get(self, url, params=None, headers=None, timeout=None):
+        if "/coin/BTC/segment/9" in url:
+            self.paths.append(url)
+            page = 0 if "nextCursor" not in params else int(params["nextCursor"])
+            base = NOW - (page + 1) * 20 * DAY
+            nxt = str(page + 1) if page < 2 else None
+            return Resp({"metrics": [{"createdAt": base + i * 1728} for i in range(1000)], "nextCursor": nxt})
+        return super().get(url, params, headers, timeout)
+
+
+def test_htdepth_pages_to_start(monkeypatch):
+    monkeypatch.setenv("HYPERTRACKER_API_KEY", "K")
+    s = FakeHTPages("K")
+    rows = probe_hl.check_htdepth(session=s, sleep=lambda *_: None, extra={}, now=NOW)
+    by = {r["item"]: r for r in rows}
+    h = by["historia BTC — Smart Money (9)"]
+    assert h["n"] == 3000 and "stron 3" in h["note"] and "pełna historia" in h["note"]
+    assert by["koszt"]["n"] == len(s.paths)
