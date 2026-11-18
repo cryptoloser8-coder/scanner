@@ -22,18 +22,16 @@ if (!Number.prototype.pl) {
   var full = html.dataset.shell === 'full';
   html.classList.add('cl-shell', full ? 'cl-full' : 'cl-narrow');
 
+  // kolejność menu (poprawka 111): Pulpit na górze (osobno), niżej jedna lista bez działów
   var NAV = [
-    {sec: 'Rynek'},
     {href: 'oi.html', ic: 'OI', name: 'OI & TOTAL', short: 'OI', rgb: '206,147,216', fg: '#ce93d8', status: 'live'},
-    {href: 'liq.html', ic: 'LIQ', name: 'Likwidacje i funding', short: 'Likwid.', rgb: '224,82,82', fg: '#e05252', status: 'live'},
-    {href: 'sieci.html', ic: 'NET', name: 'Sieci', short: 'Sieci', rgb: '129,199,132', fg: '#81c784', status: 'beta'},
-    {sec: 'Alty'},
-    {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true, status: 'beta'},
     {href: 'ema.html', ic: 'EMA', name: 'EMA200 i RSI', short: 'EMA200', rgb: '255,193,7', fg: '#ffc107', status: 'live'},
-    {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d', status: 'live'},
+    {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true, status: 'beta'},
+    {href: 'sieci.html', ic: 'NET', name: 'Sieci', short: 'Sieci', rgb: '129,199,132', fg: '#81c784', status: 'beta'},
+    {href: 'liq.html', ic: 'LIQ', name: 'Likwidacje i funding', short: 'Likwid.', rgb: '224,82,82', fg: '#e05252', status: 'live'},
     {href: 'hl.html', ic: 'LEW', name: 'Dźwignia — zarabiający vs reszta', short: 'Dźwignia', rgb: '91,156,246', fg: '#5b9cf6', status: 'beta'},
-    {sec: 'Raporty'},
     {href: 'raporty.html', ic: 'RAP', name: 'Raporty', short: 'Raporty', rgb: '38,198,218', fg: '#26c6da', status: 'beta'},
+    {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d', status: 'live'},
     {href: 'fib.html', ic: 'Fib', name: 'Fibo · zawieszone', short: 'Fibo', rgb: '255,255,255', fg: '#8a8a8a', paused: true, status: 'paused'}
   ];
   // Status zakładki — znaczek przy tytule strony (poprawka 78). Zmiana statusu: pole status w NAV wyżej.
@@ -42,7 +40,7 @@ if (!Number.prototype.pl) {
     beta: ['Beta', 'Działa, ale jeszcze dopracowywane — możliwe zmiany i drobne błędy.'],
     paused: ['Zawieszone', 'Wstrzymane do dopracowania — wyniki mogą być nietrafione.']
   };
-  var MOBILE = ['index.html', 'oi.html', 'liq.html', 'alt.html', 'hl.html', 'raporty.html'];   // 101: + Likwidacje i Dźwignia
+  var MOBILE = ['index.html', 'oi.html', 'alt.html', 'liq.html', 'hl.html', 'raporty.html'];   // 101: + Likwidacje i Dźwignia
   var page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   if (page.indexOf('.') < 0) page = 'index.html';
 
