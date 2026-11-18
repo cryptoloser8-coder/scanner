@@ -725,8 +725,11 @@ def run_positions(data_dir, sito_dir, session=None, sleep=time.sleep, clock=time
     _write(os.path.join(data_dir, "hl_meta.json"), {
         "at": int(now), "seconds": round(clock() - t0), "fails": fails, "weight": hl.weight,
         "sito": {"round_started": sito.get("round_started"), "total": sito.get("round_total"),
-                 "left": len(sito.get("queue") or []), "checked": len(checked), "in_sito": sito.get("in_sito"),
-                 "losers": len(losers), "updated": sito.get("updated"), "params": sito.get("params")},
+                 "left": len(sito.get("queue") or []), "checked": len(checked),
+                 # 99: progi z kodu i liczba po przeliczeniu werdyktu (reverdict wyżej) — te same, wg których powstały grupy;
+                 # wcześniej z ostatniego przebiegu sita → opis „≥ 365 dni, 465 / 347” przy grupach 529 / 390
+                 "in_sito": {k: sum(1 for v in checked.values() if k in (v.get("sides") or [])) for k in ("L", "S")},
+                 "losers": len(losers), "updated": sito.get("updated"), "params": dict(SITO)},
         "groups_n": {g: groups[g]["n"] for g in GROUPS}, "daily_saved": daily_saved})
     return groups
 

@@ -999,7 +999,7 @@ def chains_section(d, now):
     rows = []
     md, ms = mkt.get("dex") or {}, mkt.get("stable") or {}
     if md or ms:
-        tot = (ch.get("share") or {}).get("total") or ms.get("v")       # ta sama suma co w kolumnie „Udział”
+        tot = ms.get("v") or (ch.get("share") or {}).get("total")       # 99: ta sama suma co w zakładce Sieci (doba) i co zmiana 30 dni obok
         rows.append(["Wszystkie sieci", usd(tot), fmt_chg(ms.get("c30")), "100%",
                      usd(md.get("s7")), fmt_chg(md.get("c7")), "—", "—", "—", "—"])
     order = sorted(ch["chains"], key=lambda c: -((((c.get("m") or {}).get("stable") or {}).get("v")) or 0))
@@ -1021,7 +1021,7 @@ def chains_section(d, now):
                        "rusza się razem z cenami coinów. Przepływy (DEX, opłaty) liczymy z 7 dni, bo pojedynczy dzień "
                        "bywa przypadkowy.",
                "note": "Udział = część wszystkich stablecoinów, która leży na danej sieci. „Wszystkie sieci” = suma z "
-                       "DefiLlama. Kolejność według stablecoinów. Źródło: DefiLlama (stablecoiny: stablecoins.llama.fi; "
+                       "DefiLlama za tę dobę (TradingView w sekcji Rynek liczy inny zestaw stablecoinów — stąd inna kwota). Kolejność według stablecoinów. Źródło: DefiLlama (stablecoiny: stablecoins.llama.fi; "
                        "DEX i opłaty: adaptery protokołów). " + revisions_note(ch, day)}]
     items = []
     events = [e for e in ((getattr(d, "meta", None) or {}).get("cycle_marks") or {}).get("events") or []
