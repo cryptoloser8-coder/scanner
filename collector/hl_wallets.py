@@ -519,36 +519,67 @@ def age_split(wallets, checked, cfg=SITO):
     return {"young_days": cfg.get("young_days", 365), "min_age_days": cfg["min_age_days"], "groups": out}
 
 
+def with_open(st, pos, is_long):
+    """94: strona portfela z doliczonymi otwartymi pozycjami tej strony, które są na minusie — każda liczona jak
+    przegrane zagranie zamknięte teraz. Bez tego portfel, który bierze zyski, a stratnych nie zamyka, ma „100% na plus”
+    i „bez strat”. Otwarte zyski NIE są liczone (niezamknięty zysk to jeszcze nie wygrana — inaczej na górę wchodzą
+    portfele z jedną dużą pozycją na papierowym plusie). Brutto zyski / straty odtwarzane z zapisanych n, win, pf, pnl."""
+    st = st or {}
+    n, win, pf, pnl = st.get("n") or 0, st.get("win"), st.get("pf"), st.get("pnl") or 0
+    if pf is None:                       # same zyskowne zagrania (albo brak zagrań)
+        gw, gl = max(pnl, 0.0), 0.0
+    elif pf > 1:
+        gl = pnl / (pf - 1)
+        gw = gl * pf
+    else:                                # z÷s ≤ 1 → nie da się odtworzyć z samego pnl; zostawiamy stronę bez zmian
+        gw = gl = None
+    wins = round(n * (win or 0) / 100)
+    op = [p for p in pos if bool(p.get("L")) == is_long and (p.get("pnl") or 0) < 0]
+    opnl = sum(p["pnl"] for p in op)
+    if gw is None:
+        out = dict(st)
+    else:
+        gw2, gl2, n2 = gw, gl - opnl, n + len(op)
+        out = {"n": n2, "win": _r(wins / n2 * 100, 1) if n2 else None,
+               "pf": _r(gw2 / gl2) if gl2 > 0 else None, "pnl": _r(pnl + opnl, 0)}
+    out["open_n"], out["open_pnl"] = len(op), _r(opnl, 0)
+    return out
+
+
 def best_lists(checked, wallets, cfg=BEST):
-    """92: najlepsze konta osobno w longach i w shortach — spośród portfeli sita z ≥ min_trips zagraniami w tej stronie
-    i z÷s ≥ min_pf, sortowane wg zrealizowanego zysku z tej strony (ostatnie transakcje). + co trzymają teraz."""
+    """92: najlepsze konta osobno w longach i w shortach — spośród portfeli sita z ≥ min_trips zamkniętymi zagraniami
+    w tej stronie. 94: do „na plus”, z÷s i wyniku doliczone otwarte straty tej strony (with_open) — próg z÷s ≥ min_pf
+    i wynik > 0 liczone już z nimi; sort wg wyniku z tej strony razem z otwartymi. „closed” = same zamknięte."""
     by = {w["addr"]: w for w in wallets}
     out = {}
     for g in ("L", "S"):
         rows = []
         for a, v in checked.items():
             st = v.get(g) or {}
-            pf = st.get("pf")
             if g not in (v.get("sides") or []) or (st.get("n") or 0) < cfg["min_trips"]:
                 continue
-            if not (pf >= cfg["min_pf"] if pf is not None else (st.get("pnl") or 0) > 0):
+            pos = (by.get(a) or {}).get("pos") or []
+            adj = with_open(st, pos, g == "L")
+            pf = adj.get("pf")
+            if (adj.get("pnl") or 0) <= 0 or not (pf >= cfg["min_pf"] if pf is not None else True):
                 continue
-            rows.append((st.get("pnl") or 0, a, v))
+            rows.append((adj.get("pnl") or 0, a, v, adj))
         rows.sort(key=lambda x: -x[0])
         lst = []
-        for _, a, v in rows[:cfg["top"]]:
+        for _, a, v, adj in rows[:cfg["top"]]:
             w = by.get(a) or {}
             pos = w.get("pos") or []
+            og = "S" if g == "L" else "L"
             lst.append({"addr": a, "age": v.get("age"), "av": w.get("av") if w.get("av") is not None else v.get("av"),
-                        "side": v.get(g), "other": v.get("S" if g == "L" else "L"), "sides": v.get("sides"),
-                        "tw": v.get("tw"), "p30": v.get("p30"),
+                        "side": adj, "closed": v.get(g), "other": with_open(v.get(og), pos, og == "L"),
+                        "sides": v.get("sides"), "tw": v.get("tw"), "p30": v.get("p30"),
                         "long": round(sum(p["size"] or 0 for p in pos if p["L"])),
                         "short": round(sum(p["size"] or 0 for p in pos if not p["L"])),
                         "upnl": round(sum(p["pnl"] or 0 for p in pos)) if pos else None,
                         "pos": [{k: p.get(k) for k in ("c", "L", "size", "lev", "pnl")}
                                 for p in sorted(pos, key=lambda p: -(p["size"] or 0))[:8]], "npos": len(pos)})
         out[g] = lst
-    return {"params": cfg, "groups": out}
+    return {"params": dict(cfg, with_open=True), "groups": out}
 
 
 def append_split(series, t, split):
