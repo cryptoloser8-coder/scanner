@@ -8,4 +8,6 @@ set -u
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"   # folder apki (od poprawki 83: ~/Crypto_Loser_analytics_tool)
 git -C "$REPO_DIR" pull -q --ff-only 2>&1 | tail -2
 python3 "$REPO_DIR/collector/backup.py" --if-due 2>&1 | tail -3
+# poprawka 87: historia grup HyperTrackera porcjami (kilka zapytań na przebieg, do dziennego limitu; bez klucza nic nie robi)
+[ -f "$REPO_DIR/collector/ht_history.py" ] && timeout 300 python3 "$REPO_DIR/collector/ht_history.py" run 2>&1 | tail -2
 exec python3 "$REPO_DIR/collector/ema_monitor.py" run "$@"
