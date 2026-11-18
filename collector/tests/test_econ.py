@@ -139,3 +139,12 @@ def test_next_day_plan():
     assert evening[2]["title"] == "Zaplanowane — jutro, 03.11.2026" and evening[2]["rows"][0][3] == "7.2M"
     none = econ.block(EVENTS, ts(2026, 11, 3, 21, 45))
     assert none[2]["type"] == "text" and "Brak zaplanowanych" in none[2]["text"]
+
+
+def test_when_uses_polish_date():
+    """98: raport poranny ~06:00 PL (w Nowym Jorku jeszcze poprzedni dzień) — plan na ten sam dzień w PL to „dziś”."""
+    from datetime import date
+    now = 1794977810                                  # 18.11.2026 05:56 PL = 17.11 23:56 w Nowym Jorku
+    assert econ._when(date(2026, 11, 18), now) == "dziś"
+    assert econ._when(date(2026, 11, 17), now) == "wczoraj"
+    assert econ._when(date(2026, 11, 19), now) == "jutro"

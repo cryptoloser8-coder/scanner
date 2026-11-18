@@ -658,8 +658,7 @@ def test_report_lines_in_meta_from_config():
     import main as M
     lines = M.report_lines({"reports": {"lines": {"oi_others_vs_btc": [[0.7, "test"]]}}})
     assert lines["oi_others_vs_btc"] == [{"value": 0.7, "label": "test", "color": "#4caf7d"}]
-    assert [ln["value"] for ln in lines["alts_vs_btc"]] == [0.28, 0.38, 0.47]       # default from report.LAYOUT
-    assert M.report_lines({})["oi_others_vs_btc"][-1]["label"] == "zrównanie z BTC"
+    assert "alts_vs_btc" not in lines and M.report_lines({}) == {}                  # 98: bez domyślnych linii
 
 
 class FakeOHLC(FakeCoinalyze):
