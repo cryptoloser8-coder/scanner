@@ -12,7 +12,7 @@ i 15 (ponad $1M straty). Coiny: najpierw BTC, ETH, HYPE, SOL, DOGE, TAO, potem r
 wg OI malejąco (OI ≥ $5M; lista ustalana raz, przy pierwszym uruchomieniu). Historia od 19.02.2026 (początek danych HT).
 
 Regulamin HyperTrackera: redystrybucja surowych danych wymaga umowy → surowe dane zostają na Pi
-(pi/hypertracker/, poza Gitem). Na gałąź `hl` idą tylko nasze zestawienia (udział longów, kwoty longów i shortów
+(pi/hypertracker/, poza Gitem). Na gałąź `ht` idą tylko nasze zestawienia (udział longów, kwoty longów i shortów
 grup co 4 h, postęp pobierania, ostatni stan grup) z dopiskiem „Powered by HyperTracker”.
 
 Klucz: HYPERTRACKER_API_KEY w pi/scanner_env (jedna linia: HYPERTRACKER_API_KEY=...). Bez klucza — nic nie robi.
@@ -52,7 +52,7 @@ PER_RUN = 8                           # zapytań na jeden przebieg z crona (co 5
 PAGES_GUESS = 23                      # stron na serię (sonda 86: BTC Smart Money 23 strony)
 BUCKET = 4 * 3600                     # zestawienia na stronę: co 4 h
 PUBLISH_EVERY = 6 * 3600
-BRANCH = "hl"
+BRANCH = "ht"                         # HyperTracker osobno; gałąź `hl` = nasze dane z Hyperliquid (GitHub)
 
 
 def now_ts():
@@ -211,7 +211,7 @@ def step_task(session, key, task, st, now, ddir):
     return task["done"]
 
 
-# ── zestawienia na stronę (gałąź hl) ─────────────────────────
+# ── zestawienia na stronę (gałąź ht) ─────────────────────────
 def bucketize(raw, bucket=BUCKET):
     """{ts: punkt} → [[t_kubełka, %long, longi $, shorty $, portfele, portfele long]] — ostatni punkt w kubełku."""
     out = {}
