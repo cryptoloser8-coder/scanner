@@ -96,21 +96,34 @@
   .chip .cv{font-family:var(--mono);font-size:15px;color:var(--text);font-weight:600;}
   .chip .cc{font-family:var(--mono);font-size:11px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap;}
   .chip:not(.on) .cv{color:var(--text2);}
-  .mkt{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  /* poprawka 108: „Cały rynek” jako pasek nad wykresem; karty sieci w kolumnie „Serie” po prawej (jak OI i Likwidacje); „Sieci spoza listy” pod wykresem */
+  .mkt-strip{display:flex;align-items:flex-end;gap:8px 28px;flex-wrap:wrap;margin-top:0;}
+  .mkt-strip h2{margin:0;}
+  .mkt-strip .sub{font-size:12px;color:var(--text2);}
+  .mkt{display:flex;gap:8px 28px;flex-wrap:wrap;align-items:flex-end;}
   .mkt .k{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
-  .mkt .v{font-family:var(--mono);font-size:17px;font-weight:600;margin:2px 0;}
+  .mkt .v{font-family:var(--mono);font-size:17px;font-weight:600;margin:2px 8px 2px 0;display:inline-block;}
   .mkt .c{font-family:var(--mono);font-size:11px;color:var(--text2);}
-  .net-layout{display:flex;flex-direction:column;}
+  .mkt-note{flex-basis:100%;font-size:11px;color:var(--text3);line-height:1.5;}
+  .open-note{display:none;font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid rgba(255,193,7,.25);border-radius:var(--radius);padding:6px 10px;margin-bottom:8px;line-height:1.5;}
+  .open-note.show{display:block;}
+  .oi-layout{display:flex;flex-direction:column;gap:0;}
+  .oi-side{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .oi-side-hd{display:none;}
+  .oi-main{min-width:0;}
   @media (min-width:1200px){
-    .net-layout{flex-direction:row;align-items:flex-start;gap:16px;}
-    .net-main{flex:1;min-width:0;}
-    .net-side{width:380px;flex:none;}
-    .net-side .rise{grid-template-columns:1fr;}
+    .oi-layout{flex-direction:row-reverse;align-items:flex-start;gap:16px;}
+    .oi-main{flex:1;}
+    .oi-side{width:400px;flex:none;position:sticky;top:82px;max-height:calc(100vh - 100px);overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;gap:6px;scrollbar-width:thin;margin-bottom:0;}
+    .oi-side-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+    .oi-side-hd h2{font-size:14px;font-weight:600;}
+    .oi-side-sub{font-size:11px;color:var(--text3);}
+    .oi-side .chips{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0;}
     .chart-wrap{height:min(66vh,660px);}
   }
   .footer{text-align:center;margin-top:22px;font-size:11px;color:var(--text3);line-height:1.7;}
   .footer a{color:var(--text3);}
-  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} }
+  @media (max-width:640px){ body{padding:14px;} .sep{display:none;} .legend{right:8px;} .lg-row{width:auto;max-width:100%;flex-wrap:wrap;row-gap:0;align-self:flex-start;font-size:11px;} }
   .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
   .brand img{display:block;height:52px;max-width:100%;}
   @media (max-width:640px){ .brand{margin-bottom:14px;} .brand img{height:36px;} }
@@ -133,8 +146,19 @@
 
 <div class="banner" id="banner"></div>
 
-<div class="net-layout">
-<div class="panel net-main">
+<div class="oi-layout">
+<aside class="oi-side" id="oi-side" aria-label="Serie">
+  <div class="oi-side-hd"><h2>Serie</h2><span class="oi-side-sub" id="side-sub">klik w kartę = pokaż / ukryj sieć na wykresie</span></div>
+  <div class="chips" id="chips"></div>
+</aside>
+
+<div class="oi-main">
+<div class="panel mkt-strip">
+  <div><h2>Cały rynek</h2><div class="sub">wszystkie sieci wg DefiLlama — doba <span id="mkt-day">?</span></div></div>
+  <div class="mkt" id="mkt"></div>
+</div>
+
+<div class="panel">
   <div class="controls">
     <div class="ctrl-group"><span class="ctrl-label">Miara</span>
       <div class="pills" id="metric-pills">
@@ -168,30 +192,27 @@
         <button class="pill" data-val="0">ALL</button>
       </div>
     </div>
-    <div class="ctrl-group"><div class="pills"><button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości) — sieci różnej wielkości na jednym wykresie">Log</button></div></div>
+    <div class="ctrl-group"><div class="pills">
+      <button class="pill" id="log-btn" title="Skala logarytmiczna (tryb Wartości) — sieci różnej wielkości na jednym wykresie. Przy słupkach skala jest zawsze liniowa.">Log</button>
+      <button class="pill" id="bar-btn" title="Wolumen DEX / opłaty jako słupki, gdy na wykresie jest jedna sieć i okres to Dzień, Tydzień albo Miesiąc (tryb Wartości). Wyłączone = linia. Kilka sieci naraz albo „Suma 7 dni” — zawsze linie.">Słupki</button>
+    </div></div>
     <div class="ctrl-group"><span class="ctrl-label">Cena na tle</span><select id="price-sel"></select></div>
   </div>
-  <div class="chips" id="chips"></div>
+  <div class="open-note" id="open-note"></div>
   <div class="chart-wrap">
     <div id="chart"></div>
     <div class="legend" id="legend"></div>
-    <div class="empty" id="empty">Wybierz sieci powyżej</div>
+    <div class="empty" id="empty">Wybierz sieci z listy „Serie”</div>
   </div>
   <div class="hint" id="hint"></div>
 </div>
 
-<aside class="net-side">
-<div class="panel">
-  <h2>Cały rynek</h2>
-  <div class="desc" style="margin-bottom:6px">Wszystkie sieci według DefiLlama — doba <span id="mkt-day">?</span>.</div>
-  <div class="mkt" id="mkt"></div>
-</div>
 <div class="panel">
   <h2>Sieci spoza listy, które rosną</h2>
   <div class="desc" id="rise-desc"></div>
   <div class="rise" id="rise"></div>
 </div>
-</aside>
+</div>
 </div>
 
 <div class="footer">
@@ -227,7 +248,8 @@ const METRIC = {stable: 'Stablecoiny', dex: 'Wolumen DEX', fees: 'Opłaty', tvl:
 const FLOW = new Set(['dex', 'fees']);
 const PRICES = {BTC: 'px_btc', ETH: 'px_eth', SOL: 'px_sol', BNB: 'px_bnb'};
 
-let SUM = null, SER = {}, OTHER = {}, PX = null, chart = null, mounted = [], CHAINS = [];
+let SUM = null, SER = {}, OTHER = {}, PX = null, chart = null, mounted = [], CHAINS = [], BARS = false;
+const barsOk = () => FLOW.has(S.metric) && S.view === 'val' && S.smooth !== 7;
 const store = {
   get(k, d) { try { const v = localStorage.getItem('sieci.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('sieci.' + k, JSON.stringify(v)); } catch (e) {} },
@@ -241,13 +263,15 @@ function parseHash() {
   if (h.get('log')) o.log = h.get('log') === '1';
   if (h.get('c')) o.chains = h.get('c').split(',').filter(Boolean);
   if (h.has('p')) o.price = h.get('p');
+  if (h.get('b')) o.bars = h.get('b') !== '0';
+  if (h.get('o')) o.rest = h.get('o') !== '0';
   return o;
 }
-let S = Object.assign({metric: 'stable', view: 'val', smooth: 7, range: 365, log: true, chains: null, price: ''},
+let S = Object.assign({metric: 'stable', view: 'val', smooth: 7, range: 365, log: true, chains: null, price: '', bars: true, rest: true},
   store.get('view', {}), parseHash());
 function persist() {
   store.set('view', S);
-  const h = new URLSearchParams({m: S.metric, v: S.view, s: S.smooth, z: S.range, log: S.log ? 1 : 0, c: (S.chains || []).join(','), p: S.price || ''});
+  const h = new URLSearchParams({m: S.metric, v: S.view, s: S.smooth, z: S.range, log: S.log ? 1 : 0, c: (S.chains || []).join(','), p: S.price || '', ...(S.bars ? {} : {b: 0}), ...(S.rest ? {} : {o: 0})});
   history.replaceState(null, '', '#' + h.toString());
 }
 
@@ -284,11 +308,39 @@ function calSum(pts, kind) {                               // suma tygodnia (od 
   return out;
 }
 const flowPts = pts => (S.smooth === 'w' || S.smooth === 'm') ? calSum(pts, S.smooth) : rolling(pts, S.smooth);
+// 108: „Pozostałe sieci” w widoku Udział = 100% − suma naszych sieci (dzień, w którym któraś nasza sieć ma lukę, pomijamy)
+function restShare() {
+  const flow = FLOW.has(S.metric), prep = raw => flow ? flowPts(raw) : raw;
+  const ours = CHAINS.map(c => prep(rawOf(`ch_${c.slug}_${S.metric}`))).filter(a => a.length).map(a => ({t0: a[0][0], m: new Map(a)}));
+  const out = [];
+  for (const [t, tot] of prep(rawOf(`ch_all_${S.metric}`))) {
+    if (!tot) continue;
+    let sum = 0, ok = true;
+    for (const o of ours) { if (t < o.t0) continue; const v = o.m.get(t); if (v == null) { ok = false; break; } sum += v; }
+    if (ok) out.push([t, Math.max(0, (1 - sum / tot) * 100)]);
+  }
+  return out;
+}
+// 108: trwający tydzień / miesiąc kalendarzowy — ile dni już jest w ostatnim okresie (null = okres pełny albo inny tryb)
+function openPeriod(slug) {
+  if (!FLOW.has(S.metric) || (S.smooth !== 'w' && S.smooth !== 'm')) return null;
+  const raw = rawOf(`ch_${slug}_${S.metric}`); if (!raw.length) return null;
+  const cs = calSum(raw, S.smooth), b = cs[cs.length - 1][0], d = new Date(b * 1000);
+  const need = S.smooth === 'w' ? 7 : new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const lastDay = raw[raw.length - 1][0], have = Math.round((lastDay - b) / DAY) + 1;
+  return have < need ? {t: b, have, need} : null;
+}
+// 109: przepływy (DEX, opłaty) do `flow_day` z chains.json — wczorajszy dzień DefiLlama podaje niepełny i poprawia go dzień później
+let FDAY = null;
+const rawOf = sid => { const a = SER[sid] || []; return FDAY != null && /_(dex|fees)$/.test(sid) ? a.filter(p => p[0] <= FDAY) : a; };
+const dm = iso => iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) : '?';
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 function seriesFor(slug) {
-  const raw = SER[`ch_${slug}_${S.metric}`] || [];
+  if (slug === 'rest') return restShare();
+  const raw = rawOf(`ch_${slug}_${S.metric}`);
   let pts = FLOW.has(S.metric) ? flowPts(raw) : raw;
   if (S.view === 'share') {
-    const all = SER[`ch_all_${S.metric}`] || [];
+    const all = rawOf(`ch_all_${S.metric}`);
     const tot = new Map(FLOW.has(S.metric) ? flowPts(all) : all);
     pts = pts.map(([t, v]) => [t, tot.get(t) ? v / tot.get(t) * 100 : null]).filter(p => p[1] != null);
   }
@@ -307,23 +359,36 @@ function makeChart() {
   });
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
+  chart.timeScale().subscribeVisibleTimeRangeChange(() => { if (S.view === 'idx') updateLegend(lastParam); });
 }
+let lastParam = null;
 function draw() {
   if (!chart) makeChart();
   for (const m of mounted) chart.removeSeries(m.series);
   mounted = [];
-  const sel = (S.chains || []).filter(sl => CHAINS.some(c => c.slug === sl) || sl === 'all');
+  const sel = (S.chains || []).filter(sl => CHAINS.some(c => c.slug === sl) || sl === 'all').filter(sl => !(sl === 'all' && S.view === 'share'));
+  if (S.view === 'share' && S.rest && SER[`ch_all_${S.metric}`]) sel.push('rest');
   const fmtV = v => S.view === 'share' ? v.pl(2) + '%' : fmtUsd(v);
-  for (const sl of sel) {
-    if (sl === 'all' && S.view === 'share') continue;
-    const pts = seriesFor(sl);
-    if (!pts.length) continue;
-    const c = CHAINS.find(x => x.slug === sl) || {name: 'Wszystkie sieci', color: '#bdbdbd'};
-    const s = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 2, priceScaleId: 'right', lastValueVisible: true, priceLineVisible: false,
-      priceFormat: S.view === 'idx' ? {type: 'price', precision: 1, minMove: 0.1} : {type: 'custom', minMove: 1e-6, formatter: fmtV}});
-    s.setData(pts.map(([t, v]) => ({time: t, value: v})));
-    mounted.push({series: s, name: c.name, color: c.color, fmt: fmtV});
+  const drawn = sel.map(sl => [sl, seriesFor(sl)]).filter(([, p]) => p.length);
+  BARS = barsOk() && S.bars && drawn.length === 1;
+  let open = null;
+  for (const [sl, pts] of drawn) {
+    const c = sl === 'rest' ? {name: 'Pozostałe sieci', color: '#8a8a8a'} : CHAINS.find(x => x.slug === sl) || {name: 'Wszystkie sieci', color: '#bdbdbd'};
+    const op = S.view === 'share' || sl === 'rest' ? null : openPeriod(sl);       // udział z niepełnego okresu jest dalej poprawnym udziałem
+    if (op) open = op;
+    const pf = S.view === 'idx' ? {type: 'price', precision: 1, minMove: 0.1} : {type: 'custom', minMove: 1e-6, formatter: fmtV};
+    const s = BARS ? chart.addSeries(LWC.HistogramSeries, {color: hexA(c.color, .8), priceScaleId: 'right', base: 0, lastValueVisible: true, priceLineVisible: false, priceFormat: pf})
+      : chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 2, lineStyle: sl === 'rest' ? LWC.LineStyle.Dashed : LWC.LineStyle.Solid, priceScaleId: 'right', lastValueVisible: true, priceLineVisible: false, priceFormat: pf});
+    // trwający okres: bledszy słupek / bledszy ostatni odcinek linii
+    // (kolor punktu linii w lightweight-charts maluje odcinek od tego punktu do następnego → przy linii bledszy jest punkt przedostatni)
+    const prevT = op && pts.length > 1 ? pts[pts.length - 2][0] : null;
+    s.setData(pts.map(([t, v]) => op && (BARS ? t === op.t : (t === prevT || t === op.t)) ? {time: t, value: v, color: hexA(c.color, BARS ? .3 : .3)} : {time: t, value: v}));
+    mounted.push({series: s, name: c.name, color: c.color, fmt: fmtV, pts, open: op, main: true});
   }
+  const on = document.getElementById('open-note');
+  on.classList.toggle('show', !!open);
+  if (open) on.textContent = `⏳ Ostatni ${S.smooth === 'w' ? 'tydzień' : 'miesiąc'} jeszcze trwa (${open.have} z ${open.need} dni): ` +
+    `${BARS ? 'bledszy ostatni słupek' : 'bledszy koniec linii'} to niepełna suma — to nie jest spadek.`;
   const px = S.price && PX && PX[PRICES[S.price]];
   if (px && mounted.length) {
     const s = chart.addSeries(LWC.LineSeries, {color: 'rgba(240,240,240,.55)', lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, priceScaleId: 'left',
@@ -331,7 +396,7 @@ function draw() {
     s.setData(px.map(([t, v]) => ({time: t, value: v})));
     mounted.push({series: s, name: `Cena ${S.price}`, color: 'rgba(240,240,240,.55)', fmt: v => '$' + v.toLocaleString('pl-PL', {maximumFractionDigits: 2})});
   }
-  const mode = S.view === 'idx' ? LWC.PriceScaleMode.IndexedTo100 : (S.log && S.view === 'val') ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal;
+  const mode = S.view === 'idx' ? LWC.PriceScaleMode.IndexedTo100 : (S.log && S.view === 'val' && !BARS) ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal;
   chart.priceScale('right').applyOptions({mode, scaleMargins: {top: .1, bottom: .08}});
   chart.priceScale('left').applyOptions({visible: !!px && mounted.length > 0, mode: S.view === 'idx' ? LWC.PriceScaleMode.IndexedTo100 : LWC.PriceScaleMode.Logarithmic});
   document.getElementById('empty').style.display = mounted.length ? 'none' : 'flex';
@@ -341,20 +406,35 @@ function draw() {
     if (S.range > 0) chart.timeScale().setVisibleRange({from: Math.max(start, end - S.range * DAY), to: end});
     else chart.timeScale().fitContent();
   }
+  syncBars();
   updateLegend();
   requestAnimationFrame(() => updateLegend());          // szerokość lewej osi (cena) znana dopiero po narysowaniu
   renderHint();
 }
 function updateLegend(param) {
+  lastParam = param && param.time ? param : null;
+  const vr = S.view === 'idx' && chart ? chart.timeScale().getVisibleRange() : null;
   const rows = mounted.map(m => {
-    let v = null;
-    if (param && param.time) { const d = param.seriesData.get(m.series); v = d && d.value; }
-    if (v == null) { const d = m.series.data(); v = d.length ? d[d.length - 1].value : null; }
-    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : esc(m.fmt(v))}</span></div>`;
+    let v = null, t = null;
+    if (lastParam) { const d = lastParam.seriesData.get(m.series); v = d && d.value; t = lastParam.time; }
+    if (v == null) { const d = m.series.data(); v = d.length ? d[d.length - 1].value : null; t = d.length ? d[d.length - 1].time : null; }
+    let extra = '';
+    if (m.main && vr && v != null) {                  // 108: Index 100 — obok kwoty zmiana od początku widocznego zakresu (to pokazuje linia)
+      const first = m.pts.find(p => p[0] >= vr.from);
+      if (first && first[1]) { const ch = (v / first[1] - 1) * 100; extra += ` <span style="color:${ch >= 0 ? 'var(--green)' : 'var(--red)'}" title="Zmiana od początku widocznego zakresu (${dmy(first[0])})">${fmtPct(ch)}</span>`; }
+    }
+    if (m.open && t === m.open.t) extra += ` <span style="color:var(--amber)">· trwa (${m.open.have} z ${m.open.need} dni)</span>`;
+    return `<div class="lg-row"><span class="swatch" style="--c:${m.color}"></span><span class="lg-name">${esc(m.name)}</span><span class="lg-val">${v == null ? '—' : esc(m.fmt(v))}${extra}</span></div>`;
   });
   document.getElementById('legend').innerHTML = rows.join('');
   let lw = 0; try { lw = chart.priceScale('left').width(); } catch (e) {}
   document.getElementById('legend').style.left = (lw + 8) + 'px';
+}
+function syncBars() {
+  const bb = document.getElementById('bar-btn'), can = barsOk() && mounted.filter(m => m.main).length === 1;
+  bb.classList.toggle('active', S.bars && can); bb.disabled = !can;
+  const lb = document.getElementById('log-btn');
+  lb.classList.toggle('active', S.log && !BARS); lb.disabled = S.view !== 'val' || BARS;
 }
 function renderHint() {
   const what = {
@@ -363,29 +443,41 @@ function renderHint() {
     fees: 'Opłaty = ile użytkownicy zapłacili za korzystanie z sieci. Najtrudniej je napompować — dobry sprawdzian, czy ruch jest prawdziwy.',
     tvl: 'TVL = wartość zablokowana w aplikacjach sieci. W dolarach, więc spada i rośnie razem z cenami coinów.',
   }[S.metric];
-  const extra = S.view === 'share' ? ' Udział = wartość sieci ÷ suma wszystkich sieci w DefiLlama tego samego dnia.'
-    : S.view === 'idx' ? ' Index 100 = każda linia startuje od 100 na początku widocznego zakresu.' : '';
+  const extra = S.view === 'share' ? ' Udział = wartość sieci ÷ suma wszystkich sieci w DefiLlama tego samego dnia. „Pozostałe sieci” (linia przerywana) = wszystko spoza naszej listy.'
+    : S.view === 'idx' ? ' Index 100 = każda linia startuje od 100 na początku widocznego zakresu; w legendzie kwota i zmiana od tego początku.' : '';
   document.getElementById('hint').innerHTML = esc(what + extra) + (FLOW.has(S.metric) ? ' Suma 7 dni pomija tygodnie z brakującymi dniami.' : '') +
-    ' Punkt z bieżącego dnia pomijamy (dzień niepełny).';
+    (FLOW.has(S.metric) && FDAY != null ? ` <b style="color:var(--text2)">Wolumen DEX i opłaty pokazujemy do ${dm(SUM.flow_day)}</b> (przedostatni dzień): wczorajszy dzień DefiLlama podaje niepełny i poprawia go dzień później.`
+      : ' Punkt z bieżącego dnia pomijamy (dzień niepełny).');
 }
 
 // ── kontrolki ───────────────────────────────────────────────
 // liczby na karcie sieci (chains.json): przepływy (DEX, opłaty) — suma 7 dni i zmiana tydzień do tygodnia; stan (stablecoiny, TVL) — wartość i zmiana w 30 dni
 function chipNums(slug) {
   const m = slug === 'all' ? ((SUM && SUM.market) || {})[S.metric] : (((SUM && SUM.chains) || []).find(c => c.slug === slug) || {m: {}}).m[S.metric];
+  if (slug === 'rest') return '<span class="cc">wszystkie sieci spoza naszej listy · tylko w widoku Udział</span>';
   if (!m) return '<span class="cc">—</span>';
   const flow = FLOW.has(S.metric);
   const v = flow ? m.s7 : m.v;
-  return `<span class="cv">${v == null ? '—' : fmtUsd(v)}</span><span class="cc"><span>${flow ? '7 dni' : (SUM && SUM.day ? 'stan z ' + SUM.day.slice(8, 10) + '.' + SUM.day.slice(5, 7) : 'ostatni dzień')}</span>` +
-    (m.c7 != null ? `<span>7D ${fmtPct(m.c7)}</span>` : '') + (m.c30 != null ? `<span>30D ${fmtPct(m.c30)}</span>` : '') + '</span>';
+  // 109: stan (stablecoiny, TVL) — zmiana poziomu; przepływ (DEX, opłaty) — okres do poprzedniego okresu
+  const lab = flow ? ['z 7 dni do ' + dm((SUM && (SUM.flow_day || SUM.day)) || ''), 'tydz. do tyg.', '30 dni do 30 dni']
+    : ['stan z ' + dm((SUM && SUM.day) || ''), '7 dni', '30 dni'];
+  return `<span class="cv">${v == null ? '—' : fmtUsd(v)}</span><span class="cc"><span>${lab[0]}</span>` +
+    (m.c7 != null ? `<span>${lab[1]} ${fmtPct(m.c7)}</span>` : '') + (m.c30 != null ? `<span>${lab[2]} ${fmtPct(m.c30)}</span>` : '') + '</span>';
+}
+function chipTip() {
+  const fd = dm((SUM && (SUM.flow_day || SUM.day)) || ''), d = dm((SUM && SUM.day) || '');
+  return FLOW.has(S.metric)
+    ? `Duża liczba: suma z 7 dni kończących się ${fd}. „tydz. do tyg.” = te 7 dni wobec 7 poprzednich. „30 dni do 30 dni” = ostatnie 30 dni wobec 30 poprzednich.` +
+      (FDAY != null ? ` Liczymy do ${fd}, nie do ${d}: wczorajszy dzień DefiLlama podaje niepełny i poprawia go dzień później.` : '')
+    : `Duża liczba: stan na koniec doby ${d}. „7 dni” i „30 dni” = o ile zmienił się ten stan od 7 i 30 dni temu.`;
 }
 function renderMarket() {
   const M = (SUM && SUM.market) || {}, box = document.getElementById('mkt');
   document.getElementById('mkt-day').textContent = SUM && SUM.day ? SUM.day.split('-').reverse().join('.') : '?';
   const out = [];
-  if (M.dex) out.push(`<div><div class="k">Wolumen DEX, 7 dni</div><div class="v">${fmtUsd(M.dex.s7)}</div><div class="c">tydzień do tygodnia ${fmtPct(M.dex.c7)} · 30 dni ${fmtPct(M.dex.c30)}</div></div>`);
-  if (M.stable) out.push(`<div><div class="k">Stablecoiny · wg DefiLlama</div><div class="v">${fmtUsd(M.stable.v)}</div><div class="c">7 dni ${fmtPct(M.stable.c7)} · 30 dni ${fmtPct(M.stable.c30)}${M.stable.c365 != null ? ' · rok ' + fmtPct(M.stable.c365) : ''}</div>` +
-    `<div class="c" style="color:var(--text3)">Pulpit i raport (sekcja Rynek) pokazują sumę wg TradingView — liczy inny zestaw stablecoinów, stąd inna kwota.</div></div>`);
+  if (M.dex) out.push(`<div><div class="k">Wolumen DEX, 7 dni${FDAY != null ? ' do ' + dm(SUM.flow_day) : ''}</div><span class="v">${fmtUsd(M.dex.s7)}</span><span class="c">tydz. do tyg. ${fmtPct(M.dex.c7)} · 30 dni do 30 dni ${fmtPct(M.dex.c30)}</span></div>`);
+  if (M.stable) out.push(`<div><div class="k">Stablecoiny · wg DefiLlama</div><span class="v">${fmtUsd(M.stable.v)}</span><span class="c">7 dni ${fmtPct(M.stable.c7)} · 30 dni ${fmtPct(M.stable.c30)}${M.stable.c365 != null ? ' · rok ' + fmtPct(M.stable.c365) : ''}</span>` +
+`</div>`, `<div class="mkt-note">Stablecoiny: Pulpit i raport (sekcja Rynek) pokazują sumę wg TradingView — liczy inny zestaw stablecoinów, stąd inna kwota.</div>`);
   box.innerHTML = out.join('') || '<div class="none">Brak danych całego rynku.</div>';
 }
 function syncControls() {
@@ -395,11 +487,11 @@ function syncControls() {
     document.querySelectorAll(`#${id} .pill`).forEach(b => b.classList.toggle('active', String(S[key]) === b.dataset.val));
   document.querySelector('#view-pills [data-val="share"]').disabled = !okShare;
   document.getElementById('smooth-group').style.display = FLOW.has(S.metric) ? '' : 'none';
-  const lb = document.getElementById('log-btn');
-  lb.classList.toggle('active', S.log); lb.disabled = S.view !== 'val';
   const hasAll = !!SER[`ch_all_${S.metric}`] && S.view !== 'share';
-  document.getElementById('chips').innerHTML = [...(hasAll ? [{slug: 'all', name: 'Wszystkie sieci', color: '#bdbdbd'}] : []), ...CHAINS].map(c =>
-    `<button class="chip ${(S.chains || []).includes(c.slug) ? 'on' : ''}" data-sl="${c.slug}" style="--c:${c.color}"><span class="cn"><span class="swatch"></span>${esc(c.name)}</span>${chipNums(c.slug)}</button>`).join('');
+  const hasRest = S.view === 'share' && !!SER[`ch_all_${S.metric}`];
+  document.getElementById('chips').innerHTML = [...(hasAll ? [{slug: 'all', name: 'Wszystkie sieci', color: '#bdbdbd'}] : []), ...CHAINS,
+    ...(hasRest ? [{slug: 'rest', name: 'Pozostałe sieci', color: '#8a8a8a'}] : [])].map(c =>
+    `<button class="chip ${(c.slug === 'rest' ? S.rest : (S.chains || []).includes(c.slug)) ? 'on' : ''}" data-sl="${c.slug}" style="--c:${c.color}" title="${c.slug === 'rest' ? '' : esc(chipTip())}"><span class="cn"><span class="swatch"></span>${esc(c.name)}</span>${chipNums(c.slug)}</button>`).join('');
   const ps = document.getElementById('price-sel');
   ps.innerHTML = '<option value="">—</option>' + Object.keys(PRICES).map(k => `<option value="${k}"${S.price === k ? ' selected' : ''}>${k}</option>`).join('');
 }
@@ -411,8 +503,10 @@ function bindPills(id, key, conv = v => v) {
 }
 bindPills('metric-pills', 'metric'); bindPills('view-pills', 'view'); bindPills('smooth-pills', 'smooth', v => ['w', 'm'].includes(v) ? v : Number(v)); bindPills('range-pills', 'range', Number);
 document.getElementById('log-btn').addEventListener('click', () => { S.log = !S.log; refresh(); });
+document.getElementById('bar-btn').addEventListener('click', () => { S.bars = !S.bars; refresh(); });
 document.getElementById('chips').addEventListener('click', e => {
   const c = e.target.closest('.chip'); if (!c) return;
+  if (c.dataset.sl === 'rest') { S.rest = !S.rest; refresh(); return; }
   const sl = c.dataset.sl, set = new Set(S.chains || []);
   set.has(sl) ? set.delete(sl) : set.add(sl);
   S.chains = [...set]; refresh();
@@ -471,12 +565,13 @@ function setStatus(cls, txt) { document.getElementById('dot').className = 'statu
   try {
     const [sum, ser, oth] = await Promise.all([getJSON(CH_BASE, 'chains.json'), getJSON(CH_BASE, 'chains_1d.json'), getJSON(CH_BASE, 'chains_other.json').catch(() => ({}))]);
     SUM = sum; SER = ser.series || {}; OTHER = oth.other || {};
+    FDAY = SUM.flow_day && SUM.flow_day !== SUM.day ? Date.parse(SUM.flow_day + 'T00:00:00Z') / 1000 : null;
     CHAINS = (SUM.chains || []).map((c, i) => ({slug: c.slug, name: c.name, coin: c.coin, color: COLORS[i % COLORS.length]}));
     renderMarket();
     if (!S.chains) S.chains = CHAINS.map(c => c.slug);
     const age = (Date.now() / 1000 - (SUM.updated || 0)) / 3600;
     const upd = new Date((SUM.updated || 0) * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
-    setStatus(age > 30 ? 'stale' : 'live', `Ostatni pełny dzień ${SUM.day ? SUM.day.split('-').reverse().join('.') : '?'} · pobrano ${upd}`);
+    setStatus(age > 30 ? 'stale' : 'live', `Ostatni pełny dzień ${SUM.day ? SUM.day.split('-').reverse().join('.') : '?'}${FDAY != null ? ' · DEX i opłaty do ' + dm(SUM.flow_day) : ''} · pobrano ${upd}`);
     if (age > 30) { const b = document.getElementById('banner'); b.className = 'banner warn'; b.textContent = `Dane sieci sprzed ${Math.round(age)} h — workflow „Sieci” mógł nie zadziałać.`; }
     if ((SUM.errors || []).length) document.getElementById('foot-info').textContent = 'Uwagi z ostatniego pobrania: ' + SUM.errors.join('; ');
     if (S.price) { try { PX = (await getJSON(PX_BASE, 'liq_1d.json')).series || {}; } catch (e) { PX = {}; } }
