@@ -35,7 +35,7 @@ COINS = SEPARATE + ("ALT",)
 GROUPS = ("L", "S", "R")
 SITO = {"min_av": 100e3, "min_age_days": 365, "max_fills_day": 200, "min_trips": 10, "min_pf": 1.2,
         "round_days": 7, "losers": 300, "losers_min_av": 10e3}
-WEIGHT_PER_MIN = 1000
+WEIGHT_PER_MIN = 1100                 # limit HL 1200 wag / min na IP — zostawiamy zapas
 LEV_BUCKETS = ((0, 3, "do ×3"), (3, 10, "×3–10"), (10, 20, "×10–20"), (20, 1e9, "ponad ×20"))
 KEEP_EVENTS = 10
 DAY = 86400
@@ -118,10 +118,12 @@ def evaluate(pf, fills, now, cfg=SITO):
         reason = "brak zagrań perpami"
     elif p["fills_per_day"] >= cfg["max_fills_day"]:
         reason = "bot / market maker"
+    elif max(p["long"]["n"], p["short"]["n"]) < cfg["min_trips"]:
+        reason = "za mało zagrań"
     elif (p["age_days"] or 0) < cfg["min_age_days"]:
         reason = "za młode konto"
     elif not sides:
-        reason = "za mało zagrań albo nieskuteczny"
+        reason = "nieskuteczny"
 
     def side(st):
         return {"n": st["n"], "win": _r(st["win_pct"], 1), "pf": _r(st["pf"]), "pnl": _r(st["pnl"], 0)}
@@ -161,8 +163,12 @@ def run_sito(sito_dir, minutes=270, session=None, sleep=time.sleep, clock=time.t
     while st.get("queue") and clock() < t_end:
         a = st["queue"][0]
         try:
-            pf = hl.call({"type": "portfolio", "user": a}, 20)
+            # 88b: najpierw transakcje; historię PnL (portfolio) tylko, gdy portfel ma szansę przejść sito
             fills = hl.call({"type": "userFills", "user": a}, 20)
+            pre = P.wallet_profile([], fills, clock())
+            hopeless = (not pre["trips"] or pre["fills_per_day"] >= cfg["max_fills_day"]
+                        or max(pre["long"]["n"], pre["short"]["n"]) < cfg["min_trips"])
+            pf = [] if hopeless else hl.call({"type": "portfolio", "user": a}, 20)
             ev = evaluate(pf, fills, clock(), cfg)
             ev.update({"at": int(clock()), "av": _r(av.get(a), 0)})
             st["checked"][a] = ev
