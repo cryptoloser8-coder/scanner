@@ -214,6 +214,7 @@
         <button class="pill" id="px-btn" title="Cena w górnym panelu: własna cena coina, gdy ją mamy (BTC, ETH, watchlista); dla TOTAL i OTHERS cena BTC">Cena</button>
         <button class="pill" id="cdl-btn" title="Cena jako świece z knotami (Binance perp): pusta = wzrost, pełna = spadek. Wyłączone = linia zamknięć.">Świece</button>
         <button class="pill" id="fund-btn" title="Pokaż / ukryj panel fundingu (% rocznie) na dole wykresu. Które fundingi — wybierasz kafelkami w grupie „Funding”.">Funding</button>
+        <button class="pill" id="fbar-btn" title="Jeden funding na wykresie: słupki od zera (zielone dodatni, czerwone ujemny). Wyłączone = linia. Przy kilku fundingach zawsze linie.">Słupki fundingu</button>
         <button class="pill" id="hev-btn" title="Pionowe linie: ważne wydarzenia w historii rynku (COVID, LUNA, FTX, ETF-y…) — lista w config.yaml (history_events). Kliknij podpis na wykresie, żeby zobaczyć opis.">Historyczne wydarzenia</button>
       </div>
     </div>
@@ -228,7 +229,8 @@
     <b style="color:var(--text2)">Panel likwidacji:</b> <span class="neg">czerwone słupki w dół = zlikwidowane longi</span> (dzieje się to, gdy cena spada — słupek idzie w tę samą stronę co cena),
     <span class="pos">zielone słupki w górę = zlikwidowane shorty</span> (gdy cena rośnie). Suma w USD na świecę. Kolory jak na Pulpicie i w raportach: L czerwone, S zielone.<br>
     <b style="color:var(--text2)">Panel fundingu:</b> % rocznie. Jeden funding = słupki od zera (zielone: dodatni — longi płacą shortom; czerwone: ujemny — shorty płacą longom);
-    kilka fundingów naraz = linie w kolorach serii. Fundingi wybierasz kafelkami w grupie „Funding” — niezależnie od coina likwidacji.<br>
+    przycisk „Słupki fundingu” przełącza je na linię;
+    kilka fundingów naraz = zawsze linie w kolorach serii. Fundingi wybierasz kafelkami w grupie „Funding” — niezależnie od coina likwidacji.<br>
     Świece 4H, 1W i 1M są sumowane z danych 1H/1D; funding na nich to średnia.
     Cena (przycisk „Świece”): świece z knotami z Binance perp — pusta = wzrost, pełna = spadek; knoty dzienne od końca 2019 i z danych godzinowych (1H/4H).
     <span id="range-info"></span><br>
@@ -286,7 +288,7 @@ const store = {
 };
 let META = null, CAT = {}, TIPS = {};
 const DATA = {'1h': null, '1d': null};
-let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true, hev: false, funds: ['fund_btc', 'fund_eth', 'fund_others'], grp: 'liq'}, store.get('view', {}), parseHash());
+let S = Object.assign({asset: 'total', iv: '1d', range: 365, px: true, fund: true, cdl: true, hev: false, funds: ['fund_btc', 'fund_eth', 'fund_others'], fbar: true, grp: 'liq'}, store.get('view', {}), parseHash());
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   const o = {};
@@ -298,11 +300,12 @@ function parseHash() {
   if (h.get('k')) o.cdl = h.get('k') === '1';
   if (h.get('hw')) o.hev = h.get('hw') === '1';
   if (h.has('fs')) o.funds = h.get('fs').split(',').filter(Boolean);
+  if (h.get('fb')) o.fbar = h.get('fb') !== '0';
   return o;
 }
 function persist() {
   store.set('view', S);
-  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0, fs: S.funds.join(','), ...(S.hev ? {hw: 1} : {})}));
+  history.replaceState(null, '', '#' + new URLSearchParams({a: S.asset, i: S.iv, z: S.range, p: S.px ? 1 : 0, k: S.cdl ? 1 : 0, f: S.fund ? 1 : 0, fs: S.funds.join(','), ...(S.fbar ? {} : {fb: 0}), ...(S.hev ? {hw: 1} : {})}));
 }
 
 // ── formatting ──────────────────────────────────────────────
@@ -516,6 +519,7 @@ bindPills('range-pills', 'range', Number);
 document.getElementById('px-btn').addEventListener('click', () => { S.px = !S.px; refresh(); });
 document.getElementById('fund-btn').addEventListener('click', () => { S.fund = !S.fund; refresh(); });
 document.getElementById('cdl-btn').addEventListener('click', () => { S.cdl = !S.cdl; refresh(); });
+document.getElementById('fbar-btn').addEventListener('click', () => { S.fbar = !S.fbar; refresh(); });
 document.getElementById('hev-btn').addEventListener('click', () => { S.hev = !S.hev; persist(); syncControls(); if (HEV) HEV.show(S.hev); });
 function syncControls() {
   for (const [id, key] of [['iv-pills', 'iv'], ['range-pills', 'range']])
@@ -524,6 +528,8 @@ function syncControls() {
   const wick = pts(resOf(IV()), pxId(S.asset) + '_hi').length > 0;
   const kb = document.getElementById('cdl-btn'); kb.classList.toggle('active', S.px && S.cdl && wick); kb.disabled = !S.px || !wick;
   const fb = document.getElementById('fund-btn'); fb.classList.toggle('active', S.fund && fundSel().length > 0); fb.disabled = !fundSel().length;
+  const one1 = S.fund && fundSel().length === 1;
+  const xb = document.getElementById('fbar-btn'); xb.classList.toggle('active', S.fbar && one1); xb.disabled = !one1;
   const hb = document.getElementById('hev-btn'), hasHev = ((META || {}).history_events || []).length > 0;
   hb.classList.toggle('active', S.hev && hasHev); hb.disabled = !hasHev;
   document.querySelectorAll('#iv-pills [data-val="1h"], #iv-pills [data-val="4h"]').forEach(b => b.disabled = !has1h());
@@ -609,7 +615,7 @@ function drawChart(resetRange) {
   const pctFmt = {type: 'custom', minMove: .01, formatter: v => v.pl(1) + '%'};
   fids.forEach((fid, i) => {
     const c = CAT[fid], data = agg(pts(res, fid), iv, 'avg');
-    const one = fids.length === 1;                     // jeden funding: słupki od zera, kolor wg znaku; kilka: linie w kolorach serii
+    const one = fids.length === 1 && S.fbar;                     // jeden funding: słupki od zera, kolor wg znaku; kilka: linie w kolorach serii
     const sf = one ? chart.addSeries(LWC.HistogramSeries, {priceScaleId: 'right', priceFormat: pctFmt, base: 0, lastValueVisible: true, priceLineVisible: false}, pFund)
       : chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: 'right', priceFormat: pctFmt, lastValueVisible: true, priceLineVisible: false}, pFund);
     sf.setData(data.map(([t, v]) => one ? {time: t, value: v, color: v >= 0 ? 'rgba(76,175,125,.8)' : 'rgba(224,82,82,.8)'} : {time: t, value: v}));
