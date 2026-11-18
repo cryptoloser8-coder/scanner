@@ -131,6 +131,13 @@
   .ccard .note{font-size:10px;color:var(--amber);margin-top:2px;}
 
   .sito{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:10px;}
+  .sitoblk{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);}
+  .sitoblk .lab{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .sitoblk .lab b{color:var(--text2);font-weight:600;}
+  .panel tr.w{cursor:pointer;} .panel tr.w:hover td{background:rgba(255,255,255,.04);}
+  .bexp{margin-top:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);font-size:11px;padding:5px 10px;cursor:pointer;}
+  .bexp:hover{color:var(--text);}
+  h3.bt{font-size:12px;margin:12px 0 6px;color:var(--text2);font-weight:600;}
   .step{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:11px;color:var(--text2);}
   .step b{display:block;font-family:var(--mono);font-size:15px;color:var(--text);margin-top:2px;}
   .tag{font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid var(--c);color:var(--c);white-space:nowrap;}
@@ -283,7 +290,8 @@ function comp(l) {
 function lsTxt(l) { return l == null ? '—' : `<span class="up">${Math.round(l)}% long</span> · <span class="dn">${Math.round(100 - l)}% short</span>`; }
 
 let NOW = null, META = null, SER = {}, WALLETS = null, HTP = null, HTS = null, HTG = null, PX1H = null, OTH = null;
-const S = {coin: 'ALT', range: '30D', show: 'usd', on: {L: true, S: true, R: true, px: true}, htCoin: null, htShow: 'lpct'};
+const S = {coin: 'ALT', range: '30D', show: 'usd', on: {L: true, S: true, R: true, px: true}, htCoin: null, htShow: 'lpct', bestOpen: {}};
+const BEST_SHOW = 3;
 
 function valAt(arr, t) {
   let best = null;
@@ -345,7 +353,7 @@ function groupsPanel() {
     `<b>Nasze sito</b>: wybrane portfele — konta ≥ ${age} dni, grające większymi kwotami, bez botów, oceniane osobno za longi i za shorty z ich dotychczasowych zagrań (sito co tydzień); „tracący” to losowe konta na minusie. ` +
     `<b>Dla porównania</b>: wszystkie konta Hyperliquid podzielone tylko wg łącznego zysku / straty od założenia konta (dane HyperTrackera) — szerzej, ale bez filtra wieku, skuteczności i botów.</div>` +
     `<div class="groups"><div class="gblock"><div class="lab"><b>Nasze sito</b> · wybrane portfele, liczone z Hyperliquid</div><div class="inner">` +
-    groupCard(G[0], gs.L, subL) + groupCard(G[1], gs.S, subS) + groupCard(G[2], gs.R, subR) + `</div></div>` + htCard() + `</div></div>`;
+    groupCard(G[0], gs.L, subL) + groupCard(G[1], gs.S, subS) + groupCard(G[2], gs.R, subR) + `</div></div>` + htCard() + `</div>` + sitoBlock() + `</div>`;
 }
 
 // ── tabela coinów ──
@@ -390,23 +398,71 @@ function changesPanel() {
   }).join('') + '</div>' : '<div class="hint">Za mało zapisów — zmiany pojawią się po kilku przebiegach.</div>';
   return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100k).</div>${body}</div>`;
 }
-function sitoPanel() {
+// ── 92: młodsze konta vs starsze ──
+function splitPanel() {
+  const sp = NOW && NOW.age_split;
+  if (!sp || !sp.groups) return '';
+  const y = sp.young_days || 365, m = sp.min_age_days || 180;
+  if (m >= y) return '';
+  const cols = [['L', 'mlode'], ['L', 'starsze'], ['S', 'mlode'], ['S', 'starsze']];
+  const g = (a, b) => (sp.groups[a] || {})[b] || {};
+  const side = st => {
+    const t = (st.long || 0) + (st.short || 0);
+    return t ? `<span class="up">${Math.round(st.lpct)}% · ${usd(st.long)}</span><br><span class="dn">${Math.round(100 - st.lpct)}% · ${usd(st.short)}</span>` : '<span style="color:var(--text3)">brak pozycji</span>';
+  };
+  const rows = [
+    ['Portfeli w sicie', st => st.members == null ? '—' : st.members],
+    ['Wiek konta (mediana)', st => st.age_med == null ? '—' : num(st.age_med, 0) + ' dni'],
+    ['Konto (mediana)', st => usd(st.av_med)],
+    ['Zagrania w swojej stronie (mediana)', st => st.n_med == null ? '—' : num(st.n_med, 0)],
+    ['Trafność w swojej stronie (mediana)', st => st.win_med == null ? '—' : num(st.win_med, 0) + '%'],
+    ['Zyski ÷ straty w swojej stronie (mediana)', st => st.pf_med == null ? '—' : num(st.pf_med) + '×'],
+    ['Teraz w pozycjach', st => st.n ? `${st.in_pos} z ${st.n}` : '—'],
+    ['Teraz: longi / shorty', side],
+    ['Portfele: tylko long / tylko short / oba', st => st.in_pos ? `${st.only_long} / ${st.only_short} / ${st.both}` : '—'],
+    ['Dźwignia rzeczywista (pozycje ÷ konta)', st => st.eff_lev == null ? '—' : '×' + num(st.eff_lev)]];
+  const head = '<tr><th></th>' + cols.map(([a, b]) => `<th class="num" style="text-align:right">${a === 'L' ? 'Skuteczni w longach' : 'Skuteczni w shortach'}<br><small>${b === 'mlode' ? `młodsze ${m}–${y} dni` : `starsze ≥ ${y} dni`}</small></th>`).join('') + '</tr>';
+  const body = rows.map(([l, f]) => `<tr><td>${l}</td>` + cols.map(([a, b]) => `<td class="num">${f(g(a, b), a)}</td>`).join('') + '</tr>').join('');
+  return `<div class="panel"><h2>Młodsze konta vs starsze — do decyzji na przeglądzie</h2><div class="desc">Od 18.11.2026 do sita wchodzą konta od ${m} dni (wcześniej od ${y}). Młodsze (${m}–${y} dni) liczymy też osobno, żeby po kilku tygodniach zdecydować: zostają, rezygnujemy z nich (powrót do ${y} dni) czy schodzimy niżej (90 dni). ` +
+    `Skuteczność — z ostatnich transakcji (sito); pozycje — teraz. Porównanie w czasie (longi, shorty, dźwignia co ~2 h) i dzienne wyniki portfeli zapisujemy na stałe.</div>` +
+    `<div class="twrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>` +
+    `<div class="hint">Na przeglądzie: czy młodsze zarabiają dzień po dniu podobnie jak starsze (dzienne wyniki), czy grają podobnie (longi / shorty, dźwignia) i czy częściej wypadają z sita w kolejnych rundach. Mało portfeli w kolumnie = ostrożnie z wnioskami.</div></div>`;
+}
+function sitoBlock() {
   const s = (META && META.sito) || {}, p = s.params || {};
   const steps = [['Kandydaci w rundzie', s.total], ['Sprawdzone portfele', s.checked], ['W kolejce', s.left],
     ['Skuteczni w longach', s.in_sito && s.in_sito.L], ['Skuteczni w shortach', s.in_sito && s.in_sito.S]];
-  let h = '<div class="sito">' + steps.map(x => `<div class="step">${x[0]}<b>${x[1] == null ? '—' : x[1]}</b></div>`).join('') + '</div>';
-  const wl = (WALLETS || []).filter(w => w.prof && (w.g.includes('L') || w.g.includes('S'))).sort((a, b) => (b.av || 0) - (a.av || 0)).slice(0, 10);
-  if (wl.length) {
-    h += '<div class="twrap"><table><thead><tr><th>Portfel</th><th class="num" style="text-align:right">Wiek</th><th class="num" style="text-align:right">Konto</th><th>Skuteczny w</th>' +
-      '<th class="num" style="text-align:right">Longi: na plus · z÷s</th><th class="num" style="text-align:right">Shorty: na plus · z÷s</th><th class="num" style="text-align:right">Zagrania / tydz.</th><th>Teraz: longi / shorty</th></tr></thead><tbody>' +
-      wl.map((w, i) => `<tr class="w" data-addr="${w.addr}"><td class="addr">${short(w.addr)}</td><td class="num">${num(w.prof.age, 0)} dni</td><td class="num">${usd(w.av)}</td><td>${tags(w)}</td>` +
-        `<td class="num">${sideTxt(w.prof.L)}</td><td class="num">${sideTxt(w.prof.S)}</td><td class="num">${num(w.prof.tw)}</td><td style="font-size:11px">${chips(w) || '<span style="color:var(--text3)">bez pozycji</span>'}</td></tr>`).join('') +
-      '</tbody></table></div>';
-  }
+  const h = '<div class="sito">' + steps.map(x => `<div class="step">${x[0]}<b>${x[1] == null ? '—' : x[1]}</b></div>`).join('') + '</div>';
   const prog = s.total ? ` Runda od ${plDate(s.round_started)}: sprawdzono ${s.total - (s.left || 0)} z ${s.total} kandydatów.` : '';
-  return `<div class="panel"><h2>Sito portfeli</h2><div class="desc">Kto trafia do grup „skuteczni w longach” i „skuteczni w shortach” (jeden portfel może być w obu). Kandydaci z rankingu Hyperliquid: konto ≥ ${usd(p.min_av || 1e5)}, zysk od początku > 0, obroty w ostatnim miesiącu. ` +
-    `Warunki: konto ≥ ${p.min_age_days || 365} dni, mniej niż ${p.max_fills_day || 200} transakcji dziennie (bez botów), na danej stronie ≥ ${p.min_trips || 10} zagrań i zyski ≥ ${num(p.min_pf || 1.2)}× strat. Pełny przegląd co tydzień.${prog}</div>${h}` +
-    `<div class="hint">Skuteczność z ostatnich ≤ 2000 transakcji portfela (zwykle kilka miesięcy). ${p.min_trips || 10} zagrań to mało przypadków — ocena strony bywa przypadkowa. „Na plus” = % zagrań zamkniętych z zyskiem; z÷s = suma zysków ÷ suma strat.</div></div>`;
+  return `<div class="sitoblk"><div class="lab"><b>Sito portfeli</b> · skąd są grupy „skuteczni w longach” i „skuteczni w shortach”</div>${h}<div class="hint" style="margin-top:0">Jeden portfel może być w obu grupach. Kandydaci z rankingu Hyperliquid: konto ≥ ${usd(p.min_av || 1e5)}, zysk od początku > 0, obroty w ostatnim miesiącu. ` +
+    `Warunki: konto ≥ ${p.min_age_days || 365} dni, mniej niż ${p.max_fills_day || 200} transakcji dziennie (bez botów), na danej stronie ≥ ${p.min_trips || 10} zagrań i zyski ≥ ${num(p.min_pf || 1.2)}× strat. Pełny przegląd co tydzień.${prog} ` +
+    `Skuteczność z ostatnich ≤ 2000 transakcji portfela (zwykle kilka miesięcy). ${p.min_trips || 10} zagrań to mało przypadków — ocena strony bywa przypadkowa. Portfele grupy z wiekiem, skutecznością i pozycjami: kliknij kafelek grupy (lista do sortowania).</div></div>`;
+}
+
+// ── 92: najlepsze konta ──
+function bestTable(g, lst, bp) {
+  const nm = g === 'L' ? 'longach' : 'shortach', oth = g === 'L' ? 'Shorty' : 'Longi';
+  if (!lst || !lst.length) return `<h3 class="bt">Najlepsi w ${nm}</h3><div class="hint">Brak portfeli spełniających warunki.</div>`;
+  const rows = lst.map((w, i) => {
+    const sd = w.side || {}, ex = w.npos > w.pos.length ? ` <span style="color:var(--text3)">+${w.npos - w.pos.length}</span>` : '';
+    const now = w.npos ? `<span class="up">${usd(w.long)}</span> / <span class="dn">${usd(w.short)}</span>` + (w.upnl != null ? ` · <span class="${w.upnl >= 0 ? 'up' : 'dn'}">${sgnUsd(w.upnl)}</span>` : '') : '<span style="color:var(--text3)">bez pozycji</span>';
+    return `<tr class="w${i >= BEST_SHOW ? ' bx' : ''}" data-g="${g}" data-addr="${w.addr}"${i >= BEST_SHOW && !S.bestOpen[g] ? ' hidden' : ''}><td class="num">${i + 1}</td><td class="addr">${short(w.addr)}</td><td class="num">${num(w.age, 0)} dni</td><td class="num">${usd(w.av)}</td>` +
+      `<td class="num ${(sd.pnl || 0) >= 0 ? 'up' : 'dn'}"><b>${sgnUsd(sd.pnl)}</b></td><td class="num">${sd.n}</td>` +
+      `<td class="num">${sd.win == null ? '—' : Math.round(sd.win) + '%'}</td><td class="num">${sd.pf == null ? 'bez strat' : num(sd.pf) + '×'}</td>` +
+      `<td class="num">${sideTxt(w.other)}</td><td class="num">${now}</td><td style="font-size:11px">${chips({pos: w.pos})}${ex}</td></tr>`;
+  }).join('');
+  return `<h3 class="bt">Najlepsi w ${nm}</h3><div class="twrap"><table><thead><tr><th class="num">#</th><th>Portfel</th><th class="num" style="text-align:right">Wiek</th><th class="num" style="text-align:right">Konto</th>` +
+    `<th class="num" style="text-align:right">Zysk z ${g === 'L' ? 'longów' : 'shortów'}</th><th class="num" style="text-align:right">Zagrania</th><th class="num" style="text-align:right">Na plus</th><th class="num" style="text-align:right">Zyski ÷ straty</th>` +
+    `<th class="num" style="text-align:right">${oth}: na plus · z÷s</th><th class="num" style="text-align:right">Teraz: longi / shorty · wynik otwartych</th><th>Pozycje teraz</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+    (lst.length > BEST_SHOW ? `<button class="bexp" data-bexp="${g}">${S.bestOpen[g] ? `Zwiń do ${BEST_SHOW} ▴` : `Pokaż wszystkie ${lst.length} ▾`}</button>` : '');
+}
+function bestPanel() {
+  const b = NOW && NOW.best;
+  if (!b || !b.groups) return '';
+  const bp = b.params || {};
+  return `<div class="panel"><h2>Najlepsze konta w sicie — longi i shorty</h2><div class="desc">Po ${bp.top || 10} portfeli osobno dla longów i shortów: spośród sita tylko te z ≥ ${bp.min_trips || 20} zagraniami w danej stronie i zyskami ≥ ${num(bp.min_pf || 1.5)}× strat, ułożone wg zrealizowanego zysku z tej strony (ostatnie ≤ 2000 transakcji). Obok — co trzymają teraz. Widać pierwsze ${BEST_SHOW} — „Pokaż wszystkie” rozwija listę. Kliknij wiersz — szczegóły portfela.</div>` +
+    bestTable('L', b.groups.L, bp) + bestTable('S', b.groups.S, bp) +
+    `<div class="hint">Zysk z transakcji zamkniętych — nie widać w nim strat na pozycjach wciąż otwartych: „na plus” blisko 100% albo „bez strat” często znaczy, że portfel nie zamyka stratnych pozycji (sprawdź „wynik otwartych”). Poniżej 30 zagrań — mało przypadków. Opis, nie sygnał.</div></div>`;
 }
 function htPanel() {
   const p = HTP;
@@ -469,7 +525,7 @@ function notesPanel() {
 <ol>
 <li><b>Czy Hyperliquid zgadza się z nami</b>: wynik konta z rankingu i historii konta vs suma zrealizowanych zysków z transakcji vs zmiana wyniku z naszych zapisów pozycji co 2 h.</li>
 <li><b>Ocena z własnych danych</b>: z dziennych wyników portfeli i zdjęć sita — czy portfel zarabiał dzień po dniu / tydzień po tygodniu, jak często zmieniał grupę — zamiast tylko z ostatnich transakcji. Ocena liczona wyłącznie z danych do danego dnia (bez patrzenia w przyszłość). Szczegółowe wejścia / wyjścia — tylko jeśli ma je HyperTracker (punkt 5).</li>
-<li><b>Progi</b>: wiek konta 365 → 180 → 90 dni, minimum zagrań 10 / 20 / 30, próg zysków ÷ strat — porównać, ile portfeli zostaje i czy wyniki grup się zmieniają.</li>
+<li><b>Progi</b>: wiek konta — od 18.11.2026 próg 180 dni (wcześniej 365); młodsze konta (180–365 dni) liczone osobno w tabeli „Młodsze konta vs starsze”: zostają, wracamy do 365 czy schodzimy do 90 dni; minimum zagrań 10 / 20 / 30, próg zysków ÷ strat — porównać, ile portfeli zostaje i czy wyniki grup się zmieniają.</li>
 <li><b>Okresy rynku osobno</b>: skuteczność w longach i shortach liczona osobno w okresach wzrostów i spadków (żeby odróżnić umiejętność od grania z trendem).</li>
 <li><b>HyperTracker dla portfeli z sita</b>: sprawdzić, czy ma historię pozycji naszych portfeli (od 04.2025) — wtedy szczegółowa historia od razu, bez czekania (sonda „htwallets”).</li>
 <li><b>Dopiero potem</b>: czy ruchy skutecznych wyprzedzają fale altów (test na 3 okresach, „zwykły dzień”, mało przypadków — wprost).</li>
@@ -714,7 +770,7 @@ async function drawHT() {
 // ── całość ──
 function setStatus(cls, txt) { document.getElementById('dot').className = 'status-dot ' + cls; document.getElementById('status').textContent = txt; }
 function render() {
-  document.getElementById('main').innerHTML = groupsPanel() + tablePanel() + chartPanel() + changesPanel() + sitoPanel() + htPanel() + notesPanel();
+  document.getElementById('main').innerHTML = groupsPanel() + bestPanel() + tablePanel() + chartPanel() + changesPanel() + splitPanel() + htPanel() + notesPanel();
   drawMain();
   drawHT();
 }
@@ -724,6 +780,13 @@ document.addEventListener('click', async e => {
   if (t.closest('[data-back]')) { mshow(listHTML()); return; }
   const sh = t.closest('#mbox th[data-sort]');
   if (sh) { const k = sh.getAttribute('data-sort'); if (M.sort === k) M.dir = -M.dir; else { M.sort = k; M.dir = k === 'liq' ? 1 : -1; } mshow(listHTML()); return; }
+  const bx = t.closest('[data-bexp]');
+  if (bx) {
+    const g = bx.getAttribute('data-bexp'), open = S.bestOpen[g] = !S.bestOpen[g];
+    document.querySelectorAll(`tr.bx[data-g="${g}"]`).forEach(r => { r.hidden = !open; });
+    bx.textContent = open ? `Zwiń do ${BEST_SHOW} ▴` : `Pokaż wszystkie ${document.querySelectorAll(`tr.w[data-g="${g}"]`).length} ▾`;
+    return;
+  }
   const w = t.closest('tr.w');
   if (w) { openWallet(w.getAttribute('data-addr'), !!t.closest('#mbox')); return; }
   const cel = t.closest('td[data-c]');
