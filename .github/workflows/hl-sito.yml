@@ -1,19 +1,19 @@
 name: Dźwignia — sito
 
-# Sito portfeli Hyperliquid (collector/hl_wallets.py sito): raz na dobę porcja kandydatów z rankingu
+# Sito portfeli Hyperliquid (collector/hl_wallets.py sito): co 6 h porcja (do ~5,5 h) kandydatów z rankingu
 # (konto ≥ $100k, zysk > 0, obroty w ostatnim miesiącu) → wiek konta, skuteczność longi / shorty, częstotliwość.
-# Pełny przegląd co ~7 dni. Wynik: gałąź hl-sito (sito.json) — czyta ją „Dźwignia — pozycje”.
+# Pełny przegląd co ~7 dni; pierwsza runda ciągiem (~1 doba), potem przebiegi bez kolejki kończą się po chwili (88b). Wynik: gałąź hl-sito (sito.json) — czyta ją „Dźwignia — pozycje”.
 # Darmowe API Hyperliquid, bez klucza. Ręcznie: Actions → Dźwignia — sito → Run workflow.
 
 on:
   schedule:
-    - cron: "10 1 * * *"
+    - cron: "10 */6 * * *"
   workflow_dispatch:
     inputs:
       minutes:
         description: "Ile minut sprawdzać portfele (reszta jutro)"
         type: string
-        default: "270"
+        default: "330"
 
 permissions:
   contents: write
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   sito:
     runs-on: ubuntu-latest
-    timeout-minutes: 320
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
 
       - name: Sprawdź porcję portfeli
         env:
-          MINUTES: ${{ inputs.minutes || '270' }}
+          MINUTES: ${{ inputs.minutes || '330' }}
         run: python collector/hl_wallets.py sito --sito-dir hl-sito --minutes "$MINUTES"
 
       - name: Opublikuj (gałąź hl-sito)
