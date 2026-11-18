@@ -71,12 +71,13 @@ class Fake:
         return Resp({}, 404)
 
 
-CFG = dict(chains.DEFAULTS, list=[{"name": "Ethereum", "coin": "ETH"}, {"name": "Solana", "coin": "SOL"}], sleep=0)
+# flow_lag=0: testy reguł niżej liczą przepływy do ostatniego pełnego dnia (jak przed poprawką 109); opóźnienie testowane osobno
+CFG = dict(chains.DEFAULTS, list=[{"name": "Ethereum", "coin": "ETH"}, {"name": "Solana", "coin": "SOL"}], sleep=0, flow_lag=0)
 
 
-def run(tmp_path, fake=None, now=NOW):
+def run(tmp_path, fake=None, now=NOW, cfg=None):
     cl = chains.Client(session=fake or Fake(), sleep=lambda *_: None, pause=0)
-    return chains.run(str(tmp_path), CFG, client=cl, now=now), cl
+    return chains.run(str(tmp_path), cfg or CFG, client=cl, now=now), cl
 
 
 def test_points_drop_today_and_parse_kinds():
@@ -222,3 +223,64 @@ def test_old_history_with_dust_is_trimmed_on_failure(tmp_path):
     run(tmp_path, Fake(fail=("/overview/dexs/Solana",)))
     ser = json.load(open(p))["series"]
     assert ser["ch_solana_dex"][0][0] == START
+
+
+# ── poprawka 109: niepełny ostatni dzień + sieci, których DefiLlama nie ma w danej liście ──
+class Partial(Fake):
+    """Ethereum: wolumen DEX ostatniego pełnego dnia (END) podany w 10% — jak niepełny dzień w DefiLlama."""
+    def get(self, url, params=None, headers=None, timeout=None):
+        r = super().get(url, params, headers, timeout)
+        if chains.requests.utils.unquote(url).endswith("/overview/dexs/Ethereum"):
+            r._d = {"totalDataChart": [[t, v * (0.1 if t == END else 1)] for t, v in r._d["totalDataChart"]]}
+        return r
+
+
+def test_flow_lag_skips_incomplete_last_day(tmp_path):
+    assert chains.DEFAULTS["flow_lag"] == 1
+    s0, _ = run(tmp_path / "a", fake=Partial())                                  # bez opóźnienia: niepełny dzień psuje sumę
+    dex0 = s0["chains"][0]["m"]["dex"]
+    assert dex0["s7"] == 6e9 + 1e8 and dex0["c7"] < -12
+    s1, _ = run(tmp_path / "b", fake=Partial(), cfg=dict(CFG, flow_lag=1))
+    dex1 = s1["chains"][0]["m"]["dex"]
+    assert s1["day"] == chains.iso(END) and s1["flow_day"] == chains.iso(END - DAY)
+    assert dex1["s7"] == 7e9 and dex1["c7"] == 0 and dex1["v"] == 1e9            # liczone do przedostatniego dnia
+    assert s1["chains"][0]["m"]["stable"]["v"] == 1.3e11                           # stany dalej z ostatniego pełnego dnia
+    assert s1["market"]["dex"]["s7"] == 7 * 3e9
+    ser = json.load(open(tmp_path / "b" / "chains_1d.json"))["series"]
+    assert ser["ch_ethereum_dex"][-1] == [END, 1e8]                               # seria zostaje pełna (porównanie korekt)
+
+
+def test_rising_uses_flow_lag():
+    cfg = dict(CFG, flow_lag=1)
+    dex = [[END - k * DAY, 2e6 * (5 if 1 <= k < 8 else 1)] for k in range(60, -1, -1)]   # boom w 7 dniach przed END, END „niepełny”
+    assert chains.rising_check("X", dex, [], END, cfg)["dex_ratio"] == 5.0
+    assert chains.rising_check("X", dex, [], END, CFG)["dex_ratio"] < 5.0
+
+
+class Lists(Fake):
+    """/overview/dexs podaje allChains bez „Cash”; lista stablecoinów bez „Boom” (Boom wchodzi przez TVL)."""
+    def get(self, url, params=None, headers=None, timeout=None):
+        r = super().get(url, params, headers, timeout)
+        u = chains.requests.utils.unquote(url)
+        if u.endswith("/overview/dexs"):
+            r._d = dict(r._d, allChains=["Ethereum", "Solana", "Boom", "Fresh", "Calm"])
+        if u.endswith("/stablecoinchains"):
+            r._d = [c for c in r._d if c["name"] != "Boom"]
+        return r
+
+
+def test_missing_list_is_not_a_failure(tmp_path):
+    fake = Lists()
+    s, _ = run(tmp_path, fake=fake)
+    assert not any("/overview/dexs/Cash" in u for u in fake.urls)                  # nie pytamy o miarę, której DefiLlama nie ma
+    assert not any("/stablecoincharts/Boom" in u for u in fake.urls)
+    assert s["skipped"] == 2 and not any(e.startswith("sieci spoza") for e in s["errors"])
+    assert {r["name"] for r in s["rising"]} == {"Boom", "Cash", "Fresh"}           # reguły działają na tym, co jest
+    # prawdziwa awaria (sieć jest w liście, zapytanie pada) nadal jest zgłaszana
+    s2, _ = run(tmp_path / "x", fake=type("F", (Lists,), {})(fail=("/overview/dexs/Calm",)))
+    assert any(e == "sieci spoza listy: 1 nieudanych zapytań" for e in s2["errors"])
+
+
+def test_no_lists_falls_back_to_asking(tmp_path):
+    s, _ = run(tmp_path, fake=Fake(fail=("/overview/dexs/Calm",)))                 # brak allChains → pytamy jak dawniej
+    assert s["skipped"] == 0 and any(e.startswith("sieci spoza listy: 1") for e in s["errors"])
