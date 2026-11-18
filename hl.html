@@ -72,6 +72,8 @@
   .gcard .rows{margin-top:6px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:11px;}
   .gcard .rows span:nth-child(odd){color:var(--text2);} .gcard .rows span:nth-child(even){font-family:var(--mono);text-align:right;white-space:nowrap;}
   .gcard .big .l{color:var(--green);} .gcard .big .s{color:var(--red);margin-left:14px;}
+  .gcard .netl{font-size:10px;color:var(--text3);margin-top:9px;}
+  .gcard .conc{font-size:10.5px;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.45;}
   .gcard .lsrow{display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);margin-top:4px;}
   .htrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:baseline;font-size:11px;margin-top:7px;}
   .htrow .nm{color:var(--text);} .htrow .nm small{color:var(--text3);font-size:10px;margin-left:5px;}
@@ -322,6 +324,18 @@ function levTable(b) {
     b.map(r => `<tr><td>${esc(r[0])}</td><td>${r[1]}<span class="lb" style="width:${Math.round(r[1] / mx * 40)}px;background:var(--green)"></span></td>` +
       `<td>${r[2]}<span class="lb" style="width:${Math.round(r[2] / mx * 40)}px;background:var(--red)"></span></td></tr>`).join('') + '</table>';
 }
+// 96: % wg kwot bywa dziełem kilku portfeli — obok pokazujemy liczbę portfeli netto w longu / shorcie i udział 3 największych
+const TOP3_WARN = 50;
+function top3Txt(v) { return v == null ? '—' : `<span${v >= TOP3_WARN ? ' style="color:var(--amber)"' : ''}>${Math.round(v)}%</span>`; }
+function netBlock(st) {
+  if (st.net_long == null) return '';
+  const n = st.net_long + st.net_short, lp = n ? st.net_long / n * 100 : null;
+  const warn = [[st.top3L, 'longów'], [st.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= TOP3_WARN)
+    .map(x => `${Math.round(x[0])}% ${x[1]}`).join(' i ');
+  return `<div class="netl">Wg liczby portfeli (każdy portfel liczy się raz — netto w longu albo w shorcie)</div>` +
+    `<div class="lsrow"><span class="up">${lp == null ? '—' : Math.round(lp) + '%'} · ${st.net_long} portfeli</span><span class="dn">${lp == null ? '—' : Math.round(100 - lp) + '%'} · ${st.net_short} portfeli</span></div>` + comp(lp) +
+    (warn ? `<div class="conc">⚠ 3 największe portfele trzymają ${warn} tej grupy — procent wg kwot mówi głównie o nich; patrz też podział wg liczby portfeli.</div>` : '');
+}
 function groupCard(g, st, sub) {
   if (!st || !st.n) {
     return `<div class="gcard" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
@@ -330,10 +344,11 @@ function groupCard(g, st, sub) {
   const l = st.lpct, d24 = delta(`${g.id}_all_lpct`, DAY), d7 = delta(`${g.id}_all_lpct`, 7 * DAY);
   return `<div class="gcard" data-g="${g.id}" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
     `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : Math.round(100 - l) + '%'} <small>short</small></span></div>` + comp(l) +
-    `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` +
+    `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` + netBlock(st) +
     `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span>${dTxt(d24)} / ${dTxt(d7)}</span>` +
     `<span>Portfeli w grupie (teraz w pozycjach)</span><span>${st.n} (${st.in_pos})</span>` +
     `<span>Portfele: tylko long / tylko short / oba</span><span>${st.only_long} / ${st.only_short} / ${st.both}</span>` +
+    (st.net_long != null ? `<span>3 największe portfele: udział w longach / w shortach</span><span>${top3Txt(st.top3L)} / ${top3Txt(st.top3S)}</span>` : '') +
     `<span>Dźwignia rzeczywista (pozycje ÷ konta)</span><span>×${num(st.eff_lev)}</span></div>` + levTable(st.lev_buckets) +
     `<div class="more">Kliknij, aby zobaczyć portfele tej grupy i ich pozycje →</div></div>`;
 }
@@ -367,7 +382,8 @@ function groupsPanel() {
 function cell(a) {
   if (!a || !(a.long + a.short)) return '<div class="cell"><div class="t" style="color:var(--text3)">brak pozycji</div></div>';
   return `<div class="cell"><div class="t"><span class="up">${Math.round(a.lpct)}% · ${usd(a.long)}</span><span class="dn">${Math.round(100 - a.lpct)}% · ${usd(a.short)}</span></div>${comp(a.lpct)}` +
-    `<div class="hint" style="margin:0">portfeli: ${a.nL} long · ${a.nS} short</div></div>`;
+    `<div class="hint" style="margin:0">portfeli: ${a.nL} long · ${a.nS} short` +
+    [[a.top3L, 'longów'], [a.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= 75).map(x => ` · <span style="color:var(--amber)">3 największe = ${Math.round(x[0])}% ${x[1]}</span>`).join('') + `</div></div>`;
 }
 function tablePanel() {
   const gs = (NOW && NOW.groups) || {}, px = (NOW && NOW.prices) || {};
@@ -380,7 +396,7 @@ function tablePanel() {
       G.map(g => `<td data-g="${g.id}" data-c="${c}" title="Kliknij — portfele tej grupy na ${CLOC(c)}">${cell(gs[g.id] && gs[g.id].coins[c])}</td>`).join('') + '</tr>';
   });
   return `<div class="panel"><h2>Longi i shorty grup na coinach</h2><div class="desc">Ile każda grupa trzyma w longach, a ile w shortach (wartość pozycji). Osobno BTC, ETH, HYPE, SOL, DOGE, TAO; pozostałe coiny krypto razem jako koszyk altów.</div>` +
-    h + '</tbody></table></div><div class="hint">Pasek = udział wartości pozycji grupy na tym coinie: <span class="up">■ longi</span> (lewa liczba: % i $) / <span class="dn">■ shorty</span> (prawa liczba). Kliknij komórkę — portfele tej grupy na tym coinie: ceny wejścia, likwidacje, stopy.</div></div>';
+    h + '</tbody></table></div><div class="hint">Pasek = udział wartości pozycji grupy na tym coinie: <span class="up">■ longi</span> (lewa liczba: % i $) / <span class="dn">■ shorty</span> (prawa liczba). „3 największe = X%” (żółte) = co najmniej 3/4 tej kwoty trzymają 3 portfele. Kliknij komórkę — portfele tej grupy na tym coinie: ceny wejścia, likwidacje, stopy.</div></div>';
 }
 
 // ── wykres ──

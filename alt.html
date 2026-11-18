@@ -199,7 +199,7 @@
   <h2>Tło — kontekst</h2>
   <div class="desc">Informacje, które nie zapalają lampek: gdzie jesteśmy w fali, jak drogie są alty względem BTC, co robi dolar i na której sieci jest ruch (liczone na bieżąco z historii — szacunek, nie prognoza).
     „Fala” = wzrost indeksu altów o co najmniej tyle, ile ustawisz w polu „Fala od” przy wykresie (domyślnie +40% — duże fale, ok. 2 w roku), zakończony spadkiem o tyle samo w drugą stronę (przy +40% to −28,6%, przy +20% to −16,7%), najdłużej 200 dni.
-    Usunięte po badaniu 14.11.2026 (nie dawały stałego sygnału): zmiana stablecoinów w 30 dni, RSI 1W, „potwierdzenie fali” (to samo pokazuje lampka „Duża fala” i tabela fal).</div>
+    Usunięte po badaniu 14.11.2026 (nie dawały stałego sygnału): zmiana stablecoinów w 30 dni, RSI 1W, „potwierdzenie fali” (to samo pokazuje lampka „Indeks altów” i tabela fal).</div>
   <div class="stats" id="stats"></div>
 </div>
 
@@ -527,7 +527,7 @@ const LAMP_UI = {
   big_wave: {color: '#26a69a', fmt: v => fmtPct(v), unit: 'od dołka fali',
     lvl: c => [`+${c.big_wave.wave_pct}%`],
     cond: c => `Indeks altów co najmniej +${c.big_wave.wave_pct}% nad dołkiem fali; gaśnie, gdy spadnie o ${num((1 - 1 / (1 + c.big_wave.wave_pct / 100)) * 100, 1)}% od szczytu fali.`,
-    mean: () => 'Duża fala potwierdzona — spora część zwykle już za nami. Pilnuj przegrzania.'},
+    mean: () => 'Zapala się najczęściej w połowie większej fali wzrostowej albo pod koniec mniejszej. Miej to na uwadze: przejrzyj pozostałe wskaźniki, pilnuj rynku i miej ustaloną strategię wyjścia — choćby częścią kapitału.'},
   leverage: {color: '#ffc107', color2: '#e05252', fmt: v => num(v, 3) + '×', unit: 'OI OTHERS / OI BTC',
     lvl: c => c.leverage.levels.map((v, i) => `≥ ${num(v, 2)} ${['uwaga', 'przegrzanie', 'skrajne'][i] || ''}`.trim()),
     cond: c => `Lewar altów (open interest altów bez ETH ÷ open interest BTC): ${c.leverage.levels.map(v => num(v, 2)).join(' / ')} — uwaga / przegrzanie / skrajne przegrzanie.`,
@@ -565,7 +565,7 @@ const LAMP_WHERE = {
 };
 const lampColor = (k, lv) => k === 'leverage' && lv >= 2 ? LAMP_UI.leverage.color2 : LAMP_UI[k].color;   // pasek pod wykresem
 const groupColor = g => (LAMP_GROUPS.find(x => x[0] === g) || [])[3] || '#888';                         // karty lampek — kolor grupy
-const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Duża fala w toku', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
+const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Indeks altów', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
 function renderLamps() {
   const A = META.alt_lamps, box = document.getElementById('lamps'), top = document.getElementById('lamps-top');
   if (!A || !A.lamps) {
