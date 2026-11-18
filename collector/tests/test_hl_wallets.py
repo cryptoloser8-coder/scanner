@@ -175,3 +175,48 @@ def test_daily_results_and_round_snapshot(tmp_path):
     W.run_positions(dd, sd, session=s, sleep=clk.sleep, clock=clk)          # ten sam dzień — bez drugiego zapisu
     assert len(W._read(os.path.join(dd, "daily", month + ".json"), {})["days"]) == 1 and n_get == 0
     assert W._read(os.path.join(dd, "hl_meta.json"), {})["daily_saved"] is False
+
+
+def test_verdict_from_saved_numbers_and_young_split():
+    """92: werdykt z zapisanych liczb (nowe progi bez pobierania) + młodsze / starsze osobno."""
+    base = {"trips": 30, "fpd": 5, "L": {"n": 15, "win": 60, "pf": 2.0, "pnl": 100}, "S": {"n": 15, "win": 100, "pf": None, "pnl": 50}}
+    old = dict(base, age=500)
+    young = dict(base, age=200)
+    baby = dict(base, age=100)
+    assert W.verdict(old) == (["L", "S"], None)               # brak z÷s przy zysku = same zyskowne zagrania
+    assert W.verdict(young) == (["L", "S"], None)
+    assert W.verdict(baby) == ([], "za młode konto")
+    assert W.verdict(young, dict(W.SITO, min_age_days=365)) == ([], "za młode konto")
+    assert W.verdict(dict(base, age=500, S={"n": 15, "win": 0, "pf": None, "pnl": -5}))[0] == ["L"]
+    ch = {"a": dict(young, sides=[], why="za młode konto"), "b": dict(old, sides=["L", "S"], why=None), "c": {"why": "x", "sides": []}}
+    assert W.reverdict(ch) == 1 and ch["a"]["sides"] == ["L", "S"] and ch["c"]["sides"] == []
+    pos = [{"c": "BTC", "L": True, "size": 1000, "lev": 5}]
+    wallets = [{"addr": "a", "g": ["L", "S"], "av": 500, "pos": pos}, {"addr": "b", "g": ["L", "S"], "av": 1000, "pos": []}]
+    sp = W.age_split(wallets, ch)
+    L = sp["groups"]["L"]
+    assert sp["young_days"] == 365 and sp["min_age_days"] == 180
+    assert L["mlode"]["members"] == 1 and L["mlode"]["in_pos"] == 1 and L["mlode"]["long"] == 1000 and L["mlode"]["eff_lev"] == 2.0
+    assert L["starsze"]["members"] == 1 and L["starsze"]["in_pos"] == 0 and L["starsze"]["age_med"] == 500
+    series = {}
+    W.append_split(series, 100, sp)
+    W.append_split(series, 100, sp)
+    assert series["Ly_all_long"] == [[100, 1000]] and "Lo_all_eff_lev" not in series and series["So_all_long"] == [[100, 0]]
+
+
+def test_best_lists():
+    """92: najlepsi osobno w longach i shortach: ≥ 20 zagrań, z÷s ≥ 1,5 (brak strat przy zysku też), sort wg zysku."""
+    def v(sides, L, S):
+        return {"sides": sides, "age": 400, "av": 1e5, "L": L, "S": S}
+    ch = {"a": v(["L"], {"n": 25, "win": 60, "pf": 2.0, "pnl": 500}, {"n": 0}),
+          "b": v(["L"], {"n": 25, "win": 100, "pf": None, "pnl": 900}, {"n": 0}),
+          "c": v(["L"], {"n": 12, "win": 90, "pf": 9.0, "pnl": 5000}, {"n": 0}),        # za mało zagrań
+          "d": v(["L"], {"n": 40, "win": 50, "pf": 1.3, "pnl": 8000}, {"n": 0}),        # z÷s < 1,5
+          "e": v(["S"], {"n": 0}, {"n": 30, "win": 70, "pf": 3.0, "pnl": 100})}
+    wallets = [{"addr": "a", "av": 2e5, "pos": [{"c": "BTC", "L": True, "size": 1000, "lev": 5, "pnl": -50},
+                                                 {"c": "ETH", "L": False, "size": 400, "lev": 3, "pnl": 20}]}]
+    b = W.best_lists(ch, wallets)
+    L, S = b["groups"]["L"], b["groups"]["S"]
+    assert [x["addr"] for x in L] == ["b", "a"] and [x["addr"] for x in S] == ["e"]
+    a = L[1]
+    assert a["av"] == 2e5 and a["long"] == 1000 and a["short"] == 400 and a["upnl"] == -30 and a["npos"] == 2
+    assert L[0]["upnl"] is None and L[0]["pos"] == [] and L[0]["av"] == 1e5
