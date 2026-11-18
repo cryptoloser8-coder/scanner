@@ -294,7 +294,7 @@ def test_backup_takes_chains_when_present(tmp_path):
         assert "chains/x.json" in t.getnames()
     # brak gałęzi chains nie zatrzymuje kopii
     shutil.rmtree(tmp_path / "br" / "chains")
-    assert backup.make_archive(str(tmp_path / "b.tar.xz"), str(tmp_path / "br"), None) == 3
+    assert backup.make_archive(str(tmp_path / "b.tar.xz"), str(tmp_path / "br"), None) == len(backup.BRANCHES + backup.OPTIONAL_BRANCHES) - 1
 
     class R:
         def __init__(self, rc):

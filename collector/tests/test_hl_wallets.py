@@ -153,3 +153,25 @@ def test_hopeless_wallet_skips_portfolio(tmp_path):
     clk, s = Clock(), Few()
     _, st = W.run_sito(str(tmp_path), minutes=600, session=s, sleep=clk.sleep, clock=clk)
     assert "portfolio" not in s.calls and st["checked"][addr(0)]["why"] == "za mało zagrań"
+
+
+def test_daily_results_and_round_snapshot(tmp_path):
+    clk, s = Clock(), Fake()
+    sd, dd = str(tmp_path / "sito"), str(tmp_path / "hl")
+    W.run_sito(sd, minutes=600, session=s, sleep=clk.sleep, clock=clk)
+    rounds = os.listdir(os.path.join(sd, "rounds"))
+    snap = W._read(os.path.join(sd, "rounds", rounds[0]), {})
+    assert len(rounds) == 1 and snap["members"][addr(0)][0] == "L" and len(snap["losers"]) == 5
+    W.run_positions(dd, sd, session=s, sleep=clk.sleep, clock=clk)
+    month = W.time.strftime("%Y-%m", W.time.gmtime(clk.t))
+    doc = W._read(os.path.join(dd, "daily", month + ".json"), {})
+    day = W.time.strftime("%Y-%m-%d", W.time.gmtime(clk.t))
+    rows = doc["days"][day]
+    assert len(rows) == 6 + 5 and doc["cols"][0] == "id"                      # 4 L + 2 S + 5 tracących
+    r0 = next(r for r in rows if doc["ids"][r[0]] == addr(0))
+    assert r0[1] == "L" and r0[3] == 100000 and r0[4] == 2000000
+    assert any(r[1] == "R" and r[3] == -5000 for r in rows)
+    n_get = s.calls.count("leaderboard")
+    W.run_positions(dd, sd, session=s, sleep=clk.sleep, clock=clk)          # ten sam dzień — bez drugiego zapisu
+    assert len(W._read(os.path.join(dd, "daily", month + ".json"), {})["days"]) == 1 and n_get == 0
+    assert W._read(os.path.join(dd, "hl_meta.json"), {})["daily_saved"] is False

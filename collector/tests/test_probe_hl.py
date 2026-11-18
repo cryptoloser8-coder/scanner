@@ -275,3 +275,30 @@ def test_trips_skip_spot_and_idle_months():
     hist = [[(base + d * DAY) * 1000, str(v)] for d, v in ((0, 0), (40, 10), (70, 10), (100, 10), (130, 30))]
     pct, n = probe_hl.months_positive(hist)
     assert n == 2 and pct == 100.0             # miesiące bez gry pominięte
+
+
+class FakeHTPos(FakeHT):
+    def get(self, url, params=None, headers=None, timeout=None):
+        if url.endswith("/positions"):
+            self.paths.append(url)
+            addrs = params["address[]"]
+            items = [{"address": a, "coin": "BTC", "openTime": "2025-06-01T00:00:00.000Z", "closeTime": None if k else "2025-07-01T00:00:00.000Z",
+                      "entryPrice": 1, "realizedPnl": 5} for a in addrs if a.endswith(("1", "2")) for k in range(2)]
+            return Resp({"positions": items, "nextCursor": None})
+        return super().get(url, params, headers, timeout)
+
+
+def test_htwallets(monkeypatch):
+    monkeypatch.setenv("HYPERTRACKER_API_KEY", "K")
+    sito = {"checked": {f"0x{i:039x}{d}": {"sides": ["L"], "av": 100 - i} for i, d in enumerate("123456789a")},
+            "losers": ["0xbad1", "0xbad3"]}
+    s = FakeHTPos("K")
+    extra = {}
+    rows = probe_hl.check_htwallets(session=s, sleep=lambda *_: None, extra=extra, sito=sito)
+    by = {r["item"]: r for r in rows}
+    assert by["skuteczni: z historią w HT"]["n"] == 2 and by["skuteczni: z historią w HT"]["first"] == "2025-06-01"
+    assert by["tracący: z historią w HT"]["n"] == 1
+    assert "realizedPnl" in by["pola pozycji"]["note"] and "UWAGA" not in by["pola pozycji"]["note"]
+    assert by["koszt"]["n"] == len(s.paths) <= 10
+    a = next(k for k in extra["htwallets"]["per_addr"] if k.endswith("2"))
+    assert extra["htwallets"]["per_addr"][a]["open"] == 1

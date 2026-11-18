@@ -138,3 +138,16 @@ def test_publish_copies_files_and_calls_script(tmp_path):
     assert args[1].endswith("publish.sh") and branch == "ht"
     assert files == ["ht_groups.json", "ht_progress.json", "ht_summary.json"] and not os.path.exists(args[2])
     assert st["published_at"] == int(NOW)
+
+
+def test_publishes_pending_after_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv("HYPERTRACKER_API_KEY", "K")
+    s, pubs = Fake(pages=30), []
+    pf = lambda d, st, now: (pubs.append(now), st.update({"published_at": int(now)}))
+    H.run(session=s, now=NOW, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=pf)
+    H.run(session=s, now=NOW + 300, ddir=str(tmp_path), telegram=TG(), per_run=500, publish_fn=pf)   # do limitu
+    n = len(pubs)
+    H.run(session=s, now=NOW + 7 * 3600, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=pf)  # limit, 0 zapytań
+    assert len(pubs) == n + 1
+    H.run(session=s, now=NOW + 10 * 3600, ddir=str(tmp_path), telegram=TG(), per_run=8, publish_fn=pf)
+    assert len(pubs) == n + 1                                                       # nic nowego — bez publikacji
