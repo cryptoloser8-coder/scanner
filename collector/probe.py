@@ -23,6 +23,10 @@ Nowe źródła do sekcji Alty (poprawka 45) — uruchamiane tylko na życzenie (
                 czy odpowiedź zawiera zmiany 24h/7D/30D, jak głęboka jest historia na darmowym kluczu i ile to zapytań,
   dexscreener — trendujące narracje („metas”): czy API odpowiada z GitHuba i jakie pola zwraca.
 
+Pozycje portfeli (poprawka 85) — tylko na życzenie (--only hyperliquid hypertracker), kod w probe_hl.py:
+  hyperliquid  — ranking, pozycje ~450 portfeli (najlepsi vs tracący), historia PnL kont, limity darmowego API,
+  hypertracker — co daje API HyperTracker (sekret HYPERTRACKER_API_KEY) i jak głęboka jest historia grup.
+
 Sieci (poprawka 47) — tylko na życzenie (--only defillama):
   defillama   — wolumen DEX, opłaty, stablecoiny i TVL dla 8 sieci (Ethereum, Robinhood Chain, Solana, BSC, TON, Base,
                 Tron, Hyperliquid L1): od kiedy, czy ostatni dzień jest pełny, udział w stablecoinach; kandydaci spoza
@@ -1077,6 +1081,25 @@ def check_defillama(session=None, sleep=time.sleep, now=None, chains=LL_CHAINS, 
 FUNCS.update({"defillama": check_defillama})
 
 
+# ── Hyperliquid i HyperTracker (poprawka 85) — tylko przez --only hyperliquid hypertracker ──
+# Kod w probe_hl.py (import w funkcji: paczka wgrywana w częściach). Szczegóły (próbki odpowiedzi, specyfikacja
+# HyperTrackera, liczby grup) idą do probe.json → "extra" — bez nowych plików, więc bezpiecznik gałęzi nie protestuje.
+EXTRA = {}
+
+
+def _hl(name):
+    def f(**kw):
+        try:
+            import probe_hl
+        except ImportError as e:
+            return [err_row(name, "moduł probe_hl.py", e)]
+        return getattr(probe_hl, "check_" + name)(extra=EXTRA, **kw)
+    return f
+
+
+FUNCS.update({"hyperliquid": _hl("hyperliquid"), "hypertracker": _hl("hypertracker")})
+
+
 def run(where, only=None, funcs=None, now=None):
     funcs = funcs or FUNCS
     rows = []
@@ -1090,8 +1113,11 @@ def run(where, only=None, funcs=None, now=None):
             got = [err_row(name, "całe źródło", e)]
         log.info("  %s: %d wierszy, %.0f s", name, len(got), time.time() - t)
         rows += got
-    return {"where": where, "at": datetime.fromtimestamp(now or time.time(), timezone.utc).strftime(
+    res = {"where": where, "at": datetime.fromtimestamp(now or time.time(), timezone.utc).strftime(
         "%Y-%m-%d %H:%M UTC"), "seconds": round(time.time() - t0), "rows": rows}
+    if EXTRA:
+        res["extra"] = EXTRA
+    return res
 
 
 def to_markdown(res):
