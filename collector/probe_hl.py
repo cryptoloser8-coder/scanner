@@ -520,3 +520,329 @@ def check_hypertracker(session=None, sleep=time.sleep, extra=None, now=None, bud
                          + (f"; zatrzymano: {ht.stopped}" if ht.stopped else "")))
     ex["limit_headers"] = ht.limit_headers
     return rows
+
+
+# ═══ Sonda 86: sito portfeli (Hyperliquid) i głębokość historii HyperTrackera ═══
+# hlsito  — lista rynków krypto wg OI (bez rynków z dodatkowych giełd „xyz:…”), a dla ~250 kandydatów z rankingu
+#           (konto ≥ $100k, PnL od zawsze > 0): wiek konta, % miesięcy na plusie, zagrania (pozycja otwarta → zamknięta)
+#           z ostatnich ≤ 2000 transakcji: skuteczność i stosunek zysków do strat osobno dla longów i shortów, częstotliwość;
+#           dla 15 portfeli przewijanie transakcji wstecz → jak daleko sięga historia (limit giełdy ok. 10 000).
+# htdepth — przewijanie historii metryk grupy Smart Money dla BTC do samego początku (≤ 25 zapytań) + próbka małego alta.
+SEPARATE = ("BTC", "ETH", "HYPE", "SOL", "DOGE", "TAO")
+SITO_TOP = 50             # najlepsi od zawsze
+SITO_RANDOM = 200         # losowo z reszty kandydatów
+SITO_DEEP = 15            # tyle portfeli: transakcje przewijane wstecz
+DEEP_PAGES = 6
+WEIGHT_PER_MIN = 900      # limit giełdy 1200 „wag” na minutę na IP — zostawiamy zapas
+OI_LEVELS = (5e6, 10e6, 25e6, 100e6)
+EPS = 1e-9
+
+
+class WeightedHL(HLClient):
+    """HLClient pilnujący „wag” zapytań (limit Hyperliquid na minutę)."""
+    def __init__(self, session=None, sleep=time.sleep, clock=time.time, per_min=WEIGHT_PER_MIN):
+        super().__init__(session, sleep, pause=0)
+        self.clock = clock
+        self.per_min = per_min
+        self.log = []          # (czas, waga)
+        self.weight = 0
+
+    def _wait(self, w):
+        while True:
+            now = self.clock()
+            self.log = [(t, x) for t, x in self.log if now - t < 60]
+            if sum(x for _, x in self.log) + w <= self.per_min or not self.log:
+                break
+            self.sleep(max(0.5, 60 - (now - self.log[0][0])))
+
+    def call(self, body, weight=20):
+        self._wait(weight)
+        out = self.info(body)
+        extra = len(out) // 20 if isinstance(out, list) and body.get("type", "").startswith("userFills") else 0
+        self.log.append((self.clock(), weight + extra))
+        self.weight += weight + extra
+        return out
+
+
+def crypto_markets(meta, ctxs):
+    """metaAndAssetCtxs → [(OI $, nazwa)] malejąco; tylko główna giełda (bez „dex:coin”), bez wycofanych."""
+    out = []
+    for a, c in zip(meta.get("universe") or [], ctxs or []):
+        nm = a.get("name") or ""
+        if ":" in nm or a.get("isDelisted"):
+            continue
+        px, o = _f(c.get("markPx")), _f(c.get("openInterest"))
+        if px and o:
+            out.append((o * px, nm))
+    out.sort(reverse=True)
+    return out
+
+
+def trips(fills):
+    """Transakcje portfela → zagrania: [{coin, side, pnl (po opłatach), open, close}].
+
+    Zagranie = od otwarcia pozycji (z zera) do powrotu do zera albo odwrócenia strony. Pierwsza transakcja w oknie może
+    zaczynać się w środku pozycji — wtedy zagranie liczymy od niej (strona = znak pozycji przed transakcją)."""
+    out, cur = [], {}
+    for f in sorted(fills or [], key=lambda x: (x.get("time") or 0, x.get("tid") or 0)):
+        c = f.get("coin")
+        if not c or ":" in c:
+            continue
+        sz, start = _f(f.get("sz")), _f(f.get("startPosition"))
+        if sz is None or start is None:
+            continue
+        delta = sz if f.get("side") == "B" else -sz
+        after = start + delta
+        pnl = (_f(f.get("closedPnl")) or 0.0) - (_f(f.get("fee")) or 0.0)
+        t = to_ts(f.get("time"))
+        tr = cur.get(c)
+        if tr is None:
+            side = start if abs(start) > EPS else delta
+            tr = cur[c] = {"coin": c, "side": "long" if side > 0 else "short", "pnl": 0.0, "open": t, "close": None}
+        tr["pnl"] += pnl
+        if abs(after) <= EPS * max(1.0, abs(start)) or (start * after < 0):
+            tr["close"] = t
+            out.append(tr)
+            cur.pop(c)
+            if start * after < 0:          # odwrócenie: nowa pozycja w drugą stronę
+                cur[c] = {"coin": c, "side": "long" if after > 0 else "short", "pnl": 0.0, "open": t, "close": None}
+    return out
+
+
+def side_stats(tr):
+    wins = [t["pnl"] for t in tr if t["pnl"] > 0]
+    loss = [-t["pnl"] for t in tr if t["pnl"] < 0]
+    return {"n": len(tr), "win_pct": len(wins) / len(tr) * 100 if tr else None,
+            "pf": sum(wins) / sum(loss) if loss else (None if not wins else float("inf")),
+            "pnl": sum(t["pnl"] for t in tr)}
+
+
+def months_positive(pnl_hist):
+    """Historia PnL od zawsze ([[ms, pnl], …], co ~tydzień) → (% miesięcy na plusie, liczba miesięcy)."""
+    pts = sorted((to_ts(p[0]), _f(p[1])) for p in pnl_hist or [] if p and to_ts(p[0]) and _f(p[1]) is not None)
+    if len(pts) < 2:
+        return None, 0
+    month_end = {}
+    for t, v in pts:
+        month_end[datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m")] = v
+    ks = sorted(month_end)
+    prev = pts[0][1]
+    ch = []
+    for k in ks:
+        ch.append(month_end[k] - prev)
+        prev = month_end[k]
+    ch = ch[1:] if len(ch) > 1 else ch           # pierwszy miesiąc niepełny
+    return (sum(1 for x in ch if x > 0) / len(ch) * 100 if ch else None), len(ch)
+
+
+def wallet_profile(pf, fills, now):
+    per = {k: v for k, v in pf} if isinstance(pf, list) else {}
+    at = per.get("perpAllTime") or per.get("allTime") or {}
+    ts = [to_ts(p[0]) for p in at.get("pnlHistory") or [] if p]
+    ts = [x for x in ts if x]
+    age = (now - min(ts)) / 86400 if ts else None
+    mpos, nm = months_positive(at.get("pnlHistory"))
+    tr = trips(fills)
+    ft = [to_ts(f.get("time")) for f in fills or []]
+    ft = [x for x in ft if x]
+    span = (max(ft) - min(ft)) / 86400 if len(ft) > 1 else None
+    weeks = max(span or 0, 7) / 7
+    long_ = side_stats([t for t in tr if t["side"] == "long"])
+    short = side_stats([t for t in tr if t["side"] == "short"])
+    alts = [t for t in tr if t["coin"] not in SEPARATE]
+    return {"age_days": age, "months_pos_pct": mpos, "months": nm, "fills": len(ft), "fills_capped": len(ft) >= 2000,
+            "fills_span_days": span, "fills_first": min(ft) if ft else None,
+            "trips": len(tr), "trips_per_week": len(tr) / weeks, "fills_per_day": len(ft) / max(span or 0, 1),
+            "all": side_stats(tr), "long": long_, "short": short, "alt_trips_pct": len(alts) / len(tr) * 100 if tr else None}
+
+
+def _pcts(xs, ps=(10, 25, 50, 75, 90)):
+    xs = sorted(x for x in xs if x is not None and x != float("inf"))
+    if not xs:
+        return "—"
+    return ", ".join(f"p{p} {xs[min(len(xs) - 1, int(p / 100 * len(xs)))]:.{0 if abs(xs[-1]) >= 100 else 1}f}" for p in ps) \
+        + f" (n={len(xs)})"
+
+
+def check_hlsito(session=None, sleep=time.sleep, clock=time.time, extra=None, now=None,
+                 n_top=SITO_TOP, n_random=SITO_RANDOM, n_deep=SITO_DEEP, **_):
+    from probe import row, err_row
+    extra = extra if extra is not None else {}
+    ex = extra.setdefault("hlsito", {})
+    s = session or requests.Session()
+    hl = WeightedHL(s, sleep, clock)
+    now = now or clock()
+    rows = []
+
+    # 1) rynki krypto wg OI
+    try:
+        meta, ctxs = hl.call({"type": "metaAndAssetCtxs"}, 20)
+        mk = crypto_markets(meta, ctxs)
+        tot = sum(v for v, _ in mk)
+        basket = [(v, n) for v, n in mk if n not in SEPARATE]
+        ex["markets"] = [{"coin": n, "oi_usd": round(v)} for v, n in mk]
+        levels = "; ".join(f"OI ≥ {usd(lv)}: {sum(1 for v, _ in mk if v >= lv)} (koszyk altów {sum(1 for v, _ in basket if v >= lv)})"
+                           for lv in OI_LEVELS)
+        rows.append(row("hlsito", "rynki krypto (główna giełda HL)", "ok", n=len(mk),
+                        note=f"OI razem {usd(tot)}; osobno {', '.join(SEPARATE)}: "
+                             + ", ".join(f"{n} {usd(v)}" for v, n in mk if n in SEPARATE)
+                             + f"; koszyk altów (reszta) {usd(sum(v for v, _ in basket))}; {levels}; "
+                             f"pierwsze w koszyku: " + ", ".join(f"{n} {usd(v)}" for v, n in basket[:15])))
+        others = sum(1 for a in meta.get("universe") or [] if ":" in (a.get("name") or ""))
+        if others:
+            rows.append(row("hlsito", "pominięte rynki z „:”", "ok", n=others, note="dodatkowe giełdy (akcje, surowce…)"))
+    except Exception as e:  # noqa: BLE001
+        rows.append(err_row("hlsito", "rynki krypto", e))
+
+    # 2) kandydaci
+    try:
+        r = s.get(HL_BOARD, headers=UA, timeout=120)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        board = board_rows(r.json())
+    except Exception as e:  # noqa: BLE001
+        return rows + [err_row("hlsito", "ranking", e)]
+    pool = [b for b in board if b["addr"] and (b["av"] or 0) >= TOP_MIN_AV and (b["pnl"].get("allTime") or 0) > 0]
+    pool.sort(key=lambda b: -(b["pnl"].get("allTime") or 0))
+    top = pool[:n_top]
+    rest = random.Random(86).sample(pool[n_top:], min(n_random, max(0, len(pool) - n_top)))
+    cands = [(b, "najlepsi od zawsze") for b in top] + [(b, "losowo z kandydatów") for b in rest]
+    rows.append(row("hlsito", "kandydaci", "ok", n=len(cands),
+                    note=f"z rankingu: konto ≥ {usd(TOP_MIN_AV)} i PnL od zawsze > 0 → {len(pool)} kont; "
+                         f"sprawdzane: {len(top)} najlepszych + {len(rest)} losowo"))
+
+    # 3) profile
+    prof, fails, t0 = [], 0, time.time()
+    for i, (b, grp) in enumerate(cands):
+        try:
+            pf = hl.call({"type": "portfolio", "user": b["addr"]}, 20)
+            fills = hl.call({"type": "userFills", "user": b["addr"]}, 20)
+            p = wallet_profile(pf, fills, now)
+            p.update({"addr": b["addr"], "group": grp, "av": b["av"], "pnl_all": b["pnl"].get("allTime"),
+                      "pnl_month": b["pnl"].get("month")})
+            if i < n_deep:                       # przewijanie wstecz
+                allf = list(fills or [])
+                pages = 1
+                while len(allf) >= 2000 * pages and pages < DEEP_PAGES:
+                    first = min(f.get("time") for f in allf)
+                    more = hl.call({"type": "userFillsByTime", "user": b["addr"], "startTime": 0, "endTime": first - 1}, 20)
+                    if not more:
+                        break
+                    seen = {(f.get("tid"), f.get("time")) for f in allf}
+                    new = [f for f in more if (f.get("tid"), f.get("time")) not in seen]
+                    if not new:
+                        break
+                    allf += new
+                    pages += 1
+                ts = [to_ts(f.get("time")) for f in allf]
+                ts = [x for x in ts if x]
+                p["deep"] = {"fills": len(allf), "pages": pages, "first": _iso(min(ts)) if ts else None,
+                             "days": (max(ts) - min(ts)) / 86400 if len(ts) > 1 else None}
+            prof.append(p)
+        except Exception:  # noqa: BLE001
+            fails += 1
+    rows.append(row("hlsito", "profile portfeli (portfolio + userFills)", "ok" if prof else "błąd", n=len(prof),
+                    note=f"{time.time() - t0:.0f} s; nieudane {fails}; wagi razem {hl.weight}, odpowiedzi 429: {hl.r429}; "
+                         f"limit {WEIGHT_PER_MIN} wag/min"))
+    ex["wallets"] = [{k: (round(v, 3) if isinstance(v, float) and v != float("inf") else v) for k, v in p.items()
+                      if k not in ("long", "short", "all")}
+                     | {k: {kk: (round(vv, 3) if isinstance(vv, float) and vv != float("inf") else vv)
+                            for kk, vv in p[k].items()} for k in ("all", "long", "short")}
+                     for p in prof]
+    if not prof:
+        return rows
+
+    # 4) rozkłady
+    def dist(label, xs, note=""):
+        rows.append(row("hlsito", label, "ok", n=sum(1 for x in xs if x is not None), note=_pcts(xs) + note))
+    dist("wiek konta (dni)", [p["age_days"] for p in prof])
+    dist("wartość konta ($k)", [(p["av"] or 0) / 1e3 for p in prof])
+    dist("% miesięcy na plusie", [p["months_pos_pct"] for p in prof if p["months"] >= 3], " — konta z ≥ 3 pełnymi miesiącami")
+    dist("transakcje w oknie (max 2000)", [p["fills"] for p in prof],
+         f"; okno pełne (2000) u {sum(1 for p in prof if p['fills_capped'])} kont")
+    dist("okno transakcji (dni wstecz)", [p["fills_span_days"] for p in prof])
+    dist("zagrania na tydzień", [p["trips_per_week"] for p in prof])
+    dist("transakcje na dzień", [p["fills_per_day"] for p in prof], " — bardzo dużo = bot / market maker")
+    for side in ("all", "long", "short"):
+        nm = {"all": "wszystkie", "long": "longi", "short": "shorty"}[side]
+        ok = [p for p in prof if p[side]["n"] >= 30]
+        dist(f"skuteczność — {nm} (% zagrań na plus)", [p[side]["win_pct"] for p in ok], " — konta z ≥ 30 zagraniami tej strony")
+        dist(f"zyski ÷ straty — {nm}", [p[side]["pf"] for p in ok], " — konta z ≥ 30 zagraniami tej strony")
+    dist("% zagrań na altach (bez 6 osobnych)", [p["alt_trips_pct"] for p in prof])
+    both = [p for p in prof if p["long"]["n"] >= 30 and p["short"]["n"] >= 30]
+    lb = sum(1 for p in both if (p["long"]["pf"] or 0) > (p["short"]["pf"] or 0))
+    rows.append(row("hlsito", "longi vs shorty w jednym portfelu", "ok", n=len(both),
+                    note=f"konta z ≥ 30 zagraniami w obie strony; lepsze w longach (zyski÷straty): {lb}, w shortach: {len(both) - lb}"))
+    # przykładowe sito
+    for age_min in (180, 365):
+        for nmin in (30,):
+            ok = [p for p in prof if (p["age_days"] or 0) >= age_min and p["trips"] >= nmin
+                  and p["fills_per_day"] < 200 and (p["all"]["pf"] or 0) > 1.2]
+            rows.append(row("hlsito", f"przykładowe sito: wiek ≥ {age_min} dni, ≥ {nmin} zagrań, < 200 transakcji/dzień, "
+                                      "zyski÷straty > 1,2", "ok", n=len(ok),
+                            note=f"z {len(prof)} sprawdzonych; longi dobre (≥ 30, z÷s > 1,2): "
+                                 f"{sum(1 for p in ok if p['long']['n'] >= 30 and (p['long']['pf'] or 0) > 1.2)}, shorty dobre: "
+                                 f"{sum(1 for p in ok if p['short']['n'] >= 30 and (p['short']['pf'] or 0) > 1.2)}"))
+    deep = [p["deep"] for p in prof if p.get("deep")]
+    if deep:
+        rows.append(row("hlsito", "transakcje przewijane wstecz", "ok", n=len(deep),
+                        note="; ".join(f"{d['fills']} tr. / {d['pages']} str. od {d['first']} ({(d['days'] or 0):.0f} dni)"
+                                       for d in deep)))
+    per_wallet = hl.weight / max(1, len(prof) + fails)
+    rows.append(row("hlsito", "koszt", "ok", n=hl.calls,
+                    note=f"zapytań {hl.calls}, wag {hl.weight} (~{per_wallet:.0f} na portfel) → przy {WEIGHT_PER_MIN} wag/min "
+                         f"sito dla 1000 portfeli ≈ {per_wallet * 1000 / WEIGHT_PER_MIN:.0f} min (raz w tygodniu)"))
+    return rows
+
+
+def check_htdepth(session=None, sleep=time.sleep, extra=None, now=None, budget=40, max_pages=25, **_):
+    from probe import row, err_row
+    extra = extra if extra is not None else {}
+    ex = extra.setdefault("htdepth", {})
+    key = clean_key(os.environ.get("HYPERTRACKER_API_KEY", ""))
+    if not key:
+        return [row("htdepth", "klucz API", "brak", note="sekret HYPERTRACKER_API_KEY")]
+    ht = HTClient(key, session, sleep, budget)
+    rows = []
+    early = "2023-01-01T00:00:00Z"
+    path = "/position-metrics/coin/BTC/segment/9"
+    params = {"start": early, "limit": 1000}
+    first = last = None
+    pts = 0
+    pages = 0
+    try:
+        while pages < max_pages:
+            obj = ht.get(path, params)
+            pages += 1
+            it = items_of(obj)
+            ts = [item_ts(i) for i in it]
+            ts = [x for x in ts if x]
+            if ts:
+                first = min(ts) if first is None else min(first, min(ts))
+                last = max(ts) if last is None else max(last, max(ts))
+            pts += len(it)
+            cur = obj.get("nextCursor") if isinstance(obj, dict) else None
+            if not cur or not it:
+                break
+            params = {"start": early, "limit": 1000, "nextCursor": cur}
+        done = pages < max_pages
+        rows.append(row("htdepth", "historia BTC — Smart Money (9)", "ok", first, last, pts,
+                        note=f"stron {pages}{'' if done else ' (przerwane — jest dalej)'}; "
+                             f"{'pełna historia' if done else 'początek wcześniej niż ' + (_iso(first) or '?')}"))
+        ex["btc_seg9"] = {"first": _iso(first), "last": _iso(last), "points": pts, "pages": pages, "complete": done}
+    except Exception as e:  # noqa: BLE001
+        rows.append(err_row("htdepth", f"historia BTC — Smart Money (9) po {pages} str.", e))
+    # małe alty: czy są metryki grup i od kiedy (1 zapytanie na coin)
+    for coin in ("FARTCOIN", "VVV", "kPEPE"):
+        try:
+            obj = ht.get(f"/position-metrics/coin/{coin}/segment/9", {"start": early, "limit": 1000})
+            it = items_of(obj)
+            ts = sorted(x for x in (item_ts(i) for i in it) if x)
+            rows.append(row("htdepth", f"{coin} — Smart Money (9), 1. strona", "ok" if it else "brak",
+                            ts[0] if ts else None, ts[-1] if ts else None, len(it),
+                            note="pola: " + ", ".join(sorted(it[0].keys())) if it else "pusto"))
+        except Exception as e:  # noqa: BLE001
+            rows.append(err_row("htdepth", f"{coin} — Smart Money (9)", e))
+    rows.append(row("htdepth", "koszt", "ok" if not ht.stopped else "uwaga", n=ht.calls,
+                    note=f"zapytań {ht.calls}" + (f"; zatrzymano: {ht.stopped}" if ht.stopped else "")))
+    return rows
