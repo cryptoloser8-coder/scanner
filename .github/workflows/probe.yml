@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama. Portfele: hyperliquid hypertracker"
+        description: "Tylko wybrane źródła (puste = historia: coinalyze tradingview coinmetrics binance vision cvd). Alty: coingecko dexscreener. Sieci: defillama. Portfele: hyperliquid hypertracker hlsito htdepth"
         type: string
         default: ""
 
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
