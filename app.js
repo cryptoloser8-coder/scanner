@@ -10,6 +10,12 @@
    Stan źródeł (poprawka 84) liczy też wiek danych: skan OI/TOTAL (4 h), EMA/Fibo z Orange Pi (1 h), Sieci (30 h) —
    wcześniej kropka była zielona także wtedy, gdy dane stały.
    Po zmianie tego pliku podnieś numer w <script src="app.js?v=NN"> we wszystkich stronach (zamiast Ctrl+F5). */
+// 102: jeden format liczb na wszystkich stronach — przecinek w ułamkach, prawdziwy minus (−).
+// x.pl(2) = jak toFixed(2), x.plp(4) = jak toPrecision(4); tylko do wyświetlania (do obliczeń i stylów dalej toFixed).
+if (!Number.prototype.pl) {
+  Number.prototype.pl = function (d) { return this.toFixed(d).replace('.', ',').replace('-', '\u2212'); };
+  Number.prototype.plp = function (d) { return this.toPrecision(d).replace('.', ',').replace(/^-/, '\u2212'); };
+}
 (function () {
   var html = document.documentElement;
   if (html.dataset.shell === 'off') return;

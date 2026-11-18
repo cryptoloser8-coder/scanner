@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{
@@ -195,20 +195,20 @@ async function getJSON(base, name) {
 }
 const DAY = 86400, HOUR = 3600;
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const num = (v, d) => v == null || isNaN(v) ? '—' : v.toFixed(d).replace('.', ',');
-const pct = (v, d = 1) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d).replace('.', ',') + '%';
-const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(d) + '%';
+const num = (v, d) => v == null || isNaN(v) ? '—' : v.pl(d);
+const pct = (v, d = 1) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).pl(d) + '%';
+const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.pl(d) + '%';
 const cls = v => v == null || isNaN(v) ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
 function usd(v) {
   if (v == null || isNaN(v)) return '—';
   const a = Math.abs(v), s = v < 0 ? '−' : '';
-  if (a >= 1e12) return s + '$' + (a / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M';
-  if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(0) + 'K';
-  return s + '$' + a.toFixed(0);
+  if (a >= 1e12) return s + '$' + (a / 1e12).pl(2) + 'T';
+  if (a >= 1e9) return s + '$' + (a / 1e9).pl(2) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).pl(1) + 'M';
+  if (a >= 1e3) return s + '$' + (a / 1e3).pl(0) + 'K';
+  return s + '$' + a.pl(0);
 }
-const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(4));
+const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : Math.abs(v) >= 1 ? v.pl(2) : v.plp(4));
 const TZ = {timeZone: 'Europe/Warsaw'};
 const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
 const plTime = t => new Date(t * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}, TZ));
@@ -343,19 +343,20 @@ function renderBg() {
 function renderDeriv() {
   const S = (LIQ && LIQ.series) || {}, D = (D1 && D1.series) || {}, rows = [];
   const oi = D.oi_total || [], lo = last(oi);
-  if (lo) { const c30 = chg(oi, 30 * DAY); rows.push(['OI łącznie', `${usd(lo[1])} <span class="${cls(c30)}">${pct(c30)} 30 dni</span>`]); }
+  if (lo) { const c30 = chg(oi, 30 * DAY); rows.push([['OI łącznie', 'Open interest wszystkich coinów razem: OI BTC + OI ALTS (alty z ETH)'], `${usd(lo[1])} <span class="${cls(c30)}">${pct(c30)} 30 dni</span>`]); }
   const L = S.liq_total_long || [], Sh = S.liq_total_short || [], tl = last(L);
   if (tl) {
     const sum = (a, t0) => a.reduce((s, p) => p[0] > t0 ? s + p[1] : s, 0);
     const l24 = sum(L, tl[0] - DAY), s24 = sum(Sh, tl[0] - DAY);
-    rows.push(['Likwidacje 24 h', `${usd(l24 + s24)} <span class="lbl">(<span class="dn">L ${usd(l24)}</span> · <span class="up">S ${usd(s24)}</span>)</span>`]);
+    rows.push([['Likwidacje 24 h', 'Zlikwidowane longi (L) i shorty (S) z Binance, Bybit i OKX: BTC, ETH i OTHERS — dolne oszacowanie'], `${usd(l24 + s24)} <span class="lbl">(<span class="dn">L ${usd(l24)}</span> · <span class="up">S ${usd(s24)}</span>)</span>`]);
   }
-  for (const [id, nm] of [['fund_btc', 'Funding BTC'], ['fund_eth', 'Funding ETH'], ['fund_others', 'Funding altów']]) {
+  for (const [id, nm] of [['fund_btc', ['Funding BTC', 'Funding BTC ważony open interest, % rocznie']], ['fund_eth', ['Funding ETH', 'Funding ETH ważony open interest, % rocznie']],
+      ['fund_others', ['Funding altów', 'W zakładce Likwidacje: „Funding OTHERS” — 30 największych altów bez BTC i ETH + watchlista, ważony open interest, % rocznie']]]) {
     const a = S[id] || [], l = last(a);
     if (l) rows.push([nm, `<span class="${cls(l[1])}">${pct(l[1], 1)}</span> <span class="lbl">rocznie</span>`]);
   }
   const lv = D.oi_others_vs_btc || [], ll = last(lv);
-  document.getElementById('deriv').innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('') ||
+  document.getElementById('deriv').innerHTML = rows.map(([k, v]) => `<div class="kv" title="${esc(k[1])}"><span>${k[0]}</span><span>${v}</span></div>`).join('') ||
     '<div class="lbl">Brak danych.</div>';
 }
 
@@ -380,7 +381,7 @@ function renderHL() {
       (g.big && g.big.n && id === 'R' ? `<div class="am">w tym ${g.big.n} konta ≥ ${usd(g.big.min_av)}: longi ${usd(g.big.long)} · shorty ${usd(g.big.short)}</div>` : '') + '</a>');
   }
   const old = HL.at && Date.now() / 1000 - HL.at > 6 * HOUR ? ' <span style="color:var(--amber)">(starsze niż 6 h)</span>' : '';
-  out.push(`<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100k, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`);
+  out.push(`<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100K, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`);
   el.innerHTML = out.join('');
 }
 

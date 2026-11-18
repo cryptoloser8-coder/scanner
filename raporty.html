@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -327,26 +327,26 @@ function fmt(v, g) {
   if (v == null || !isFinite(v)) return '—';
   const a = Math.abs(v);
   if (g === 'mcap' || g === 'oi' || g === 'liq') {
-    if (a >= 1e12) return '$' + (v / 1e12).toFixed(3) + 'T';
-    if (a >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
-    if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+    if (a >= 1e12) return '$' + (v / 1e12).pl(3) + 'T';
+    if (a >= 1e9) return '$' + (v / 1e9).pl(1) + 'B';
+    if (a >= 1e6) return '$' + (v / 1e6).pl(1) + 'M';
     return '$' + Math.round(v).toLocaleString('pl-PL');
   }
-  if (g === 'pct') return v.toFixed(2) + '%';
-  if (g === 'fund') return v.toFixed(1) + '%';
+  if (g === 'pct') return v.pl(2) + '%';
+  if (g === 'fund') return v.pl(1) + '%';
   if (g === 'flow') {
-    const t = a >= 1e9 ? (a / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(0) + 'M' : Math.round(a).toLocaleString('pl-PL');
+    const t = a >= 1e9 ? (a / 1e9).pl(2) + 'B' : a >= 1e6 ? (a / 1e6).pl(0) + 'M' : Math.round(a).toLocaleString('pl-PL');
     return (v < 0 ? '-' : '+') + '$' + t;
   }
-  if (g === 'chg') return (v > 0 ? '+' : '') + v.toFixed(1) + '%';
-  if (g === 'ratio') return v.toFixed(3) + '×';
-  if (g === 'pair') return v < 1 ? v.toFixed(5) : v.toPrecision(4);
-  if (g === 'price' || g === 'usd') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toPrecision(4));
-  if (g === 'x') return v.toFixed(2) + '×';
-  if (g === 'z' || g === 'num') return v.toFixed(2);
-  if (g === 'yield') return v.toFixed(2) + '%';
-  if (g === 'pp') return (v > 0 ? '+' : '') + v.toFixed(2) + ' pp';
-  return String(+v.toPrecision(5));
+  if (g === 'chg') return (v > 0 ? '+' : '') + v.pl(1) + '%';
+  if (g === 'ratio') return v.pl(3) + '×';
+  if (g === 'pair') return v < 1 ? v.pl(5) : v.plp(4);
+  if (g === 'price' || g === 'usd') return '$' + (a >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.plp(4));
+  if (g === 'x') return v.pl(2) + '×';
+  if (g === 'z' || g === 'num') return v.pl(2);
+  if (g === 'yield') return v.pl(2) + '%';
+  if (g === 'pp') return (v > 0 ? '+' : '') + v.pl(2) + ' pp';
+  return String(+v.toPrecision(5)).replace('.', ',');
 }
 
 const KIND = {test: 'test', morning: 'rano', evening: 'wieczór', manual: 'na żądanie', daily: 'dzienny',

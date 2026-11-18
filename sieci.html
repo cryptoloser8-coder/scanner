@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -255,13 +255,13 @@ function persist() {
 function fmtUsd(v) {
   if (v == null || isNaN(v)) return '—';
   const a = Math.abs(v);
-  if (a >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
-  if (a >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
-  return '$' + v.toFixed(0);
+  if (a >= 1e12) return '$' + (v / 1e12).pl(2) + 'T';
+  if (a >= 1e9) return '$' + (v / 1e9).pl(2) + 'B';
+  if (a >= 1e6) return '$' + (v / 1e6).pl(1) + 'M';
+  if (a >= 1e3) return '$' + (v / 1e3).pl(0) + 'K';
+  return '$' + v.pl(0);
 }
-const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const fmtPct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.pl(1) + '%';
 const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
 function rolling(pts, n) {                                 // suma z n dni (tylko pełne okna, bez luk)
   if (n <= 1) return pts;
@@ -313,7 +313,7 @@ function draw() {
   for (const m of mounted) chart.removeSeries(m.series);
   mounted = [];
   const sel = (S.chains || []).filter(sl => CHAINS.some(c => c.slug === sl) || sl === 'all');
-  const fmtV = v => S.view === 'share' ? v.toFixed(2) + '%' : fmtUsd(v);
+  const fmtV = v => S.view === 'share' ? v.pl(2) + '%' : fmtUsd(v);
   for (const sl of sel) {
     if (sl === 'all' && S.view === 'share') continue;
     const pts = seriesFor(sl);
@@ -449,7 +449,7 @@ function renderRising() {
   document.getElementById('rise').innerHTML = warn + list.map(x => {
     const o = OTHER[x.name] || {};
     const what = [];
-    if (x.kinds.includes('dex') && x.dex_ratio != null) what.push(`wolumen DEX ×${x.dex_ratio.toFixed(1)} zwykłego tygodnia` + (x.market_ratio ? ` (cały rynek ×${x.market_ratio.toFixed(2)})` : ''));
+    if (x.kinds.includes('dex') && x.dex_ratio != null) what.push(`wolumen DEX ×${x.dex_ratio.pl(1)} zwykłego tygodnia` + (x.market_ratio ? ` (cały rynek ×${x.market_ratio.pl(2)})` : ''));
     if (x.kinds.includes('stable')) what.push(`stablecoiny ${fmtPct(x.stable30)} w 30 dni`);
     if (x.kinds.includes('new')) what.push(`dane od ${x.age_days} dni`);
     const size = [x.dex7 ? `DEX 7 dni ${fmtUsd(x.dex7)}` : '', x.stable != null ? `stablecoiny ${fmtUsd(x.stable)}` : ''].filter(Boolean).join(' · ');

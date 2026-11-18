@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -280,11 +280,11 @@ function price(v) {
   if (v === 0) return '$0';
   const a = Math.abs(v);
   if (a >= 1000) return '$' + Math.round(v).toLocaleString('pl-PL');
-  if (a >= 1) return '$' + v.toFixed(2);
-  return '$' + v.toPrecision(4);
+  if (a >= 1) return '$' + v.pl(2);
+  return '$' + v.plp(4);
 }
-const usd = v => v == null ? '—' : v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + v.toFixed(0);
-const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+const usd = v => v == null ? '—' : v >= 1e9 ? '$' + (v / 1e9).pl(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).pl(1) + 'M' : v >= 1e3 ? '$' + (v / 1e3).pl(0) + 'K' : '$' + v.pl(0);
+const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.pl(2) + '%';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const dateFmt = t => t ? new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'UTC'}) : '—';
 function ago(ts) {
@@ -323,18 +323,18 @@ function renderTiles() {
   const wbr = W ? W.breadth || [] : [], wPrev = wbr.length > 1 ? wbr[wbr.length - 2][1] : null;
   document.getElementById('tiles').innerHTML = `
     <div class="tile click" data-go="breadth"><div class="tile-name">Nad EMA200 <span class="info" data-tip="Szerokość rynku: jaki % coinów z listy jest nad swoją EMA200 (z aktualną ceną). Od 80 / 90% świeci lampka „Szeroki rajd” w Altsezonie (aktualnie mamy altsezon — to nie sygnał sprzedaży); poniżej ~30% rynek słaby. Historia liczona na zamknięciach dni${DATA.breadth_delisted ? ', także z coinów wycofanych już z Binance' : ', tylko z coinów, które są dziś na Binance'}.">i</span></div>
-      <div class="tile-val ${cls}">${pctAbove.toFixed(0)}%</div>
-      <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.toFixed(0)}%` : ''}${b30 != null ? ` · 30D ${b30.toFixed(0)}%` : ''}</div></div>
+      <div class="tile-val ${cls}">${pctAbove.pl(0)}%</div>
+      <div class="tile-sub">${ab} z ${n} coinów${b7 != null ? ` · 7D temu ${b7.pl(0)}%` : ''}${b30 != null ? ` · 30D ${b30.pl(0)}%` : ''}</div></div>
     <div class="tile click" data-go="near"><div class="tile-name">Blisko przecięcia (±3%)</div>
       <div class="tile-val warn">${near}</div><div class="tile-sub">coinów w odległości do 3% od EMA200</div></div>
     <div class="tile click" data-go="fresh"><div class="tile-name">Przecięcia w 7 dni (zamknięcia)</div>
       <div class="tile-val"><span class="pos">▲${up7}</span> <span class="neg">▼${dn7}</span></div><div class="tile-sub">w górę / w dół, na świecy dziennej</div></div>
     ${W ? `<div class="tile click" data-go="breadthw"><div class="tile-name">Nad EMA200 1W <span class="info" data-tip="Jaki % coinów z co najmniej ${W.min_weeks} tygodniami historii zamknął ostatni tydzień nad swoją EMA200 liczoną na świecy tygodniowej. To samo z aktualną ceną: ${W.above} z ${W.total}.">i</span></div>
-      <div class="tile-val ${wPct >= 70 ? 'warn' : wPct >= 50 ? 'pos' : 'neg'}">${wPct.toFixed(0)}%</div>
-      <div class="tile-sub">${W.above_close} z ${W.total} coinów · zamknięcie ${dateFmt(W.t)}${wPrev != null ? ` · tydzień wcześniej ${wPrev.toFixed(0)}%` : ''}</div></div>` : ''}
+      <div class="tile-val ${wPct >= 70 ? 'warn' : wPct >= 50 ? 'pos' : 'neg'}">${wPct.pl(0)}%</div>
+      <div class="tile-sub">${W.above_close} z ${W.total} coinów · zamknięcie ${dateFmt(W.t)}${wPrev != null ? ` · tydzień wcześniej ${wPrev.pl(0)}%` : ''}</div></div>` : ''}
     ${rsiNow('w') ? `<div class="tile click" data-go="rsiw"><div class="tile-name">RSI 1W — skrajności <span class="info" data-tip="Jaki % coinów ma RSI(14) na świecy tygodniowej poniżej ${RSI.low} (wyprzedane) albo powyżej ${RSI.high} (wykupione), z aktualną ceną. Zwykle oba odsetki są bliskie zera — wysoki odczyt to rzadki moment.">i</span></div>
-      <div class="tile-val"><span class="pos">${rsiNow('w')[0].toFixed(0)}%</span> <span class="neg">${rsiNow('w')[1].toFixed(0)}%</span></div>
-      <div class="tile-sub">wyprzedane / wykupione · 3D: ${rsiNow('d3') ? rsiNow('d3')[0].toFixed(0) + '% / ' + rsiNow('d3')[1].toFixed(0) + '%' : '—'}</div></div>` : ''}
+      <div class="tile-val"><span class="pos">${rsiNow('w')[0].pl(0)}%</span> <span class="neg">${rsiNow('w')[1].pl(0)}%</span></div>
+      <div class="tile-sub">wyprzedane / wykupione · 3D: ${rsiNow('d3') ? rsiNow('d3')[0].pl(0) + '% / ' + rsiNow('d3')[1].pl(0) + '%' : '—'}</div></div>` : ''}
     ${sel ? `<div class="tile click" data-go="coin"><div class="tile-name">${esc(sel.s)}</div>
       <div class="tile-val ${sel.d >= 0 ? 'pos' : 'neg'}">${pct(sel.d)}</div>
       <div class="tile-sub">${price(sel.p)} · EMA ${price(sel.e)} · ${sel.side > 0 ? 'nad' : 'pod'} od ${sel.since} dni${sel.wside != null ? `<br>1W: <span class="${sel.wd >= 0 ? 'pos' : 'neg'}">${pct(sel.wd)}</span> · EMA ${price(sel.we)} · ${sel.wside > 0 ? 'nad' : 'pod'} od ${sel.wsince} tyg.` : ''}</div></div>` : ''}`;
@@ -353,7 +353,7 @@ document.getElementById('tiles').addEventListener('click', e => {
 let RSI = {low: 30, high: 70, period: 14};
 const rsiNow = k => (DATA.rsi && DATA.rsi.now && DATA.rsi.now[k]) || null;
 const rsiCell = v => v == null ? '<span style="color:var(--text3)">—</span>'
-  : `<span class="rsi ${v < RSI.low ? 'os' : v > RSI.high ? 'ob' : ''}">${v.toFixed(0)}</span>`;
+  : `<span class="rsi ${v < RSI.low ? 'os' : v > RSI.high ? 'ob' : ''}">${v.pl(0)}</span>`;
 
 // ── table ───────────────────────────────────────────────────
 const COLS = [
@@ -540,14 +540,14 @@ async function drawChartView(resetRange) {
     const W = DATA.weekly, br = W.breadth || [];
     empty.style.display = br.length ? 'none' : 'flex';
     empty.textContent = 'Brak historii szerokości rynku 1W (pojawi się po najbliższym odświeżeniu na Orange Pi)';
-    const s = chart.addSeries(LWC.LineSeries, {color: '#ce93d8', lineWidth: 2, priceFormat: {type: 'custom', minMove: .01, formatter: v => v.toFixed(0) + '%'}, priceLineVisible: false});
+    const s = chart.addSeries(LWC.LineSeries, {color: '#ce93d8', lineWidth: 2, priceFormat: {type: 'custom', minMove: .01, formatter: v => v.pl(0) + '%'}, priceLineVisible: false});
     s.setData(br.map(([t, v]) => ({time: weekStart(t), value: v})));
     for (const [lvl, col] of [[50, 'rgba(255,255,255,.3)'], [70, 'rgba(255,193,7,.5)'], [30, 'rgba(224,82,82,.5)']])
       s.createPriceLine({price: lvl, color: col, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
-    mounted.push({series: s, name: '% coinów nad EMA200 1W', color: '#ce93d8', fmt: v => v.toFixed(1) + '%', counts: new Map(br.map(([t, , n]) => [weekStart(t), n]))});
+    mounted.push({series: s, name: '% coinów nad EMA200 1W', color: '#ce93d8', fmt: v => v.pl(1) + '%', counts: new Map(br.map(([t, , n]) => [weekStart(t), n]))});
     if (br.length) setRange(weekStart(br[0][0]), weekStart(br[br.length - 1][0]));
     document.getElementById('chart-hint').textContent = `Szerokość rynku na świecy tygodniowej: % coinów (z co najmniej ${W.min_weeks} zamkniętymi tygodniami historii w danym tygodniu), których zamknięcie tygodnia było nad EMA200 liczoną na świecach tygodniowych. ` +
-      `Punkt = tydzień (data poniedziałku), ostatni = ostatni zamknięty tydzień. Wymóg ${W.min_weeks} tygodni (ok. ${(W.min_weeks * 7 / 365.25).toFixed(1)} roku) sprawia, że historia jest krótka: zaczyna się, gdy co najmniej kilka coinów ma tyle danych` +
+      `Punkt = tydzień (data poniedziałku), ostatni = ostatni zamknięty tydzień. Wymóg ${W.min_weeks} tygodni (ok. ${(W.min_weeks * 7 / 365.25).pl(1)} roku) sprawia, że historia jest krótka: zaczyna się, gdy co najmniej kilka coinów ma tyle danych` +
       (DATA.breadth_delisted ? '; liczone także z coinów wycofanych już z Binance.' : '.') + ' Linie: 30%, 50%, 70%.';
     updateLegend();
     return;
@@ -557,11 +557,11 @@ async function drawChartView(resetRange) {
     const br = DATA.breadth || [];
     empty.style.display = br.length ? 'none' : 'flex';
     empty.textContent = 'Brak historii szerokości rynku';
-    const s = chart.addSeries(LWC.LineSeries, {color: '#5b9cf6', lineWidth: 2, priceFormat: {type: 'custom', minMove: .01, formatter: v => v.toFixed(0) + '%'}, priceLineVisible: false});
+    const s = chart.addSeries(LWC.LineSeries, {color: '#5b9cf6', lineWidth: 2, priceFormat: {type: 'custom', minMove: .01, formatter: v => v.pl(0) + '%'}, priceLineVisible: false});
     s.setData(br.map(([t, v]) => ({time: t, value: v})));
     for (const [lvl, col] of [[50, 'rgba(255,255,255,.3)'], [70, 'rgba(255,193,7,.5)'], [30, 'rgba(224,82,82,.5)']])
       s.createPriceLine({price: lvl, color: col, lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''});
-    mounted.push({series: s, name: '% coinów nad EMA200', color: '#5b9cf6', fmt: v => v.toFixed(1) + '%', counts: new Map(br.map(([t, , n]) => [t, n]))});
+    mounted.push({series: s, name: '% coinów nad EMA200', color: '#5b9cf6', fmt: v => v.pl(1) + '%', counts: new Map(br.map(([t, , n]) => [t, n]))});
     if (br.length) setRange(br[0][0], br[br.length - 1][0]);
     const filling = DATA.pairs && DATA.history_full != null && DATA.history_full < DATA.pairs;
     document.getElementById('chart-hint').textContent = 'Szerokość rynku: % coinów (z co najmniej ' + DATA.min_days + ' dniami historii w danym dniu), które zamknęły dzień nad swoją EMA200. ' +
@@ -578,14 +578,14 @@ async function drawChartView(resetRange) {
     const h = (DATA.rsi && DATA.rsi[kind]) || [];
     empty.style.display = h.length ? 'none' : 'flex';
     empty.textContent = 'Brak historii RSI (pojawi się po najbliższym odświeżeniu na Orange Pi)';
-    const pf = {type: 'custom', minMove: .01, formatter: v => v.toFixed(0) + '%'};
+    const pf = {type: 'custom', minMove: .01, formatter: v => v.pl(0) + '%'};
     const counts = new Map(h.map(([t, , , n]) => [t, n]));
     const so = chart.addSeries(LWC.LineSeries, {color: '#4caf7d', lineWidth: 2, priceFormat: pf, priceLineVisible: false});
     so.setData(h.map(([t, lo]) => ({time: t, value: lo})));
     const sb = chart.addSeries(LWC.LineSeries, {color: '#e05252', lineWidth: 2, lineStyle: LWC.LineStyle.Dashed, priceFormat: pf, priceLineVisible: false});
     sb.setData(h.map(([t, , hi]) => ({time: t, value: hi})));
-    mounted.push({series: so, name: `% wyprzedanych (RSI < ${RSI.low})`, color: '#4caf7d', fmt: v => v.toFixed(1) + '%', counts},
-                 {series: sb, name: `% wykupionych (RSI > ${RSI.high})`, color: '#e05252', fmt: v => v.toFixed(1) + '%'});
+    mounted.push({series: so, name: `% wyprzedanych (RSI < ${RSI.low})`, color: '#4caf7d', fmt: v => v.pl(1) + '%', counts},
+                 {series: sb, name: `% wykupionych (RSI > ${RSI.high})`, color: '#e05252', fmt: v => v.pl(1) + '%'});
     if (h.length) setRange(h[0][0], h[h.length - 1][0]);
     document.getElementById('chart-hint').textContent = `Jaki % coinów miał RSI(${RSI.period}) na zamkniętej świecy ${label} poniżej ${RSI.low} (zielona, wyprzedane) i powyżej ${RSI.high} (czerwona przerywana, wykupione). ` +
       'Zwykle oba odsetki są bliskie zera, więc każdy wyraźny szczyt to rzadki moment. Gdy szerokość rynku leży przy zerze, zielona linia pokazuje, jak głęboka jest wyprzedaż. ' +
@@ -704,7 +704,7 @@ function drawWeekly(c, h, today, resetRange) {
              : `Biała linia: zamknięcia tygodni (punkt = poniedziałek otwierający tydzień), ostatni punkt to aktualna cena (tydzień jeszcze trwa). `) +
     (has ? `Fioletowa: EMA${per} na świecy tygodniowej — liczona od pierwszego tygodnia na Binance, tak jak na TradingView (wykres 1W pary z Binance). Strzałki: przecięcia na zamknięciu tygodnia. ` + (S.sma ? 'Niebieska i żółta: zwykłe średnie 20 i 50 tygodni z zamknięć tygodni (ostatni punkt z aktualną ceną). ' : '') +
            `Ostatnie zamknięcie tygodnia (${dateFmt(c.wt)}): ${price(c.wc)}, EMA ${price(c.wec)}, ${c.wside > 0 ? 'nad' : 'pod'} od ${c.wsince} tyg.`
-         : `EMA${per} 1W liczymy dla coinów z co najmniej ${minW} zamkniętymi tygodniami historii (ok. ${(minW * 7 / 365.25).toFixed(1)} roku); ${c.s} ma ${c.weeks || bars.length} — przy krótszej historii średnia za mocno zależy od pierwszych tygodni po listingu.`) +
+         : `EMA${per} 1W liczymy dla coinów z co najmniej ${minW} zamkniętymi tygodniami historii (ok. ${(minW * 7 / 365.25).pl(1)} roku); ${c.s} ma ${c.weeks || bars.length} — przy krótszej historii średnia za mocno zależy od pierwszych tygodni po listingu.`) +
     (((DATA.weekly.alerts || []).includes(c.s)) ? ' Alert: przecięcie na zamknięciu tygodnia.' : '');
   updateLegend();
 }

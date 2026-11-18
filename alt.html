@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -319,19 +319,19 @@ function persist() {
 }
 
 // ── liczby ──────────────────────────────────────────────────
-const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(d) + '%';
+const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.pl(d) + '%';
 const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
 const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
 const my = t => dmy(t).slice(3);
 function fmtUsd(v) {
   if (v == null || isNaN(v)) return '—';
   const a = Math.abs(v);
-  if (a >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
-  if (a >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M';
+  if (a >= 1e12) return '$' + (v / 1e12).pl(2) + 'T';
+  if (a >= 1e9) return '$' + (v / 1e9).pl(2) + 'B';
+  if (a >= 1e6) return '$' + (v / 1e6).pl(1) + 'M';
   return '$' + Math.round(v).toLocaleString('pl-PL');
 }
-const fmtIdx = v => v == null ? '—' : v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(3);
+const fmtIdx = v => v == null ? '—' : v >= 100 ? v.pl(0) : v >= 1 ? v.pl(2) : v.plp(3);
 function price(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString('pl-PL'); }
 const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 function lastLE(times, t) {                       // indeks ostatniego czasu ≤ t
@@ -457,19 +457,19 @@ function renderStats(W) {
       const cH = crossings(ts, vs, pct, 'hi').filter(x => x.t >= T[0]), cL = crossings(ts, vs, pct, 'lo').filter(x => x.t >= T[0]);
       const dates = c => c.map(x => `${my(x.t)}${x.f == null ? '' : ' (' + fmtPct(x.f) + ')'}`).join(', ');
       const usual = `Zwykły dzień: alty po 90 dniach typowo ${fmtPct(U.med)} (niżej w ${U.down}% dni).`;
-      const tipHi = `<b>Powyżej ${hi.toFixed(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były wyżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+      const tipHi = `<b>Powyżej ${hi.pl(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były wyżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
         `<b>Po przekroczeniu w górę</b> (${cH.length} ${cH.length === 1 ? 'raz' : 'razy'} od 2019): ${crossTxt(cH, 'niżej')}.<br><span class="mut">${dates(cH)}</span><br><br>` +
         `<span class="mut">${usual} Mało przypadków — ostrzeżenie, nie pewniak.</span>`;
-      const tipLo = `<b>Poniżej ${lo.toFixed(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były niżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
+      const tipLo = `<b>Poniżej ${lo.pl(3)}</b><br>Przez ostatnie 2 lata Alty/BTC były niżej tylko przez 20% czasu. Granica liczona z ostatnich 2 lat — przesuwa się razem z rynkiem.<br><br>` +
         `<b>Po przekroczeniu w dół</b> (${cL.length} ${cL.length === 1 ? 'raz' : 'razy'} od 2019): ${crossTxt(cL, 'wyżej')}.<br><br><span class="mut">${usual} Wynik mieszany — samo „tanio” nie oznacza odbicia.</span>`;
       const zone = p == null ? '' : p >= 80 ? ' — <span class="dn">wysoko</span>' : p <= 20 ? ' — <span class="up">nisko</span>' : ' — środek';
       const fH = cH.map(x => x.f).filter(x => x != null), fL = cL.map(x => x.f).filter(x => x != null);
-      out.push(stat('Alty / BTC — na tle 2 lat', `${v.toFixed(3)}<small>${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
-        bar(w2[0], w2[w2.length - 1], v, [{v: lo, short: lo.toFixed(3), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.toFixed(3), c: '#e05252', tip: tipHi}], x => x.toFixed(2)) +
-        `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Kreski ${lo.toFixed(3)} i ${hi.toFixed(3)}: poniżej / powyżej nich Alty/BTC były tylko przez 20% ostatnich 2 lat (najedź / dotknij po szczegóły). Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego granice liczone są z 2 lat, nie stała liczba.`,
+      out.push(stat('Alty / BTC — na tle 2 lat', `${v.pl(3)}<small>${fmtPct(chgAt(ab, t, 30), 1)} w 30 dni</small>`,
+        bar(w2[0], w2[w2.length - 1], v, [{v: lo, short: lo.pl(3), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.pl(3), c: '#e05252', tip: tipHi}], x => x.pl(2)) +
+        `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Kreski ${lo.pl(3)} i ${hi.pl(3)}: poniżej / powyżej nich Alty/BTC były tylko przez 20% ostatnich 2 lat (najedź / dotknij po szczegóły). Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].pl(2)).join(' → ')}), dlatego granice liczone są z 2 lat, nie stała liczba.`,
         `Po przekroczeniu kreski — alty 90 dni później:<br>` +
-        `• w górę nad górną kreskę (dziś ${hi.toFixed(3)}) — ${cH.length}×: ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}${pend(cH.length - fH.length)}${few(fH.length)}<br>` +
-        `• w dół pod dolną kreskę (dziś ${lo.toFixed(3)}) — ${cL.length}×: ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}${pend(cL.length - fL.length)}${few(fL.length)}<br>` +
+        `• w górę nad górną kreskę (dziś ${hi.pl(3)}) — ${cH.length}×: ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}${pend(cH.length - fH.length)}${few(fH.length)}<br>` +
+        `• w dół pod dolną kreskę (dziś ${lo.pl(3)}) — ${cL.length}×: ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}${pend(cL.length - fL.length)}${few(fL.length)}<br>` +
         `• zwykły dzień: <b class="${cls(U.med)}">${fmtPct(U.med)}</b> (niżej w ${U.down}% dni)<br>` +
         `<span style="color:var(--text2)">Wejście nad górną kreskę trafiało w szczyty altów, ale to tylko ${cH.length} przypadki. Zejście pod dolną — wynik mieszany. Kreski liczone z ostatnich 2 lat, więc w przeszłości stały gdzie indziej.</span>`));
     }
@@ -485,15 +485,15 @@ function renderStats(W) {
       const lo = q(0.2), hi = q(0.8), pctNow = Math.round(sorted.filter(x => x <= v).length / n * 100);
       const old = dx.filter(p => p[0] < t - 180 * DAY);                       // bez ostatnich 6 mies. (szczyt/dołek jeszcze niepewny)
       const peaks = topsOf(old, 0, 250), troughs = topsOf(old.map(p => [p[0], -p[1]]), -1e9, 250).map(p => [p[0], -p[1]]);
-      const lst = a => a.map(p => `${p[1].toFixed(1).replace('.', ',')} (${my(p[0])})`).join(' · ');
+      const lst = a => a.map(p => `${p[1].pl(1)} (${my(p[0])})`).join(' · ');
       const zone = v >= hi ? '<span class="dn">silny</span> — wyżej niż przez ' + pctNow + '% czasu od 2017' :
         v <= lo ? '<span class="up">słaby</span> — niżej niż przez ' + (100 - pctNow) + '% czasu od 2017' :
         `w środku zakresu (wyżej niż przez ${pctNow}% czasu od 2017)`;
-      const tipHi = `<b>Powyżej ${hi.toFixed(1).replace('.', ',')}</b><br>Tak wysoko dolar był tylko przez 20% czasu od 2017 — silny dolar.<br><br><span class="mut">Gdy trzyma się wysoko, altom zwykle trudniej rosnąć. Samo wejście nad kreskę nie jest sygnałem.</span>`;
-      const tipLo = `<b>Poniżej ${lo.toFixed(1).replace('.', ',')}</b><br>Tak nisko dolar był tylko przez 20% czasu od 2017 — słaby dolar.<br><br><span class="mut">Gdy trzyma się nisko, altom zwykle łatwiej rosnąć. Samo zejście pod kreskę nie wywołuje wzrostów.</span>`;
-      out.push(stat('Dolar (DXY) — tło makro', `${v.toFixed(1).replace('.', ',')}<small>${fmtPct(chgAt(dx, t, 30), 1)} w 30 dni</small>`,
-        bar(sorted[0], sorted[n - 1], v, [{v: lo, short: lo.toFixed(1).replace('.', ','), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.toFixed(1).replace('.', ','), c: '#e05252', tip: tipHi}],
-          x => x.toFixed(1).replace('.', ',')) +
+      const tipHi = `<b>Powyżej ${hi.pl(1)}</b><br>Tak wysoko dolar był tylko przez 20% czasu od 2017 — silny dolar.<br><br><span class="mut">Gdy trzyma się wysoko, altom zwykle trudniej rosnąć. Samo wejście nad kreskę nie jest sygnałem.</span>`;
+      const tipLo = `<b>Poniżej ${lo.pl(1)}</b><br>Tak nisko dolar był tylko przez 20% czasu od 2017 — słaby dolar.<br><br><span class="mut">Gdy trzyma się nisko, altom zwykle łatwiej rosnąć. Samo zejście pod kreskę nie wywołuje wzrostów.</span>`;
+      out.push(stat('Dolar (DXY) — tło makro', `${v.pl(1)}<small>${fmtPct(chgAt(dx, t, 30), 1)} w 30 dni</small>`,
+        bar(sorted[0], sorted[n - 1], v, [{v: lo, short: lo.pl(1), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.pl(1), c: '#e05252', tip: tipHi}],
+          x => x.pl(1)) +
         `Indeks dolara do koszyka walut — teraz ${zone}. Kreski: poniżej / powyżej nich dolar był tylko przez 20% czasu od 2017 (najedź / dotknij po szczegóły). Pasek: zakres od 2017.`,
         `Gdy dolar rośnie i trzyma się wysoko, altom zwykle trudniej rosnąć; gdy spada i trzyma się nisko — łatwiej. Samo w sobie nie jest wyznacznikiem: może wspierać trend wzrostowy na altach, ale go nie wywołuje.<br>` +
         `<span style="color:var(--text2)">Szczyty dolara: ${lst(peaks)}. Dołki: ${lst(troughs)}.</span>`));
@@ -506,8 +506,8 @@ function renderStats(W) {
       const cur = rows.filter(r => r.cur), recent = rows.filter(r => !r.cur).slice(-4).reverse();
       out.push(stat('Gdzie rotacja — skoki wolumenu DEX', cur.length ? `<span class="warn">${cur.map(r => esc(r.name)).join(', ')}</span>` : 'brak',
         `Tydzień, w którym wolumen DEX sieci był co najmniej 2× większy niż mediana 8 poprzednich tygodni — pokazuje, gdzie trwa rotacja (np. Base 03.2024, BSC 05.2025). Ostatni pełny tydzień: ${dmy(rows.week)}.` +
-        (cur.length ? ' Teraz: ' + cur.map(r => `${esc(r.name)} ×${r.x.toFixed(1)}`).join(', ') + '.' : ''),
-        (recent.length ? 'Ostatnie skoki: ' + recent.map(r => `${esc(r.name)} ${dmy(r.t)} (×${r.x.toFixed(1)})`).join(', ') + '. ' : '') +
+        (cur.length ? ' Teraz: ' + cur.map(r => `${esc(r.name)} ×${r.x.pl(1)}`).join(', ') + '.' : ''),
+        (recent.length ? 'Ostatnie skoki: ' + recent.map(r => `${esc(r.name)} ${dmy(r.t)} (×${r.x.pl(1)})`).join(', ') + '. ' : '') +
         'Pokazuje, na której sieci jest ruch — nie mówi, kiedy kupić lub sprzedać (badanie 14.11.2026).'));
     }
   }
@@ -520,7 +520,7 @@ const LAMP_GROUPS = [   // [grupa, nazwa, ikona, kolor, czego to sygnał]
   ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'gdy świeci: <b>altsezon dobiega końca</b>'],
   ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: <b>rynek zjeżdża</b> — nie sygnał kupna'],
 ];
-const num = (v, d) => v == null ? '—' : v.toFixed(d).replace('.', ',');
+const num = (v, d) => v == null ? '—' : v.pl(d);
 const LAMP_UI = {
   rally: {color: '#4caf7d', fmt: v => num(v, 0) + '%', unit: 'coinów nad EMA200',
     lvl: c => c.rally.levels.map(v => `≥ ${v}%`),
@@ -761,7 +761,7 @@ function renderTables(W) {
   const NAMES = {acc: 'akumulacja', bull: 'hossa', bear: 'bessa'};
   document.getElementById('phase-tbl').innerHTML = `<table><thead><tr><th class="l">Faza</th><th>Fal</th><th>Lat danych</th><th>Fal na rok</th><th>Czas fali</th><th>Zysk</th><th>Przerwa między falami</th><th>Oddane po szczycie</th></tr></thead><tbody>` +
     ['acc', 'bull', 'bear'].map(g => { const s = sum[g]; return `<tr class="${g === cur ? 'cur' : ''}"><td class="l"><span class="ph" style="--c:${PHASE_COLORS[g]}"></span>${NAMES[g]}${g === cur ? ' (teraz)' : ''}</td>` +
-      `<td>${s.n}${s.n > 0 && s.n <= 5 ? ' <span style="color:var(--text3)" title="Mało przypadków — mediany z tak małej liczby fal są przypadkowe">· mało</span>' : ''}</td><td>${s.yrs.toFixed(1)}</td><td>${s.rate == null ? '—' : s.rate.toFixed(1)}</td><td>${s.days == null ? '—' : Math.round(s.days) + ' dni'}</td>` +
+      `<td>${s.n}${s.n > 0 && s.n <= 5 ? ' <span style="color:var(--text3)" title="Mało przypadków — mediany z tak małej liczby fal są przypadkowe">· mało</span>' : ''}</td><td>${s.yrs.pl(1)}</td><td>${s.rate == null ? '—' : s.rate.pl(1)}</td><td>${s.days == null ? '—' : Math.round(s.days) + ' dni'}</td>` +
       `<td class="up">${s.gain == null ? '—' : fmtPct(s.gain)}</td><td>${s.gap == null ? '—' : s.gapN === 1 ? `${Math.round(s.gap)} dni <span style="color:var(--text3)">· 1 przerwa</span>` : `${Math.round(s.gap)} dni (${s.gapMin}–${s.gapMax})${s.gapN <= 5 ? ` <span style="color:var(--text3)">· przerw: ${s.gapN}</span>` : ''}`}</td><td class="dn">${s.after == null ? '—' : fmtPct(s.after)}</td></tr>`; }).join('') +
     `</tbody></table><div class="hint">Mediany${S.era === 'etf' ? ' — tylko fale od 11.01.2024 (ETF-y)' : ''}. Przerwa = od szczytu jednej fali do dołka następnej, gdy obie były w tej samej fazie (w nawiasie najkrótsza–najdłuższa). „mało” = 5 fal lub mniej — liczby z tego wiersza traktuj ostrożnie. Lata danych = ile tej fazy obejmuje indeks altów${S.era === 'etf' ? ' od ETF-ów' : ''}.</div>`;
   const rows = W.waves.slice().reverse();
@@ -833,12 +833,12 @@ function drawChart(W, resetRange) {
   const lev = pts(D1, 'oi_others_vs_btc');
   if (lev.length) {
     const sl = chart.addSeries(LWC.LineSeries, {color: '#ce93d8', lineWidth: 1.5, priceLineVisible: false,
-      priceFormat: {type: 'custom', minMove: .001, formatter: v => v.toFixed(2) + '×'}}, 1);
+      priceFormat: {type: 'custom', minMove: .001, formatter: v => v.pl(2) + '×'}}, 1);
     sl.setData(lev.map(([t, v]) => ({time: t, value: v})));
     const lvls = ((META.alt_lamps || {}).cfg || {}).leverage?.levels || [0.90, 0.95, 1.0];
     const cols = ['rgba(255,193,7,.45)', 'rgba(255,152,0,.6)', 'rgba(224,82,82,.6)'];
     lvls.forEach((lv, i) => sl.createPriceLine({price: lv, color: cols[i] || cols[2], lineWidth: 1, lineStyle: LWC.LineStyle.Dashed, axisLabelVisible: true, title: ''}));
-    mounted.push({series: sl, name: 'Lewar altów (OI OTHERS / OI BTC)', color: '#ce93d8', fmt: v => v.toFixed(3) + '×'});
+    mounted.push({series: sl, name: 'Lewar altów (OI OTHERS / OI BTC)', color: '#ce93d8', fmt: v => v.pl(3) + '×'});
   }
   // pasek lampek (osobny panel): każda lampka w swoim pasie, kolor = poziom
   const LA = (META.alt_lamps || {}).lamps;

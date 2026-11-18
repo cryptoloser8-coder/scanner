@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -271,14 +271,14 @@ function persist() {
 function usd(v) {
   if (v == null || isNaN(v)) return '—';
   const a = Math.abs(v);
-  if (a >= 1e12) return '$' + (a / 1e12).toFixed(2) + 'T';
-  if (a >= 1e9) return '$' + (a / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return '$' + (a / 1e6).toFixed(1) + 'M';
-  if (a >= 1e3) return '$' + (a / 1e3).toFixed(0) + 'K';
-  return '$' + a.toFixed(0);
+  if (a >= 1e12) return '$' + (a / 1e12).pl(2) + 'T';
+  if (a >= 1e9) return '$' + (a / 1e9).pl(2) + 'B';
+  if (a >= 1e6) return '$' + (a / 1e6).pl(1) + 'M';
+  if (a >= 1e3) return '$' + (a / 1e3).pl(0) + 'K';
+  return '$' + a.pl(0);
 }
-const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.toFixed(2));
-const fundFmt = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : v.pl(2));
+const fundFmt = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.pl(1) + '%';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const dateFmt = t => new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'});
 function ago(ts) {
@@ -386,8 +386,8 @@ function liqTile(g, label) {
   const col = {btc: '#f7931a', eth: '#8c9eff', others: '#ce93d8', total: '#9e9e9e'}[g] || '#5b9cf6';
   return `<div class="tile ${S.asset === g ? 'on' : ''}" data-asset="${g}" style="--c:${col}">
     <div class="tile-head"><span class="swatch"></span><span class="tile-name" data-tip="liq_${g}">${esc(label)}</span><span class="info" data-tip="liq_${g}">i</span></div>
-    <div class="tile-val">${usd(tot)}${ratio != null ? `<small style="display:block;margin:2px 0 0" class="${ratio >= 3 ? 'neg' : ratio >= 1.5 ? 'warn' : ''}" title="24 h ÷ zwykły dzień (mediana dnia z 2 lat: ${usd(avg)})">×${ratio.toFixed(1)} zwykłego dnia</small>` : ''}</div>
-    <div class="ls-bar" title="Udział longów: ${lp.toFixed(0)}%"><div class="l" style="width:${lp}%"></div><div class="s" style="width:${100 - lp}%"></div></div>
+    <div class="tile-val">${usd(tot)}${ratio != null ? `<small style="display:block;margin:2px 0 0" class="${ratio >= 3 ? 'neg' : ratio >= 1.5 ? 'warn' : ''}" title="24 h ÷ zwykły dzień (mediana dnia z 2 lat: ${usd(avg)})">×${ratio.pl(1)} zwykłego dnia</small>` : ''}</div>
+    <div class="ls-bar" title="Udział longów: ${lp.pl(0)}%"><div class="l" style="width:${lp}%"></div><div class="s" style="width:${100 - lp}%"></div></div>
     <div class="tile-chg"><span class="neg">L ${usd(l24)}</span><span class="pos">S ${usd(s24)}</span>${d7 != null ? `<span>7D ${usd(d7)}</span>` : ''}</div>
     ${bars(daily, col)}
   </div>`;
@@ -538,7 +538,7 @@ function drawChart(resetRange) {
     fids.forEach((id, i) => {
       const c = CAT[id];
       const sf = chart.addSeries(LWC.LineSeries, {color: c.color, lineWidth: 1.5, priceScaleId: 'right',
-        priceFormat: {type: 'custom', minMove: .01, formatter: v => v.toFixed(1) + '%'}, lastValueVisible: true, priceLineVisible: false}, 1);
+        priceFormat: {type: 'custom', minMove: .01, formatter: v => v.pl(1) + '%'}, lastValueVisible: true, priceLineVisible: false}, 1);
       sf.setData(agg(pts(res, id), iv, 'avg').map(([t, v]) => ({time: t, value: v})));
       if (i === 0) {
         sf.createPriceLine({price: 0, color: 'rgba(255,255,255,.25)', lineWidth: 1, lineStyle: LWC.LineStyle.Dotted, axisLabelVisible: false, title: ''});
@@ -584,7 +584,7 @@ function updateLegend(param) {
     if (m.candle && k) rows.push(`<div class="lg-row"><span class="lg-name">O ${price(k.open)} · H ${price(k.high)} · L ${price(k.low)}</span></div>`);
   }
   if (L != null && Sv != null && L + Sv > 0)
-    rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).toFixed(0)}%</span></div>`);
+    rows.splice(2, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).pl(0)}%</span></div>`);
   const iv = IV();
   const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toISOString().slice(0, iv === '1d' || iv === '1w' || iv === '1m' ? 10 : 16).replace('T', ' ') + ' UTC'
     : 'ostatnia świeca';
@@ -614,8 +614,8 @@ function renderExchanges() {
   const max = Math.max(...rows.map(r => (r.d30 || 0) / T30));
   document.getElementById('ex-table').innerHTML = `<table><tr><th>Giełda</th><th>24h</th><th>udział 24h</th><th>7D</th><th>30D</th><th>udział 30D</th></tr>` +
     rows.map(r => !r.d30 && !r.d7 ? `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td colspan="5" style="color:var(--text3)">brak danych o likwidacjach w Coinalyze</td></tr>` :
-      `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td>${usd(r.d1)}</td><td>${r.d1 != null ? (r.d1 / T1 * 100).toFixed(1) + '%' : '—'}</td><td>${usd(r.d7)}</td><td>${usd(r.d30)}</td>` +
-      `<td><span class="share" style="width:${((r.d30 || 0) / T30 / (max || 1) * 50).toFixed(0)}px"></span>${((r.d30 || 0) / T30 * 100).toFixed(1)}%</td></tr>`).join('') +
+      `<tr><td data-tip="${r.id}">${esc(r.name)}</td><td>${usd(r.d1)}</td><td>${r.d1 != null ? (r.d1 / T1 * 100).pl(1) + '%' : '—'}</td><td>${usd(r.d7)}</td><td>${usd(r.d30)}</td>` +
+      `<td><span class="share" style="width:${((r.d30 || 0) / T30 / (max || 1) * 50).toFixed(0)}px"></span>${((r.d30 || 0) / T30 * 100).pl(1)}%</td></tr>`).join('') +
     `</table><div class="hint">Udział wśród giełd, które publikują likwidacje. Funding z Hyperliquid jest liczony normalnie.</div>`;
 }
 function renderTop() {
@@ -626,7 +626,7 @@ function renderTop() {
   const rows = dL.map(([t, l]) => ({t, l, s: sMap.get(t) || 0})).map(r => Object.assign(r, {sum: r.l + r.s}))
     .sort((a, b) => b.sum - a.sum).slice(0, 10);
   document.getElementById('top-table').innerHTML = rows.length ? `<table><tr><th>Dzień (UTC)</th><th>Razem</th><th>Long</th><th>Short</th><th>% long</th></tr>` +
-    rows.map(r => `<tr class="click" data-t="${r.t}" title="Pokaż na wykresie"><td>${dateFmt(r.t)}</td><td>${usd(r.sum)}</td><td class="neg">${usd(r.l)}</td><td class="pos">${usd(r.s)}</td><td>${(r.l / (r.sum || 1) * 100).toFixed(0)}%</td></tr>`).join('') +
+    rows.map(r => `<tr class="click" data-t="${r.t}" title="Pokaż na wykresie"><td>${dateFmt(r.t)}</td><td>${usd(r.sum)}</td><td class="neg">${usd(r.l)}</td><td class="pos">${usd(r.s)}</td><td>${(r.l / (r.sum || 1) * 100).pl(0)}%</td></tr>`).join('') +
     '</table><div class="hint">Kliknij wiersz, żeby przybliżyć wykres. Kwoty są zaniżone (patrz opis pod wykresem), najmocniej w dniach największych kaskad, więc porównania między dniami są przybliżone.</div>'
     : '<div class="hint">Brak danych 1D.</div>';
 }
@@ -676,7 +676,7 @@ function setUpdated() {
   const lq = META.liquidations || {};
   const exs = li && li.exchanges ? Object.keys(li.exchanges) : (META.exchanges || []);
   document.getElementById('foot-info').textContent = li ?
-    `Giełdy: ${exs.join(', ')} · ${li.markets} rynków perp, ${li.assets} coinów (pokrycie OI ${li.oi_coverage != null ? (li.oi_coverage * 100).toFixed(1) + '%' : '?'})` +
+    `Giełdy: ${exs.join(', ')} · ${li.markets} rynków perp, ${li.assets} coinów (pokrycie OI ${li.oi_coverage != null ? (li.oi_coverage * 100).pl(1) + '%' : '?'})` +
     (li.others && li.others.length ? ` · OTHERS: ${li.others.join(', ')}` : '') : '';
 }
 function buildTips() {

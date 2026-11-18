@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -266,28 +266,28 @@ const G = [
   {id: 'R', name: 'Tracący (dla porównania)', hex: '#ce93d8'}
 ];
 const GB = Object.fromEntries(G.map(g => [g.id, g]));
-const HT_SEG = {8: ['Zarobili ponad $1M', 'Money Printer'], 9: ['Zarobili $100k–1M', 'Smart Money'], 14: ['Stracili $100k–1M', 'Full Rekt'],
-  15: ['Stracili ponad $1M', 'Giga-Rekt'], 1: ['Małe konta ($250–10k)', 'Fish']};
+const HT_SEG = {8: ['Zarobili ponad $1M', 'Money Printer'], 9: ['Zarobili $100K–1M', 'Smart Money'], 14: ['Stracili $100K–1M', 'Full Rekt'],
+  15: ['Stracili ponad $1M', 'Giga-Rekt'], 1: ['Małe konta ($250–10K)', 'Fish']};
 const HT_COL = {8: '#26c6da', 9: '#5b9cf6', 14: '#ce93d8', 15: '#e05252'};
 
 function usd(x) {
   if (x == null || isNaN(x)) return '—';
   const a = Math.abs(x), s = x < 0 ? '−' : '';
-  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(1).replace('.', ',') + 'B';
-  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(a >= 1e8 ? 0 : 1).replace('.', ',') + 'M';
-  if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'k';
+  if (a >= 1e9) return s + '$' + (a / 1e9).pl(2) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).pl(1) + 'M';
+  if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K';
   return s + '$' + Math.round(a);
 }
 const sgnUsd = x => (x > 0 ? '+' : '') + usd(x);
 function fp(x) {
   if (x == null || isNaN(x)) return '—';
   if (x >= 1000) return Math.round(x).toLocaleString('pl-PL');
-  if (x >= 1) return x.toFixed(2).replace('.', ',');
-  return x.toPrecision(3).replace('.', ',');
+  if (x >= 1) return x.pl(2);
+  return x.plp(3);
 }
-function pct(x, d = 1) { return x == null || isNaN(x) ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d).replace('.', ',') + '%'; }
-function num(x, d = 1) { return x == null || isNaN(x) ? '—' : Number(x).toFixed(d).replace('.', ','); }
-const pp = x => x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(1).replace('.', ',') + ' pp';
+function pct(x, d = 1) { return x == null || isNaN(x) ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).pl(d) + '%'; }
+function num(x, d = 1) { return x == null || isNaN(x) ? '—' : Number(x).pl(d); }
+const pp = x => x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).pl(1) + ' pp';
 function plTime(t) {
   return new Date(t * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
 }
@@ -388,7 +388,7 @@ function groupsPanel() {
   const age = p.min_age_days || 365, nmin = p.min_trips || 10, pf = p.min_pf || 1.2;
   const subL = `konta ≥ ${age} dni, ≥ ${nmin} longów; na longach zarabiają (zyski ≥ ${num(pf)}× strat)`;
   const subS = `konta ≥ ${age} dni, ≥ ${nmin} shortów; na shortach zarabiają (zyski ≥ ${num(pf)}× strat)`;
-  const subR = `losowe ${(META && META.sito && META.sito.losers) || 300} kont ≥ $10k, które od początku są na minusie`;
+  const subR = `losowe ${(META && META.sito && META.sito.losers) || 300} kont ≥ $10K, które od początku są na minusie`;
   const gs = (NOW && NOW.groups) || {};
   return `<div class="panel" style="margin-top:0"><h2>Kto jak gra teraz — longi i shorty</h2><div class="desc">Wszystkie kafelki pokazują pozycje <b>teraz</b> (zapis co ~2 h). Różnią się tym, kto należy do grupy. ` +
     `<b>Nasze sito</b>: wybrane portfele — konta ≥ ${age} dni, grające większymi kwotami, bez botów, oceniane osobno za longi i za shorty z ich dotychczasowych zagrań (sito co tydzień); „tracący” to losowe konta na minusie. ` +
@@ -423,7 +423,7 @@ function pills(id, items, cur) {
   return `<div class="pills" id="${id}">` + items.map(([v, l, dis]) => `<button class="pill${v === cur ? ' active' : ''}" data-v="${v}"${dis ? ' disabled title="' + esc(dis) + '"' : ''}>${l}</button>`).join('') + '</div>';
 }
 function chartPanel() {
-  return `<div class="panel"><h2>Longi i shorty w czasie</h2><div class="desc">Udział longów, udział shortów, kwoty (longi linią ciągłą, shorty przerywaną) albo przepływy — ile grupa otworzyła minus zamknęła, liczone na tych samych portfelach (bez skoków przy rundach sita i bez ruchu ceny). Cena na prawej osi (koszyk altów: kapitalizacja OTHERS). Zapis co ~2 h od startu zbierania.</div>` +
+  return `<div class="panel"><h2>Longi i shorty w czasie</h2><div class="desc">Udział longów, udział shortów, kwoty (longi linią ciągłą, shorty przerywaną) albo przepływy — ile grupa otworzyła minus zamknęła, liczone na tych samych portfelach (bez skoków przy rundach sita i bez ruchu ceny). Cena na prawej osi (koszyk altów: OTHERS z TradingView, czyli kapitalizacja coinów spoza top 10 — najbliższy odpowiednik koszyka). Zapis co ~2 h od startu zbierania.</div>` +
     `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-coin', COINS.map(c => [c, CNAME(c)]), S.coin)}<span class="ctrl-label">Zakres</span>${pills('p-range', [['7D', '7D'], ['30D', '30D'], ['ALL', 'ALL']], S.range)}</div>` +
     `<div class="controls"><span class="ctrl-label">Pokaż</span>${pills('p-show', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty: longi i shorty ($)'], ['flow', 'Przepływy: otwarte − zamknięte ($)']], S.show)}</div>` +
     `<div class="controls" id="chips">` + G.map(g => `<button class="chip${S.on[g.id] ? ' on' : ''}" data-k="${g.id}" style="--c:${g.hex}"><span class="swatch"></span>${g.name}</button>`).join('') +
@@ -438,7 +438,7 @@ function changesPanel() {
     const since = x.since ? ` <span style="color:var(--text3)">(liczone od ${plTime(x.since)})</span>` : '';
     return `<div class="chg" style="--c:${g.hex}"><div class="when">${x.win} · ${g.name}${since}</div>${g.name} ${verb} na ${CLOC(x.c)}: <b class="${x.side === 'long' ? 'up' : 'dn'}">${sgnUsd(x.delta)}</b></div>`;
   }).join('') + '</div>' : '<div class="hint">Za mało zapisów — zmiany pojawią się po kilku przebiegach.</div>';
-  return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100k). Liczone tylko na portfelach, które były w grupie przed i po (portfele dochodzące i odchodzące przy rundzie sita się nie liczą), jako zmiana wielkości pozycji × cena — sam ruch ceny nie jest „otwarciem”.</div>${body}${compList()}</div>`;
+  return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100K). Liczone tylko na portfelach, które były w grupie przed i po (portfele dochodzące i odchodzące przy rundzie sita się nie liczą), jako zmiana wielkości pozycji × cena — sam ruch ceny nie jest „otwarciem”.</div>${body}${compList()}</div>`;
 }
 function compList() {
   const ev = COMP.filter(e => e.t > (Date.now() / 1000) - 7 * 86400 && bigComp(e)).slice(-6).reverse();
@@ -531,7 +531,7 @@ function htPanel() {
   const avail = c => HTG && HTG[`ht9_${c}_lpct`];
   const items = COINS.map(c => [c, CNAME(c) + (avail(c) ? '' : ' ⏳'), avail(c) ? null : 'historia jeszcze się pobiera']);
   if (!S.htCoin || !avail(S.htCoin)) S.htCoin = COINS.find(avail) || null;
-  return `<div class="panel"><h2>Historia przed startem — HyperTracker (tło)</h2><div class="desc">Jak byli ustawieni (longi / shorty) na wybranym coinie albo koszyku altów wszyscy, którzy zarobili $100k–1M, i ci, którzy tyle stracili (później też grupy ponad $1M). ` +
+  return `<div class="panel"><h2>Historia przed startem — HyperTracker (tło)</h2><div class="desc">Jak byli ustawieni (longi / shorty) na wybranym coinie albo koszyku altów wszyscy, którzy zarobili $100K–1M, i ci, którzy tyle stracili (później też grupy ponad $1M). ` +
     `Grupy wg dzisiejszego wyniku: pokazują, jak grali dzisiejsi zarabiający i tracący. Nie nadają się do sprawdzania, czy ich ruchy wyprzedzały rynek (do grupy trafili właśnie dlatego, że trafili z kierunkiem) — to sprawdzimy na naszym sicie.</div>` +
     prog + `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-htcoin', items, S.htCoin)}<span class="ctrl-label">Pokaż</span>${pills('p-htshow', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty ($)']], S.htShow)}</div>` +
     `<div class="chart-wrap"><div class="legend" id="lg2"></div><div class="chart" id="ch2"></div><div class="empty" id="em2"></div></div><div class="hint">Powered by HyperTracker. Punkty co 4 h.</div></div>`;
@@ -544,7 +544,7 @@ function notesPanel() {
 <div class="desc">Stan na start zakładki (18.11.2026). Do przeglądu za kilka tygodni, gdy będą własne, szczegółowe dane.</div>
 <h3>Kto trafia do grup</h3>
 <ol>
-<li><b>Wynik konta od początku — liczy go Hyperliquid</b> (ranking: zysk / strata za dzień, tydzień, miesiąc i od założenia konta). Do sita: tylko konta <b>na plusie od początku</b> i z saldem ≥ ${usd(p.min_av || 1e5)}; „tracący”: konta <b>na minusie od początku</b> (≥ $10k).</li>
+<li><b>Wynik konta od początku — liczy go Hyperliquid</b> (ranking: zysk / strata za dzień, tydzień, miesiąc i od założenia konta). Do sita: tylko konta <b>na plusie od początku</b> i z saldem ≥ ${usd(p.min_av || 1e5)}; „tracący”: konta <b>na minusie od początku</b> (≥ $10K).</li>
 <li><b>Nasze przeliczenie z transakcji</b>: przy każdej transakcji zamykającej Hyperliquid podaje zrealizowany zysk / stratę; odejmujemy opłaty i liczymy osobno longi i shorty. „Skuteczny w longach” = w ostatnich transakcjach ≥ ${p.min_trips || 10} zagrań longiem i zyski ≥ ${num(p.min_pf || 1.2)}× strat (shorty tak samo). Do tego konto ≥ ${p.min_age_days || 365} dni i mniej niż ${p.max_fills_day || 200} transakcji dziennie (bez botów).</li>
 </ol>
 <h3>Jaką historię daje Hyperliquid (darmowe API)</h3>
@@ -738,7 +738,7 @@ function cut(arr, range) {
 const pts = arr => arr.filter(p => p[1] != null).map(p => ({time: p[0], value: p[1]}));
 async function priceSeries(coin) {
   try {
-    if (coin === 'ALT') { if (!OTH) OTH = ((await getJSON(DATA_BASE, '1h.json')).series || {}).others || []; return {arr: OTH, name: 'OTHERS (kapitalizacja altów)'}; }
+    if (coin === 'ALT') { if (!OTH) OTH = ((await getJSON(DATA_BASE, '1h.json')).series || {}).others || []; return {arr: OTH, name: 'OTHERS (TV) — kapitalizacja coinów spoza top 10'}; }
     if (!PX1H) PX1H = (await getJSON(DATA_BASE, 'liq_1h.json')).series || {};
     return {arr: PX1H['px_' + coin.toLowerCase()] || [], name: 'Cena ' + coin};
   } catch (e) { return {arr: [], name: 'Cena'}; }
