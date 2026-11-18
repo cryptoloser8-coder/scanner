@@ -72,6 +72,7 @@
   .gcard .rows{margin-top:6px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:11px;}
   .gcard .rows span:nth-child(odd){color:var(--text2);} .gcard .rows span:nth-child(even){font-family:var(--mono);text-align:right;white-space:nowrap;}
   .gcard .big .l{color:var(--green);} .gcard .big .s{color:var(--red);margin-left:14px;}
+  .gcard .gnote{font-size:10.5px;color:var(--text2);margin-top:6px;line-height:1.5;}
   .gcard .netl{font-size:10px;color:var(--text3);margin-top:9px;}
   .gcard .conc{font-size:10.5px;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.45;}
   .gcard .lsrow{display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);margin-top:4px;}
@@ -327,6 +328,18 @@ function levTable(b) {
 // 96: % wg kwot bywa dziełem kilku portfeli — obok pokazujemy liczbę portfeli netto w longu / shorcie i udział 3 największych
 const TOP3_WARN = 50;
 function top3Txt(v) { return v == null ? '—' : `<span${v >= TOP3_WARN ? ' style="color:var(--amber)"' : ''}>${Math.round(v)}%</span>`; }
+// 100: dopiski — duże konta (≥ $1M) i portfele, którym otwarte straty zjadły cały zysk (skład grup bez zmian)
+function noteBlock(st) {
+  const out = [];
+  const b = st.big;
+  if (b && b.n && (st.long + st.short)) {
+    const share = Math.round((b.long + b.short) / (st.long + st.short) * 100);
+    out.push(`Konta ≥ ${usd(b.min_av)}: <b>${b.n}</b> z ${st.in_pos} w pozycjach — trzymają <span class="up">${usd(b.long)} longów</span> i <span class="dn">${usd(b.short)} shortów</span> (${share}% kwot grupy).`);
+  }
+  const e = st.eaten;
+  if (e && e.n) out.push(`Otwarte straty większe niż cały zysk z zamkniętych zagrań: <b>${e.n}</b> portfeli (trzymają ${usd(e.amt)} po tej stronie) — zostają w grupie; po spadku rynku to częste, ale mogą to też być konta, które stratnych pozycji nie zamykają.`);
+  return out.length ? `<div class="gnote">${out.join('<br>')}</div>` : '';
+}
 function netBlock(st) {
   if (st.net_long == null) return '';
   const n = st.net_long + st.net_short, lp = n ? st.net_long / n * 100 : null;
@@ -344,7 +357,7 @@ function groupCard(g, st, sub) {
   const l = st.lpct, d24 = delta(`${g.id}_all_lpct`, DAY), d7 = delta(`${g.id}_all_lpct`, 7 * DAY);
   return `<div class="gcard" data-g="${g.id}" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
     `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : (100 - Math.round(l)) + '%'} <small>short</small></span></div>` + comp(l) +
-    `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` + netBlock(st) +
+    `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` + netBlock(st) + noteBlock(st) +
     `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span>${dTxt(d24)} / ${dTxt(d7)}</span>` +
     `<span>Portfeli w grupie (teraz w pozycjach)</span><span>${st.n} (${st.in_pos})</span>` +
     `<span>Portfele: tylko long / tylko short / oba</span><span>${st.only_long} / ${st.only_short} / ${st.both}</span>` +

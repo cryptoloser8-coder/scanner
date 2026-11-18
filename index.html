@@ -375,7 +375,8 @@ function renderHL() {
       `<div class="hbar"><i class="l" style="width:${lp || 0}%"></i><i class="s" style="width:${sp || 0}%"></i></div>` +
       `<div class="am"><span>longi ${usd(g.long)}</span><span>shorty ${usd(g.short)}</span></div>` +
       (g.net_long != null ? `<div class="am"><span>portfele netto: <span class="up">${g.net_long} w longu</span> · <span class="dn">${g.net_short} w shorcie</span></span></div>` : '') +
-      [[g.top3L, 'longów'], [g.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= 50).map(x => `<div class="am" style="color:var(--amber)">⚠ 3 portfele = ${Math.round(x[0])}% ${x[1]}</div>`).join('') + '</a>');
+      [[g.top3L, 'longów'], [g.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= 50).map(x => `<div class="am" style="color:var(--amber)">⚠ 3 portfele = ${Math.round(x[0])}% ${x[1]}</div>`).join('') +
+      (g.big && g.big.n && id === 'R' ? `<div class="am">w tym ${g.big.n} konta ≥ ${usd(g.big.min_av)}: longi ${usd(g.big.long)} · shorty ${usd(g.big.short)}</div>` : '') + '</a>');
   }
   const old = HL.at && Date.now() / 1000 - HL.at > 6 * HOUR ? ' <span style="color:var(--amber)">(starsze niż 6 h)</span>' : '';
   out.push(`<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100k, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`);
