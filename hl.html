@@ -289,7 +289,7 @@ function comp(l) {
   if (l == null) return '<div class="comp"></div>';
   return `<div class="comp" title="long ${num(l)}% · short ${num(100 - l)}%"><i class="l" style="width:${l}%"></i><i class="s" style="width:${100 - l}%"></i></div>`;
 }
-function lsTxt(l) { return l == null ? '—' : `<span class="up">${Math.round(l)}% long</span> · <span class="dn">${Math.round(100 - l)}% short</span>`; }
+function lsTxt(l) { return l == null ? '—' : `<span class="up">${Math.round(l)}% long</span> · <span class="dn">${100 - Math.round(l)}% short</span>`; }
 
 let COMP = [];
 let NOW = null, META = null, SER = {}, WALLETS = null, HTP = null, HTS = null, HTG = null, PX1H = null, OTH = null;
@@ -333,7 +333,7 @@ function netBlock(st) {
   const warn = [[st.top3L, 'longów'], [st.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= TOP3_WARN)
     .map(x => `${Math.round(x[0])}% ${x[1]}`).join(' i ');
   return `<div class="netl">Wg liczby portfeli (każdy portfel liczy się raz — netto w longu albo w shorcie)</div>` +
-    `<div class="lsrow"><span class="up">${lp == null ? '—' : Math.round(lp) + '%'} · ${st.net_long} portfeli</span><span class="dn">${lp == null ? '—' : Math.round(100 - lp) + '%'} · ${st.net_short} portfeli</span></div>` + comp(lp) +
+    `<div class="lsrow"><span class="up">${lp == null ? '—' : Math.round(lp) + '%'} · ${st.net_long} portfeli</span><span class="dn">${lp == null ? '—' : (100 - Math.round(lp)) + '%'} · ${st.net_short} portfeli</span></div>` + comp(lp) +
     (warn ? `<div class="conc">⚠ 3 największe portfele trzymają ${warn} tej grupy — procent wg kwot mówi głównie o nich; patrz też podział wg liczby portfeli.</div>` : '');
 }
 function groupCard(g, st, sub) {
@@ -343,7 +343,7 @@ function groupCard(g, st, sub) {
   }
   const l = st.lpct, d24 = delta(`${g.id}_all_lpct`, DAY), d7 = delta(`${g.id}_all_lpct`, 7 * DAY);
   return `<div class="gcard" data-g="${g.id}" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
-    `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : Math.round(100 - l) + '%'} <small>short</small></span></div>` + comp(l) +
+    `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : (100 - Math.round(l)) + '%'} <small>short</small></span></div>` + comp(l) +
     `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` + netBlock(st) +
     `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span>${dTxt(d24)} / ${dTxt(d7)}</span>` +
     `<span>Portfeli w grupie (teraz w pozycjach)</span><span>${st.n} (${st.in_pos})</span>` +
@@ -381,7 +381,7 @@ function groupsPanel() {
 // ── tabela coinów ──
 function cell(a) {
   if (!a || !(a.long + a.short)) return '<div class="cell"><div class="t" style="color:var(--text3)">brak pozycji</div></div>';
-  return `<div class="cell"><div class="t"><span class="up">${Math.round(a.lpct)}% · ${usd(a.long)}</span><span class="dn">${Math.round(100 - a.lpct)}% · ${usd(a.short)}</span></div>${comp(a.lpct)}` +
+  return `<div class="cell"><div class="t"><span class="up">${Math.round(a.lpct)}% · ${usd(a.long)}</span><span class="dn">${100 - Math.round(a.lpct)}% · ${usd(a.short)}</span></div>${comp(a.lpct)}` +
     `<div class="hint" style="margin:0">portfeli: ${a.nL} long · ${a.nS} short` +
     [[a.top3L, 'longów'], [a.top3S, 'shortów']].filter(x => x[0] != null && x[0] >= 75).map(x => ` · <span style="color:var(--amber)">3 największe = ${Math.round(x[0])}% ${x[1]}</span>`).join('') + `</div></div>`;
 }
@@ -437,7 +437,7 @@ function splitPanel() {
   const g = (a, b) => (sp.groups[a] || {})[b] || {};
   const side = st => {
     const t = (st.long || 0) + (st.short || 0);
-    return t ? `<span class="up">${Math.round(st.lpct)}% · ${usd(st.long)}</span><br><span class="dn">${Math.round(100 - st.lpct)}% · ${usd(st.short)}</span>` : '<span style="color:var(--text3)">brak pozycji</span>';
+    return t ? `<span class="up">${Math.round(st.lpct)}% · ${usd(st.long)}</span><br><span class="dn">${100 - Math.round(st.lpct)}% · ${usd(st.short)}</span>` : '<span style="color:var(--text3)">brak pozycji</span>';
   };
   const rows = [
     ['Portfeli w sicie', st => st.members == null ? '—' : st.members],

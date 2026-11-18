@@ -249,7 +249,7 @@
   <div class="cyc-legend" id="cyc-legend"></div>
   <div class="hint">
     Rozwiń grupę albo wyszukaj serię w kolumnie „Serie” (obok wykresu, na telefonie nad nim) i kliknij kafelek, żeby dodać ją do wykresu (× w legendzie usuwa). Najedź na nazwę albo <i>i</i>, żeby zobaczyć, co obejmuje.
-    Interwały 4H, 1W i 1M są składane z danych 1H / 1D: ostatnia wartość okresu, a wolumen i CVD — suma.
+    W trybach „% zmiana” i „Index 100” procent przy serii w legendzie = zmiana od lewej krawędzi widocznego zakresu do wskazanego punktu (bez wskazania — do ostatniej wartości). Interwały 4H, 1W i 1M są składane z danych 1H / 1D: ostatnia wartość okresu, a wolumen i CVD — suma.
     Poziomy alertów ustawiasz w <code>collector/config.yaml</code>. Id serii jest widoczne w podpowiedzi.
     Cena BTC i ETH w trybie Wartości jest rysowana jako świece z knotami (open = zamknięcie poprzedniej świecy): dzienne od 2010 (BTC) i 2015 (ETH) — do 2019–2020 z indeksu TradingView, potem Binance perp;
     godzinowe od 08.2017 z Binance spot, a ostatnie godziny (jeszcze nie w archiwum) z Binance perp. Przycisk „Świece” przełącza na linię.
@@ -946,7 +946,7 @@ function updateLegend(param) {
       const vr = chart.timeScale().getVisibleRange();
       const a = cp(id);
       const first = vr ? a.find(p => p[0] >= vr.from) : null;
-      if (first && v != null) extra = ' ' + chg(v, first[1]);
+      if (first && v != null) extra = ` <span title="Zmiana od lewej krawędzi widocznego zakresu (${new Date(first[0] * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Warsaw'})})">${chg(v, first[1])}</span>`;
     }
     return `<div class="lg-row"><span class="swatch" style="--c:${c.color}"></span><span class="lg-name" data-tip="${id}">${esc(c.name)}</span>` +
       `<span class="lg-val">${fmt(v, fmtOf(c))}${extra}</span>${shortInfo(id) ? `<span class="lg-short">${shortInfo(id).text}</span>` : ''}<span class="lg-x" data-sid="${id}" title="Usuń z wykresu">×</span></div>`;

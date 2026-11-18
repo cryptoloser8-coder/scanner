@@ -466,8 +466,8 @@ function renderStats(W) {
         bar(w2[0], w2[w2.length - 1], v, [{v: lo, short: lo.toFixed(3), c: '#4caf7d', tip: tipLo}, {v: hi, short: hi.toFixed(3), c: '#e05252', tip: tipHi}], x => x.toFixed(2)) +
         `Kapitalizacja altów (bez BTC, ETH i stablecoinów) ÷ BTC — teraz${zone}. Kreski ${lo.toFixed(3)} i ${hi.toFixed(3)}: poniżej / powyżej nich Alty/BTC były tylko przez 20% ostatnich 2 lat (najedź / dotknij po szczegóły). Poziom co cykl niżej (szczyty: ${topsOf(ab, 0.3, 365).slice(-4).map(x => x[1].toFixed(2)).join(' → ')}), dlatego granice liczone są z 2 lat, nie stała liczba.`,
         `Po przekroczeniu kreski — alty 90 dni później:<br>` +
-        `• w górę nad górną kreskę (dziś ${hi.toFixed(3)}) — ${cH.length}×: ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}<br>` +
-        `• w dół pod dolną kreskę (dziś ${lo.toFixed(3)}) — ${cL.length}×: ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}<br>` +
+        `• w górę nad górną kreskę (dziś ${hi.toFixed(3)}) — ${cH.length}×: ${fH.length ? `niżej ${fH.filter(x => x < 0).length} z ${fH.length}, typowo <b class="${cls(median(fH))}">${fmtPct(median(fH))}</b>` : '—'}${pend(cH.length - fH.length)}${few(fH.length)}<br>` +
+        `• w dół pod dolną kreskę (dziś ${lo.toFixed(3)}) — ${cL.length}×: ${fL.length ? `wyżej ${fL.filter(x => x > 0).length} z ${fL.length}, typowo <b class="${cls(median(fL))}">${fmtPct(median(fL))}</b>` : '—'}${pend(cL.length - fL.length)}${few(fL.length)}<br>` +
         `• zwykły dzień: <b class="${cls(U.med)}">${fmtPct(U.med)}</b> (niżej w ${U.down}% dni)<br>` +
         `<span style="color:var(--text2)">Wejście nad górną kreskę trafiało w szczyty altów, ale to tylko ${cH.length} przypadki. Zejście pod dolną — wynik mieszany. Kreski liczone z ostatnich 2 lat, więc w przeszłości stały gdzie indziej.</span>`));
     }
@@ -532,7 +532,7 @@ const LAMP_UI = {
     lvl: c => c.leverage.levels.map((v, i) => `≥ ${num(v, 2)} ${['uwaga', 'przegrzanie', 'skrajne'][i] || ''}`.trim()),
     cond: c => `Lewar altów (open interest altów bez ETH ÷ open interest BTC): ${c.leverage.levels.map(v => num(v, 2)).join(' / ')} — uwaga / przegrzanie / skrajne przegrzanie.`,
     mean: (c, lv) => lv >= 2 ? 'Przegrzanie — historycznie czas sprzedaży.' : 'Uwaga — dźwignia na altach wysoka, przegrzanie blisko.'},
-  rsi3d: {color: '#ff9800', fmt: v => num(v, 0) + '%', unit: 'coinów wykupionych',
+  rsi3d: {color: '#ff9800', fmt: v => num(v, v < 10 ? 1 : 0) + '%', unit: 'coinów wykupionych',
     lvl: c => [`≥ ${c.rsi3d.overbought_pct}%`],
     cond: c => `Co najmniej ${c.rsi3d.overbought_pct}% coinów z RSI(14) > 70 na zamkniętej świecy 3D.`,
     mean: () => 'Rynek rozgrzany — sprzedaż części; w silnej hossie bywa za wcześnie.'},
@@ -610,7 +610,7 @@ function lampCard(k, x, c, tNow) {
   const ui = LAMP_UI[k], lv = x.level || 0, names = ui.lvl(c);
   const col = groupColor(x.group);
   let st;
-  if (x.on) st = `<i></i>Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.round((tNow - x.since) / DAY) + 1)} dni` + (names.length > 1 ? ` · ${names[lv - 1]}` : '');
+  if (x.on) st = `<i></i>Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.floor((tNow - x.since) / DAY) + 1)} dni` + (names.length > 1 ? ` · ${names[lv - 1]}` : '');
   else if (!x.fresh) st = `Brak świeżych danych · ostatnie z ${dmy(x.value_t)}`;
   else if (x.since) st = `Przygasła · świeciła od ${dmy(x.since)}, ostatnio ${dmy(x.last_true)}`;
   else { const e = (x.episodes || []).slice(-1)[0]; st = 'Nie świeci · ' + (e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'); }
@@ -623,7 +623,8 @@ function lampCard(k, x, c, tNow) {
   }).join('');
   const hist = (x.stats || []).map((s, i) => {
     if (!s.count) return names.length > 1 ? `${names[i]}: jeszcze nie było.` : 'Jeszcze nie było.';
-    const res = s.n ? ` 30 dni po zapaleniu alty były ${word} ${s.good} z ${s.n} razy${s.med == null ? '' : ` (mediana ${fmtPct(s.med)})`}.` : '';
+    const res = (s.n ? ` 30 dni po zapaleniu alty były ${word} ${s.good} z ${s.n} razy${s.med == null ? '' : ` (mediana ${fmtPct(s.med)})`}.` : '') +
+      (s.count > s.n ? ` ${s.count - s.n} ${s.count - s.n === 1 ? 'zapalenie jest' : 'zapalenia są'} jeszcze bez wyniku (nie minęło 30 dni).` : '') + (s.n && s.n <= 5 ? ' Mało przypadków.' : '');
     return `${names.length > 1 ? names[i] + ': ' : ''}zapalała się ${s.count} ${s.count === 1 ? 'raz' : 'razy'}.${res}`;
   }).join(' ');
   const eps = (x.episodes || []).slice().reverse();
@@ -687,6 +688,9 @@ function usualDay() {                                  // zwykły dzień: zmiana
   for (let i = 0; i < T.length; i++) { const j = lastLE(T, T[i] + 90 * DAY); if (T[j] - T[i] >= 89 * DAY) a.push((Math.exp(X[j] - X[i]) - 1) * 100); }
   return {med: median(a), down: a.length ? Math.round(a.filter(x => x < 0).length / a.length * 100) : null};
 }
+// 99: dopiski przy wynikach z historii — ile przypadków jeszcze bez wyniku i „mało przypadków” (≤ 5)
+const pend = n => n > 0 ? ` <span style="color:var(--text2)">(${n} jeszcze bez wyniku — nie minęło 90 dni)</span>` : '';
+const few = n => n > 0 && n <= 5 ? ' <span style="color:var(--text2)">· mało przypadków</span>' : '';
 function crossTxt(c, word) {                            // „niżej 3 z 3 razy, typowo −60%”
   const f = c.map(x => x.f).filter(x => x != null);
   if (!f.length) return 'jeszcze bez wyniku po 90 dniach';
@@ -755,9 +759,9 @@ function renderTables(W) {
   const NAMES = {acc: 'akumulacja', bull: 'hossa', bear: 'bessa'};
   document.getElementById('phase-tbl').innerHTML = `<table><thead><tr><th class="l">Faza</th><th>Fal</th><th>Lat danych</th><th>Fal na rok</th><th>Czas fali</th><th>Zysk</th><th>Przerwa między falami</th><th>Oddane po szczycie</th></tr></thead><tbody>` +
     ['acc', 'bull', 'bear'].map(g => { const s = sum[g]; return `<tr class="${g === cur ? 'cur' : ''}"><td class="l"><span class="ph" style="--c:${PHASE_COLORS[g]}"></span>${NAMES[g]}${g === cur ? ' (teraz)' : ''}</td>` +
-      `<td>${s.n}</td><td>${s.yrs.toFixed(1)}</td><td>${s.rate == null ? '—' : s.rate.toFixed(1)}</td><td>${s.days == null ? '—' : Math.round(s.days) + ' dni'}</td>` +
-      `<td class="up">${s.gain == null ? '—' : fmtPct(s.gain)}</td><td>${s.gap == null ? '—' : `${Math.round(s.gap)} dni (${s.gapMin}–${s.gapMax})`}</td><td class="dn">${s.after == null ? '—' : fmtPct(s.after)}</td></tr>`; }).join('') +
-    `</tbody></table><div class="hint">Mediany${S.era === 'etf' ? ' — tylko fale od 11.01.2024 (ETF-y)' : ''}. Przerwa = od szczytu jednej fali do dołka następnej, gdy obie były w tej samej fazie. Lata danych = ile tej fazy obejmuje indeks altów${S.era === 'etf' ? ' od ETF-ów' : ''}.</div>`;
+      `<td>${s.n}${s.n > 0 && s.n <= 5 ? ' <span style="color:var(--text3)" title="Mało przypadków — mediany z tak małej liczby fal są przypadkowe">· mało</span>' : ''}</td><td>${s.yrs.toFixed(1)}</td><td>${s.rate == null ? '—' : s.rate.toFixed(1)}</td><td>${s.days == null ? '—' : Math.round(s.days) + ' dni'}</td>` +
+      `<td class="up">${s.gain == null ? '—' : fmtPct(s.gain)}</td><td>${s.gap == null ? '—' : s.gapN === 1 ? `${Math.round(s.gap)} dni <span style="color:var(--text3)">· 1 przerwa</span>` : `${Math.round(s.gap)} dni (${s.gapMin}–${s.gapMax})${s.gapN <= 5 ? ` <span style="color:var(--text3)">· przerw: ${s.gapN}</span>` : ''}`}</td><td class="dn">${s.after == null ? '—' : fmtPct(s.after)}</td></tr>`; }).join('') +
+    `</tbody></table><div class="hint">Mediany${S.era === 'etf' ? ' — tylko fale od 11.01.2024 (ETF-y)' : ''}. Przerwa = od szczytu jednej fali do dołka następnej, gdy obie były w tej samej fazie (w nawiasie najkrótsza–najdłuższa). „mało” = 5 fal lub mniej — liczby z tego wiersza traktuj ostrożnie. Lata danych = ile tej fazy obejmuje indeks altów${S.era === 'etf' ? ' od ETF-ów' : ''}.</div>`;
   const rows = W.waves.slice().reverse();
   if (W.live) rows.unshift(W.live);
   document.getElementById('wave-tbl').innerHTML = `<table><thead><tr><th class="l">Dołek</th><th class="l">Potwierdzona</th><th class="l">Szczyt</th><th>Dni</th><th>Zysk</th><th>Po potwierdzeniu</th><th>BTC</th><th>Alty vs BTC</th><th class="l">Faza</th><th class="l">Rodzaj</th><th>Oddane w 30 dni</th></tr></thead><tbody>` +

@@ -284,7 +284,7 @@ const LAMP_UI = {
     now: (x, c) => `Teraz <b>${fmtPct(x.value)}</b> nad dołkiem${x.low_t ? ' ' + dmy(x.low_t) : ''} · próg +${c.big_wave.wave_pct}%`},
   leverage: {fmt: v => num(v, 3) + '×', lvl: c => c.leverage.levels.map(v => `≥ ${num(v, 2)}`),
     now: (x, c) => `Teraz <b>${num(x.value, 3)}×</b> · progi ${c.leverage.levels.map(v => num(v, 2)).join(' / ')}`},
-  rsi3d: {fmt: v => num(v, 0) + '%', lvl: c => [`≥ ${c.rsi3d.overbought_pct}%`],
+  rsi3d: {fmt: v => num(v, v < 10 ? 1 : 0) + '%', lvl: c => [`≥ ${c.rsi3d.overbought_pct}%`],
     now: (x, c) => `Teraz <b>${num(x.value, 1)}%</b> coinów wykupionych · próg ${c.rsi3d.overbought_pct}%`},
   selloff: {fmt: v => fmtPct(v), lvl: () => ['wyprzedaż'],
     now: (x, c) => `Alty <b>${fmtPct(x.value)}</b> w ${c.selloff.days} d (próg −${c.selloff.alt_drop_pct}%) · MVRV-Z <b>${num(x.mvrvz, 2)}</b> lub BTC <b>${fmtPct(x.btc_chg)}</b>`},
@@ -304,7 +304,7 @@ function renderLamps() {
     return `<div class="lgroup${any ? ' lit' : ''}" style="--g:${col}"><h3>${icon} ${title.toUpperCase()} <span>${sub}</span></h3><div class="cards">` + ks.map(k => {
       const x = L[k], ui = LAMP_UI[k], names = ui.lvl(c), word = x.want_up ? 'wyżej' : 'niżej';
       let st;
-      if (x.on) st = `Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.round((tNow - x.since) / DAY) + 1)} dni`;
+      if (x.on) st = `Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.floor((tNow - x.since) / DAY) + 1)} dni`;
       else if (!x.fresh) st = `Brak świeżych danych · ostatnie z ${dmy(x.value_t)}`;
       else if (x.since) st = `Przygasła · świeciła od ${dmy(x.since)}`;
       else { const e = (x.episodes || []).slice(-1)[0]; st = 'Nie świeci · ' + (e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'); }
@@ -333,7 +333,7 @@ function renderBg() {
   item('mayer_btc', 'Mayer BTC', v => num(v, 2));
   item('mvrv_btc', 'MVRV BTC', v => num(v, 2));
   item('dxy', 'Dolar (DXY)', v => num(v, 1));
-  item('stable_mcap', 'Stablecoiny', usd);
+  item('stable_mcap', 'Stablecoiny <span style="color:var(--text3)">· TradingView</span>', usd);
   item('us10y', 'USA 10Y', v => num(v, 2) + '%');
   document.getElementById('bg').innerHTML = out.join('') || '<div class="lbl">Brak danych.</div>';
 }
@@ -368,10 +368,10 @@ function renderHL() {
   const G = HL.groups, out = [];
   for (const [id, nm, col] of HLG) {
     const g = G[id]; if (!g) continue;
-    const lp = g.lpct, sp = lp == null ? null : 100 - lp;
+    const lp = g.lpct, sp = lp == null ? null : 100 - lp, spTxt = lp == null ? '—' : (100 - Math.round(lp)) + '%';   // 99: suma = 100
     const info = `${g.in_pos} z ${g.n} w pozycjach · ×${num(g.eff_lev, 1)}`;
     out.push(`<a class="hg" href="hl.html" style="--g:${col}"><div class="hn">${nm}<span title="portfele z otwartą pozycją z całej grupy · dźwignia rzeczywista (pozycje ÷ konta)">${info}</span></div>` +
-      `<div class="pc"><span class="up"><b>${hlPct(lp)}</b> long</span><span class="dn"><b>${hlPct(sp)}</b> short</span></div>` +
+      `<div class="pc"><span class="up"><b>${hlPct(lp)}</b> long</span><span class="dn"><b>${spTxt}</b> short</span></div>` +
       `<div class="hbar"><i class="l" style="width:${lp || 0}%"></i><i class="s" style="width:${sp || 0}%"></i></div>` +
       `<div class="am"><span>longi ${usd(g.long)}</span><span>shorty ${usd(g.short)}</span></div>` +
       (g.net_long != null ? `<div class="am"><span>portfele netto: <span class="up">${g.net_long} w longu</span> · <span class="dn">${g.net_short} w shorcie</span></span></div>` : '') +

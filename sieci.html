@@ -376,7 +376,7 @@ function chipNums(slug) {
   if (!m) return '<span class="cc">—</span>';
   const flow = FLOW.has(S.metric);
   const v = flow ? m.s7 : m.v;
-  return `<span class="cv">${v == null ? '—' : fmtUsd(v)}</span><span class="cc"><span>${flow ? '7 dni' : 'teraz'}</span>` +
+  return `<span class="cv">${v == null ? '—' : fmtUsd(v)}</span><span class="cc"><span>${flow ? '7 dni' : (SUM && SUM.day ? 'stan z ' + SUM.day.slice(8, 10) + '.' + SUM.day.slice(5, 7) : 'ostatni dzień')}</span>` +
     (m.c7 != null ? `<span>7D ${fmtPct(m.c7)}</span>` : '') + (m.c30 != null ? `<span>30D ${fmtPct(m.c30)}</span>` : '') + '</span>';
 }
 function renderMarket() {
@@ -384,7 +384,8 @@ function renderMarket() {
   document.getElementById('mkt-day').textContent = SUM && SUM.day ? SUM.day.split('-').reverse().join('.') : '?';
   const out = [];
   if (M.dex) out.push(`<div><div class="k">Wolumen DEX, 7 dni</div><div class="v">${fmtUsd(M.dex.s7)}</div><div class="c">tydzień do tygodnia ${fmtPct(M.dex.c7)} · 30 dni ${fmtPct(M.dex.c30)}</div></div>`);
-  if (M.stable) out.push(`<div><div class="k">Stablecoiny</div><div class="v">${fmtUsd(M.stable.v)}</div><div class="c">7 dni ${fmtPct(M.stable.c7)} · 30 dni ${fmtPct(M.stable.c30)}${M.stable.c365 != null ? ' · rok ' + fmtPct(M.stable.c365) : ''}</div></div>`);
+  if (M.stable) out.push(`<div><div class="k">Stablecoiny · wg DefiLlama</div><div class="v">${fmtUsd(M.stable.v)}</div><div class="c">7 dni ${fmtPct(M.stable.c7)} · 30 dni ${fmtPct(M.stable.c30)}${M.stable.c365 != null ? ' · rok ' + fmtPct(M.stable.c365) : ''}</div>` +
+    `<div class="c" style="color:var(--text3)">Pulpit i raport (sekcja Rynek) pokazują sumę wg TradingView — liczy inny zestaw stablecoinów, stąd inna kwota.</div></div>`);
   box.innerHTML = out.join('') || '<div class="none">Brak danych całego rynku.</div>';
 }
 function syncControls() {
@@ -440,9 +441,12 @@ function renderRising() {
     `Progi na próbę: wolumen DEX z 7 dni ≥ ×${r.dex_ratio ?? 3} średniego tygodnia z 4 poprzednich w porównaniu z całym rynkiem; ` +
     `stablecoiny +${r.stable30 ?? 100}% w 30 dni; nowa sieć z dużym ruchem od pierwszych dni. Sprawdzamy ${SUM.candidates ?? '?'} sieci ` +
     `ze stablecoinami albo TVL ≥ ${fmtUsd(r.cand_min)}. Wykresiki: ostatnie ${Math.round((OTHER._days || 120))} dni.`;
-  if (!list.length) { document.getElementById('rise').innerHTML = '<div class="none">Dziś żadna sieć spoza listy nie przekroczyła progów.</div>'; return; }
+  // 99: nieudane zapytania o sieci spoza listy widoczne przy liście (wcześniej tylko w stopce)
+  const bad = (SUM.errors || []).filter(e => /spoza listy/.test(e));
+  const warn = bad.length ? `<div class="none" style="color:var(--amber)">⚠ Ostatnie pobranie: ${esc(bad.join('; '))} — lista niżej może być niepełna.</div>` : '';
+  if (!list.length) { document.getElementById('rise').innerHTML = warn + '<div class="none">Dziś żadna sieć spoza listy nie przekroczyła progów.</div>'; return; }
   const K = {dex: 'ruch (wolumen DEX)', stable: 'kapitał (stablecoiny)', new: 'nowa sieć'};
-  document.getElementById('rise').innerHTML = list.map(x => {
+  document.getElementById('rise').innerHTML = warn + list.map(x => {
     const o = OTHER[x.name] || {};
     const what = [];
     if (x.kinds.includes('dex') && x.dex_ratio != null) what.push(`wolumen DEX ×${x.dex_ratio.toFixed(1)} zwykłego tygodnia` + (x.market_ratio ? ` (cały rynek ×${x.market_ratio.toFixed(2)})` : ''));
