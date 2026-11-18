@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dźwignia — zarabiający vs reszta · Crypto Loser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="Jak grają na dźwigni skuteczni gracze Hyperliquid — longi i shorty, kwoty, dźwignia — na tle tracących.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crypto Loser Analytics Tools">
+<meta property="og:title" content="Dźwignia — zarabiający vs reszta · Crypto Loser">
+<meta property="og:description" content="Jak grają na dźwigni skuteczni gracze Hyperliquid — longi i shorty, kwoty, dźwignia — na tle tracących.">
+<meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crypto Loser Analytics Tools — The best tools for buying high and selling low.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="CL Analytics">
+<script src="app.js?v=89"></script>
+<script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);
+    --gL:#5b9cf6;--gS:#ffb74d;--gR:#ce93d8;
+    --radius:8px;--radius-lg:12px;--mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:14px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:11px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);} .status-dot.stale{background:var(--amber);} .status-dot.error{background:var(--red);}
+  .status-label{font-size:11px;color:var(--text2);}
+  .banner{font-size:12px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;line-height:1.5;}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-top:14px;}
+  .panel h2{font-size:13px;font-weight:600;margin-bottom:4px;}
+  .desc{font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px;}
+  .hint{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill:disabled{opacity:.4;cursor:not-allowed;}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;}
+  .chip{font-size:11px;padding:3px 9px 3px 7px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;}
+  .chip .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);opacity:.45;}
+  .chip.on{color:var(--text);border-color:var(--c);background:rgba(255,255,255,.05);}
+  .chip.on .swatch{opacity:1;}
+
+  /* kafelki grup */
+  .groups{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,.95fr);gap:12px;}
+  .gblock .lab{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .gblock .lab b{color:var(--text2);font-weight:600;}
+  .gblock .inner{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+  .gblock.cmp .gcard{height:calc(100% - 20px);}
+  .gcard{background:var(--bg);border:1px solid var(--border);border-top:3px solid var(--c);border-radius:var(--radius-lg);padding:10px 12px;}
+  .gcard .gname{font-size:12px;font-weight:600;color:var(--c);}
+  .gcard .gsub{font-size:10px;color:var(--text3);margin-top:1px;}
+  .gcard .big{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:6px;}
+  .gcard .big small{font-size:12px;color:var(--text2);font-weight:400;font-family:-apple-system,sans-serif;}
+  .gcard .rows{margin-top:6px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:11px;}
+  .gcard .rows span:nth-child(odd){color:var(--text2);} .gcard .rows span:nth-child(even){font-family:var(--mono);text-align:right;white-space:nowrap;}
+  .gcard .big .l{color:var(--green);} .gcard .big .s{color:var(--red);margin-left:14px;}
+  .gcard .lsrow{display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);margin-top:4px;}
+  .htrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:baseline;font-size:11px;margin-top:7px;}
+  .htrow .nm{color:var(--text);} .htrow .nm small{color:var(--text3);font-size:10px;margin-left:5px;}
+  .htrow .v{font-family:var(--mono);font-size:10px;text-align:right;white-space:nowrap;}
+  .htrow .comp{grid-column:1/-1;height:6px;}
+  .levt{width:100%;margin-top:8px;border-collapse:collapse;font-size:11px;}
+  .levt caption{text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding-bottom:3px;}
+  .levt th,.levt td{padding:2px 4px;border:none;font-family:var(--mono);text-align:right;}
+  .levt th{font-family:inherit;font-size:10px;color:var(--text3);text-transform:none;letter-spacing:0;font-weight:400;}
+  .levt td:first-child,.levt th:first-child{text-align:left;color:var(--text2);font-family:inherit;}
+  .levt .lb{display:inline-block;height:6px;border-radius:2px;vertical-align:middle;margin-left:4px;}
+  .gcard.ht{border-top-color:#666;} .gcard.ht .gname{color:var(--text2);}
+  .up{color:var(--green);} .dn{color:var(--red);}
+
+  /* pasek składu */
+  .comp{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg3);min-width:70px;}
+  .comp i{display:block;height:100%;}
+  .comp .l{background:var(--green);} .comp .s{background:var(--red);}
+  .cell{display:flex;flex-direction:column;gap:3px;min-width:120px;}
+  .cell .t{font-size:11px;font-family:var(--mono);display:flex;justify-content:space-between;gap:6px;}
+  .cell .note{font-size:10px;color:var(--amber);}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border2);white-space:nowrap;}
+  td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  td.coin{font-weight:600;white-space:nowrap;} td.coin small{display:block;font-weight:400;color:var(--text3);font-size:10px;}
+  td.num{font-family:var(--mono);text-align:right;white-space:nowrap;}
+  th .sw{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:5px;}
+  .twrap{overflow-x:auto;}
+  tr.basket td{background:rgba(255,255,255,.025);}
+
+  .chart-wrap{position:relative;height:min(52vh,460px);min-height:300px;}
+  .chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row{display:flex;align-items:center;flex-wrap:wrap;gap:2px 6px;font-size:11px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;max-width:calc(100vw - 80px);}
+  .lg-row .swatch{width:8px;height:8px;border-radius:2px;background:var(--c);}
+  .lg-name{color:var(--text2);} .lg-val{font-family:var(--mono);}
+
+  .two{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start;}
+  .side .srow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:6px;font-size:12px;cursor:pointer;}
+  .side .srow.on{border-color:var(--c);background:rgba(255,255,255,.03);}
+  .side .srow .v{font-family:var(--mono);}
+  .side h3{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px;font-weight:500;}
+
+  .changes{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;}
+  .chg{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--c);border-radius:var(--radius);padding:8px 10px;font-size:12px;line-height:1.5;}
+  .chg .when{font-size:10px;color:var(--text3);}
+  .chg b{font-family:var(--mono);font-weight:600;}
+
+  .ccards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;}
+  .ccard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;}
+  .ccard .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .ccard .head b{font-size:14px;} .ccard .head span{font-size:11px;color:var(--text2);font-family:var(--mono);}
+  .ccard .gl{display:grid;grid-template-columns:110px minmax(0,1fr) 44px;gap:6px;align-items:center;font-size:11px;margin-bottom:5px;}
+  .ccard .gl .n{color:var(--c);} .ccard .gl .p{font-family:var(--mono);text-align:right;}
+  .ccard svg{display:block;width:100%;height:44px;margin-top:6px;}
+  .ccard .note{font-size:10px;color:var(--amber);margin-top:2px;}
+
+  .sito{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:10px;}
+  .step{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:11px;color:var(--text2);}
+  .step b{display:block;font-family:var(--mono);font-size:15px;color:var(--text);margin-top:2px;}
+  .tag{font-size:10px;padding:1px 6px;border-radius:4px;border:1px solid var(--c);color:var(--c);white-space:nowrap;}
+  .prog{background:var(--bg);border:1px solid rgba(255,193,7,.3);border-radius:var(--radius);padding:9px 11px;margin-bottom:10px;font-size:12px;}
+  .prog .top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .prog .top b{color:var(--amber);font-weight:600;}
+  .prog .top span{font-family:var(--mono);font-size:11px;color:var(--text2);}
+  .prog .bar{height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;}
+  .prog .bar i{display:block;height:100%;width:var(--w);background:var(--amber);}
+  .prog .det{font-size:11px;color:var(--text2);margin-top:6px;line-height:1.6;}
+  .prog .det .ok{color:var(--green);} .prog .det .now{color:var(--amber);}
+  .gcard[data-g]{cursor:pointer;transition:border-color .15s,background .15s;}
+  .gcard[data-g]:hover{background:#141414;}
+    .gcard .more{font-size:11px;color:var(--c);margin-top:10px;padding-top:8px;border-top:1px solid var(--border);}
+  td[data-c]{cursor:pointer;} td[data-c]:hover{background:rgba(255,255,255,.04);}
+  td.sel{outline:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.05);}
+  .wl{border:1px solid var(--border2);}
+  .wl .wlhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .wl .x{font-size:11px;color:var(--text2);cursor:pointer;border:1px solid var(--border2);border-radius:6px;padding:2px 8px;background:none;font-family:inherit;}
+  .wl tr.w{cursor:pointer;} .wl tr.w:hover td{background:rgba(255,255,255,.04);}
+  .pchip{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:4px;margin:1px 3px 1px 0;white-space:nowrap;}
+  .pchip.L{background:rgba(76,175,125,.14);color:var(--green);} .pchip.S{background:rgba(224,82,82,.14);color:var(--red);}
+  .aggs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:10px;}
+  .agg{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:11px;color:var(--text2);}
+  .agg b{display:block;font-family:var(--mono);font-size:14px;color:var(--text);margin-top:2px;font-weight:600;}
+  .liqmap{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;}
+  .liqmap svg{display:block;width:100%;height:120px;}
+  .liqmap .ax{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+  .two2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:10px;}
+  .two2 .liqmap{margin-bottom:10px;}
+  @media (max-width:900px){ .two2{grid-template-columns:1fr;} }
+  .liqmap .lt{font-size:11px;color:var(--text2);margin-bottom:4px;}
+  #mov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;display:none;align-items:center;justify-content:center;padding:3vh 2vw;}
+  body.mopen #mov{display:flex;} body.mopen{overflow:hidden;}
+  #mbox{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);width:min(1240px,96vw);max-height:92vh;overflow:auto;padding:14px 16px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  #mbox .mhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;position:sticky;top:-14px;background:var(--bg2);padding:6px 0;z-index:2;}
+  #mbox .mhead h2{font-size:14px;font-weight:600;}
+  .x{font-size:11px;color:var(--text2);cursor:pointer;border:1px solid var(--border2);border-radius:6px;padding:3px 9px;background:none;font-family:inherit;}
+  .x:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
+  #mbox tr.w{cursor:pointer;} #mbox tr.w:hover td{background:rgba(255,255,255,.04);}
+  #mbox h4{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;font-weight:500;}
+  #mbox .prof{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;}
+  #mbox .ev{font-size:11px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border);} #mbox .ev b{color:var(--text);font-family:var(--mono);font-weight:500;}
+  @media (max-width:640px){ #mov{padding:0;} #mbox{width:100vw;max-height:100vh;height:100vh;border-radius:0;} #mbox .prof{grid-template-columns:1fr 1fr;} }
+  td.addr{white-space:nowrap;}
+  .addr{font-family:var(--mono);font-size:11px;color:var(--text2);}
+
+  @media (max-width:1100px){ .groups{grid-template-columns:1fr;} .two{grid-template-columns:1fr;} .sito{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  @media (max-width:640px){ .aggs{grid-template-columns:1fr 1fr;} body{padding:14px;} .gblock .inner{grid-template-columns:1fr;} .sito{grid-template-columns:1fr 1fr;} td,th{padding:5px 6px;} .gcard .big{font-size:22px;} }
+
+  .menu-link{font-size:11px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .banner.info{background:rgba(91,156,246,.08);color:#9cc0fa;border:1px solid rgba(91,156,246,.3);}
+  .banner.warn{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner:empty{display:none;}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
+  .pill:disabled{opacity:.4;cursor:not-allowed;}
+  @media print{ .brand{display:none !important;} #mov{display:none !important;} }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="brand" title="Menu"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Dźwignia — zarabiający vs reszta (Hyperliquid)</h1>
+      <p>Pozycje portfeli z sita, zapis co ~2 h · tylko krypto (główna giełda HL) · godziny w czasie polskim</p>
+    </div>
+  </div>
+  <div style="text-align:right"><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
+</div>
+
+<div class="banner info">Jak grają na dźwigni skuteczni gracze Hyperliquid — w co wchodzą longiem, a w co shortem, jak dużymi kwotami i z jaką dźwignią — na tle tych, którzy tracą. Czy ich ruchy wyprzedzają fale altów, sprawdzimy dodatkowo, gdy zbierzemy kilka miesięcy własnych danych.</div>
+<div class="banner" id="banner2"></div>
+
+<div id="main"></div>
+<div id="mov"><div id="mbox"></div></div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+const qs = new URLSearchParams(location.search);
+function branchBase(param, branch) {
+  if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+  }
+  return branch + '/';
+}
+const HL_BASE = branchBase('hl', 'hl'), HT_BASE = branchBase('ht', 'ht'), DATA_BASE = branchBase('data', 'data');
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(base, name) {
+  const r = await fetch(`${base}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const DAY = 86400;
+const SEP = ['BTC', 'ETH', 'HYPE', 'SOL', 'DOGE', 'TAO'];
+const COINS = SEP.concat(['ALT']);
+const CNAME = c => c === 'ALT' ? 'Koszyk altów' : c;
+const CLOC = c => c === 'ALT' ? 'koszyku altów' : c;   // „na koszyku altów”
+const pxFmt = coin => ({type: 'custom', formatter: x => coin === 'ALT' ? usd(x) : fp(x), minMove: 0.000001});
+const G = [
+  {id: 'L', name: 'Skuteczni w longach', hex: '#5b9cf6'},
+  {id: 'S', name: 'Skuteczni w shortach', hex: '#ffb74d'},
+  {id: 'R', name: 'Tracący (dla porównania)', hex: '#ce93d8'}
+];
+const GB = Object.fromEntries(G.map(g => [g.id, g]));
+const HT_SEG = {8: ['Zarobili ponad $1M', 'Money Printer'], 9: ['Zarobili $100k–1M', 'Smart Money'], 14: ['Stracili $100k–1M', 'Full Rekt'],
+  15: ['Stracili ponad $1M', 'Giga-Rekt'], 1: ['Małe konta ($250–10k)', 'Fish']};
+const HT_COL = {8: '#26c6da', 9: '#5b9cf6', 14: '#ce93d8', 15: '#e05252'};
+
+function usd(x) {
+  if (x == null || isNaN(x)) return '—';
+  const a = Math.abs(x), s = x < 0 ? '−' : '';
+  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(1).replace('.', ',') + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(a >= 1e8 ? 0 : 1).replace('.', ',') + 'M';
+  if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'k';
+  return s + '$' + Math.round(a);
+}
+const sgnUsd = x => (x > 0 ? '+' : '') + usd(x);
+function fp(x) {
+  if (x == null || isNaN(x)) return '—';
+  if (x >= 1000) return Math.round(x).toLocaleString('pl-PL');
+  if (x >= 1) return x.toFixed(2).replace('.', ',');
+  return x.toPrecision(3).replace('.', ',');
+}
+function pct(x, d = 1) { return x == null || isNaN(x) ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d).replace('.', ',') + '%'; }
+function num(x, d = 1) { return x == null || isNaN(x) ? '—' : Number(x).toFixed(d).replace('.', ','); }
+const pp = x => x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(1).replace('.', ',') + ' pp';
+function plTime(t) {
+  return new Date(t * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+}
+function plDate(t) { return new Date(t * 1000).toLocaleDateString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', year: 'numeric'}); }
+function comp(l) {
+  if (l == null) return '<div class="comp"></div>';
+  return `<div class="comp" title="long ${num(l)}% · short ${num(100 - l)}%"><i class="l" style="width:${l}%"></i><i class="s" style="width:${100 - l}%"></i></div>`;
+}
+function lsTxt(l) { return l == null ? '—' : `<span class="up">${Math.round(l)}% long</span> · <span class="dn">${Math.round(100 - l)}% short</span>`; }
+
+let NOW = null, META = null, SER = {}, WALLETS = null, HTP = null, HTS = null, HTG = null, PX1H = null, OTH = null;
+const S = {coin: 'ALT', range: '30D', show: 'usd', on: {L: true, S: true, R: true, px: true}, htCoin: null, htShow: 'lpct'};
+
+function valAt(arr, t) {
+  let best = null;
+  for (const [tt, v] of arr || []) { if (tt <= t + 1800) best = v; else break; }
+  return best;
+}
+function delta(key, sec) {
+  const arr = SER[key] || [];
+  if (arr.length < 2) return null;
+  const last = arr[arr.length - 1];
+  if (arr[0][0] > last[0] - sec + 1800) return null;
+  const a = valAt(arr, last[0] - sec);
+  return a == null || last[1] == null ? null : last[1] - a;
+}
+
+// ── kafelki ──
+function levTable(b) {
+  let mx = 1;
+  b.forEach(r => { mx = Math.max(mx, r[1], r[2]); });
+  return '<table class="levt"><caption>Ile portfeli z jaką dźwignią (ustawioną)</caption><tr><th>Dźwignia</th><th class="up">w longu</th><th class="dn">w shorcie</th></tr>' +
+    b.map(r => `<tr><td>${esc(r[0])}</td><td>${r[1]}<span class="lb" style="width:${Math.round(r[1] / mx * 40)}px;background:var(--green)"></span></td>` +
+      `<td>${r[2]}<span class="lb" style="width:${Math.round(r[2] / mx * 40)}px;background:var(--red)"></span></td></tr>`).join('') + '</table>';
+}
+function groupCard(g, st, sub) {
+  if (!st || !st.n) {
+    return `<div class="gcard" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
+      `<div class="hint" style="margin-top:14px">Jeszcze brak portfeli w tej grupie — sito dopiero się buduje (patrz „Sito portfeli” niżej).</div></div>`;
+  }
+  const l = st.lpct, d24 = delta(`${g.id}_all_lpct`, DAY), d7 = delta(`${g.id}_all_lpct`, 7 * DAY);
+  return `<div class="gcard" data-g="${g.id}" style="--c:${g.hex}"><div class="gname">${g.name}</div><div class="gsub">${sub}</div>` +
+    `<div class="big"><span class="l">${l == null ? '—' : Math.round(l) + '%'} <small>long</small></span><span class="s">${l == null ? '—' : Math.round(100 - l) + '%'} <small>short</small></span></div>` + comp(l) +
+    `<div class="lsrow"><span class="up">longi ${usd(st.long)}</span><span class="dn">shorty ${usd(st.short)}</span></div>` +
+    `<div class="rows"><span>Udział longów: zmiana 24 h / 7 dni</span><span><span class="${(d24 || 0) >= 0 ? 'up' : 'dn'}">${pp(d24)}</span> / <span class="${(d7 || 0) >= 0 ? 'up' : 'dn'}">${pp(d7)}</span></span>` +
+    `<span>Portfeli w grupie (teraz w pozycjach)</span><span>${st.n} (${st.in_pos})</span>` +
+    `<span>Portfele: tylko long / tylko short / oba</span><span>${st.only_long} / ${st.only_short} / ${st.both}</span>` +
+    `<span>Dźwignia rzeczywista (pozycje ÷ konta)</span><span>×${num(st.eff_lev)}</span></div>` + levTable(st.lev_buckets) +
+    `<div class="more">Kliknij, aby zobaczyć portfele tej grupy i ich pozycje →</div></div>`;
+}
+function htCard() {
+  const gr = (HTS && HTS.groups) || [];
+  const by = Object.fromEntries(gr.map(x => [x.id, x]));
+  const rows = [8, 9, 14, 15, 1].filter(id => by[id]).map(id => {
+    const x = by[id];
+    return `<div class="htrow"><span class="nm">${HT_SEG[id][0]}<small>${HT_SEG[id][1]}</small></span><span class="v">${lsTxt(x.lpct)}</span>${comp(x.lpct)}</div>`;
+  }).join('');
+  return `<div class="gblock cmp"><div class="lab"><b>Dla porównania</b> · cały rynek HL (HyperTracker)</div>` +
+    `<div class="gcard ht"><div class="gname">Wszystkie konta HL wg łącznego wyniku</div><div class="gsub">zysk / strata od założenia konta · bez filtrów` +
+    (HTS ? ` · odczyt ${plTime(HTS.at)}` : '') + `</div>` + (rows || '<div class="hint" style="margin-top:10px">Pierwszy odczyt pojawi się w ciągu doby.</div>') +
+    `<div class="hint">Podział wg dzisiejszego wyniku — pokazuje, jak grają dzisiejsi zarabiający i tracący. Powered by HyperTracker.</div></div></div>`;
+}
+function groupsPanel() {
+  const p = (META && META.sito && META.sito.params) || {};
+  const age = p.min_age_days || 365, nmin = p.min_trips || 10, pf = p.min_pf || 1.2;
+  const subL = `konta ≥ ${age} dni, ≥ ${nmin} longów; na longach zarabiają (zyski ≥ ${num(pf)}× strat)`;
+  const subS = `konta ≥ ${age} dni, ≥ ${nmin} shortów; na shortach zarabiają (zyski ≥ ${num(pf)}× strat)`;
+  const subR = `losowe ${(META && META.sito && META.sito.losers) || 300} kont ≥ $10k, które od początku są na minusie`;
+  const gs = (NOW && NOW.groups) || {};
+  return `<div class="panel" style="margin-top:0"><h2>Kto jak gra teraz — longi i shorty</h2><div class="desc">Wszystkie kafelki pokazują pozycje <b>teraz</b> (zapis co ~2 h). Różnią się tym, kto należy do grupy. ` +
+    `<b>Nasze sito</b>: wybrane portfele — konta ≥ ${age} dni, grające większymi kwotami, bez botów, oceniane osobno za longi i za shorty z ich dotychczasowych zagrań (sito co tydzień); „tracący” to losowe konta na minusie. ` +
+    `<b>Dla porównania</b>: wszystkie konta Hyperliquid podzielone tylko wg łącznego zysku / straty od założenia konta (dane HyperTrackera) — szerzej, ale bez filtra wieku, skuteczności i botów.</div>` +
+    `<div class="groups"><div class="gblock"><div class="lab"><b>Nasze sito</b> · wybrane portfele, liczone z Hyperliquid</div><div class="inner">` +
+    groupCard(G[0], gs.L, subL) + groupCard(G[1], gs.S, subS) + groupCard(G[2], gs.R, subR) + `</div></div>` + htCard() + `</div></div>`;
+}
+
+// ── tabela coinów ──
+function cell(a) {
+  if (!a || !(a.long + a.short)) return '<div class="cell"><div class="t" style="color:var(--text3)">brak pozycji</div></div>';
+  return `<div class="cell"><div class="t"><span class="up">${Math.round(a.lpct)}% · ${usd(a.long)}</span><span class="dn">${Math.round(100 - a.lpct)}% · ${usd(a.short)}</span></div>${comp(a.lpct)}` +
+    `<div class="hint" style="margin:0">portfeli: ${a.nL} long · ${a.nS} short</div></div>`;
+}
+function tablePanel() {
+  const gs = (NOW && NOW.groups) || {}, px = (NOW && NOW.prices) || {};
+  let h = '<div class="twrap"><table><thead><tr><th>Coin</th><th class="num" style="text-align:right">Cena · 24 h</th>' +
+    G.map(g => `<th style="--c:${g.hex}"><span class="sw"></span>${g.name}</th>`).join('') + '</tr></thead><tbody>';
+  COINS.forEach(c => {
+    const p = px[c] || {};
+    h += `<tr${c === 'ALT' ? ' class="basket"' : ''}><td class="coin">${CNAME(c)}${c === 'ALT' ? '<small>pozostałe coiny krypto HL</small>' : ''}</td>` +
+      `<td class="num">${c === 'ALT' ? '—' : fp(p.px) + ' · <span class="' + ((p.ch24 || 0) >= 0 ? 'up' : 'dn') + '">' + pct(p.ch24) + '</span>'}</td>` +
+      G.map(g => `<td data-g="${g.id}" data-c="${c}" title="Kliknij — portfele tej grupy na ${CLOC(c)}">${cell(gs[g.id] && gs[g.id].coins[c])}</td>`).join('') + '</tr>';
+  });
+  return `<div class="panel"><h2>Longi i shorty grup na coinach</h2><div class="desc">Ile każda grupa trzyma w longach, a ile w shortach (wartość pozycji). Osobno BTC, ETH, HYPE, SOL, DOGE, TAO; pozostałe coiny krypto razem jako koszyk altów.</div>` +
+    h + '</tbody></table></div><div class="hint">Pasek = udział wartości pozycji grupy na tym coinie: <span class="up">■ longi</span> (lewa liczba: % i $) / <span class="dn">■ shorty</span> (prawa liczba). Kliknij komórkę — portfele tej grupy na tym coinie: ceny wejścia, likwidacje, stopy.</div></div>';
+}
+
+// ── wykres ──
+function pills(id, items, cur) {
+  return `<div class="pills" id="${id}">` + items.map(([v, l, dis]) => `<button class="pill${v === cur ? ' active' : ''}" data-v="${v}"${dis ? ' disabled title="' + esc(dis) + '"' : ''}>${l}</button>`).join('') + '</div>';
+}
+function chartPanel() {
+  return `<div class="panel"><h2>Longi i shorty w czasie</h2><div class="desc">Udział longów, udział shortów albo kwoty (longi linią ciągłą, shorty przerywaną). Cena na prawej osi (koszyk altów: kapitalizacja OTHERS). Zapis co ~2 h od startu zbierania.</div>` +
+    `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-coin', COINS.map(c => [c, CNAME(c)]), S.coin)}<span class="ctrl-label">Zakres</span>${pills('p-range', [['7D', '7D'], ['30D', '30D'], ['ALL', 'ALL']], S.range)}</div>` +
+    `<div class="controls"><span class="ctrl-label">Pokaż</span>${pills('p-show', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty: longi i shorty ($)']], S.show)}</div>` +
+    `<div class="controls" id="chips">` + G.map(g => `<button class="chip${S.on[g.id] ? ' on' : ''}" data-k="${g.id}" style="--c:${g.hex}"><span class="swatch"></span>${g.name}</button>`).join('') +
+    `<button class="chip${S.on.px ? ' on' : ''}" data-k="px" style="--c:#888"><span class="swatch"></span>Cena</button></div>` +
+    `<div class="chart-wrap"><div class="legend" id="lg1"></div><div class="chart" id="ch1"></div><div class="empty" id="em1"></div></div></div>`;
+}
+function changesPanel() {
+  const ch = (NOW && NOW.changes) || [];
+  const body = ch.length ? '<div class="changes">' + ch.map(x => {
+    const g = GB[x.g];
+    const verb = x.side === 'long' ? (x.delta > 0 ? 'otworzyli / dokupili longi' : 'zamknęli część longów') : (x.delta > 0 ? 'otworzyli / dokupili shorty' : 'zamknęli część shortów');
+    const lp = x.lpct_from != null && x.lpct_to != null ? ` (longi ${Math.round(x.lpct_from)}% → ${Math.round(x.lpct_to)}%)` : '';
+    return `<div class="chg" style="--c:${g.hex}"><div class="when">${x.win} · ${g.name}</div>${g.name} ${verb} na ${CLOC(x.c)}: <b class="${x.side === 'long' ? 'up' : 'dn'}">${sgnUsd(x.delta)}</b> <span style="color:var(--text2)">${lp}</span></div>`;
+  }).join('') + '</div>' : '<div class="hint">Za mało zapisów — zmiany pojawią się po kilku przebiegach.</div>';
+  return `<div class="panel"><h2>Największe zmiany — longi i shorty</h2><div class="desc">Kto otworzył albo zamknął longi i shorty: ostatnie 2 h, 24 h i 7 dni (zmiany od $100k).</div>${body}</div>`;
+}
+function sitoPanel() {
+  const s = (META && META.sito) || {}, p = s.params || {};
+  const steps = [['Kandydaci w rundzie', s.total], ['Sprawdzone portfele', s.checked], ['W kolejce', s.left],
+    ['Skuteczni w longach', s.in_sito && s.in_sito.L], ['Skuteczni w shortach', s.in_sito && s.in_sito.S]];
+  let h = '<div class="sito">' + steps.map(x => `<div class="step">${x[0]}<b>${x[1] == null ? '—' : x[1]}</b></div>`).join('') + '</div>';
+  const wl = (WALLETS || []).filter(w => w.prof && (w.g.includes('L') || w.g.includes('S'))).sort((a, b) => (b.av || 0) - (a.av || 0)).slice(0, 10);
+  if (wl.length) {
+    h += '<div class="twrap"><table><thead><tr><th>Portfel</th><th class="num" style="text-align:right">Wiek</th><th class="num" style="text-align:right">Konto</th><th>Skuteczny w</th>' +
+      '<th class="num" style="text-align:right">Longi: na plus · z÷s</th><th class="num" style="text-align:right">Shorty: na plus · z÷s</th><th class="num" style="text-align:right">Zagrania / tydz.</th><th>Teraz: longi / shorty</th></tr></thead><tbody>' +
+      wl.map((w, i) => `<tr class="w" data-addr="${w.addr}"><td class="addr">${short(w.addr)}</td><td class="num">${num(w.prof.age, 0)} dni</td><td class="num">${usd(w.av)}</td><td>${tags(w)}</td>` +
+        `<td class="num">${sideTxt(w.prof.L)}</td><td class="num">${sideTxt(w.prof.S)}</td><td class="num">${num(w.prof.tw)}</td><td style="font-size:11px">${chips(w) || '<span style="color:var(--text3)">bez pozycji</span>'}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  }
+  const prog = s.total ? ` Runda od ${plDate(s.round_started)}: sprawdzono ${s.total - (s.left || 0)} z ${s.total} kandydatów.` : '';
+  return `<div class="panel"><h2>Sito portfeli</h2><div class="desc">Kto trafia do grup „skuteczni w longach” i „skuteczni w shortach” (jeden portfel może być w obu). Kandydaci z rankingu Hyperliquid: konto ≥ ${usd(p.min_av || 1e5)}, zysk od początku > 0, obroty w ostatnim miesiącu. ` +
+    `Warunki: konto ≥ ${p.min_age_days || 365} dni, mniej niż ${p.max_fills_day || 200} transakcji dziennie (bez botów), na danej stronie ≥ ${p.min_trips || 10} zagrań i zyski ≥ ${num(p.min_pf || 1.2)}× strat. Pełny przegląd co tydzień.${prog}</div>${h}` +
+    `<div class="hint">Skuteczność z ostatnich ≤ 2000 transakcji portfela (zwykle kilka miesięcy). ${p.min_trips || 10} zagrań to mało przypadków — ocena strony bywa przypadkowa. „Na plus” = % zagrań zamkniętych z zyskiem; z÷s = suma zysków ÷ suma strat.</div></div>`;
+}
+function htPanel() {
+  const p = HTP;
+  let prog = '';
+  if (p && !p.complete) {
+    const st = p.stages && p.stages[String(p.stage || 1)];
+    const done = st ? st.coins_done : [];
+    const segs = (st ? st.segs : [9, 14]).map(x => `„${HT_SEG[x][0].toLowerCase()}”`).join(' i ');
+    prog = `<div class="prog"><div class="top"><b>⏳ Dane w trakcie pobierania</b><span>${done.length} z ${p.coins.length} coinów · ${p.pages_done} z ${p.pages_est} porcji (${num(p.pct)}%) · pełne ok. ${p.eta ? p.eta.split('-').reverse().join('.') : '—'}</span></div>` +
+      `<div class="bar" style="--w:${p.pct}%"><i></i></div><div class="det">Etap ${p.stage || 1} z 2: grupy ${segs} (od ${p.start_hist.split('-').reverse().join('.')}), od największych coinów; etap 2: grupy ponad $1M zysku i straty. ` +
+      `Pobrane: <span class="ok">${done.join(', ') || '—'}</span>` + (p.current ? ` · teraz: <span class="now">${esc(p.current.coin)}</span>` : '') +
+      ` · w kolejce: ${Math.max(0, p.coins.length - done.length - (p.current ? 1 : 0))} coinów. Coin da się wybrać nad wykresem, gdy jego historia jest pobrana (⏳ = jeszcze nie); koszyk altów — gdy pobrane są wszystkie jego coiny. ` +
+      `Tempo: ok. ${Math.round(p.per_day)} porcji na dobę (darmowy limit HyperTrackera)${p.last_page_at ? '; ostatnia porcja: ' + plTime(p.last_page_at) : ''}.</div></div>`;
+  } else if (!p) {
+    prog = '<div class="prog"><div class="top"><b>⏳ Pobieranie jeszcze nie ruszyło</b></div><div class="det">Historię pobiera Orange Pi porcjami; pierwsze dane pojawią się po pierwszej publikacji.</div></div>';
+  }
+  const avail = c => HTG && HTG[`ht9_${c}_lpct`];
+  const items = COINS.map(c => [c, CNAME(c) + (avail(c) ? '' : ' ⏳'), avail(c) ? null : 'historia jeszcze się pobiera']);
+  if (!S.htCoin || !avail(S.htCoin)) S.htCoin = COINS.find(avail) || null;
+  return `<div class="panel"><h2>Historia przed startem — HyperTracker (tło)</h2><div class="desc">Jak byli ustawieni (longi / shorty) na wybranym coinie albo koszyku altów wszyscy, którzy zarobili $100k–1M, i ci, którzy tyle stracili (później też grupy ponad $1M). ` +
+    `Grupy wg dzisiejszego wyniku: pokazują, jak grali dzisiejsi zarabiający i tracący. Nie nadają się do sprawdzania, czy ich ruchy wyprzedzały rynek (do grupy trafili właśnie dlatego, że trafili z kierunkiem) — to sprawdzimy na naszym sicie.</div>` +
+    prog + `<div class="controls"><span class="ctrl-label">Coin</span>${pills('p-htcoin', items, S.htCoin)}<span class="ctrl-label">Pokaż</span>${pills('p-htshow', [['lpct', '% w longu'], ['spct', '% w shorcie'], ['usd', 'Kwoty ($)']], S.htShow)}</div>` +
+    `<div class="chart-wrap"><div class="legend" id="lg2"></div><div class="chart" id="ch2"></div><div class="empty" id="em2"></div></div><div class="hint">Powered by HyperTracker. Punkty co 4 h.</div></div>`;
+}
+
+// ── portfele: okno ──
+const short = a => a ? a.slice(0, 6) + '…' + a.slice(-4) : '';
+const sideTxt = s => s && s.n ? `${s.win == null ? '—' : Math.round(s.win) + '%'} · ${s.pf == null ? '—' : num(s.pf)} <small style="color:var(--text3)">(${s.n})</small>` : '<span style="color:var(--text3)">—</span>';
+function tags(w) {
+  return w.g.filter(x => x !== 'R').map(x => `<span class="tag" style="--c:${GB[x].hex}">${x === 'L' ? 'longach' : 'shortach'}</span>`).join(' ') || '<span class="tag" style="--c:#ce93d8">tracący</span>';
+}
+function chips(w, coin) {
+  return w.pos.filter(p => !coin || (coin === 'ALT' ? !SEP.includes(p.c) : p.c === coin)).sort((a, b) => b.size - a.size).map(p =>
+    `<span class="pchip ${p.L ? 'L' : 'S'}">${p.L ? '▲' : '▼'} ${esc(p.c)} ${usd(p.size)} ×${num(p.lev, 0)}</span>`).join('');
+}
+const nearLiq = w => w.pos.filter(p => p.liqDist != null).reduce((a, p) => !a || Math.abs(p.liqDist) < Math.abs(a.liqDist) ? p : a, null);
+const upnl = w => w.pos.reduce((a, p) => a + (p.pnl || 0), 0);
+const effLev = w => w.av ? w.pos.reduce((a, p) => a + (p.size || 0), 0) / w.av : null;
+const M = {gid: null, coin: null, sort: null, dir: -1, back: null};
+function sortRows(rows, key) { return key ? rows.slice().sort((a, b) => { const x = key(a), y = key(b); return ((x ?? -Infinity) > (y ?? -Infinity) ? 1 : (x ?? -Infinity) < (y ?? -Infinity) ? -1 : 0) * M.dir; }) : rows; }
+function th(label, k, right) {
+  const on = M.sort === k;
+  return `<th${right ? ' class="num"' : ''}${k ? ` data-sort="${k}" style="cursor:pointer${right ? ';text-align:right' : ''}" title="Sortuj"` : (right ? ' style="text-align:right"' : '')}>${label}` +
+    (k ? ` <span style="color:${on ? 'var(--text)' : 'var(--text3)'}">${on ? (M.dir > 0 ? '▲' : '▼') : '⇅'}</span>` : '') + '</th>';
+}
+const GK = {av: x => x.av, age: x => x.prof && x.prof.age, wl: x => x.prof && x.prof.L && x.prof.L.pf, ws: x => x.prof && x.prof.S && x.prof.S.pf,
+  lev: effLev, liq: x => { const n = nearLiq(x); return n ? Math.abs(n.liqDist) : null; }, up: upnl, n: x => x.pos.length};
+const CK = {size: x => x.p.size, entry: x => x.p.entry, res: x => x.p.pnlPct, liq: x => x.p.liqDist == null ? null : Math.abs(x.p.liqDist),
+  lev: x => x.p.lev, age: x => x.w.prof && x.w.prof.age, side: x => x.p.L ? 1 : 0};
+function ordersFor(w, c) { return (w.ord || []).filter(o => o.c === c); }
+function listHTML() {
+  const g = GB[M.gid], ws = (WALLETS || []).filter(w => w.g.includes(M.gid) && w.pos.length);
+  let h;
+  if (!M.coin) {
+    const rows = sortRows(ws, GK[M.sort || 'av']);
+    h = `<div class="mhead"><h2 style="color:${g.hex}">Portfele: ${g.name} <span style="color:var(--text3);font-weight:400">· ${ws.length} w pozycjach</span></h2><button class="x" data-mclose>Zamknij ✕</button></div>` +
+      '<div class="hint" style="margin:0 0 8px">Kliknij nagłówek, żeby posortować (np. najbliżej / najdalej likwidacji). Kliknij portfel — wszystkie informacje o nim.</div>' +
+      '<div class="twrap"><table><thead><tr>' + th('Portfel') + th('Konto', 'av', 1) + th('Wiek', 'age', 1) + th('Longi: na plus · z÷s', 'wl', 1) + th('Shorty: na plus · z÷s', 'ws', 1) +
+      th('Dźwignia rzecz.', 'lev', 1) + th('Pozycje teraz (▲ long / ▼ short)', 'n') + th('Najbliższa likwidacja', 'liq', 1) + th('Wynik otwartych', 'up', 1) + '</tr></thead><tbody>' +
+      rows.map(w => { const n = nearLiq(w), u = upnl(w);
+        return `<tr class="w" data-addr="${w.addr}"><td class="addr">${short(w.addr)}</td><td class="num">${usd(w.av)}</td><td class="num">${w.prof ? num(w.prof.age, 0) + ' dni' : '—'}</td>` +
+          `<td class="num">${w.prof ? sideTxt(w.prof.L) : '—'}</td><td class="num">${w.prof ? sideTxt(w.prof.S) : '—'}</td><td class="num">×${num(effLev(w))}</td><td>${chips(w)}</td>` +
+          `<td class="num">${n ? esc(n.c) + ' ' + pct(n.liqDist) : '—'}</td><td class="num ${u >= 0 ? 'up' : 'dn'}">${sgnUsd(u)}</td></tr>`; }).join('') +
+      '</tbody></table></div><div class="hint">Najbliższa likwidacja = pozycja, której cena likwidacji jest najbliżej ceny teraz (cena likwidacji ÷ cena − 1). Wynik otwartych = niezrealizowany zysk / strata. Wiek i skuteczność — z sita (tracący nie są oceniani).</div>';
+  } else {
+    const isAlt = M.coin === 'ALT', all = [];
+    ws.forEach(w => w.pos.forEach(p => { if (isAlt ? !SEP.includes(p.c) : p.c === M.coin) all.push({w, p}); }));
+    const rows = sortRows(all, CK[M.sort || 'size']);
+    const lr = all.filter(x => x.p.L), sr = all.filter(x => !x.p.L);
+    const avgE = a => { let s1 = 0, s2 = 0; a.forEach(x => { s1 += x.p.entry * x.p.size; s2 += x.p.size; }); return s2 ? s1 / s2 : null; };
+    const inP = all.filter(x => x.p.pnl > 0).length, mark = !isAlt && all.length ? all[0].p.mark : (NOW && NOW.prices[M.coin] || {}).px;
+    h = `<div class="mhead"><h2 style="color:${g.hex}">${g.name} na ${isAlt ? 'koszyku altów' : esc(M.coin)} <span style="color:var(--text3);font-weight:400">· ${all.length} pozycji (${lr.length} long, ${sr.length} short)</span></h2><button class="x" data-mclose>Zamknij ✕</button></div>` +
+      `<div class="aggs"><div class="agg">Średnia cena wejścia — longi<b class="up">${isAlt ? '—' : fp(avgE(lr))}</b></div><div class="agg">Średnia cena wejścia — shorty<b class="dn">${isAlt ? '—' : fp(avgE(sr))}</b></div>` +
+      `<div class="agg">Cena teraz<b>${isAlt ? 'różne coiny' : fp(mark)}</b></div><div class="agg">Pozycji na plusie<b>${inP} z ${all.length}</b></div></div>` +
+      (isAlt || !all.length ? '' : '<div class="two2">' + entryTable(all, mark) + liqMap(all, mark) + '</div>') +
+      '<div class="twrap"><table><thead><tr>' + th('Portfel') + (isAlt ? th('Coin') : '') + th('Strona', 'side') + th('Wielkość', 'size', 1) + th('Wejście', 'entry', 1) + th('Wynik', 'res', 1) +
+      th('Likwidacja (odległość)', 'liq', 1) + th('Dźwignia', 'lev', 1) + th('Stop loss', null, 1) + th('Take profit', null, 1) + th('Wiek konta', 'age', 1) + '</tr></thead><tbody>' +
+      rows.map(({w, p}) => { const o = ordersFor(w, p.c), sl = o.find(x => x.kind === 'sl'), tp = o.find(x => x.kind === 'tp');
+        return `<tr class="w" data-addr="${w.addr}"><td class="addr">${short(w.addr)}</td>${isAlt ? '<td>' + esc(p.c) + '</td>' : ''}<td class="${p.L ? 'up' : 'dn'}">${p.L ? '▲ long' : '▼ short'}</td>` +
+          `<td class="num">${usd(p.size)}</td><td class="num">${fp(p.entry)}</td><td class="num ${(p.pnl || 0) >= 0 ? 'up' : 'dn'}">${pct(p.pnlPct)}</td>` +
+          `<td class="num">${fp(p.liq)} (${pct(p.liqDist)})</td><td class="num">×${num(p.lev, 0)} ${esc(p.mode || '')}</td><td class="num">${sl ? fp(sl.px) : '—'}</td><td class="num">${tp ? fp(tp.px) : '—'}</td>` +
+          `<td class="num">${w.prof ? num(w.prof.age, 0) + ' dni' : '—'}</td></tr>`; }).join('') +
+      '</tbody></table></div><div class="hint">Kliknij nagłówek, żeby posortować. Odległość do likwidacji = cena likwidacji ÷ cena teraz − 1. Stop loss i take profit — z otwartych zleceń portfela. Kliknij wiersz — wszystko o portfelu.</div>';
+  }
+  return h;
+}
+function entryTable(rows, px) {
+  const edges = [-Infinity, -0.15, -0.08, -0.03, 0.03, 0.08, 0.15, Infinity], B = [], names = [];
+  let mark = null;
+  for (let i = 0; i < edges.length - 1; i++) {
+    const a = edges[i], b = edges[i + 1];
+    names.push(a === -Infinity ? 'poniżej ' + fp(px * (1 + b)) : b === Infinity ? 'powyżej ' + fp(px * (1 + a)) : fp(px * (1 + a)) + ' – ' + fp(px * (1 + b)));
+    B.push([0, 0]);
+    if (a < 0 && b > 0) mark = i;
+  }
+  rows.forEach(x => { const d = x.p.entry / px - 1; for (let i = 0; i < edges.length - 1; i++) if (d >= edges[i] && d < edges[i + 1]) { B[i][x.p.L ? 0 : 1]++; break; } });
+  let mx = 1;
+  B.forEach(b => { mx = Math.max(mx, b[0], b[1]); });
+  const order = B.map((_, i) => i).reverse();
+  return '<div class="liqmap"><table class="levt"><caption>Ile portfeli po jakiej cenie weszło</caption><tr><th>Cena wejścia</th><th class="up">w longu</th><th class="dn">w shorcie</th></tr>' +
+    order.map(i => `<tr${i === mark ? ' style="background:rgba(255,255,255,.06)"' : ''}><td>${names[i]}${i === mark ? ' <span style="color:var(--text)">← cena teraz</span>' : ''}</td>` +
+      `<td>${B[i][0]}<span class="lb" style="width:${Math.round(B[i][0] / mx * 40)}px;background:var(--green)"></span></td><td>${B[i][1]}<span class="lb" style="width:${Math.round(B[i][1] / mx * 40)}px;background:var(--red)"></span></td></tr>`).join('') +
+    '</table></div>';
+}
+function liqMap(rows, px) {
+  const lo = px * 0.7, hi = px * 1.3, nb = 30, W = 600, H = 98, bl = [], bs = [], st = [];
+  for (let i = 0; i < nb; i++) { bl.push(0); bs.push(0); st.push(0); }
+  const bin = v => Math.max(0, Math.min(nb - 1, Math.floor((v - lo) / (hi - lo) * nb)));
+  rows.forEach(({w, p}) => {
+    if (p.liq && p.liq > lo && p.liq < hi) (p.L ? bl : bs)[bin(p.liq)] += p.size;
+    const sl = ordersFor(w, p.c).find(o => o.kind === 'sl');
+    if (sl && sl.px > lo && sl.px < hi) st[bin(sl.px)] += p.size;
+  });
+  const mx = Math.max(1, ...bl, ...bs, ...st), bw = W / nb;
+  let svg = '';
+  for (let i = 0; i < nb; i++) {
+    const x = i * bw, hl = bl[i] / mx * (H - 4), hs = bs[i] / mx * (H - 4), hst = st[i] / mx * (H - 4);
+    if (hst) svg += `<rect x="${x + 1}" y="${H - hst}" width="${bw - 2}" height="${hst}" fill="none" stroke="#ffc107" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>`;
+    if (hl) svg += `<rect x="${x + 2}" y="${H - hl}" width="${bw - 4}" height="${hl}" fill="#4caf7d" opacity=".85"/>`;
+    if (hs) svg += `<rect x="${x + 2}" y="${H - hs}" width="${bw - 4}" height="${hs}" fill="#e05252" opacity=".85"/>`;
+  }
+  const cx = (px - lo) / (hi - lo) * W;
+  svg += `<line x1="${cx}" x2="${cx}" y1="0" y2="${H}" stroke="#fff" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+  return `<div class="liqmap"><div class="lt">Mapa: gdzie są ich likwidacje i stopy (kwoty pozycji, ±30% od ceny) · <span class="up">■ likwidacje longów</span> · <span class="dn">■ likwidacje shortów</span> · <span style="color:var(--amber)">▭ stop lossy</span></div>` +
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${svg}</svg><div class="ax"><span>${fp(lo)} (−30%)</span><span style="color:var(--text)">┆ teraz ${fp(px)}</span><span>${fp(hi)} (+30%)</span></div></div>`;
+}
+function walletHTML(a) {
+  const w = (WALLETS || []).find(x => x.addr === a);
+  if (!w) return '<div class="mhead"><span></span><button class="x" data-mclose>Zamknij ✕</button></div><div class="hint">Brak danych portfela.</div>';
+  const u = upnl(w), pf = w.prof || {};
+  const ev = (w.ev || []).slice().reverse();
+  return `<div class="mhead"><span>${M.back ? '<button class="x" data-back>← Wróć do listy</button> ' : ''}<span class="addr" style="font-size:13px;color:var(--text);margin-left:6px">${short(w.addr)}</span> ${tags(w)}</span><button class="x" data-mclose>Zamknij ✕</button></div>` +
+    `<div class="hint" style="margin:2px 0 0"><span class="addr">${esc(w.addr)}</span> · <a href="https://app.hyperliquid.xyz/explorer/address/${esc(w.addr)}" target="_blank" rel="noopener" style="color:var(--blue)">eksplorator Hyperliquid ↗</a></div>` +
+    '<h4>Profil</h4><div class="prof">' + [['Konto', usd(w.av)], ['Wiek konta', pf.age != null ? num(pf.age, 0) + ' dni' : '—'], ['Dźwignia rzeczywista', '×' + num(effLev(w))],
+      ['Longi: na plus · z÷s', sideTxt(pf.L)], ['Shorty: na plus · z÷s', sideTxt(pf.S)], ['Zagrania / tydzień', num(pf.tw)], ['Miesięcy na plusie', pf.mpos != null ? Math.round(pf.mpos) + '%' : '—'],
+      ['Wynik 7 dni', pf.p7 != null ? sgnUsd(pf.p7) : '—'], ['Wynik 30 dni', pf.p30 != null ? sgnUsd(pf.p30) : '—'], ['Największy spadek konta', pf.dd != null ? pct(pf.dd, 0) : '—']]
+      .map(x => `<div class="agg">${x[0]}<b>${x[1]}</b></div>`).join('') + '</div>' +
+    `<h4>Pozycje teraz · wynik otwartych <span class="${u >= 0 ? 'up' : 'dn'}">${sgnUsd(u)}</span></h4>` + (w.pos.length ? '<div class="twrap"><table><thead><tr><th>Coin</th><th>Strona</th><th class="num" style="text-align:right">Wielkość</th><th class="num" style="text-align:right">Wejście → teraz</th><th class="num" style="text-align:right">Wynik</th><th class="num" style="text-align:right">Likwidacja</th><th class="num" style="text-align:right">Dźwignia · depozyt</th><th class="num" style="text-align:right">Funding od otwarcia</th></tr></thead><tbody>' +
+      w.pos.slice().sort((a, b) => b.size - a.size).map(p => `<tr><td><b>${esc(p.c)}</b></td><td class="${p.L ? 'up' : 'dn'}">${p.L ? '▲ long' : '▼ short'}</td><td class="num">${usd(p.size)}</td><td class="num">${fp(p.entry)} → ${fp(p.mark)}</td>` +
+        `<td class="num ${(p.pnl || 0) >= 0 ? 'up' : 'dn'}">${sgnUsd(p.pnl)}<br>${pct(p.pnlPct)}</td><td class="num">${fp(p.liq)}<br>${pct(p.liqDist)}</td><td class="num">×${num(p.lev, 0)} ${esc(p.mode || '')}<br>${usd(p.margin)}</td>` +
+        `<td class="num ${(p.fund || 0) >= 0 ? 'up' : 'dn'}">${p.fund == null ? '—' : sgnUsd(p.fund)}</td></tr>`).join('') + '</tbody></table></div>' : '<div class="hint">Brak otwartych pozycji.</div>') +
+    '<h4>Zlecenia (stop loss, take profit, limit)</h4>' + ((w.ord || []).length ? '<div class="twrap"><table><thead><tr><th>Coin</th><th>Rodzaj</th><th class="num" style="text-align:right">Cena</th><th class="num" style="text-align:right">Od ceny teraz</th></tr></thead><tbody>' +
+      w.ord.map(o => { const p = w.pos.find(x => x.c === o.c), m = p ? p.mark : null;
+        const kind = o.kind === 'sl' ? '<span style="color:var(--amber)">Stop loss</span>' : o.kind === 'tp' ? 'Take profit' : (o.reduce ? 'Limit — zamknięcie' : 'Limit — ' + (o.buy ? 'kupno' : 'sprzedaż'));
+        return `<tr><td>${esc(o.c)}</td><td>${kind}</td><td class="num">${fp(o.px)}</td><td class="num">${m && o.px ? pct((o.px / m - 1) * 100) : '—'}</td></tr>`; }).join('') + '</tbody></table></div>' : '<div class="hint">Brak otwartych zleceń.</div>') +
+    '<h4>Ostatnie ruchy</h4>' + (ev.length ? ev.map(e => `<div class="ev">${plTime(e[0])} · ${esc(e[1])} <span class="${e[3] ? 'up' : 'dn'}">${e[3] ? 'long' : 'short'}</span> ${esc(e[2])} <b>${usd(e[4])}</b>${e[5] ? ' po ' + fp(e[5]) : ''}</div>`).join('') : '<div class="hint">Brak zmian od pojawienia się w zapisie.</div>') +
+    '<div class="hint">Ruchy z porównania kolejnych zapisów (co ~2 h) — krótkie zagrania między zapisami nie są widoczne.</div>';
+}
+function mshow(html) { const b = document.getElementById('mbox'); b.innerHTML = html; b.scrollTop = 0; document.body.classList.add('mopen'); }
+function mclose() { document.body.classList.remove('mopen'); }
+async function needWallets() {
+  if (WALLETS) return true;
+  mshow('<div class="mhead"><span>Wczytuję portfele…</span><button class="x" data-mclose>Zamknij ✕</button></div>');
+  try { WALLETS = (await getJSON(HL_BASE, 'hl_wallets.json')).wallets || []; return true; }
+  catch (e) { mshow(`<div class="mhead"><span>Nie udało się wczytać portfeli (${esc(e.message)})</span><button class="x" data-mclose>Zamknij ✕</button></div>`); return false; }
+}
+async function openList(gid, coin) { if (!(await needWallets())) return; Object.assign(M, {gid, coin, sort: null, dir: -1, back: true}); mshow(listHTML()); }
+async function openWallet(a, fromList) { if (!(await needWallets())) return; M.back = fromList; mshow(walletHTML(a)); }
+
+// ── wykresy ──
+let charts = [];
+function mkChart(id) {
+  const el = document.getElementById(id);
+  if (!el || !LWC) return null;
+  const ch = LWC.createChart(el, {autoSize: true, layout: {background: {color: 'transparent'}, textColor: '#888', fontSize: 11, attributionLogo: false},
+    grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+    rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, leftPriceScale: {visible: true, borderColor: 'rgba(255,255,255,.1)'},
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true}, localization: {locale: 'pl-PL'}});
+  charts.push(ch);
+  return ch;
+}
+const FMT_PCT = {type: 'custom', formatter: x => Math.round(x) + '%', minMove: 0.1};
+const FMT_USD = {type: 'custom', formatter: x => usd(x), minMove: 1};
+function cut(arr, range) {
+  if (!arr || !arr.length || range === 'ALL') return arr || [];
+  const last = arr[arr.length - 1][0], from = last - (range === '7D' ? 7 : 30) * DAY;
+  return arr.filter(p => p[0] >= from);
+}
+const pts = arr => arr.filter(p => p[1] != null).map(p => ({time: p[0], value: p[1]}));
+async function priceSeries(coin) {
+  try {
+    if (coin === 'ALT') { if (!OTH) OTH = ((await getJSON(DATA_BASE, '1h.json')).series || {}).others || []; return {arr: OTH, name: 'OTHERS (kapitalizacja altów)'}; }
+    if (!PX1H) PX1H = (await getJSON(DATA_BASE, 'liq_1h.json')).series || {};
+    return {arr: PX1H['px_' + coin.toLowerCase()] || [], name: 'Cena ' + coin};
+  } catch (e) { return {arr: [], name: 'Cena'}; }
+}
+async function drawMain() {
+  const old = charts.find(c => c._id === 'ch1');
+  if (old) { old.remove(); charts = charts.filter(c => c !== old); }
+  const ch = mkChart('ch1');
+  if (!ch) return;
+  ch._id = 'ch1';
+  const lg = [], em = document.getElementById('em1');
+  let any = false, first = null;
+  G.forEach(g => {
+    if (!S.on[g.id]) return;
+    const L = cut(SER[`${g.id}_${S.coin}_long`], S.range), Sh = cut(SER[`${g.id}_${S.coin}_short`], S.range), P = cut(SER[`${g.id}_${S.coin}_lpct`], S.range);
+    if (S.show === 'usd') {
+      if (L.length) { ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(L)); any = true; }
+      if (Sh.length) { ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, lineStyle: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(Sh)); any = true; }
+      if (L.length) lg.push(`<div class="lg-row" style="--c:${g.hex}"><span class="swatch"></span><span class="lg-name">${g.name}</span><span class="lg-val"><span class="up">longi ${usd(L[L.length - 1][1])}</span> · <span class="dn">shorty ${usd(Sh.length ? Sh[Sh.length - 1][1] : null)}</span></span></div>`);
+    } else if (P.length) {
+      const d = S.show === 'lpct' ? P : P.map(p => [p[0], p[1] == null ? null : 100 - p[1]]);
+      ch.addSeries(LWC.LineSeries, {color: g.hex, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_PCT}).setData(pts(d));
+      const v = d[d.length - 1][1];
+      lg.push(`<div class="lg-row" style="--c:${g.hex}"><span class="swatch"></span><span class="lg-name">${g.name}</span><span class="lg-val">${lsTxt(P[P.length - 1][1])}</span></div>`);
+      any = true;
+      if (v == null) { /* nic */ }
+    }
+    if (P.length && (first == null || P[0][0] < first)) first = P[0][0];
+  });
+  if (S.show === 'usd') lg.push('<div class="lg-row"><span class="lg-name">── longi · - - - shorty</span></div>');
+  if (S.on.px && any) {
+    const ps = await priceSeries(S.coin);
+    const arr = ps.arr.filter(p => first == null || p[0] >= first - 3600);
+    if (arr.length) {
+      ch.addSeries(LWC.LineSeries, {color: 'rgba(200,200,200,.55)', lineWidth: 1, priceScaleId: 'right', lastValueVisible: true, priceLineVisible: false, priceFormat: pxFmt(S.coin)}).setData(pts(arr));
+      lg.push(`<div class="lg-row" style="--c:#aaa"><span class="swatch"></span><span class="lg-name">${ps.name}</span></div>`);
+    }
+  }
+  document.getElementById('lg1').innerHTML = lg.join('');
+  em.textContent = any ? '' : 'Brak danych dla tego wyboru — zapis dopiero się zaczyna.';
+  ch.timeScale().fitContent();
+}
+async function drawHT() {
+  const old = charts.find(c => c._id === 'ch2');
+  if (old) { old.remove(); charts = charts.filter(c => c !== old); }
+  const em = document.getElementById('em2');
+  if (!S.htCoin || !HTG) { if (em) em.textContent = 'Historia jeszcze się pobiera — pierwszy coin pojawi się po pobraniu całej jego serii.'; return; }
+  const ch = mkChart('ch2');
+  if (!ch) return;
+  ch._id = 'ch2';
+  const lg = [];
+  let first = null;
+  [9, 14, 8, 15].forEach(seg => {
+    const P = HTG[`ht${seg}_${S.htCoin}_lpct`], L = HTG[`ht${seg}_${S.htCoin}_long`], Sh = HTG[`ht${seg}_${S.htCoin}_short`];
+    if (!P || !P.length) return;
+    const col = HT_COL[seg], nm = `${HT_SEG[seg][0]} (${HT_SEG[seg][1]})`;
+    if (S.htShow === 'usd') {
+      ch.addSeries(LWC.LineSeries, {color: col, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(L));
+      ch.addSeries(LWC.LineSeries, {color: col, lineWidth: 2, lineStyle: 2, priceScaleId: 'left', priceFormat: FMT_USD}).setData(pts(Sh));
+    } else {
+      const d = S.htShow === 'lpct' ? P : P.map(p => [p[0], p[1] == null ? null : 100 - p[1]]);
+      ch.addSeries(LWC.LineSeries, {color: col, lineWidth: 2, priceScaleId: 'left', priceFormat: FMT_PCT}).setData(pts(d));
+    }
+    lg.push(`<div class="lg-row" style="--c:${col}"><span class="swatch"></span><span class="lg-name">${nm}, ${CNAME(S.htCoin)}</span><span class="lg-val">${lsTxt(P[P.length - 1][1])}</span></div>`);
+    if (first == null || P[0][0] < first) first = P[0][0];
+  });
+  if (S.htShow === 'usd') lg.push('<div class="lg-row"><span class="lg-name">── longi · - - - shorty</span></div>');
+  const ps = await priceSeries(S.htCoin);
+  const arr = ps.arr.filter(p => first == null || p[0] >= first);
+  if (arr.length) {
+    ch.addSeries(LWC.LineSeries, {color: 'rgba(200,200,200,.55)', lineWidth: 1, priceScaleId: 'right', priceLineVisible: false, priceFormat: pxFmt(S.htCoin)}).setData(pts(arr));
+    lg.push(`<div class="lg-row" style="--c:#aaa"><span class="swatch"></span><span class="lg-name">${ps.name}</span></div>`);
+  }
+  document.getElementById('lg2').innerHTML = lg.join('');
+  em.textContent = '';
+  ch.timeScale().fitContent();
+}
+
+// ── całość ──
+function setStatus(cls, txt) { document.getElementById('dot').className = 'status-dot ' + cls; document.getElementById('status').textContent = txt; }
+function render() {
+  document.getElementById('main').innerHTML = groupsPanel() + tablePanel() + chartPanel() + changesPanel() + sitoPanel() + htPanel();
+  drawMain();
+  drawHT();
+}
+document.addEventListener('click', async e => {
+  const t = e.target;
+  if (t.closest('[data-mclose]') || t.id === 'mov') { mclose(); return; }
+  if (t.closest('[data-back]')) { mshow(listHTML()); return; }
+  const sh = t.closest('#mbox th[data-sort]');
+  if (sh) { const k = sh.getAttribute('data-sort'); if (M.sort === k) M.dir = -M.dir; else { M.sort = k; M.dir = k === 'liq' ? 1 : -1; } mshow(listHTML()); return; }
+  const w = t.closest('tr.w');
+  if (w) { openWallet(w.getAttribute('data-addr'), !!t.closest('#mbox')); return; }
+  const cel = t.closest('td[data-c]');
+  if (cel) { openList(cel.getAttribute('data-g'), cel.getAttribute('data-c')); return; }
+  const gc = t.closest('.gcard[data-g]');
+  if (gc) { openList(gc.getAttribute('data-g'), null); return; }
+  const pill = t.closest('.pill[data-v]');
+  if (pill && !pill.disabled) {
+    const grp = pill.parentElement.id, v = pill.getAttribute('data-v');
+    [].forEach.call(pill.parentElement.children, x => x.classList.toggle('active', x === pill));
+    if (grp === 'p-coin') S.coin = v; else if (grp === 'p-range') S.range = v; else if (grp === 'p-show') S.show = v;
+    else if (grp === 'p-htcoin') { S.htCoin = v; drawHT(); return; } else if (grp === 'p-htshow') { S.htShow = v; drawHT(); return; }
+    drawMain();
+    return;
+  }
+  const chip = t.closest('#chips .chip');
+  if (chip) { const k = chip.getAttribute('data-k'); S.on[k] = !S.on[k]; chip.classList.toggle('on', S.on[k]); drawMain(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') mclose(); });
+
+(async function init() {
+  const [now, meta, ser, htp, hts, htg, wal] = await Promise.all([
+    getJSON(HL_BASE, 'hl_now.json').catch(() => null), getJSON(HL_BASE, 'hl_meta.json').catch(() => null),
+    getJSON(HL_BASE, 'hl_groups.json').catch(() => null), getJSON(HT_BASE, 'ht_progress.json').catch(() => null),
+    getJSON(HT_BASE, 'ht_summary.json').catch(() => null), getJSON(HT_BASE, 'ht_groups.json').catch(() => null),
+    getJSON(HL_BASE, 'hl_wallets.json').catch(() => null)]);
+  NOW = now; META = meta; SER = (ser && ser.series) || {}; HTP = htp; HTS = hts; HTG = htg && htg.series; WALLETS = wal ? wal.wallets || [] : null;
+  // dane niepełne — wyraźna informacja, dopóki zbieranie się nie rozkręci
+  const b = document.getElementById('banner2'), why = [];
+  const s = META && META.sito;
+  if (!NOW) {
+    setStatus('stale', 'Brak danych');
+    why.push('zbieranie pozycji jeszcze nie ruszyło („Dźwignia — pozycje” uruchamia się po każdym skanie, co ~2 h)');
+  } else {
+    const age = Date.now() / 1000 - NOW.at;
+    setStatus(age < 5 * 3600 ? 'live' : 'stale', `Ostatni zapis: ${plTime(NOW.at)} · ${(META && META.groups_n) ? Object.values(META.groups_n).reduce((a, x) => a + x, 0) : '—'} portfeli`);
+    if (age >= 5 * 3600) why.push(`ostatni zapis ma ${Math.round(age / 3600)} h — zbieranie się opóźnia`);
+  }
+  if (!s || !s.total) why.push('sito portfeli jeszcze nie zrobiło pierwszej porcji — grup „skutecznych” na razie brak');
+  else if (s.left) why.push(`sito w trakcie: sprawdzono ${s.total - s.left} z ${s.total} kandydatów — grupy „skutecznych” dopiero się zapełniają`);
+  const all = SER['R_all_lpct'] || SER['L_all_lpct'] || [];
+  const span = all.length ? (all[all.length - 1][0] - all[0][0]) / DAY : 0;
+  if (span < 7) why.push(`zapis pozycji od ${all.length ? plTime(all[0][0]) : 'dziś'} — zmiany z 7 dni i wykres nabiorą sensu po tygodniu`);
+  if (!HTP || !HTP.complete) why.push('historia z HyperTrackera pobiera się porcjami' + (HTP && HTP.eta ? ` (pełna ok. ${HTP.eta.split('-').reverse().join('.')})` : ' (ok. 4 tygodnie)'));
+  if (why.length) {
+    b.className = 'banner warn';
+    b.innerHTML = '<b>⏳ Dane niepełne — w trakcie zbierania.</b> Pełna użyteczność zakładki dopiero za kilka dni. Teraz:<ul style="margin:4px 0 0 18px">' +
+      why.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>';
+  }
+  render();
+})();
+</script>
+</body>
+</html>

@@ -25,6 +25,7 @@
     {href: 'alt.html', ic: 'ALT', name: 'Altsezon', short: 'Altsezon', rgb: '244,143,177', fg: '#f48fb1', lamp: true, status: 'beta'},
     {href: 'ema.html', ic: 'EMA', name: 'EMA200 i RSI', short: 'EMA200', rgb: '255,193,7', fg: '#ffc107', status: 'live'},
     {href: 'rsi.html', ic: 'RSI', name: 'RSI Hyperliquid', short: 'RSI HL', rgb: '76,175,125', fg: '#4caf7d', status: 'live'},
+    {href: 'hl.html', ic: 'LEW', name: 'Dźwignia — zarabiający vs reszta', short: 'Dźwignia', rgb: '91,156,246', fg: '#5b9cf6', status: 'beta'},
     {sec: 'Raporty'},
     {href: 'raporty.html', ic: 'RAP', name: 'Raporty', short: 'Raporty', rgb: '38,198,218', fg: '#26c6da', status: 'beta'},
     {href: 'fib.html', ic: 'Fib', name: 'Fibo · zawieszone', short: 'Fibo', rgb: '255,255,255', fg: '#8a8a8a', paused: true, status: 'paused'}
