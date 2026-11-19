@@ -20,6 +20,9 @@ permissions:
 concurrency:
   group: oi-monitor
   cancel-in-progress: false
+  # poprawka 115: domyślnie czekać może tylko jeden przebieg — nowy wyrzucał poprzedni czekający (np. skan przed
+  # raportem, gdy trwał długi skan z odświeżeniem listy rynków) i raport przepadał. max = czeka do 100 przebiegów.
+  queue: max
 
 jobs:
   collect:
