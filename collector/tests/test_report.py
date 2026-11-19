@@ -299,3 +299,18 @@ def test_data_skips_points_before_catalog_since(tmp_path):
     for sid in S.TV_PARTIAL:
         assert cat[sid]["since"] == t0 and "14.07.2017" in cat[sid]["desc"]
     assert "since" not in cat["eth_d"] and "since" not in cat["stable_mcap"]
+
+
+# ── poprawka 113 ──
+def test_md_ranges_without_ends_and_pct1():
+    rep = {"title": "T", "created": 1795000000, "blocks": [
+        {"type": "ranges", "title": "DEX", "items": [
+            {"label": "Ethereum", "value": "$12.55B", "sub": "wyżej niż w 48% tygodni", "pos": 44.0,
+             "marks": [{"label": "najlepszy tydzień: $41.98B"}]},
+            {"label": "TOTAL", "value": "$2.172T", "pos": 7.0, "min": "$2.015T", "max": "$4.219T"}]}]}
+    md = report.to_markdown(rep)
+    assert "None" not in md                                       # pasek bez podpisanych końców nie drukuje „None – None”
+    assert "na pasku w 44% długości" in md and "najlepszy tydzień: $41.98B" in md
+    assert "Zakres: $2.015T – $4.219T; dziś na 7% zakresu" in md
+    assert report.fmt_val(5.36, "pct1") == "5.4%" and report.fmt_val(59.63, "pct") == "59.63%"
+    assert "Crypto Loser Analytics Tools" in md and "Crypto Scanner" not in md
