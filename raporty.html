@@ -54,7 +54,7 @@
   .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
 
   .layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;align-items:start;}
-  .side{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;}
+  .side{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px;position:sticky;top:82px;max-height:calc(100vh - 100px);overflow:auto;}
   .side h2{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:2px 4px 8px;font-weight:600;}
   .rep-item{display:block;padding:7px 8px;border-radius:var(--radius);text-decoration:none;color:var(--text2);border:1px solid transparent;margin-bottom:2px;}
   .rep-item:hover{background:var(--bg3);color:var(--text);}
@@ -150,7 +150,15 @@
     .tbl.stack td.wide{grid-column:1/-1;}
     .tbl.stack td .ln{min-width:0;}
   }
-  .sec{font-size:16px;font-weight:600;letter-spacing:-.2px;margin:22px 2px 0;padding-bottom:6px;border-bottom:1px solid var(--border2);}
+  .sec{font-size:16px;font-weight:600;letter-spacing:-.2px;margin:22px 2px 0;padding-bottom:6px;border-bottom:1px solid var(--border2);scroll-margin-top:124px;}
+  /* poprawka 113: spis treści raportu — pasek z działami, zawsze widoczny pod górnym paskiem; klik przewija do działu */
+  .toc{position:sticky;top:64px;z-index:20;display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:10px -4px 0;padding:8px 4px;background:rgba(15,15,15,.94);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);}
+  .toc .lbl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;}
+  .toc a{font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);text-decoration:none;white-space:nowrap;}
+  .toc a:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
+  .toc a.on{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);}
+  @media (max-width:820px){ .toc{top:52px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;} .toc::-webkit-scrollbar{display:none;} .toc .lbl{display:none;} .sec{scroll-margin-top:112px;} }
+  @media print{ .toc{display:none !important;} }
   .rng{padding:10px 0;border-bottom:1px solid var(--border);}
   .rng:last-child{border-bottom:none;padding-bottom:2px;}
   .rng-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
@@ -333,6 +341,7 @@ function fmt(v, g) {
     return '$' + Math.round(v).toLocaleString('pl-PL');
   }
   if (g === 'pct') return v.pl(2) + '%';
+  if (g === 'pct1') return v.pl(1) + '%';
   if (g === 'fund') return v.pl(1) + '%';
   if (g === 'flow') {
     const t = a >= 1e9 ? (a / 1e9).pl(2) + 'B' : a >= 1e6 ? (a / 1e6).pl(0) + 'M' : Math.round(a).toLocaleString('pl-PL');
@@ -527,6 +536,27 @@ function dbarsBlock(b) {
     <span><span class="lg-dot" style="background:${esc(b.neg_color || '#e05252')};border-radius:2px"></span>${esc(b.neg_label || 'przewaga sprzedaży')}</span>
     ${b.band_label ? `<span><span class="lg-band"></span>${esc(b.band_label)}</span>` : ''}</div>`;
 }
+// 113: spis treści — działy raportu (bloki „section”); przy mniej niż 3 działach niepotrzebny
+function tocHtml(rep) {
+  const secs = (rep.blocks || []).map((b, i) => [b, i]).filter(([b]) => b.type === 'section' && b.title);
+  if (secs.length < 3) return '';
+  return `<nav class="toc" id="toc" aria-label="Spis treści"><span class="lbl">Działy</span>` +
+    secs.map(([b, i]) => `<a href="#sec-${i}" data-sec="sec-${i}">${esc(b.title)}</a>`).join('') + '</nav>';
+}
+function tocSync() {
+  const toc = document.getElementById('toc'); if (!toc) return;
+  const links = [...toc.querySelectorAll('a')];
+  let cur = links[0];
+  for (const a of links) { const h = document.getElementById(a.dataset.sec); if (h && h.getBoundingClientRect().top < innerHeight * 0.35) cur = a; }   // dział „bieżący” = jego nagłówek minął górną 1/3 ekranu
+  links.forEach(a => a.classList.toggle('on', a === cur));
+  if (cur && toc.scrollWidth > toc.clientWidth) toc.scrollLeft = Math.max(0, cur.offsetLeft - toc.clientWidth / 2 + cur.offsetWidth / 2);
+}
+addEventListener('scroll', tocSync, {passive: true});
+document.addEventListener('click', e => {
+  const a = e.target.closest('.toc a'); if (!a) return;
+  e.preventDefault();                                   // bez zmiany adresu (adres trzyma id raportu)
+  const h = document.getElementById(a.dataset.sec); if (h) h.scrollIntoView({behavior: 'smooth', block: 'start'});
+});
 function renderBlock(b, i) {
   let body = '';
   if (b.type === 'text') body = `<p class="text">${esc(b.text)}</p>`;
@@ -536,7 +566,7 @@ function renderBlock(b, i) {
   else if (b.type === 'ranges') body = rangesBlock(b);
   else if (b.type === 'bars') body = barsBlock(b);
   else if (b.type === 'dbars') body = dbarsBlock(b);
-  else if (b.type === 'section') return `<h2 class="sec">${esc(b.title)}</h2>`;
+  else if (b.type === 'section') return `<h2 class="sec" id="sec-${i}">${esc(b.title)}</h2>`;
   else return '';
   return `<section class="block ${b.title === 'Uwaga' ? 'warn' : ''}">
     ${b.title ? `<h3>${esc(b.title)}</h3>` : ''}${b.desc ? `<p class="desc">${esc(b.desc)}</p>` : ''}${body}${b.note && b.type !== 'text' ? `<div class="note">${esc(b.note)}</div>` : ''}</section>`;
@@ -755,10 +785,12 @@ async function openReport(id) {
         <button class="btn primary" id="pdf">Pobierz PDF</button>
       </div>
     </div>
+    ${tocHtml(rep)}
     ${(rep.blocks || []).map(renderBlock).join('')}
     <div class="note print-only" style="margin-top:10px;font-size:11px;color:#777">Crypto Loser Analytics Tools · ${esc(rep.id)} · ${esc(location.href.split('#')[0])}</div>`;
   (rep.blocks || []).forEach((b, i) => { if (b.type === 'chart' && (b.series || []).length) drawChart(b, i); });
   fitTables();
+  tocSync();
   document.getElementById('pdf').onclick = downloadPdf;
   // wersja tekstowa dla AI (markdown z gałęzi reports); starsze raporty jej nie mają
   const mdUrl = new URL(`${BASE}reports/${encodeURIComponent(rep.id)}.md`, location.href).href;
