@@ -168,7 +168,7 @@
   .rng-track{position:relative;height:8px;border-radius:4px;background:var(--bg3);border:1px solid var(--border2);margin:12px 0 5px;}
   .rng-dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid var(--bg2);transform:translate(-50%,-50%);z-index:2;}
   .rng-mark{position:absolute;top:-5px;width:2px;height:16px;transform:translateX(-50%);background:var(--text3);}
-  .rng-mark.ref{background:var(--amber);}
+  .rng-mark.ref{background:var(--amber);} .rng-mark.mini{background:var(--blue,#5b9cf6);}
   .rng-mark.top{background:var(--red);}
   .rng-mark.bottom{background:var(--green);}
   .rng-mark.best{background:var(--amber);} .rng-mark.worst{background:var(--purple,#ce93d8);}
@@ -180,7 +180,7 @@
   .rng-legend,.bars-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-top:8px;}
   .lg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px;vertical-align:-1px;}
   .lg-mark{display:inline-block;width:2px;height:11px;margin-right:5px;vertical-align:-2px;background:var(--text3);}
-  .lg-mark.ref{background:var(--amber);}
+  .lg-mark.ref{background:var(--amber);} .lg-mark.mini{background:var(--blue,#5b9cf6);}
   .lg-mark.top{background:var(--red);} .lg-mark.bottom{background:var(--green);}
   .lg-mark.best{background:var(--amber);} .lg-mark.worst{background:var(--purple,#ce93d8);}
   .ln.comp{display:flex;justify-content:flex-end;padding:3px 0 1px;}
@@ -437,7 +437,7 @@ function factsBlock(b) {
     ${legend ? `<div class="legend-print">${legend}</div>` : ''}`;
 }
 function tableBlock(b) {
-  const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^(-\d|▼)/.test(v) ? 'neg' : '';
+  const cls = v => b.plain ? '' : /^[+▲]/.test(v) ? 'pos' : /^([-−][\d$]|▼)/.test(v) ? 'neg' : '';
   const left = b.left || [];
   const ttl = !left.length || left.includes(0) ? 0 : left[0];   // telefon (karty): tytuł karty = główna kolumna tekstowa
   // komórka z kilkoma liniami (jedna pod drugą): pierwsza = główna, kolejne mniejsze; tone ok / warn / mute
@@ -472,14 +472,14 @@ function chartBlock(b, i) {
 }
 function rangesBlock(b) {
   const items = b.items || [];
-  let hasRef = false, hasMark = false, hasTop = false, hasBottom = false, hasBest = false, hasWorst = false;
+  let hasRef = false, hasMini = false, hasMark = false, hasTop = false, hasBottom = false, hasBest = false, hasWorst = false;
   const CYC = {best: 1, worst: 1, top: 1, bottom: 1};
   const rows = items.map(it => {
     const marks = (it.marks || []).map(m => {
-      if (m.kind === 'ref') hasRef = true; else if (m.kind === 'top') hasTop = true;
+      if (m.kind === 'ref') hasRef = true; else if (m.kind === 'mini') hasMini = true; else if (m.kind === 'top') hasTop = true;
       else if (m.kind === 'bottom') hasBottom = true; else if (m.kind === 'best') hasBest = true;
       else if (m.kind === 'worst') hasWorst = true; else hasMark = true;
-      const cls = m.kind === 'ref' || CYC[m.kind] ? m.kind : '';
+      const cls = m.kind === 'ref' || m.kind === 'mini' || CYC[m.kind] ? m.kind : '';
       return `<div class="rng-mark ${cls}" style="left:${+m.pos}%" data-note="${esc(m.label)}"></div>`;
     }).join('');
     // szczyty / dna cykli: wypisane pod paskiem (czytelne też w PDF)
@@ -496,6 +496,7 @@ function rangesBlock(b) {
   const marksLegend = [...new Set(items.flatMap(it => (it.marks || []).filter(m => !m.kind).map(m => m.label)))];
   return rows + `<div class="rng-legend"><span><span class="lg-dot"></span>dziś</span>
     ${hasRef ? '<span><span class="lg-mark ref"></span>ostatni altseason</span>' : ''}
+    ${hasMini ? '<span><span class="lg-mark mini"></span>ostatni mini altsezon</span>' : ''}
     ${hasBest ? '<span><span class="lg-mark best"></span>najlepszy tydzień (2 lata)</span>' : ''}
     ${hasWorst ? '<span><span class="lg-mark worst"></span>najgorszy tydzień (2 lata)</span>' : ''}
     ${hasTop ? '<span><span class="lg-mark top"></span>szczyty poprzednich cykli</span>' : ''}
