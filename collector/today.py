@@ -66,6 +66,8 @@ def market_section(d, ema, t0, now):
         name, f = P.label_fmt(d, sid)
         f = f or "num"
         lo, hi, _ = P.period_range(d, sid, d.pts("1h", sid), t0, now + DAY, res="1h")
+        if lo is None or hi is None:                   # tuż po 00:00 UTC nie ma jeszcze świecy 1 h z nowej doby
+            lo = hi = base
         lo, hi = min(lo, base), max(hi, base)
         rows.append([name, P.fv(last[1], f), P.chg(last[1], base, f), f"{P.fv(lo, f)} – {P.fv(hi, f)}"])
     bn = R.breadth_now(ema)
@@ -129,8 +131,11 @@ def coin_rows(d, ema, coins, t0, now, flat, cflat=1.0):
         else:
             c = by.get(coin) or {}
             p1, p0 = c.get("p"), c.get("c")
-            if not c:
-                notes.append(f"{coin}: brak pary Binance spot — bez ceny")
+            if not c:                                    # np. HYPE: nie ma pary na Binance spot → cena perp z Coinalyze (px_<coin>)
+                pl_, p0 = now_at(d, f"px_{lc}"), base_at(d, f"px_{lc}", t0)
+                p1 = pl_[1] if pl_ else None
+                notes.append(f"{coin}: brak pary Binance spot — cena z kontraktów (Coinalyze)" if p1 and p0
+                             else f"{coin}: brak pary Binance spot — bez ceny")
         px_ch = R.pct_change(p1, p0) if p1 and p0 else None
         oi_usd = R.pct_change(oi_last[1], oi0) if oi_last and oi0 else None
         oi_coin = ((oi_last[1] / p1) / (oi0 / p0) - 1) * 100 if oi_last and oi0 and p1 and p0 else None

@@ -158,6 +158,8 @@ def fmt_val(v, group):
         a = abs(v)
         t = f"{a / 1e9:.2f}B" if a >= 1e9 else f"{a / 1e6:.0f}M" if a >= 1e6 else f"{a / 1e3:.0f}K" if a >= 1e3 else f"{a:.0f}"
         return ("-" if v < 0 else "+") + "$" + t
+    if group == "pct1" and v is not None:                # odsetek coinów (szerokość rynku, RSI): jedno miejsce po przecinku
+        return f"{v:.1f}%"
     return fmt_price(v) if group == "price" else alerts.fmt_value(v, group)
 
 
@@ -666,7 +668,7 @@ def alts_section(d, ema, L, refs, now):
                                "„Szeroki rajd”: aktualnie mamy altsezon — alty zwykle rosły wtedy dalej, to nie jest sygnał sprzedaży; "
                                "blisko 0% = dno.",
                        "note": "Coiny Binance */USDT z co najmniej 300 dniami historii. " + breadth_peaks_note(ema["breadth"], delisted=int(ema.get("breadth_delisted") or 0)),
-                       "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct", "scale": "right",
+                       "series": [{"name": "% nad EMA200", "color": "#ffc107", "fmt": "pct1", "scale": "right",
                                    "data": [p for p in br if p[0] >= last_t - 730 * DAY]}]})
     blocks += rsi_chart(ema)
     blocks += metas_block(d, now)
@@ -758,9 +760,9 @@ def rsi_chart(ema):
                      f"coin liczy się od {int(rsi.get('min_bars', 30))} świec. Odczyt z aktualną ceną jest w tabeli wyżej. "
                      + (f"Liczone także z {delisted} coinów wycofanych już z Binance." if delisted
                         else "Liczone tylko z coinów notowanych dziś, więc starsze lata są zawyżone po stronie wykupienia."),
-             "series": [{"name": f"% wyprzedanych (RSI 1W < {lo_v:g})", "color": "#4caf7d", "fmt": "pct", "scale": "right",
+             "series": [{"name": f"% wyprzedanych (RSI 1W < {lo_v:g})", "color": "#4caf7d", "fmt": "pct1", "scale": "right",
                          "data": [[p[0], p[1]] for p in rw]},
-                        {"name": f"% wykupionych (RSI 1W > {hi_v:g})", "color": "#e05252", "fmt": "pct", "scale": "right",
+                        {"name": f"% wykupionych (RSI 1W > {hi_v:g})", "color": "#e05252", "fmt": "pct1", "scale": "right",
                          "dash": True, "data": [[p[0], p[2]] for p in rw]}]}]
 
 
@@ -1402,7 +1404,7 @@ def to_markdown(rep, page_url=""):
     """The whole report as plain markdown — to paste into any AI agent (charts turned into numbers)."""
     src = rep.get("sources") or {}
     L = [f"# {rep['title']} — {pl_time(rep['created'])} czasu polskiego ({utc(rep['created'])})", "",
-         "Raport rynku kryptowalut z projektu Crypto Scanner. Same dane: wszystkie liczby policzył program z danych źródłowych "
+         "Raport rynku kryptowalut z projektu Crypto Loser Analytics Tools. Same dane: wszystkie liczby policzył program z danych źródłowych "
          "(lista na końcu), bez interpretacji i rekomendacji. Opisy przy wskaźnikach mówią tylko, co wskaźnik mierzy i jak się go "
          "zwykle czyta. Zapis liczb: kropka dziesiętna, $ = USD, M = mln, B = mld, T = bln, pp = punkty procentowe, "
          "× = krotność, %/r = procent w skali roku.",
@@ -1429,8 +1431,11 @@ def to_markdown(rep, page_url=""):
             for it in b.get("items") or []:
                 line = f"- **{it.get('label')}**: {it.get('value')}" + (f" ({it['sub']})" if it.get("sub") else "")
                 if it.get("pos") is not None:
-                    line += (f". Zakres: {it.get('min')} – {it.get('max')}; dziś na {it['pos']:.0f}% zakresu "
-                             "(0% = minimum, 100% = maksimum)")
+                    if it.get("min") is not None and it.get("max") is not None:
+                        line += (f". Zakres: {it.get('min')} – {it.get('max')}; dziś na {it['pos']:.0f}% zakresu "
+                                 "(0% = minimum, 100% = maksimum)")
+                    else:        # pasek bez podpisanych końców (np. wolumen DEX: końce = najgorszy i najlepszy tydzień niżej)
+                        line += f"; na pasku w {it['pos']:.0f}% długości (0% = lewy koniec, 100% = prawy)"
                     refs = [m["label"] for m in it.get("marks") or []]
                     if refs:
                         line += "; punkty odniesienia: " + ", ".join(refs)

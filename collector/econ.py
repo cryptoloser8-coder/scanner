@@ -208,8 +208,9 @@ def block(events, now_ts, cfg=None, error=None, results=True, plan_importance=No
                     "cols": ["Godz. PL", "Publikacja", "Ważność", "Prognoza", "Poprzednio"],
                     "rows": rows, "plain": True, "left": [1],
                     "desc": f"Co i o której wyjdzie w najbliższym dniu z publikacjami {stars} "
-                            + ("— najważniejsze dane z USA, zwykle ruszają też krypto. Wyniki z wczoraj były w raporcie "
-                               "wieczornym, a to, co wyszło później — w tabeli wyżej." if plan_importance == "high" else
+                            + ("— najważniejsze dane z USA, zwykle ruszają też krypto. Wyniki z wczoraj były w raporcie wieczornym"
+                               + (", a to, co wyszło później — w tabeli wyżej." if any(b.get("type") == "table" for b in out) else ".")
+                               if plan_importance == "high" else
                                "(wieczorem — jutro, rano — dziś, w piątek wieczorem — poniedziałek)."),
                     "note": "Godziny w czasie polskim, według kalendarza TradingView; terminy i prognozy mogą się jeszcze zmienić."})
     else:
