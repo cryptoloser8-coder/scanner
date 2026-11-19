@@ -115,18 +115,22 @@
   .pfill{display:none;}
   .pscene{position:absolute;left:0;right:0;bottom:0;}
   .pscene svg{shape-rendering:crispEdges;display:block;}
-  .pscene .cndl{position:absolute;left:0;bottom:0;opacity:.45;}
   .pscene .cap{position:absolute;left:0;top:0;font-size:10.5px;letter-spacing:.06em;color:var(--text3);text-transform:uppercase;}
-  .pwalk{position:absolute;bottom:5px;left:0;animation:pw-walk 64s linear infinite;}
-  .pwalk .flip{animation:pw-flip 64s steps(1,end) infinite;transform-origin:50% 50%;}
-  .pwalk .gh{animation:pz-hop .5s steps(2,end) infinite;}
-  .pwalk .f1{animation:pz-ft .5s steps(1,end) infinite;}
-  .pwalk .f2{animation:pz-ft .5s steps(1,end) infinite -.25s;}
-  .pwalk .bang{animation:pz-bang 1.2s steps(1,end) infinite;}
+  .pscene .world{position:absolute;left:0;bottom:0;}
+  .pscene .pg .f2{opacity:0;}
+  .pscene .pg.walking .f1{animation:pz-ft .36s steps(1,end) infinite;}
+  .pscene .pg.walking .f2{animation:pz-ft .36s steps(1,end) infinite -.18s;opacity:1;}
+  .pscene .coin{animation:pz-coin 1.2s steps(2,end) infinite;}
+  .pscene .bang{animation:pz-bang 1.2s steps(1,end) infinite;}
+  .pscene .flagc{animation:pz-flag 1s steps(2,end) infinite;}
+  .pbub{position:absolute;white-space:nowrap;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#f0f0f0;background:#0d0d0d;border:2px solid #dcdcdc;padding:6px 8px 5px;pointer-events:none;}
+  .pbub::after{content:"";position:absolute;left:var(--tail,50%);bottom:-8px;width:6px;height:6px;margin-left:-3px;background:#dcdcdc;}
+  .pbub.plus{border:0;background:transparent;color:#ffc107;padding:0;animation:pz-plus .7s steps(5,end) forwards;}
+  .pbub.plus::after{display:none;}
+  @keyframes pz-coin{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  @keyframes pz-flag{0%,100%{opacity:1}50%{opacity:.55}}
+  @keyframes pz-plus{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-22px)}}
   .eye{animation:pz-blink 4.8s steps(1,end) infinite;}
-  @keyframes pw-walk{0%{left:0}46%{left:calc(100% - 96px)}50%{left:calc(100% - 96px)}96%{left:0}100%{left:0}}
-  @keyframes pw-flip{0%{transform:scaleX(1)}48%{transform:scaleX(-1)}98%{transform:scaleX(1)}100%{transform:scaleX(1)}}
-  @keyframes pz-hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
   @keyframes pz-ft{0%,49%{opacity:1}50%,100%{opacity:0}}
   @keyframes pz-bang{0%,60%{opacity:1}61%,100%{opacity:.25}}
   .pzzz{margin:auto;padding:28px 0 20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:var(--text2);font-size:13px;}
@@ -142,8 +146,8 @@
   @keyframes pz-z{0%{opacity:0;transform:translate(0,0)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(12px,-28px)}}
   @keyframes pz-roll{0%{transform:translateX(-30px)}100%{transform:translateX(200px)}}
   @media (prefers-reduced-motion:reduce){
-    .pzzz .gh,.pzzz .z,.pzzz .tw,.eye,.pwalk,.pwalk .flip,.pwalk .gh,.pwalk .f1,.pwalk .f2,.pwalk .bang{animation:none;}
-    .pzzz .z{opacity:1;}.pwalk{left:24px;}.pwalk .f2{opacity:0;}
+    .pzzz .gh,.pzzz .z,.pzzz .tw,.eye,.pscene .coin,.pscene .bang,.pscene .flagc,.pscene .pg .f1,.pscene .pg .f2{animation:none!important;}
+    .pzzz .z{opacity:1;}
   }
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
   .m{display:flex;flex-direction:column;gap:3px;}
@@ -372,9 +376,11 @@ function pzRects(grid, x0, y0, px, colors) {
   grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = colors[row[x]]; if (c) out += `<rect x="${x0 + x * px}" y="${y0 + y * px}" width="${px}" height="${px}" fill="${c.f}"${c.c ? ` class="${c.c}"` : ''}/>`; } });
   return out;
 }
-function pzGhost(x0, y0, px, mode) {                     // 16 × 19 pikseli
-  const rows = PZ_HEAD.concat(PZ_EYES[mode], PZ_BODY, mode === 'awake' ? [] : ['################']);
-  return pzRects(rows, x0, y0, px, PZ_COL) + (mode === 'awake' ? pzRects([PZ_FEET[0]], x0, y0 + rows.length * px, px, PZ_COL) + pzRects([PZ_FEET[1]], x0, y0 + rows.length * px, px, PZ_COL) : '');
+function pzGhost(x0, y0, px, mode) {                     // 16 × 19 pikseli; oczy w osobnej grupie „eyes” (rozglądanie)
+  const eyes = PZ_EYES[mode], rows = PZ_HEAD.concat(mode === 'awake' ? eyes.map(r => r.replace(/o/g, '-')) : eyes, PZ_BODY, mode === 'awake' ? [] : ['################']);
+  return pzRects(rows, x0, y0, px, PZ_COL) + (mode === 'awake'
+    ? `<g class="eyes">${pzRects(eyes.map(r => r.replace(/[^o]/g, '.')), x0, y0 + PZ_HEAD.length * px, px, PZ_COL)}</g>` +
+      pzRects([PZ_FEET[0]], x0, y0 + rows.length * px, px, PZ_COL) + pzRects([PZ_FEET[1]], x0, y0 + rows.length * px, px, PZ_COL) : '');
 }
 function pzHTML(head, sub) {                              // pusta tabela: duszek śpi
   const zs = [[150, 60, 3, 'z z1'], [162, 44, 4, 'z z2'], [176, 24, 5, 'z z3']].map(([x, y, px, c]) => `<g class="${c}">${pzRects(PZ_Z, x, y, px, {'#': {f: '#5b9cf6'}})}</g>`).join('');
@@ -382,35 +388,128 @@ function pzHTML(head, sub) {                              // pusta tabela: dusze
   return `<div class="pzzz"><svg viewBox="0 0 264 200" role="img" aria-label="Pikselowy duszek śpi"><rect x="0" y="192" width="264" height="3" fill="#2a2a2a"/>${tw}<g class="gh">${pzGhost(84, 78, 6, 'sleep')}</g>${zs}</svg>` +
     `<div><b>${head}</b>${sub}</div></div>`;
 }
-// 118: wolne miejsce pod wierszami (szeroki ekran) — duszek chodzi tam i z powrotem po świecach BTC (4 h, z liq_1h.json);
-// przy nowych wierszach ma nad głową wykrzyknik. Ozdoba: przy mniej niż 140 px wolnego miejsca nic nie rysujemy.
-function pzCandles(w, h) {
+// 118 / 119: wolne miejsce pod wierszami (szeroki ekran) — scenka: świece BTC 4 h (liq_1h.json) są terenem, po którym chodzi
+// duszek. Wspina się i zjeżdża po świecach, zbiera monety, rozgląda się, co jakiś czas coś mówi, a przy ostatniej świecy
+// staje pod flagą z aktualną ceną. Są nowe wiersze → wykrzyknik nad głową. Mniej niż 150 px wolnego miejsca → nic nie rysujemy.
+const PZ_COIN = ['.##.', '#++#', '#++#', '.##.'];
+const PZ_FLAG = ['####.', '#####', '####.', '#....', '#....', '#....', '#....', '#....'];
+function pzTerrain(w, h, headroom) {                      // → {svg, tops: [y wierzchu świecy], x0, pitch, last}
   const a = ((LIQ && LIQ.series) || {}).px_btc || [];
-  if (a.length < 48) return '';
-  const pitch = 12, n = Math.min(Math.floor(w / pitch), Math.floor(a.length / 4)), B = 4 * HOUR, m = new Map();
+  if (a.length < 48) return null;
+  const n = Math.floor((w - 70) / 12), B = 4 * HOUR, m = new Map();
   for (const [t, v] of a) { const k = t - t % B, c = m.get(k); if (!c) m.set(k, [v, v, v, v]); else { c[1] = Math.max(c[1], v); c[2] = Math.min(c[2], v); c[3] = v; } }
   const cs = [...m.keys()].sort((x, y) => x - y).slice(-n).map(k => m.get(k));
-  if (cs.length < 8) return '';
-  const hi = Math.max(...cs.map(c => c[1])), lo = Math.min(...cs.map(c => c[2])), top = 14, bot = h - 12, sp = (hi - lo) || 1;
-  const y = v => Math.round((top + (hi - v) / sp * (bot - top)) / 3) * 3, x0 = w - cs.length * pitch;
-  return `<svg class="cndl" width="${w}" height="${h}" aria-hidden="true">` + cs.map((c, i) => {
+  if (cs.length < 8) return null;
+  const pitch = Math.max(12, Math.floor((w - 70) / cs.length)), bw = pitch - 2, wx = Math.floor(bw / 2) - 1;      // mało świec → szersze, żeby teren sięgał do prawej
+  const hi = Math.max(...cs.map(c => c[1])), lo = Math.min(...cs.map(c => c[2])), top = headroom, bot = h - 18, sp = (hi - lo) || 1;
+  const y = v => Math.round((top + (hi - v) / sp * (bot - top)) / 3) * 3, x0 = 6, tops = [];
+  let svg = '';
+  cs.forEach((c, i) => {
     const up = c[3] >= c[0], col = up ? '#4caf7d' : '#e05252', x = x0 + i * pitch, yo = y(c[0]), yc = y(c[3]), yb = Math.min(yo, yc);
-    return `<rect x="${x + 2}" y="${y(c[1])}" width="2" height="${Math.max(3, y(c[2]) - y(c[1]))}" fill="${col}"/><rect x="${x}" y="${yb}" width="6" height="${Math.max(3, Math.abs(yc - yo))}" fill="${col}"/>`;
-  }).join('') + '</svg>';
+    tops.push(yb);
+    svg += `<rect x="${x}" y="${yb}" width="${bw}" height="${h - 6 - yb}" fill="${up ? '#17251d' : '#2a1818'}"/>` +                      // teren pod świecą
+      `<rect x="${x + wx}" y="${y(c[1])}" width="2" height="${Math.max(3, y(c[2]) - y(c[1]))}" fill="${col}" opacity=".55"/>` +
+      `<rect x="${x}" y="${yb}" width="${bw}" height="${Math.max(3, Math.abs(yc - yo))}" fill="${col}" opacity=".8"/>`;
+  });
+  return {svg, tops, x0, pitch, last: cs[cs.length - 1][3], cs};
+}
+function pzQuips(nNew) {
+  const a = ((LIQ && LIQ.series) || {}).px_btc || [], d = chg(a, DAY), L = ((META || {}).alt_lamps || {}).lamps || {}, out = [];
+  if (nNew) out.push('O, coś nowego!', nNew === 1 ? 'Jedna nowość.' : `Nowości: ${nNew}.`);
+  if (d != null && d <= -3) out.push('Au.', 'Ślisko tu.', 'Kto to sprzedaje?!');
+  else if (d != null && d >= 3) out.push('Zielono!', 'Pod górkę!', 'Ładny widok.');
+  else out.push('Hmm.', 'Sprawdzam…', 'Cicho dziś.', 'Nudy.');
+  for (const k of LAMP_ORDER) if (L[k] && L[k].on) out.push(`${LAMP_NAMES[k]} świeci.`);
+  out.push('Kup górkę, sprzedaj dołek.');
+  return out;
 }
 function drawScene() {
   const f = document.getElementById('pfill');
   if (!f) return;
   const w = f.clientWidth, free = f.clientHeight;
-  if (!w || free < 140 || getComputedStyle(f).display === 'none') { if (f.firstChild) f.innerHTML = ''; f._key = ''; return; }
-  const h = Math.min(free, 240), nNew = PULSE && PULSE.rows ? PULSE.rows.filter(r => r.new).length : 0, key = w + 'x' + h + ':' + nNew + ':' + (LIQ ? 1 : 0);
+  const stop = () => { if (f._timer) clearInterval(f._timer); f._timer = 0; };
+  if (!w || free < 150 || getComputedStyle(f).display === 'none') { stop(); if (f.firstChild) f.innerHTML = ''; f._key = ''; return; }
+  const h = Math.min(free, 260), nNew = PULSE && PULSE.rows ? PULSE.rows.filter(r => r.new).length : 0, key = w + 'x' + h + ':' + nNew + ':' + (LIQ ? 1 : 0);
   if (f._key === key) return;
   f._key = key;
-  const bang = nNew ? `<g class="bang">${pzRects(PZ_BANG, 74, 0, 5, {'#': {f: '#5b9cf6'}})}</g>` : '';
-  f.innerHTML = `<div class="pscene" style="height:${h}px" title="Ozdoba: duszek chodzi po świecach BTC (4 h)${nNew ? ' — wykrzyknik: są nowe wiersze od wczoraj' : ''}">` +
-    `<span class="cap">BTC · świece 4 h</span>${pzCandles(w, h)}` +
-    `<svg width="${w}" height="3" style="position:absolute;left:0;bottom:2px" aria-hidden="true"><rect width="${w}" height="3" fill="#2a2a2a"/></svg>` +
-    `<div class="pwalk"><div class="flip"><svg width="96" height="${20 * 5 + 6}" viewBox="0 -6 96 ${20 * 5 + 6}" role="img" aria-label="Pikselowy duszek spaceruje"><g class="gh">${pzGhost(0, 0, 5, 'awake')}</g>${bang}</svg></div></div></div>`;
+  stop();
+  const T = pzTerrain(w, h, Math.min(nNew ? 150 : 122, h - 60)), PX = 4, GW = 16 * PX, GH = 20 * PX, ground = h - 6;
+  const tops = T ? T.tops : [], half = T ? (T.pitch - 2) / 2 : 0, colX = i => T.x0 + i * T.pitch + half, nC = tops.length;
+  const yAt = x => { if (!T) return ground; const i = Math.max(0, Math.min(nC - 1, Math.round((x - T.x0 - half) / T.pitch))); return tops[i]; };
+  const minX = GW / 2, maxX = T ? colX(nC - 1) : w - GW / 2;
+  // monety: na wierzchu co kilku świec (tych zielonych w pierwszej kolejności)
+  const coins = [];
+  if (T) for (let i = 6; i < nC - 4; i += 7) { let j = i; for (let k = 0; k < 4; k++) if (T.cs[i + k][3] >= T.cs[i + k][0]) { j = i + k; break; } coins.push({i: j, x: colX(j), y: tops[j] - 26, got: false}); }
+  const coinSvg = coins.map((c, k) => `<g class="coin" data-k="${k}">${pzRects(PZ_COIN, c.x - 6, c.y, 3, {'#': {f: '#ffc107'}, '+': {f: '#ffe082'}})}</g>`).join('');
+  const fx = T ? colX(nC - 1) + half + 4 : 0, fy = T ? tops[nC - 1] - 32 : 0;
+  const flag = T ? `<g>${pzRects(PZ_FLAG, fx, fy, 4, {'#': {f: '#5b9cf6', c: 'flagc'}})}` +
+    `<rect x="${fx}" y="${fy}" width="4" height="${Math.max(4, tops[nC - 1] - fy)}" fill="#dcdcdc"/></g>` : '';
+  const bang = nNew ? `<g class="bang">${pzRects(['##', '##', '##', '##', '..', '##'], GW - 6, -30, 4, {'#': {f: '#5b9cf6'}})}</g>` : '';
+  f.innerHTML = `<div class="pscene" style="height:${h}px" title="Ozdoba: duszek chodzi po świecach BTC (4 h); flaga = ostatnia cena${nNew ? '; wykrzyknik = są nowe wiersze' : ''}">` +
+    `<span class="cap">BTC · świece 4 h${T ? ' · ' + price(T.last) : ''}</span>` +
+    `<svg class="world" width="${w}" height="${h}" role="img" aria-label="Pikselowy duszek chodzi po świecach BTC">` +
+    `<rect x="0" y="${ground}" width="${w}" height="3" fill="#2a2a2a"/>${T ? T.svg : ''}${flag}${coinSvg}` +
+    `<g class="pg">${pzGhost(0, 0, PX, 'awake')}${bang}</g></svg><div class="pbub" style="display:none"></div></div>`;
+  const scene = f.firstChild, g = scene.querySelector('.pg'), eyes = scene.querySelector('.eyes'), bub = scene.querySelector('.pbub'), coinEls = scene.querySelectorAll('.coin');
+  const quips = pzQuips(nNew);
+  const S = {x: minX + Math.random() * 60, y: 0, dir: 1, mode: 'walk', wait: 0, target: maxX, tick: 0, say: 0, qi: Math.floor(Math.random() * quips.length), score: 0};
+  S.y = yAt(S.x);
+  const place = () => {
+    const hop = S.mode === 'walk' && S.tick % 4 < 2 ? -3 : 0, gx = Math.round(S.x - GW / 2), gy = Math.round(S.y - GH + hop);
+    g.setAttribute('transform', S.dir > 0 ? `translate(${gx},${gy})` : `translate(${gx + GW},${gy}) scale(-1,1)`);
+    g.classList.toggle('walking', S.mode === 'walk');
+    if (bub.style.display !== 'none') {
+      const bw = bub.offsetWidth, left = Math.max(2, Math.min(w - bw - 2, S.x - bw / 2));
+      bub.style.left = left + 'px'; bub.style.bottom = (h - (S.y - GH) + (nNew ? 38 : 12)) + 'px';
+      bub.style.setProperty('--tail', Math.max(8, Math.min(bw - 8, S.x - left)) + 'px');
+    }
+  };
+  const talk = (txt, ticks) => { bub.className = 'pbub'; bub.textContent = txt; bub.style.display = ''; S.say = ticks; };
+  const plus = x => { const p = document.createElement('div'); p.className = 'pbub plus'; p.textContent = '+1'; p.style.left = (x - 8) + 'px'; p.style.bottom = (h - (S.y - GH) + 6) + 'px'; scene.appendChild(p); setTimeout(() => p.remove(), 800); };
+  const step = () => {
+    if (document.hidden || !f.isConnected) { if (!f.isConnected) stop(); return; }
+    S.tick++;
+    if (S.say && --S.say === 0) bub.style.display = 'none';
+    if (S.mode === 'walk') {
+      S.x += S.dir * 3;
+      const ty = yAt(S.x), dy = ty - S.y;
+      S.y += Math.abs(dy) <= 6 ? dy : Math.sign(dy) * (dy > 0 ? 12 : 6);          // w dół zjeżdża szybciej, niż wchodzi pod górę
+      for (const c of coins) if (!c.got && Math.abs(c.x - S.x) < 9) { c.got = true; S.score++; coinEls[coins.indexOf(c)].style.display = 'none'; plus(c.x); }
+      if ((S.dir > 0 && S.x >= S.target) || (S.dir < 0 && S.x <= S.target)) {
+        S.x = S.target;
+        const atFlag = T && S.target >= maxX - 1, atStart = S.target <= minX + 1;
+        S.mode = atFlag ? 'flag' : 'idle'; S.wait = atFlag ? 46 : 14 + Math.floor(Math.random() * 18);
+        if (atFlag) talk(`BTC ${price(T.last)}` + (S.score ? ` · monety: ${S.score}` : ''), 40);
+        else if (atStart) { coins.forEach((c, k) => { c.got = false; coinEls[k].style.display = ''; }); S.score = 0; talk(quips[S.qi++ % quips.length], 26); }
+        else if (Math.random() < .6) talk(quips[S.qi++ % quips.length], 24);
+      }
+    } else {
+      // stoi: rozgląda się (oczy w lewo / w prawo), potem rusza dalej
+      const ph = Math.floor(S.wait / 6) % 3;
+      if (eyes) eyes.setAttribute('transform', `translate(${ph === 1 ? -PX : ph === 2 ? PX : 0},0)`);
+      if (--S.wait <= 0) {
+        if (eyes) eyes.removeAttribute('transform');
+        if (S.mode === 'flag') { S.dir = -1; S.target = minX; }
+        else if (S.x <= minX + 1) { S.dir = 1; S.target = maxX; }
+        else {                                        // przystanek w drodze: zwykle idzie dalej, czasem zawraca kawałek
+          const far = S.dir > 0 ? maxX : minX;
+          S.target = Math.random() < .75 ? (Math.random() < .5 ? far : S.x + S.dir * (120 + Math.random() * 260)) : S.x - S.dir * (60 + Math.random() * 120);
+          S.target = Math.max(minX, Math.min(maxX, S.target));
+          S.dir = S.target >= S.x ? 1 : -1;
+        }
+        S.mode = 'walk';
+      }
+    }
+    place();
+  };
+  // pierwszy przystanek po drodze, żeby nie szedł jednym ciągiem przez cały ekran
+  S.target = Math.min(maxX, S.x + 200 + Math.random() * 300);
+  place();
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {       // bez ruchu: duszek stoi pod flagą
+    S.x = maxX; S.y = yAt(S.x); S.mode = 'idle'; if (T) talk(`BTC ${price(T.last)}`, 1e9); place();
+    return;
+  }
+  f._timer = setInterval(step, 85);
 }
 if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(drawScene)).observe(document.getElementById('pulse'));
 else window.addEventListener('resize', drawScene);
