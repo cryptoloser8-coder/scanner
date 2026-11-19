@@ -314,3 +314,47 @@ def test_md_ranges_without_ends_and_pct1():
     assert "Zakres: $2.015T – $4.219T; dziś na 7% zakresu" in md
     assert report.fmt_val(5.36, "pct1") == "5.4%" and report.fmt_val(59.63, "pct") == "59.63%"
     assert "Crypto Loser Analytics Tools" in md and "Crypto Scanner" not in md
+
+
+# ── poprawka 114: zapis liczb po polsku, mini altsezon ──
+def test_pl_num_and_localize():
+    f = report.pl_num
+    nb = " "
+    assert f("$64,921 (doba ▲+0.1% · 7 dni ▼-12.0%)") == f"$64{nb}921 (doba ▲{nb}0,1% · 7 dni ▼{nb}12,0%)"
+    assert f("0.657× · $2.172T · 59.63% · ▼-0.48 pp · +3.0%") == f"0,657× · $2,172T · 59,63% · ▼{nb}0,48 pp · +3,0%"
+    assert f("min. -14.0% (02.2026) – maks. +50.8% (12.2024)") == "min. −14,0% (02.2026) – maks. +50,8% (12.2024)"   # daty zostają
+    assert f("18.11.2026 05:56 · dno 12 mies. 22.04.2026 · 09.11–15.11.2026 · knoty od 17.08.17") == \
+        "18.11.2026 05:56 · dno 12 mies. 22.04.2026 · 09.11–15.11.2026 · knoty od 17.08.17"
+    assert f("perp -$7.15B (-2.4%) · rzadko mocna sprzedaż (10% okresów 7-dniowych)") == \
+        "perp −$7,15B (−2,4%) · rzadko mocna sprzedaż (10% okresów 7-dniowych)"
+    assert f("$73.02 · $3.74e-06 · 25.07% · $271,562") == f"$73,02 · $3,74e-06 · 25,07% · $271{nb}562"
+    assert f("▼-3.9% od 00:00 UTC") == f"▼{nb}3,9% od 01:00 PL" and f("Od 00:00 UTC (02:00 PL) do teraz") == "Od 02:00 PL do teraz"
+    assert f("https://x.y/raporty.html?id=20261118-0456-morning") == "https://x.y/raporty.html?id=20261118-0456-morning"
+    assert f("#4caf7d") == "#4caf7d" and f("rgba(76,175,125,.12)") == "rgba(76,175,125,.12)"
+    rep = {"title": "T — 18.11.2026", "created": 1795000000, "summary": "Cena BTC $62,416 (▼-3.9% od 00:00 UTC)",
+           "blocks": [{"type": "table", "title": "x", "cols": ["A"], "rows": [["▲+0.5%", "-5.2%", {"bar": [[62.5, "#e05252"]], "tip": "1.5×"}]]},
+                      {"type": "chart", "title": "c", "series": [{"name": "s", "fmt": "pct", "color": "#fff", "data": [[1, 5.35]]}]}]}
+    report.localize(rep)
+    assert rep["numfmt"] == "pl" and rep["summary"] == f"Cena BTC $62{nb}416 (▼{nb}3,9% od 01:00 PL)"
+    row = rep["blocks"][0]["rows"][0]
+    assert row[0] == f"▲{nb}0,5%" and row[1] == "−5,2%" and row[2] == {"bar": [[62.5, "#e05252"]], "tip": "1,5×"}
+    assert rep["blocks"][1]["series"][0] == {"name": "s", "fmt": "pct", "color": "#fff", "data": [[1, 5.35]]}   # dane wykresu bez zmian
+    once = json.dumps(rep, ensure_ascii=False)
+    report.localize(rep)                                          # drugi raz nic nie zmienia
+    assert json.dumps(rep, ensure_ascii=False) == once
+    assert f("### Od 00:00 UTC (01:00 PL) — obrót ≥ $10.0M") == "### Od 01:00 PL — obrót ≥ $10,0M"   # nagłówek md to nie kolor
+    raw = {"id": "20261118-0456-morning", "title": "T", "created": 1795000000, "blocks": [
+        {"type": "chart", "title": "c", "series": [{"name": "s", "fmt": "pct", "color": "#fff", "data": [[1795000000, 5.35]]}]},
+        {"type": "table", "title": "x", "cols": ["A", "B"], "rows": [["▼-3.9%", "$62,416"]]}]}
+    md = report.to_markdown(raw, "https://x/raporty.html", pl=True)   # wersja tekstowa z oryginału: każda liczba zamieniona raz
+    assert "przecinek dziesiętny" in md and "5,35%" in md and f"▼{nb}3,9%" in md and f"$62{nb}416" in md
+    assert "kropka dziesiętna" not in md and "https://x/raporty.html" in md
+
+
+def test_alt_ref_mini_marker():
+    a = report.AltRef(100, 200)
+    assert a == 100 and a.mini == 200 and bool(report.AltRef(None, 200)) is False and report.AltRef(None, 200).mini == 200
+    pts = [[t * report.DAY, 1.0 + t / 100] for t in range(400)]
+    it = report.range_item(None, "X", pts, 4.0, "ratio", "", report.AltRef(100 * report.DAY, 300 * report.DAY), 2)
+    kinds = {m["kind"]: m["label"] for m in it["marks"]}
+    assert kinds["ref"].startswith("altseason") and kinds["mini"].startswith("mini altsezon")
