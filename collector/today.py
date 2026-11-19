@@ -98,9 +98,17 @@ def caps_section(d, t0, now):
     when = (f"Zmiana od zapisu {R.utc(snap['since'], '%d.%m %H:%M')} UTC (pierwszy skan po zamknięciu dnia) do zapisu "
             f"{R.utc(snap['t'], '%H:%M')} UTC." if own else
             f"Zmiana z 24 h przed zapisem {R.utc(snap['t'], '%d.%m %H:%M')} UTC (według CoinGecko).")
+    main = {}
+    for key in ("btc", "eth"):                              # jak w tabeli „Od 00:00 UTC”: cena teraz vs zamknięcie doby (Coinalyze)
+        last, base = now_at(d, f"px_{key}"), base_at(d, f"px_{key}", t0)
+        if last and base:
+            main[key] = {"chg": R.pct_change(last[1], base)}
+    if main:
+        when = ("BTC i ETH: od 00:00 UTC do teraz z Coinalyze — te same liczby co w tabeli wyżej. Koszyki altów i „Lepsze od BTC”: "
+                "CoinGecko. " + when)
     return [{"type": "table", "title": title,
              "cols": ["Koszyk", "Coinów", "Mediana zmiany", "Na plus", "Lepsze od BTC"],
-             "rows": R.caps_rows(snap, with_periods=False), "left": [0],
+             "rows": R.caps_rows(snap, with_periods=False, main=main), "left": [0],
              "desc": "Typowy coin w każdym przedziale wielkości: mediana zmiany ceny (połowa coinów lepiej, połowa gorzej). "
                      "Widać, czy dzisiejszy ruch jest tylko w dużych altach, czy schodzi do małych.",
              "note": f"{when} Tylko coiny z obrotem 24 h co najmniej {R.fmt_usd_short(d.alts.get('min_volume') or 0)}. " + R.CAPS_NOTE}]

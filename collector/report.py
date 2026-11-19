@@ -61,6 +61,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import statistics
 import sys
 import time
@@ -441,7 +442,7 @@ def alts_refs(d, ema, L, now):
     refs = []
     for t, _ in peaks[-int(L["alts_ref_count"]):]:
         b = daily_at(br, t)
-        refs.append((t, f"szczyt {utc(t, '%d.%m.%Y')}" + (" (altseason)" if b is not None and b >= 90 else "")))
+        refs.append((t, f"szczyt {utc(t, '%d.%m.%Y')}" + (" (altseason)" if b is not None and b >= 90 else " (mini altsezon)")))
     if alt_t and all(t != alt_t for t, _ in refs):
         refs.insert(0, (alt_t, f"altseason {utc(alt_t, '%d.%m.%Y')}"))
     year = [p for p in oi if p[0] >= oi[-1][0] - 365 * DAY]
@@ -450,7 +451,17 @@ def alts_refs(d, ema, L, now):
         if all(t != t_min for t, _ in refs):
             refs.append((t_min, f"dno 12 mies. {utc(t_min, '%d.%m.%Y')}"))
     refs.sort()
-    return refs, alt_t
+    # 114: ostatni szczyt lewaru bez szerokiego rajdu (szerokość < 90%) = „mini altsezon” — drugi znacznik na paskach
+    mini = [t for t, _ in peaks if (daily_at(br, t) or 0) < 90 and (alt_t is None or t > alt_t)]
+    return refs, AltRef(alt_t, mini[-1] if mini else None)
+
+
+class AltRef(int):
+    """Dzień ostatniego altseasonu (jak dotąd liczba — stary kod działa bez zmian) + .mini = dzień ostatniego mini altsezonu."""
+    def __new__(cls, alt_t, mini_t=None):
+        o = super().__new__(cls, alt_t or 0)
+        o.mini = mini_t
+        return o
 
 
 def range_item(d, label, pts, v, group, desc, alt_t, years, sub="", marks=None, fmt=None):
@@ -475,6 +486,11 @@ def range_item(d, label, pts, v, group, desc, alt_t, years, sub="", marks=None, 
         av = daily_at(pts, alt_t)
         if av is not None:
             mk.append({"pos": pos(av), "label": f"altseason {utc(alt_t, '%m.%Y')}: {fmt(av)}", "kind": "ref"})
+    mini_t = getattr(alt_t, "mini", None)
+    if mini_t and mini_t >= win[0][0]:
+        mv = daily_at(pts, mini_t)
+        if mv is not None:
+            mk.append({"pos": pos(mv), "label": f"mini altsezon {utc(mini_t, '%m.%Y')}: {fmt(mv)}", "kind": "mini"})
     return {"label": label, "value": fmt(v), "sub": sub, "pos": pos(v), "marks": mk,
             "min": f"min. {fmt(lo[1])} ({utc(lo[0], '%m.%Y')})", "max": f"maks. {fmt(hi[1])} ({utc(hi[0], '%m.%Y')})",
             "note": desc}
@@ -537,7 +553,8 @@ def market_section(d, L, alt_t, now=None):
     return [{"type": "section", "title": "Rynek"}] + (btc_eth_block(d, now) if now else []) + [
             {"type": "ranges", "title": "Gdzie jest rynek na tle ostatnich 2 lat", "items": items,
              "note": f"Pasek = zakres z ostatnich {years} lat (od minimum do maksimum). Kropka = dziś, "
-                     "znacznik = dzień ostatniego altseasonu (wyznaczony z danych: szczyt OI OTHERS/OI BTC przy szerokości rynku ≥ 90%)."}]
+                     "żółty znacznik = dzień ostatniego altseasonu (wyznaczony z danych: szczyt OI OTHERS/OI BTC przy szerokości rynku ≥ 90%), "
+                     "niebieski = ostatni mini altsezon (szczyt OI OTHERS/OI BTC powyżej 1,00 bez szerokiego rajdu)."}]
 
 
 def lines_for(L, sid):
@@ -632,7 +649,7 @@ def alts_section(d, ema, L, refs, now):
                                "ostatnich szczytach i dnie. W prawdziwym altseasonie wysoko jest wszystko naraz; "
                                "gdy wysoko jest tylko lewar, to raczej ostrzeżenie.",
                        "note": f"Kolumny ze szczytami wyznacza kod z danych: ostatnie szczyty OI OTHERS/OI BTC powyżej {L['alts_ref_level']:.2f} "
-                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia." + rsi_note})
+                               "i najniższy punkt z 12 miesięcy; „altseason” = szerokość rynku ≥ 90% tego dnia, „mini altsezon” = szczyt lewaru bez szerokiego rajdu." + rsi_note})
     blocks += caps_blocks(d, now)
     blocks.append(chart_block(d, "Lewar: OI OTHERS / OI BTC — cała historia", ["oi_others_vs_btc"],
                               note=history_note(d, "oi_others_vs_btc")))
@@ -681,11 +698,13 @@ CAPS_NOTE = ("Koszyk = przedział kapitalizacji coina; liczy się kapitalizacja 
              "opakowanych i stakowanych. Źródło: CoinGecko (ceny uśrednione z wielu giełd i DEX-ów).")
 
 
-def caps_rows(snap, with_periods=True):
-    """Wiersze tabeli koszyków: BTC, ETH, potem koszyki od największych."""
+def caps_rows(snap, with_periods=True, main=None):
+    """Wiersze tabeli koszyków: BTC, ETH, potem koszyki od największych.
+    main = {"btc": {"chg", "chg7", "chg30"}, "eth": {…}} — zmiany BTC i ETH z tych samych danych co sekcja Rynek
+    (Coinalyze, doba UTC); bez tego liczby z zapisu CoinGecko (inne okno czasu → inna liczba niż w sekcji Rynek)."""
     rows = []
     for name, key in (("BTC", "btc"), ("ETH", "eth")):
-        m = snap.get(key)
+        m = (main or {}).get(key) or snap.get(key)
         if m:
             rows.append([name, "—", fmt_chg(m.get("chg"))] + ([fmt_chg(m.get("chg7")), fmt_chg(m.get("chg30"))] if with_periods else [])
                         + ["—", "—"])
@@ -708,10 +727,20 @@ def caps_blocks(d, now):
     when = (f"Zmiana doby = od zapisu {utc(snap['prev_t'], '%d.%m %H:%M')} do zapisu {utc(snap['t'], '%d.%m %H:%M')} UTC "
             f"(pierwszy skan po zamknięciu dnia)." if own and snap.get("prev_t") else
             f"Zmiana doby = ostatnie 24 h przed zapisem {utc(snap['t'], '%d.%m %H:%M')} UTC (według CoinGecko).")
+    main = {}
+    for key in ("btc", "eth"):                              # jak w „BTC i ETH — zamknięcie dnia”: zamknięcia dób UTC z Coinalyze
+        px = d.pts("1d", f"px_{key}")
+        c1 = dict(px).get(day)
+        if c1 is not None:
+            main[key] = {"chg": pct_change(c1, at(px, day - DAY, DAY)), "chg7": pct_change(c1, at(px, day - 7 * DAY, 2 * DAY)),
+                         "chg30": pct_change(c1, at(px, day - 30 * DAY, 2 * DAY))}
+    if main:
+        when = ("BTC i ETH: zamknięcia dób UTC z Coinalyze — te same liczby co w sekcji Rynek. Koszyki altów i „Lepsze od BTC”: "
+                "CoinGecko. " + when)
     blocks = [{
         "type": "table", "title": f"Alty według kapitalizacji — doba {utc(day, '%d.%m')}",
         "cols": ["Koszyk", "Coinów", "Mediana zmiany — doba", "7 dni", "30 dni", "Na plus w dobie", "Lepsze od BTC w dobie"],
-        "rows": caps_rows(snap), "left": [0],
+        "rows": caps_rows(snap, main=main), "left": [0],
         "desc": "Typowy coin w każdym przedziale wielkości. Mediana = coin „ze środka” koszyka: połowa coinów wypadła lepiej, "
                 "połowa gorzej, więc jeden coin +900% nie zawyża wyniku. Widać, czy ruch jest tylko w dużych altach, "
                 "czy schodzi do małych. „Lepsze od BTC” = odsetek coinów, które w dobie zrobiły więcej niż BTC.",
@@ -1400,13 +1429,64 @@ def _md_days_series(s):
             f"  Maks. {f(hi[1])} (dzień {hi[0]}), min. {f(lo[1])} (dzień {lo[0]})."]
 
 
-def to_markdown(rep, page_url=""):
-    """The whole report as plain markdown — to paste into any AI agent (charts turned into numbers)."""
+# ── zapis liczb po polsku (poprawka 114) ──
+# Raport powstaje z liczbami w zapisie „programistycznym” ($64,921 · ▼-12.0% · 0.657×); tuż przed zapisem jeden przebieg
+# zamienia je na zapis jak na stronach: $64 921 · ▼ 12,0% · 0,657× · −5,2% · „01:00 PL” zamiast „00:00 UTC”.
+# Daty (18.11.2026, 18.11, 10.2025) zostają z kropkami. Przebieg wykonuje się raz (rep["numfmt"] = "pl").
+_NB = "\u00a0"
+_DATE_RE = re.compile(r"(?<![\d$+\-−▲▼•.,])(\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{2}|\d{2}\.\d{4}|\d{4}\.\d{2}|\d{2}\.\d{2})"
+                      r"(?![\d%×]|\.\d|\s?pp\b|[BMKT]\b)")
+_SKIP_KEYS = {"type", "fmt", "color", "scale", "id", "kind", "href", "url", "sid", "key", "zone", "pos_color", "neg_color",
+              "band_color", "data", "numfmt", "created", "sources"}
+
+
+def pl_num(s, h0="01:00"):
+    """Jeden napis z raportu → zapis liczb po polsku (patrz wyżej). Nie wywoływać dwa razy na tym samym napisie."""
+    if not isinstance(s, str) or not s or s.startswith(("http", "rgb")) or re.fullmatch(r"#[0-9a-fA-F]{3,8}", s):
+        return s
+    s = re.sub(r"00:00 UTC \((\d\d:\d\d) PL\)", r"\1 PL", s).replace("00:00 UTC", f"{h0} PL")
+    s = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", _NB, s)                       # tysiące: $64,921 → $64 921
+    parts = _DATE_RE.split(s)                                              # co drugi kawałek to data — zostaje bez zmian
+    s = "".join(p if i % 2 else re.sub(r"(?<=\d)\.(?=\d)", ",", p) for i, p in enumerate(parts))
+    s = s.replace("▲+", "▲" + _NB).replace("▼-", "▼" + _NB).replace("▼−", "▼" + _NB)
+    return re.sub(r"(?<![\w.,:/\-−–])-(?=[\d$])", "−", s)               # minus przed liczbą; „7-dniowych” i daty ISO zostają
+
+
+def localize(rep):
+    """Zamienia zapis liczb we wszystkich napisach raportu (bloki, podsumowanie, tytuł). Raz na raport."""
+    if rep.get("numfmt") == "pl":
+        return rep
+    t = int(rep.get("created") or time.time())
+    h0 = pl_time(t - t % DAY, "%H:%M")[:5]
+
+    def walk(x, key=None):
+        if key in _SKIP_KEYS:
+            return x
+        if isinstance(x, str):
+            return pl_num(x, h0)
+        if isinstance(x, list):
+            return [walk(v) for v in x]
+        if isinstance(x, tuple):
+            return tuple(walk(v) for v in x)
+        if isinstance(x, dict):
+            return {k: walk(v, k) for k, v in x.items()}
+        return x
+    for k in ("blocks", "summary", "title"):
+        if k in rep:
+            rep[k] = walk(rep[k])
+    rep["numfmt"] = "pl"
+    return rep
+
+
+def to_markdown(rep, page_url="", pl=False):
+    """The whole report as plain markdown — to paste into any AI agent (charts turned into numbers).
+    pl=True: zapis liczb po polsku (pl_num na każdej linii) — podawać raport PRZED localize(), żeby każda liczba przeszła raz."""
     src = rep.get("sources") or {}
     L = [f"# {rep['title']} — {pl_time(rep['created'])} czasu polskiego ({utc(rep['created'])})", "",
          "Raport rynku kryptowalut z projektu Crypto Loser Analytics Tools. Same dane: wszystkie liczby policzył program z danych źródłowych "
          "(lista na końcu), bez interpretacji i rekomendacji. Opisy przy wskaźnikach mówią tylko, co wskaźnik mierzy i jak się go "
-         "zwykle czyta. Zapis liczb: kropka dziesiętna, $ = USD, M = mln, B = mld, T = bln, pp = punkty procentowe, "
+         "zwykle czyta. Zapis liczb: " + ("przecinek dziesiętny, tysiące oddzielone spacją" if pl or rep.get("numfmt") == "pl" else "kropka dziesiętna")
+         + ", $ = USD, M = mln, B = mld, T = bln, pp = punkty procentowe, "
          "× = krotność, %/r = procent w skali roku.",
          f"Dane: OI/TOTAL/likwidacje z {pl_time(src['data_updated']) if src.get('data_updated') else 'brak'}, "
          f"EMA200 z {pl_time(src['ema_updated']) if src.get('ema_updated') else 'brak'} (czas polski)."]
@@ -1485,6 +1565,10 @@ def to_markdown(rep, page_url=""):
         if b.get("note"):
             L.append(f"_{b['note']}_")
     L += ["", SOURCES_MD]
+    if pl:                                                 # linie z adresami zostają (id raportu, linki do źródeł)
+        t = int(rep.get("created") or time.time())
+        h0 = pl_time(t - t % DAY, "%H:%M")[:5]
+        L = [x if "http" in x else pl_num(x, h0) for x in L]
     return "\n".join(L)
 
 
@@ -1659,7 +1743,9 @@ def main(argv=None):
             if kind in ("morning", "evening") and macro is not None:   # każda publikacja tylko w jednym raporcie
                 macro["since"] = last_created(a.out, "evening" if kind == "morning" else "morning", time.time())
             rep = build(a.data, a.ema, kind, cfg=cfg, macro=macro, chains_dir=a.chains)
-            save(a.out, rep, keep=int(cfg["keep"]), md=to_markdown(rep, page), page_url=page,
+            md = to_markdown(rep, page, pl=True)           # wersja tekstowa z oryginału — każda liczba zamieniana raz
+            localize(rep)
+            save(a.out, rep, keep=int(cfg["keep"]), md=md, page_url=page,
                  keep_periodic=int(cfg["keep_periodic"]))
             made.append(rep["id"])
             n = sum(len(b.get("items") or b.get("rows") or b.get("series") or [1]) for b in rep["blocks"])
