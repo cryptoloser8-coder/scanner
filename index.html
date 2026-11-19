@@ -94,6 +94,35 @@
     .pfil button{min-height:44px;}
   }
   .col{display:flex;flex-direction:column;gap:16px;min-width:0;}
+  /* 117: na szerokim ekranie tabela ma stałą wysokość = wysokość kolumny obok (Cykl, Derywaty, Raporty):
+     mało wierszy → karta i tak sięga do dołu, za dużo → wiersze przewijają się w środku (nagłówek kolumn zostaje). */
+  @media (min-width:1101px){
+    .row.r1{align-items:stretch;}
+    .pcard{height:0;min-height:100%;display:flex;flex-direction:column;}
+    .pcard .hd,.pcard .pdesc{flex:none;}
+    #pulse{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin-right:-10px;padding-right:10px;scrollbar-width:thin;scrollbar-color:#3a3a3a transparent;}
+    #pulse::-webkit-scrollbar{width:8px;}
+    #pulse::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:4px;}
+    #pulse::-webkit-scrollbar-thumb:hover{background:#555;}
+    #pulse .prow.ph{position:sticky;top:0;z-index:1;background:var(--bg2);}
+    #pulse .prow.ph+.prow{border-top-color:rgba(255,255,255,.1);}
+    #pulse.empty{display:flex;}
+  }
+  /* 117: pusta tabela — pikselowy duszek z logo śpi (nic nie odbiega od zwykłego zakresu) */
+  .pzzz{margin:auto;padding:28px 0 20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:var(--text2);font-size:13px;}
+  .pzzz b{display:block;color:var(--text);font-size:14px;font-weight:600;margin-bottom:2px;}
+  .pzzz svg{width:252px;height:198px;max-width:70%;shape-rendering:crispEdges;overflow:visible;}
+  .pzzz .gh{animation:pz-bob 2.4s steps(2,end) infinite;}
+  .pzzz .eye{animation:pz-blink 4.8s steps(1,end) infinite;}
+  .pzzz .z{opacity:0;animation:pz-z 3.6s steps(6,end) infinite;}
+  .pzzz .z2{animation-delay:1.2s;}
+  .pzzz .z3{animation-delay:2.4s;}
+  .pzzz .tw{animation:pz-roll 9s steps(36,end) infinite;}
+  @keyframes pz-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+  @keyframes pz-blink{0%,88%{opacity:1}90%,96%{opacity:0}100%{opacity:1}}
+  @keyframes pz-z{0%{opacity:0;transform:translate(0,0)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(12px,-28px)}}
+  @keyframes pz-roll{0%{transform:translateX(-30px)}100%{transform:translateX(190px)}}
+  @media (prefers-reduced-motion:reduce){.pzzz .gh,.pzzz .eye,.pzzz .z,.pzzz .tw{animation:none;}.pzzz .z{opacity:1;}}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
   .m{display:flex;flex-direction:column;gap:3px;}
   .m b{font-size:18px;font-weight:600;}
@@ -148,7 +177,7 @@
   <section class="kpis" id="kpis" aria-label="Najważniejsze liczby"></section>
 
   <div class="row r1">
-    <section class="card" aria-label="Gdzie warto zajrzeć">
+    <section class="card pcard" aria-label="Gdzie warto zajrzeć">
       <div class="hd"><h2 title="Do tabeli trafia: ruch ceny albo OI w 7 dni mocniejszy niż w 90% tygodni z 2 lat · poziom tła w dolnych albo górnych 10% zakresu z 2 lat · likwidacje z 24 h co najmniej 1,5× zwykłego dnia · funding ponad 20% rocznie · lampka, która świeci albo właśnie zgasła · przecięcie EMA200 (BTC, ETH, watchlista). Jeden wiersz na temat.">Gdzie warto zajrzeć</h2><div class="pfil" id="pfil"></div></div>
       <p class="pdesc">To, co dziś odbiega od zwykłego zakresu albo zmieniło stan — od najważniejszych. Bez wykresów: wiersz prowadzi do zakładki, w której widać resztę.</p>
       <div id="pulse"><div class="lbl">Ładowanie…</div></div>
@@ -306,8 +335,26 @@ function sinceTxt(r, now) {
   const n = Math.floor((now - r.since) / DAY) + 1;
   return n <= 1 ? 'od dziś' : `${n}. dzień · od ${d(r.since)}`;
 }
+// 117: pusta tabela — pikselowy duszek (z logo) śpi, obok toczy się kłębek; rysowany z siatki znaków, 1 znak = 1 piksel 6×6
+const PZ_GHOST = ['.....######.....', '....########....', '...##########...', '...###----###...', '..###------###..', '..###-o--o-###..', '..###------###..',
+  '..####----####..', '..############..', '.##############.', '.##############.', '.##############.', '################', '################'];
+const PZ_Z = ['####', '..#.', '.#..', '####'];
+const PZ_TW = ['.#.#.', '#.#.#', '.#.#.', '#.#.#', '.#.#.'];
+function pzRects(grid, x0, y0, px, colors) {
+  let out = '';
+  grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = colors[row[x]]; if (c) out += `<rect x="${x0 + x * px}" y="${y0 + y * px}" width="${px}" height="${px}" fill="${c.f}"${c.c ? ` class="${c.c}"` : ''}/>`; } });
+  return out;
+}
+function pzHTML(head, sub) {
+  const ghost = pzRects(PZ_GHOST, 36, 40, 6, {'#': {f: '#e8e8e8'}, '-': {f: '#101010'}, o: {f: '#ffffff', c: 'eye'}});
+  const zs = [[134, 34, 3, 'z z1'], [144, 20, 4, 'z z2'], [156, 2, 5, 'z z3']].map(([x, y, px, c]) => `<g class="${c}">${pzRects(PZ_Z, x, y, px, {'#': {f: '#5b9cf6'}})}</g>`).join('');
+  const tw = `<g class="tw">${pzRects(PZ_TW, 0, 112, 3, {'#': {f: '#6a5a3a'}})}</g>`;
+  return `<div class="pzzz"><svg viewBox="0 0 168 132" role="img" aria-label="Pikselowy duszek śpi"><rect x="0" y="126" width="168" height="2" fill="#2a2a2a"/>${tw}<g class="gh">${ghost}</g>${zs}</svg>` +
+    `<div><b>${head}</b>${sub}</div></div>`;
+}
 function renderPulse() {
   const el = document.getElementById('pulse'), fil = document.getElementById('pfil');
+  el.classList.remove('empty');
   if (!PULSE || !Array.isArray(PULSE.rows)) {
     fil.innerHTML = '';
     el.innerHTML = `<div class="lbl">${PULSE_ERR ? 'Tabela pojawi się po najbliższym skanie (plik pulpit.json jeszcze nie istnieje).' : 'Ładowanie…'}</div>`;
@@ -319,7 +366,10 @@ function renderPulse() {
   const rows = all.filter(r => pFilter === 'all' || (pFilter === 'new') === !!r.new);
   const old = PULSE.updated && now - PULSE.updated > 6 * HOUR ? `<div class="lbl" style="color:var(--amber);margin-bottom:8px">Tabela z ${plTime(PULSE.updated)} — starsza niż 6 h.</div>` : '';
   if (!rows.length) {
-    el.innerHTML = old + `<div class="lbl">${all.length ? 'Brak wierszy w tym filtrze.' : 'Dziś nic nie odbiega od zwykłego zakresu.'}</div>`;
+    el.classList.add('empty');
+    el.innerHTML = old + (all.length
+      ? pzHTML(pFilter === 'new' ? 'Nic nowego od wczoraj' : 'Nic tu nie ma', 'Zmień filtr, żeby zobaczyć pozostałe wiersze.')
+      : pzHTML('Cisza na rynku', 'Dziś nic nie odbiega od zwykłego zakresu — duszek śpi.'));
     return;
   }
   el.innerHTML = old + '<div class="prow ph"><span>Gdzie</span><span>Co się dzieje</span><span>Na tle historii</span><span>Od kiedy</span></div>' + rows.map(r => {
