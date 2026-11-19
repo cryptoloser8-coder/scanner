@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -570,7 +570,7 @@ function setStatus(cls, txt) { document.getElementById('dot').className = 'statu
     renderMarket();
     if (!S.chains) S.chains = CHAINS.map(c => c.slug);
     const age = (Date.now() / 1000 - (SUM.updated || 0)) / 3600;
-    const upd = new Date((SUM.updated || 0) * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+    const upd = CLTZ.fmt(SUM.updated || 0);        // 115: strefa wybrana w menu (domyślnie czas polski)
     setStatus(age > 30 ? 'stale' : 'live', `Ostatni pełny dzień ${SUM.day ? SUM.day.split('-').reverse().join('.') : '?'}${FDAY != null ? ' · DEX i opłaty do ' + dm(SUM.flow_day) : ''} · pobrano ${upd}`);
     if (age > 30) { const b = document.getElementById('banner'); b.className = 'banner warn'; b.textContent = `Dane sieci sprzed ${Math.round(age)} h — workflow „Sieci” mógł nie zadziałać.`; }
     if ((SUM.errors || []).length) document.getElementById('foot-info').textContent = 'Uwagi z ostatniego pobrania: ' + SUM.errors.join('; ');

@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -550,6 +550,7 @@ function makeChart() {
     localization: {locale: 'pl-PL'},
   });
   if (window.brandWatermark) brandWatermark(chart);
+  CLTZ.apply(chart, () => { const iv = IV(); return iv === '1h' || iv === '4h'; });     // 115: godziny na osi w strefie wybranej w menu
   chart.subscribeCrosshairMove(updateLegend);
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set((META || {}).history_events); HEV.show(S.hev); }
 }
@@ -665,9 +666,9 @@ function updateLegend(param) {
   if (L != null && Sv != null && L + Sv > 0)
     rows.splice(at, 0, `<div class="lg-row"><span class="lg-name">Razem</span><span class="lg-val">${usd(L + Sv)} · long ${(L / (L + Sv) * 100).pl(0)}%</span></div>`);
   const iv = IV();
-  // dzień / tydzień / miesiąc = doba UTC (sama data); godziny w czasie polskim
+  // dzień / tydzień / miesiąc = doba UTC (sama data); godziny w strefie wybranej w menu (115)
   const hourly = iv === '1h' || iv === '4h';
-  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', year: 'numeric', timeZone: hourly ? 'Europe/Warsaw' : 'UTC'}, hourly ? {hour: '2-digit', minute: '2-digit'} : {}))
+  const tl = lastCrosshair ? new Date(lastCrosshair.time * 1000).toLocaleString('pl-PL', hourly ? CLTZ.opts({day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})
     : 'ostatnia świeca';
   rows.unshift(`<div class="lg-row"><span class="lg-name">${tl} · świeca ${iv.toUpperCase()}</span></div>`);
   const lg = document.getElementById('legend');

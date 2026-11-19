@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   :root{
@@ -209,7 +209,7 @@ function usd(v) {
   return s + '$' + a.pl(0);
 }
 const price = v => v == null ? '—' : '$' + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pl-PL') : Math.abs(v) >= 1 ? v.pl(2) : v.plp(4));
-const TZ = {timeZone: 'Europe/Warsaw'};
+const TZ = CLTZ.opts({});                     // 115: strefa wybrana w menu (domyślnie czas polski)
 const dmy = t => { const d = new Date(t * 1000), p = n => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`; };
 const plTime = t => new Date(t * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}, TZ));
 // wartość w chwili ≤ t (szereg [[t, v], …] posortowany rosnąco)
@@ -392,12 +392,19 @@ function nextTimes() {
   const g = t => (parts.find(p => p.type === t) || {}).value;
   const mins = +g('hour') * 60 + +g('minute');
   const out = [];
-  out.push(['Wieczorny', mins < 22 * 60 + 50 ? 'dziś ok. 22:50' : 'jutro ok. 22:50']);
-  out.push(['Poranny', mins < 6 * 60 ? 'dziś ok. 06:00' : 'jutro ok. 06:00']);
+  // harmonogram jest w czasie polskim (22:50 i 06:00); pokazujemy go w strefie wybranej w menu (115)
+  const at = (h, m) => {
+    const ts = Math.floor(now.getTime() / 60000) * 60 + ((h * 60 + m - mins + 1440) % 1440 || 1440) * 60;
+    const day = CLTZ.date(ts) === CLTZ.date(now.getTime() / 1000) ? 'dziś' : 'jutro';
+    return [ts, `${day} ok. ${CLTZ.time(ts)}`];
+  };
+  const ev = at(22, 50), mo = at(6, 0);
+  out.push(['Wieczorny', ev[1], ev[0]]);
+  out.push(['Poranny', mo[1], mo[0]]);
   const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(g('weekday')), toMon = (7 - wd) % 7 || 7;
   const mon = new Date(now.getTime() + toMon * DAY * 1000);
-  out.push(['Tygodniowy', 'pon. ' + mon.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, TZ)) + ', w nocy']);
-  out.sort((a, b) => (a[1].startsWith('dziś') ? 0 : 1) - (b[1].startsWith('dziś') ? 0 : 1));
+  out.push(['Tygodniowy', 'pon. ' + mon.toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', timeZone: 'Europe/Warsaw'}) + ', w nocy']);   // dzień wg czasu polskiego (harmonogram)
+  out.sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity));
   return out;
 }
 function renderReps() {
@@ -413,7 +420,7 @@ function renderSub() {
   const parts = [];
   const now = new Date().toLocaleDateString('pl-PL', Object.assign({weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'}, TZ));
   parts.push(now.charAt(0).toUpperCase() + now.slice(1));
-  if (META && META.updated) parts.push('skan z ' + plTime(META.updated) + ' czasu polskiego');
+  if (META && META.updated) parts.push('skan z ' + plTime(META.updated) + ' ' + CLTZ.name());
   if (D1 && D1.updated) parts.push('dane dzienne do ' + dmy(last((D1.series || {}).total || [[D1.updated]])[0]));
   document.getElementById('sub').textContent = parts.join(' · ');
 }

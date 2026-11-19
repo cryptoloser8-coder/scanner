@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -807,7 +807,7 @@ function renderRules() {
     return `• ${coins}: ${what.join(' + ') || '—'}`;
   }).join('<br>') : 'Brak ustawionych alertów.';
   const WA = (DATA.weekly || {}).alerts || [];
-  if (WA.length) document.getElementById('rules').innerHTML += `<br>• ${WA.map(c => `<b>${esc(c)}</b>`).join(', ')}: przecięcie EMA${DATA.period} na świecy tygodniowej (po zamknięciu tygodnia, niedziela 24:00 UTC = poniedziałek 01:00 PL zimą)`;
+  if (WA.length) document.getElementById('rules').innerHTML += `<br>• ${WA.map(c => `<b>${esc(c)}</b>`).join(', ')}: przecięcie EMA${DATA.period} na świecy tygodniowej (po zamknięciu tygodnia, niedziela 24:00 UTC, czyli ${CLTZ.closeTxt()})`;
   const ex = DATA.excluded || [];
   document.getElementById('excluded').innerHTML = ex.length ? `<summary>Pominięte: ${ex.length} coinów z historią krótszą niż ${DATA.min_days} dni</summary><p>${ex.map(([s, d]) => `${esc(s)} (${d} d)`).join(', ')}</p>` : '';
 }

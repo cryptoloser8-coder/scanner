@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -221,7 +221,7 @@
     <a href="index.html" class="menu-link">← Menu</a>
     <div>
       <h1>Dźwignia — zarabiający vs reszta (Hyperliquid)</h1>
-      <p>Pozycje portfeli z sita, zapis co ~2 h · tylko krypto (główna giełda HL) · godziny w czasie polskim</p>
+      <p>Pozycje portfeli z sita, zapis co ~2 h · tylko krypto (główna giełda HL) · <span data-cl-tz-in>godziny w czasie polskim</span></p>
     </div>
   </div>
   <div style="text-align:right"><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
@@ -289,9 +289,9 @@ function pct(x, d = 1) { return x == null || isNaN(x) ? '—' : (x > 0 ? '+' : x
 function num(x, d = 1) { return x == null || isNaN(x) ? '—' : Number(x).pl(d); }
 const pp = x => x == null ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).pl(1) + ' pp';
 function plTime(t) {
-  return new Date(t * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  return CLTZ.fmt(t);                      // 115: strefa wybrana w menu (domyślnie czas polski)
 }
-function plDate(t) { return new Date(t * 1000).toLocaleDateString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', year: 'numeric'}); }
+function plDate(t) { return CLTZ.date(t); }
 function comp(l) {
   if (l == null) return '<div class="comp"></div>';
   return `<div class="comp" title="long ${num(l)}% · short ${num(100 - l)}%"><i class="l" style="width:${l}%"></i><i class="s" style="width:${100 - l}%"></i></div>`;
@@ -725,6 +725,16 @@ function mkChart(id) {
     grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
     rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, leftPriceScale: {visible: true, borderColor: 'rgba(255,255,255,.1)'},
     timeScale: {borderColor: 'rgba(255,255,255,.1)', timeVisible: true}, localization: {locale: 'pl-PL'}});
+  // 115: godziny na osi w strefie wybranej w menu; seria dzienna (punkty o 00:00 UTC) zostaje z samą datą
+  CLTZ.apply(ch, () => {
+    if (ch._intra == null) {
+      let n = 0, intra = false;
+      try { ch.panes().forEach(p => p.getSeries().forEach(s => s.data().forEach(d => { n++; if (typeof d.time === 'number' && d.time % 86400) intra = true; }))); } catch (e) { return true; }
+      if (!n) return true;
+      ch._intra = intra;
+    }
+    return ch._intra;
+  });
   charts.push(ch);
   return ch;
 }

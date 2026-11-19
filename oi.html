@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -546,14 +546,14 @@ function tileChg(id, c, d, h, t, v, useH) {
   const now = Date.now() / 1000, today = now - now % 86400;
   if (c.group === 'vol' && d.length > 1) {
     const open = d[d.length - 1][0] >= today, y = open ? d[d.length - 2] : d[d.length - 1];
-    return (open ? `<span style="color:var(--amber)" title="Doba UTC jeszcze trwa (zamyka się o 01:00 czasu polskiego) — liczba u góry to wolumen od jej początku">dzień trwa</span>` : '') +
+    return (open ? `<span style="color:var(--amber)" title="Doba UTC jeszcze trwa (zamyka się o ${CLTZ.closeTxt()}) — liczba u góry to wolumen od jej początku">dzień trwa</span>` : '') +
       `<span>${open ? 'wczoraj' : 'ostatni dzień'} ${fmt(y[1], fmtOf(c))}</span><span title="Ostatni pełny dzień wobec dnia sprzed tygodnia">vs 7D ${chgFor(c, y[1], valueAt(d, y[0] - 7 * 86400))}</span>`;
   }
   if (!useH && d.length > 1 && now - t > 3 * 86400) {
     return `<span style="color:var(--amber)" title="To najnowszy opublikowany odczyt — seria nie jest codzienna">odczyt z ${dm(t)}</span><span>od poprzedniego ${chgFor(c, v, d[d.length - 2][1])}</span>`;
   }
   const h24 = useH && h.length && h[0][0] <= t - 86400 ? valueAt(h, t - 86400) : null;
-  const first = h24 != null ? `<span>24 h ${chgFor(c, v, h24)}</span>` : `<span title="Od zamknięcia poprzedniej doby UTC (01:00 czasu polskiego)">1D ${chgFor(c, v, valueAt(d, t - 86400))}</span>`;
+  const first = h24 != null ? `<span>24 h ${chgFor(c, v, h24)}</span>` : `<span title="Od zamknięcia poprzedniej doby UTC (${CLTZ.closeTxt()})">1D ${chgFor(c, v, valueAt(d, t - 86400))}</span>`;
   return first + `<span>7D ${chgFor(c, v, valueAt(d, t - 7 * 86400))}</span><span>30D ${chgFor(c, v, valueAt(d, t - 30 * 86400))}</span>`;
 }
 function shortNote(id) {
@@ -788,6 +788,7 @@ function makeChart() {
     localization: {locale: 'pl-PL'},
   });
   if (window.brandWatermark) brandWatermark(chart);
+  CLTZ.apply(chart, () => S.res === '1h' || S.res === '4h');     // 115: godziny na osi w strefie wybranej w menu
   chart.subscribeCrosshairMove(updateLegend);
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); rangeInfo(); });
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
@@ -1092,7 +1093,7 @@ function rangeInfo() {
   const vr = chart.timeScale().getVisibleRange();
   if (!vr || typeof vr.from !== 'number') { el.textContent = ''; return; }
   const hourly = S.res === '1h' || S.res === '4h';
-  const f = t => new Date(t * 1000).toLocaleString('pl-PL', Object.assign({day: '2-digit', month: '2-digit', year: 'numeric', timeZone: hourly ? 'Europe/Warsaw' : 'UTC'}, hourly ? {hour: '2-digit', minute: '2-digit'} : {}));
+  const f = t => new Date(t * 1000).toLocaleString('pl-PL', hourly ? CLTZ.opts({day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'});
   const days = (vr.to - vr.from) / 86400;
   el.textContent = `Zakres na wykresie: ${f(vr.from)} – ${f(vr.to)} (${days >= 2 ? Math.round(days) + ' dni' : Math.round(days * 24) + ' h'})` +
     (S.mode !== 'val' ? ' · procenty w legendzie liczone od początku tego zakresu' : '');
@@ -1111,7 +1112,7 @@ function updateLegend(param) {
       const vr = chart.timeScale().getVisibleRange();
       const a = cp(id);
       const first = vr ? a.find(p => p[0] >= vr.from) : null;
-      if (first && v != null) extra = ` <span title="Zmiana od lewej krawędzi widocznego zakresu (${new Date(first[0] * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Warsaw'})})">${chg(v, first[1])}</span>`;
+      if (first && v != null) extra = ` <span title="Zmiana od lewej krawędzi widocznego zakresu (${new Date(first[0] * 1000).toLocaleDateString('pl-PL', S.res === '1h' || S.res === '4h' ? CLTZ.opts({day: '2-digit', month: '2-digit', year: 'numeric'}) : {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})})">${chg(v, first[1])}</span>`;
     }
     if (avg) {                                                     // 105: średnia z 30 dni przy słupkach wolumenu
       let m = null;

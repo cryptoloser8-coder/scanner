@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=111"></script>
+<script src="app.js?v=115"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -577,7 +577,7 @@ function renderLamps() {
   }
   const c = A.cfg, tNow = Date.now() / 1000, L = A.lamps;
   const lit = LAMP_ORDER.filter(k => L[k] && L[k].on);
-  const when = new Date(A.updated * 1000).toLocaleString('pl-PL', {timeZone: 'Europe/Warsaw', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  const when = CLTZ.fmt(A.updated);        // 115: strefa wybrana w menu (domyślnie czas polski)
   top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${groupColor(L[k].group)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
     : 'Żadna lampka nie świeci.') + ` <span style="color:var(--text3)">Stan z ${when}.</span>`;
   box.innerHTML = '<div class="lgrid">' + LAMP_GROUPS.map(([g, title, icon, gcol, sub]) => {

@@ -16,6 +16,135 @@ if (!Number.prototype.pl) {
   Number.prototype.pl = function (d) { return this.toFixed(d).replace('.', ',').replace('-', '\u2212'); };
   Number.prototype.plp = function (d) { return this.toPrecision(d).replace('.', ',').replace(/^-/, '\u2212'); };
 }
+// 115: strefa czasowa godzin na stronie — przełącznik w menu: Polska (domyślnie) / mój czas / UTC, zapamiętany w tej
+// przeglądarce. Dane i zamknięcia świec zawsze w UTC (doba = 00:00–24:00 UTC) — zmienia się tylko to, jak pokazana jest
+// godzina. Daty świec dziennych, tygodniowych i miesięcznych to doby UTC — tych przełącznik nie rusza.
+// Raporty i Telegram zostają w czasie polskim (jedna wiadomość dla wszystkich).
+//   CLTZ.fmt(t)                 „19.11, 14:05” w wybranej strefie (t = sekundy; drugi parametr: opcje toLocaleString)
+//   CLTZ.opts({...})            opcje toLocaleString z dopisaną strefą
+//   CLTZ.apply(chart, fn)       oś czasu i etykieta krzyża wykresu; fn() → true, gdy świece krótsze niż doba
+//   CLTZ.closeTxt()             „01:00 czasu polskiego” — o której w wybranej strefie zamyka się doba UTC
+window.CLTZ = (function () {
+  var KEY = 'cl-tz', ZONES = {pl: 'Europe/Warsaw', utc: 'UTC'}, mode = 'pl';
+  var chosen = false, canStore = false;              // chosen: wybór już zapisany w tej przeglądarce
+  try {
+    var m = localStorage.getItem(KEY);
+    canStore = true;
+    if (m === 'pl' || m === 'utc' || m === 'local') { mode = m; chosen = true; }
+  } catch (e) { /* brak pamięci przeglądarki (tryb prywatny) — czas polski, bez planszy */ }
+  function opts(o) {
+    var r = {}, k;
+    for (k in (o || {})) r[k] = o[k];
+    if (mode !== 'local') r.timeZone = ZONES[mode];
+    return r;
+  }
+  function fmt(t, o) { return new Date(t * 1000).toLocaleString('pl-PL', opts(o || {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})); }
+  function date(t, o) { return new Date(t * 1000).toLocaleDateString('pl-PL', opts(o || {day: '2-digit', month: '2-digit', year: 'numeric'})); }
+  function time(t) { return new Date(t * 1000).toLocaleTimeString('pl-PL', opts({hour: '2-digit', minute: '2-digit'})); }
+  function utcDate(t) { return new Date(t * 1000).toLocaleDateString('pl-PL', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'}); }
+  var NAMES = {pl: ['czasu polskiego', 'w czasie polskim', 'PL'], utc: ['UTC', 'w UTC', 'UTC'], local: ['Twojego czasu', 'w Twoim czasie', 'mój']};
+  function closeTxt() { var now = Date.now() / 1000; return time(now - now % 86400) + ' ' + NAMES[mode][0]; }
+  function zoneName() {
+    if (mode !== 'local') return ZONES[mode];
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'czas tego urządzenia'; } catch (e) { return 'czas tego urządzenia'; }
+  }
+  function set(m) {
+    if (m !== 'pl' && m !== 'utc' && m !== 'local') return;
+    try { localStorage.setItem(KEY, m); } catch (e) { /* tryb prywatny — wybór tylko do odświeżenia */ }
+    location.reload();
+  }
+  function ts(time) {                                  // czas świecy z biblioteki wykresów → sekundy (albo null)
+    if (typeof time === 'number') return time;
+    if (typeof time === 'string') { var d = Date.parse(time + 'T00:00:00Z'); return isNaN(d) ? null : d / 1000; }
+    if (time && time.year) return Date.UTC(time.year, time.month - 1, time.day) / 1000;
+    return null;
+  }
+  function apply(chart, intraday) {
+    if (!chart || !chart.applyOptions) return;
+    var intra = function () { try { return !!intraday(); } catch (e) { return false; } };
+    chart.applyOptions({
+      localization: {
+        timeFormatter: function (time) {
+          var t = ts(time);
+          if (t == null) return '';
+          return intra() ? fmt(t, {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : utcDate(t);
+        }
+      },
+      timeScale: {
+        // typ znacznika: 0 rok, 1 miesiąc, 2 dzień, 3 i 4 godzina. Świece dzienne i dłuższe → null = domyślny opis biblioteki (UTC).
+        tickMarkFormatter: function (time, type) {
+          var t = ts(time);
+          if (t == null || !intra()) return null;
+          var d = new Date(t * 1000);
+          if (type === 0) return d.toLocaleDateString('pl-PL', opts({year: 'numeric'}));
+          if (type === 1) return d.toLocaleDateString('pl-PL', opts({month: 'short'}));
+          if (type === 2) return d.toLocaleDateString('pl-PL', opts({day: 'numeric'}));
+          return time_(t);
+        }
+      }
+    });
+  }
+  var time_ = time;
+
+  // Plansza przy pierwszym wejściu (115): wybór strefy na środku ekranu — trzeba wybrać, żeby przejść dalej.
+  // Pokazuje się raz na przeglądarkę (wybór zapisany w localStorage); później zmiana przełącznikiem w menu.
+  function sample(z) {
+    var o = {hour: '2-digit', minute: '2-digit'};
+    if (z) o.timeZone = z;
+    try { return new Date().toLocaleTimeString('pl-PL', o); } catch (e) { return ''; }
+  }
+  function ask() {
+    if (chosen || !canStore || document.getElementById('cl-tzask') || document.documentElement.dataset.shell === 'off') return;
+    var local = 'czas tego urządzenia';
+    try { local = Intl.DateTimeFormat().resolvedOptions().timeZone || local; } catch (e) { /* stara przeglądarka */ }
+    var css = '#cl-tzask{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,.72);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font-family:inherit}' +
+      '#cl-tzask .box{width:100%;max-width:440px;max-height:100%;overflow:auto;box-sizing:border-box;background:#1a1a1a;border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:22px 20px 18px;color:#e6e6e6;box-shadow:0 20px 60px rgba(0,0,0,.6)}' +
+      '#cl-tzask h2{margin:0 0 8px;font-size:19px;font-weight:600;color:#fff}' +
+      '#cl-tzask p{margin:0 0 14px;font-size:14px;line-height:1.5;color:#b4b4b4}' +
+      '#cl-tzask button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;box-sizing:border-box;margin:0 0 8px;padding:13px 14px;min-height:52px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#242424;color:#f0f0f0;font:inherit;font-size:15px;text-align:left;cursor:pointer}' +
+      '#cl-tzask button:hover,#cl-tzask button:focus{border-color:#5b9cf6;background:#2a2f3a;outline:none}' +
+      '#cl-tzask button small{display:block;font-size:12px;color:#9a9a9a;margin-top:2px}' +
+      '#cl-tzask button b{font-weight:600;font-size:16px;white-space:nowrap;font-variant-numeric:tabular-nums}' +
+      '#cl-tzask .foot{margin:8px 0 0;font-size:12px;color:#8a8a8a}' +
+      '@media print{#cl-tzask{display:none}}';
+    var st = document.createElement('style');
+    st.textContent = css;
+    document.head.appendChild(st);
+    function btn(v, name, sub, z) {
+      return '<button type="button" data-v="' + v + '"><span>' + name + '<small>' + sub + '</small></span><b>' + sample(z) + '</b></button>';
+    }
+    var el = document.createElement('div');
+    el.id = 'cl-tzask';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'cl-tzask-h');
+    el.innerHTML = '<div class="box"><h2 id="cl-tzask-h">W jakiej strefie pokazywać godziny?</h2>' +
+      '<p>Wybierz, w jakim czasie strona ma pokazywać godziny na wykresach i w opisach. Dane się nie zmieniają — ' +
+      'świece dzienne zawsze zamykają się o 00:00 UTC.</p>' +
+      btn('pl', 'Czas polski', 'Europe/Warsaw — jak w raportach i na Telegramie', 'Europe/Warsaw') +
+      btn('local', 'Mój czas', String(local).replace(/&/g, '&amp;').replace(/</g, '&lt;') + ' — czas tego urządzenia', null) +
+      btn('utc', 'UTC', 'czas zamknięć świec', 'UTC') +
+      '<p class="foot">Wybór zapamięta ta przeglądarka. Zmienisz go później przełącznikiem „Czas” w menu.</p></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button[data-v]') : null;
+      if (!b) return;                                   // kliknięcie obok — plansza zostaje, trzeba wybrać
+      var v = b.getAttribute('data-v');
+      try { localStorage.setItem(KEY, v); } catch (err) { /* nie zapisało się — zapytamy przy następnym wejściu */ }
+      chosen = true;
+      if (v !== mode) { location.reload(); return; }
+      el.parentNode.removeChild(el);
+    });
+    var first = el.querySelector('button');
+    if (first && first.focus) first.focus();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ask);
+  else ask();
+
+  return {mode: function () { return mode; }, set: set, opts: opts, fmt: fmt, date: date, time: time, utcDate: utcDate, apply: apply,
+    closeTxt: closeTxt, zoneName: zoneName,
+    name: function () { return NAMES[mode][0]; }, inName: function () { return NAMES[mode][1]; }, short: function () { return NAMES[mode][2]; }};
+})();
 (function () {
   var html = document.documentElement;
   if (html.dataset.shell === 'off') return;
@@ -57,6 +186,9 @@ if (!Number.prototype.pl) {
     '.cl-status.beta{background:rgba(91,156,246,.15);color:#5b9cf6}' +
     '.cl-status.paused{background:rgba(255,193,7,.14);color:#ffc107}' +
     '@media (prefers-reduced-motion:reduce){.cl-lamp{animation:none}}' +
+    // 115: przełącznik strefy czasowej
+    '.cl-tz{flex:none;background:#1c1c1c;color:#c8c8c8;border:1px solid rgba(255,255,255,.14);border-radius:7px;font:inherit;font-size:12px;line-height:1.2;padding:5px 6px;cursor:pointer;max-width:100%}' +
+    '.cl-tz:hover,.cl-tz:focus{border-color:rgba(255,255,255,.35);color:#fff;outline:none}' +
     // wąskie menu (zakładki)
     '.cl-rail{position:fixed;left:0;top:0;bottom:0;width:76px;z-index:40;box-sizing:border-box;padding:8px 6px 10px;background:#121212;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px;overflow-y:auto;scrollbar-width:none}' +
     '.cl-rail a{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:9px;color:#a8a8a8;text-decoration:none;font-size:11px;line-height:1.1;text-align:center}' +
@@ -93,6 +225,7 @@ if (!Number.prototype.pl) {
     'html.cl-narrow .layout .side{top:66px}' +
     'html.cl-shell{scroll-padding-top:62px}' +
     '.cl-top .cl-stat{font-size:10.5px;gap:5px;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
+    '.cl-top{gap:8px}.cl-top .cl-tz{font-size:11px;padding:4px 3px}' +
     '.cl-bottom{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:41;box-sizing:border-box;height:calc(60px + env(safe-area-inset-bottom));padding:4px 4px env(safe-area-inset-bottom);background:#121212;border-top:1px solid rgba(255,255,255,.1)}' +
     '.cl-bottom a,.cl-bottom button{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;min-width:0;color:#9a9a9a;font:inherit;font-size:10.5px;white-space:nowrap;text-decoration:none;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
     '.cl-bottom .on{color:#fff}.cl-bottom .on .cl-ico{outline:1px solid rgba(255,255,255,.35)}' +
@@ -103,7 +236,7 @@ if (!Number.prototype.pl) {
     '.cl-sheet a.on{background:#262626;color:#fff}.cl-sheet .cl-lamp{position:static;margin-left:auto}' +
     '}' +
     '}' +
-    '@media print{.cl-rail,.cl-side,.cl-top,.cl-bottom,.cl-sheet,.cl-status{display:none!important}}';
+    '@media print{.cl-rail,.cl-side,.cl-top,.cl-bottom,.cl-sheet,.cl-status,.cl-tz{display:none!important}}';
   var st = document.createElement('style');
   st.id = 'cl-shell-css';
   st.textContent = css;
@@ -114,6 +247,16 @@ if (!Number.prototype.pl) {
     return '<span class="cl-ico" style="background:rgba(' + n.rgb + ',' + (n.paused ? '.06' : '.14') + ');color:' + n.fg + (size ? ';' + size : '') + '">' + n.ic + '</span>';
   }
   var items = NAV.filter(function (n) { return n.href; });
+  // 115: przełącznik strefy czasowej (pasek z logo; na Pulpicie — dół lewego menu)
+  function tzSelect() {
+    var T = window.CLTZ, cur = T.mode();
+    var tip = 'Strefa czasowa godzin na stronie (teraz: ' + T.zoneName() + '). Dane i zamknięcia świec są zawsze w UTC — doba zamyka się o ' +
+      T.closeTxt() + '. Raporty i Telegram: czas polski.';
+    return '<select class="cl-tz" data-cl-tz aria-label="Strefa czasowa godzin" title="' + esc(tip).replace(/"/g, '&quot;') + '">' +
+      [['pl', 'Czas: PL'], ['local', 'Czas: mój'], ['utc', 'Czas: UTC']].map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select>';
+  }
   function build() {
     if (document.getElementById('cl-top')) return;
     var b = document.body, h = [];
@@ -124,7 +267,7 @@ if (!Number.prototype.pl) {
         if (n.sec) { h.push('<div class="cl-h">' + n.sec + '</div>'); return; }
         h.push('<a class="it' + (page === n.href ? ' on' : '') + (n.paused ? ' paused' : '') + '" href="' + n.href + '">' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
       });
-      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span></div></nav>');
+      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span><span>' + tzSelect() + '</span></div></nav>');
     } else {
       h.push('<nav class="cl-rail" aria-label="Menu"><a class="cl-home" href="index.html" title="Pulpit"><img src="favicon.svg" alt="">Pulpit</a>');
       NAV.forEach(function (n) {
@@ -134,7 +277,7 @@ if (!Number.prototype.pl) {
       h.push('<span class="cl-stat" data-cl-tip><i class="cl-dot" data-cl-dot></i><span data-cl-hm></span></span></nav>');
     }
     h.push('<header class="cl-top" id="cl-top"><a class="cl-logo" href="index.html" aria-label="Pulpit"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>' +
-      '<span class="cl-stat"><i class="cl-dot" data-cl-dot></i><span data-cl-line></span></span></header>');
+      '<span class="cl-stat"><i class="cl-dot" data-cl-dot></i><span data-cl-line></span></span>' + tzSelect() + '</header>');
     // telefon
     h.push('<nav class="cl-bottom" aria-label="Menu">');
     MOBILE.forEach(function (href) {
@@ -154,6 +297,8 @@ if (!Number.prototype.pl) {
     if (h1 && !h1.querySelector('.cl-status')) {
       h1.insertAdjacentHTML('beforeend', ' <span class="cl-status ' + cur.status + '" title="' + esc(st[1]) + '">' + st[0] + '</span>');
     }
+    all('[data-cl-tz]', function (el) { el.addEventListener('change', function () { window.CLTZ.set(el.value); }); });
+    all('[data-cl-tz-in]', function (el) { el.textContent = 'godziny ' + window.CLTZ.inName(); });   // np. „godziny w czasie polskim”
     var more = document.getElementById('cl-more'), sheet = document.getElementById('cl-sheet');
     more.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -200,7 +345,7 @@ if (!Number.prototype.pl) {
     });
     var ok = total - bad.length;
     var t = m.updated ? new Date(m.updated * 1000) : null;
-    var tz = {timeZone: 'Europe/Warsaw'};
+    var tz = window.CLTZ.opts({});
     var hm = t ? t.toLocaleTimeString('pl-PL', Object.assign({hour: '2-digit', minute: '2-digit'}, tz)) : '—';
     var sameDay = t && t.toLocaleDateString('pl-PL', tz) === new Date().toLocaleDateString('pl-PL', tz);
     var when = t ? (sameDay ? 'dziś ' + hm : t.toLocaleDateString('pl-PL', Object.assign({day: '2-digit', month: '2-digit'}, tz)) + ' ' + hm) : '—';
