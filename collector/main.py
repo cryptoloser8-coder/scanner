@@ -530,6 +530,19 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
             if lamp_msgs:
                 tg.post("market", "\n\n".join(["💡 <b>Altsezon — lampki</b>"] + lamp_msgs))
     msgs = system + market + lamp_msgs
+    # Pulpit: tabela „Gdzie warto zajrzeć” (pulse.py, poprawka 116) → pulpit.json; nigdy nie przerywa skanu
+    if not backfill:
+        try:
+            import pulse as PU            # import w funkcji: brak pliku przy wgrywaniu w częściach nie psuje skanu
+            if PU.settings(cfg)["enabled"]:
+                from store import _write as _w
+                res = PU.build(store, cfg, now, lamps_res, ema_fetch("ema.json") if ema_fetch else None)
+                _w(os.path.join(store.dir, PU.FILE), res)
+                info["pulpit"] = {"rows": len(res["rows"]), "new": sum(1 for r in res["rows"] if r["new"])}
+        except ImportError:
+            pass
+        except Exception:  # noqa: BLE001
+            log.exception("Pulpit (pulse.py)")
     if not backfill:
         j_info = alert_journal(store, cfg, now, ev, lamp_ev, muted, ema_fetch)
         if j_info:
