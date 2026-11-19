@@ -38,9 +38,6 @@
   .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;}
   .top h1{font-size:24px;font-weight:650;letter-spacing:-.3px;}
   .top p{font-size:13px;color:var(--text2);margin-top:4px;}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;}
-  .btn{font-size:13px;padding:8px 13px;border-radius:8px;border:1px solid var(--border2);background:var(--bg2);text-decoration:none;color:#ddd;}
-  .btn:hover{background:var(--bg3);color:#fff;}
   .banner{display:none;padding:10px 14px;border-radius:var(--radius);border:1px solid rgba(255,193,7,.35);background:rgba(255,193,7,.08);color:#ffe082;font-size:13px;}
   .banner.on{display:block;}
   .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;min-width:0;}
@@ -57,35 +54,46 @@
   .kpi .s{font-size:13px;color:var(--text2);}
   .kpi svg{width:100%;height:32px;display:block;margin-top:2px;}
   .row{display:grid;gap:16px;}
-  .row.r1{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);}
-  .row.r2{grid-template-columns:repeat(3,minmax(0,1fr));}
-  @media (max-width:1100px){.row.r1,.row.r2{grid-template-columns:1fr;}}
-  .lgrid{display:grid;grid-template-columns:2fr 2fr 1.2fr;gap:12px;}
-  @media (max-width:1250px){.lgrid{grid-template-columns:1fr 1fr;}.lgroup:last-child{grid-column:1/-1;}}
-  @media (max-width:640px){.lgrid{grid-template-columns:1fr;}}
-  .lgroup{border:1px solid color-mix(in srgb,var(--g) 40%,transparent);border-radius:10px;padding:11px 12px;display:flex;flex-direction:column;gap:9px;min-width:0;}
-  .lgroup.lit{border-color:var(--g);background:color-mix(in srgb,var(--g) 6%,transparent);}
-  .lgroup h3{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--g);display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
-  .lgroup h3 span{font-weight:400;letter-spacing:0;color:var(--text2);}
-  .lgroup .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:8px;}
-  .lmp{background:#141414;border:1px solid var(--border);border-radius:9px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;text-decoration:none;min-width:0;}
-  .lmp:hover{border-color:var(--border2);}
-  .lmp .st{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a8a8a;display:flex;align-items:center;gap:6px;}
-  .lmp .st i{width:8px;height:8px;border-radius:50%;background:#333;flex:none;}
-  .lmp.on{border-color:var(--g);}
-  .lmp.on .st{color:var(--g);}
-  .lmp.on .st i{background:var(--g);box-shadow:0 0 8px var(--g);animation:blink 1.4s ease-in-out infinite;}
+  .row.r1{grid-template-columns:minmax(0,2.4fr) minmax(0,1fr);align-items:start;}
+  @media (max-width:1100px){.row.r1{grid-template-columns:1fr;}}
+  /* 116: lampki jako wąski pasek pod nagłówkiem (szczegóły tylko w zakładce Altsezon) */
+  .lstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 16px;text-decoration:none;min-height:44px;}
+  .lstrip:hover{border-color:var(--border2);background:#1c1c1c;}
+  .lstrip>b{font-size:13px;font-weight:600;margin-right:4px;}
+  .lstrip .go{margin-left:auto;font-size:13px;color:var(--text2);}
+  .lchip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.1);color:var(--text2);}
+  .lchip i{width:8px;height:8px;border-radius:50%;background:#3a3a3a;flex:none;}
+  .lchip.on{border-color:var(--g);background:color-mix(in srgb,var(--g) 10%,transparent);color:color-mix(in srgb,var(--g) 55%,#fff);font-weight:600;}
+  .lchip.on i{background:var(--g);box-shadow:0 0 8px var(--g);animation:blink 1.4s ease-in-out infinite;}
+  .lchip.dim{border-color:color-mix(in srgb,var(--g) 45%,transparent);color:#c8c8c8;}
+  .lchip.dim i{background:color-mix(in srgb,var(--g) 55%,#333);}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-  @media (prefers-reduced-motion:reduce){.lmp.on .st i{animation:none;}}
-  .lmp .nm{display:flex;align-items:baseline;gap:2px 8px;flex-wrap:wrap;}
-  .lmp .nm b{font-weight:600;flex:1;font-size:14px;}
-  .lmp .nm em{font-style:normal;font-size:17px;font-weight:650;}
-  .lmp.on .nm em{color:var(--g);}
-  .lmp .now{font-size:12px;color:var(--text2);line-height:1.45;}
-  .lmp .chips{display:flex;flex-wrap:wrap;gap:4px;}
-  .lmp .chip{max-width:100%;box-sizing:border-box;white-space:normal;}   /* wąski kafelek: znaczek łamie się zamiast wystawać (poprawka 84) */
-  .chip{font-size:11.5px;padding:2px 7px;border-radius:5px;background:#1e1e1e;border:1px solid var(--border);color:#c8c8c8;white-space:nowrap;}
-  .lamps-top{font-size:13px;color:var(--text2);margin:-4px 0 10px;}
+  @media (prefers-reduced-motion:reduce){.lchip.on i{animation:none;}}
+  /* 116: tabela „Gdzie warto zajrzeć” (pulpit.json — liczy skan, pulse.py) */
+  .pfil{display:flex;gap:6px;flex-wrap:wrap;}
+  .pfil button{font:inherit;font-size:12.5px;min-height:36px;padding:0 13px;border-radius:999px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:#c8c8c8;}
+  .pfil button span{color:var(--text2);}
+  .pfil button.on{background:#2a2a2a;color:#fff;border-color:rgba(255,255,255,.35);}
+  .pdesc{font-size:13px;color:var(--text2);margin:-8px 0 12px;}
+  .prow{display:grid;grid-template-columns:44px minmax(0,1.7fr) minmax(0,1fr) 116px;gap:10px;align-items:start;padding:11px 0;border-top:1px solid rgba(255,255,255,.06);font-size:13.5px;}
+  .prow.ph{padding:0 0 8px;border-top:0;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);}
+  .ptag{width:38px;height:24px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;text-decoration:none;}
+  .prow .pt{font-weight:600;text-decoration:none;color:var(--text);}
+  .prow .pt:hover{text-decoration:underline;}
+  .prow .pd{color:#a8a8a8;font-size:12.5px;margin-top:2px;}
+  .prow .phist{color:#c8c8c8;font-size:12.5px;}
+  .pst{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.07);color:#b0b0b0;}
+  .pst.new{background:rgba(91,156,246,.16);color:#7fb2ff;}
+  .psince{color:var(--text2);font-size:12px;margin-top:3px;}
+  @media (max-width:760px){
+    .prow{grid-template-columns:44px minmax(0,1fr);}
+    .prow.ph{display:none;}
+    .prow .phist,.prow .pwhen{grid-column:2;}
+    .prow .pwhen{display:flex;align-items:center;gap:8px;}
+    .psince{margin-top:0;}
+    .pfil button{min-height:44px;}
+  }
+  .col{display:flex;flex-direction:column;gap:16px;min-width:0;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
   .m{display:flex;flex-direction:column;gap:3px;}
   .m b{font-size:18px;font-weight:600;}
@@ -96,8 +104,10 @@
   .rep:first-of-type{border-top:0;}
   .rep:hover b{text-decoration:underline;}
   .rep b{font-weight:600;font-size:14px;}
-  .hg{display:flex;flex-direction:column;gap:5px;padding:9px 0;border-top:1px solid rgba(255,255,255,.05);text-decoration:none;color:inherit;}
-  .hg:first-child{border-top:0;padding-top:0;}
+  /* 116: Dźwignia na całą szerokość — trzy grupy obok siebie, na wąskim ekranie jedna pod drugą */
+  .hgs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 24px;}
+  .hg{display:flex;flex-direction:column;gap:5px;padding:2px 0;text-decoration:none;color:inherit;min-width:0;}
+  @media (max-width:900px){.hgs{grid-template-columns:1fr;}.hg{padding:9px 0;border-top:1px solid rgba(255,255,255,.05);}.hg:first-child{border-top:0;padding-top:0;}}
   .hg:hover .hn{text-decoration:underline;}
   .hg .hn{font-size:13px;font-weight:600;color:var(--g);display:flex;justify-content:space-between;gap:2px 8px;flex-wrap:wrap;}
   .hg .hn span{white-space:nowrap;}
@@ -130,42 +140,39 @@
       <h1>Pulpit</h1>
       <p id="sub">Ładowanie danych…</p>
     </div>
-    <div class="btns">
-      <a class="btn" id="latest-btn" href="raporty.html">Ostatni raport →</a>
-      <a class="btn" href="alt.html">Altsezon →</a>
-    </div>
   </div>
   <div class="banner" id="banner"></div>
+
+  <a class="lstrip" id="lstrip" href="alt.html" aria-label="Lampki Altsezonu — otwórz zakładkę Altsezon"><b>Lampki Altsezonu</b><span class="lbl">Ładowanie…</span></a>
 
   <section class="kpis" id="kpis" aria-label="Najważniejsze liczby"></section>
 
   <div class="row r1">
-    <section class="card" aria-label="Lampki Altsezonu">
-      <div class="hd"><h2>Lampki Altsezonu</h2><a href="alt.html">Altsezon — opisy, wykres, fale →</a></div>
-      <div class="lamps-top" id="lamps-top"></div>
-      <div class="lgrid" id="lamps"><div class="lbl">Ładowanie…</div></div>
+    <section class="card" aria-label="Gdzie warto zajrzeć">
+      <div class="hd"><h2 title="Do tabeli trafia: ruch ceny albo OI w 7 dni mocniejszy niż w 90% tygodni z 2 lat · poziom tła w dolnych albo górnych 10% zakresu z 2 lat · likwidacje z 24 h co najmniej 1,5× zwykłego dnia · funding ponad 20% rocznie · lampka, która świeci albo właśnie zgasła · przecięcie EMA200 (BTC, ETH, watchlista). Jeden wiersz na temat.">Gdzie warto zajrzeć</h2><div class="pfil" id="pfil"></div></div>
+      <p class="pdesc">To, co dziś odbiega od zwykłego zakresu albo zmieniło stan — od najważniejszych. Bez wykresów: wiersz prowadzi do zakładki, w której widać resztę.</p>
+      <div id="pulse"><div class="lbl">Ładowanie…</div></div>
     </section>
-    <section class="card" aria-label="Cykl i tło">
-      <div class="hd"><h2>Cykl BTC i tło</h2><a href="oi.html#s=px_btc,mvrvz_btc&amp;m=val&amp;r=1d&amp;z=1095&amp;log=1">OI &amp; TOTAL →</a></div>
-      <div class="grid2" id="bg"><div class="lbl">Ładowanie…</div></div>
-    </section>
+    <div class="col">
+      <section class="card" aria-label="Cykl i tło">
+        <div class="hd"><h2>Cykl BTC i tło</h2><a href="oi.html#s=px_btc,mvrvz_btc&amp;m=val&amp;r=1d&amp;z=1095&amp;log=1">OI &amp; TOTAL →</a></div>
+        <div class="grid2" id="bg"><div class="lbl">Ładowanie…</div></div>
+      </section>
+      <section class="card" aria-label="Derywaty">
+        <div class="hd"><h2>Derywaty</h2><a href="liq.html">Likwidacje i funding →</a></div>
+        <div id="deriv"><div class="lbl">Ładowanie…</div></div>
+      </section>
+      <section class="card" aria-label="Raporty">
+        <div class="hd"><h2>Raporty</h2><a href="raporty.html">Wszystkie →</a></div>
+        <div id="reps"><div class="lbl">Ładowanie…</div></div>
+      </section>
+    </div>
   </div>
 
-  <div class="row r2">
-    <section class="card" aria-label="Derywaty">
-      <div class="hd"><h2>Derywaty</h2><a href="liq.html">Likwidacje i funding →</a></div>
-      <div id="deriv"><div class="lbl">Ładowanie…</div></div>
-    </section>
-    <section class="card" aria-label="Dźwignia — kto jak gra">
-      <div class="hd"><h2>Dźwignia — kto jak gra</h2><a href="hl.html">Dźwignia (Hyperliquid) →</a></div>
-      <div id="hlg"><div class="lbl">Ładowanie…</div></div>
-    </section>
-    <section class="card" aria-label="Raporty">
-      <div class="hd"><h2>Raporty</h2><a href="raporty.html">Wszystkie →</a></div>
-      <div id="reps"><div class="lbl">Ładowanie…</div></div>
-    </section>
-  </div>
-
+  <section class="card" aria-label="Dźwignia — kto jak gra">
+    <div class="hd"><h2>Dźwignia — kto jak gra</h2><a href="hl.html">Dźwignia (Hyperliquid) →</a></div>
+    <div id="hlg"><div class="lbl">Ładowanie…</div></div>
+  </section>
 
   <div class="footer">
     Dane: <a href="https://coinalyze.net" target="_blank">Coinalyze</a>, <a href="https://www.tradingview.com" target="_blank">TradingView</a>, <a href="https://www.binance.com" target="_blank">Binance</a>, <a href="https://coinmetrics.io" target="_blank">Coin Metrics</a>, <a href="https://www.coingecko.com" target="_blank">CoinGecko</a>, <a href="https://defillama.com" target="_blank">DefiLlama</a>, <a href="https://hyperliquid.xyz" target="_blank">Hyperliquid</a> &nbsp;·&nbsp; Wykresy: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank">TradingView Lightweight Charts</a>
@@ -175,7 +182,8 @@
 <script>
 'use strict';
 // Pulpit (poprawka 77): najważniejsze liczby z gałęzi data i reports — liczy kod, bez interpretacji.
-// meta.json (lampki, stan źródeł), liq_1h.json (ceny, likwidacje, funding — godzinowo), 1d.json (TOTAL, dominacja, cykl, makro), reports/index.json.
+// meta.json (lampki, stan źródeł), liq_1h.json (ceny, likwidacje, funding — godzinowo), 1d.json (TOTAL, dominacja, cykl, makro), reports/index.json,
+// pulpit.json (116: tabela „Gdzie warto zajrzeć” — liczy skan, collector/pulse.py).
 const qs = new URLSearchParams(location.search);
 function branchBase(param, branch, local) {
   if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
@@ -197,7 +205,6 @@ const DAY = 86400, HOUR = 3600;
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const num = (v, d) => v == null || isNaN(v) ? '—' : v.pl(d);
 const pct = (v, d = 1) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).pl(d) + '%';
-const fmtPct = (v, d = 0) => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + v.pl(d) + '%';
 const cls = v => v == null || isNaN(v) ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
 function usd(v) {
   if (v == null || isNaN(v)) return '—';
@@ -270,56 +277,65 @@ function renderKpis() {
   document.getElementById('kpis').innerHTML = out.join('') || '<div class="lbl">Brak danych.</div>';
 }
 
-// ── lampki Altsezonu (to samo co w alt.html, w skrócie: stan, wartość, próg, wynik z historii) ──
+// ── lampki Altsezonu: wąski pasek (116) — tylko to, czy któraś świeci; wartości, progi i wyniki z historii są w alt.html ──
 const LAMP_ORDER = ['rally', 'big_wave', 'leverage', 'rsi3d', 'selloff'];
-const LAMP_GROUPS = [
-  ['rajd', 'Rajd', '▲', '#4caf7d', 'gdy świeci: altsezon trwa albo właśnie się kończy'],
-  ['przegrzanie', 'Przegrzanie', '⚠', '#ff5a36', 'gdy świeci: altsezon dobiega końca'],
-  ['wyprzedaż', 'Wyprzedaż', '▼', '#5b9cf6', 'tylko opis: rynek zjeżdża — nie sygnał kupna'],
-];
+const LAMP_COL = {rajd: '#4caf7d', przegrzanie: '#ff5a36', 'wyprzedaż': '#5b9cf6'};
 const LAMP_NAMES = {rally: 'Szeroki rajd', big_wave: 'Indeks altów', leverage: 'Lewar altów', rsi3d: 'RSI 3D wykupione', selloff: 'Wyprzedaż'};
-const LAMP_UI = {
-  rally: {fmt: v => num(v, 0) + '%', lvl: c => c.rally.levels.map(v => `≥ ${v}%`),
-    now: (x, c) => `Teraz <b>${num(x.value, 0)}%</b> coinów nad EMA200 · próg ${c.rally.levels.join(' / ')}%`},
-  big_wave: {fmt: v => fmtPct(v), lvl: c => [`+${c.big_wave.wave_pct}%`],
-    now: (x, c) => `Teraz <b>${fmtPct(x.value)}</b> nad dołkiem${x.low_t ? ' ' + dmy(x.low_t) : ''} · próg +${c.big_wave.wave_pct}%`},
-  leverage: {fmt: v => num(v, 3) + '×', lvl: c => c.leverage.levels.map(v => `≥ ${num(v, 2)}`),
-    now: (x, c) => `Teraz <b>${num(x.value, 3)}×</b> · progi ${c.leverage.levels.map(v => num(v, 2)).join(' / ')}`},
-  rsi3d: {fmt: v => num(v, v < 10 ? 1 : 0) + '%', lvl: c => [`≥ ${c.rsi3d.overbought_pct}%`],
-    now: (x, c) => `Teraz <b>${num(x.value, 1)}%</b> coinów wykupionych · próg ${c.rsi3d.overbought_pct}%`},
-  selloff: {fmt: v => fmtPct(v), lvl: () => ['wyprzedaż'],
-    now: (x, c) => `Alty <b>${fmtPct(x.value)}</b> w ${c.selloff.days} d (próg −${c.selloff.alt_drop_pct}%) · MVRV-Z <b>${num(x.mvrvz, 2)}</b> lub BTC <b>${fmtPct(x.btc_chg)}</b>`},
-};
-function renderLamps() {
-  const A = META && META.alt_lamps, box = document.getElementById('lamps'), top = document.getElementById('lamps-top');
-  if (!A || !A.lamps) { box.innerHTML = '<div class="lbl">Brak lampek w meta.json — liczy je bot GitHuba przy skanie.</div>'; top.textContent = ''; return; }
-  const c = A.cfg, L = A.lamps, tNow = Date.now() / 1000;
-  const gcol = g => (LAMP_GROUPS.find(x => x[0] === g) || [])[3] || '#888';
-  const lit = LAMP_ORDER.filter(k => L[k] && L[k].on);
-  top.innerHTML = (lit.length ? 'Świeci teraz: ' + lit.map(k => `<b style="color:${gcol(L[k].group)}">${LAMP_NAMES[k]}</b> (od ${dmy(L[k].since)})`).join(', ') + '.'
-    : 'Żadna lampka nie świeci.') + ` Stan z ${plTime(A.updated)}.`;
-  box.innerHTML = LAMP_GROUPS.map(([g, title, icon, col, sub]) => {
-    const ks = LAMP_ORDER.filter(k => L[k] && L[k].group === g);
-    if (!ks.length) return '';
-    const any = ks.some(k => L[k].on);
-    return `<div class="lgroup${any ? ' lit' : ''}" style="--g:${col}"><h3>${icon} ${title.toUpperCase()} <span>${sub}</span></h3><div class="cards">` + ks.map(k => {
-      const x = L[k], ui = LAMP_UI[k], names = ui.lvl(c), word = x.want_up ? 'wyżej' : 'niżej';
-      let st;
-      if (x.on) st = `Świeci · od ${dmy(x.since)} · ${Math.max(1, Math.floor((tNow - x.since) / DAY) + 1)} dni`;
-      else if (!x.fresh) st = `Brak świeżych danych · ostatnie z ${dmy(x.value_t)}`;
-      else if (x.since) st = `Przygasła · świeciła od ${dmy(x.since)}`;
-      else { const e = (x.episodes || []).slice(-1)[0]; st = 'Nie świeci · ' + (e ? `ostatnio ${dmy(e[0])}–${dmy(e[1])}` : 'jeszcze nie świeciła'); }
-      const chips = (x.stats || []).map((s, i) => {
-        const lab = names.length > 1 ? esc(names[i]) + ' · ' : '';
-        return s.n ? `<span class="chip" title="30 dni po zapaleniu alty były ${word} ${s.good} z ${s.n} razy">${lab}${word} ${s.good}/${s.n}${s.med == null ? '' : ' · ' + fmtPct(s.med)}</span>`
-          : `<span class="chip">${lab}jeszcze bez wyniku</span>`;
-      }).join('');
-      return `<a class="lmp${x.on ? ' on' : ''}" href="alt.html"><span class="st"><i></i>${st}</span>` +
-        `<span class="nm"><b>${LAMP_NAMES[k]}</b><em>${x.value == null ? '—' : ui.fmt(x.value)}</em></span>` +
-        (x.value == null ? '' : `<span class="now">${ui.now(x, c)}</span>`) + `<span class="chips">${chips}</span></a>`;
-    }).join('') + '</div></div>';
+function renderStrip() {
+  const A = META && META.alt_lamps, el = document.getElementById('lstrip');
+  if (!A || !A.lamps) { el.innerHTML = '<b>Lampki Altsezonu</b><span class="lbl">brak danych — liczy je bot GitHuba przy skanie</span><span class="go">Altsezon →</span>'; return; }
+  const L = A.lamps, tNow = Date.now() / 1000, dm = t => dmy(t).slice(0, 5);
+  const ks = LAMP_ORDER.filter(k => L[k]).sort((a, b) => (L[b].on ? 1 : 0) - (L[a].on ? 1 : 0));      // świecące na początku
+  const chips = ks.map(k => {
+    const x = L[k], g = LAMP_COL[x.group] || '#5b9cf6';
+    if (x.on) return `<span class="lchip on" style="--g:${g}"><i></i>${LAMP_NAMES[k]} świeci · od ${dm(x.since)} · ${Math.max(1, Math.floor((tNow - x.since) / DAY) + 1)} dni</span>`;
+    if (x.since) return `<span class="lchip dim" style="--g:${g}" title="Warunek chwilowo niespełniony — lampka gaśnie dopiero po kilku dniach bez warunku"><i></i>${LAMP_NAMES[k]} przygasła</span>`;
+    return `<span class="lchip"><i></i>${LAMP_NAMES[k]}</span>`;
+  }).join('');
+  el.title = `Stan lampek z ${plTime(A.updated)} — kliknij, żeby otworzyć Altsezon`;
+  el.innerHTML = `<b>Lampki Altsezonu</b>${chips}<span class="go">Altsezon →</span>`;
+}
+
+// ── „Gdzie warto zajrzeć” (116): wiersze liczy skan (collector/pulse.py → pulpit.json), strona tylko je pokazuje ──
+const TABS = {oi: ['OI', '206,147,216', '#ce93d8', 'OI & TOTAL'], ema: ['EMA', '255,193,7', '#ffc107', 'EMA200 i RSI'], alt: ['ALT', '244,143,177', '#f48fb1', 'Altsezon'],
+  sieci: ['NET', '129,199,132', '#81c784', 'Sieci'], liq: ['LIQ', '224,82,82', '#f07a7a', 'Likwidacje i funding'], hl: ['LEW', '91,156,246', '#5b9cf6', 'Dźwignia']};
+let PULSE = null, PULSE_ERR = false, pFilter = 'all';
+function sinceTxt(r, now) {
+  const d = t => CLTZ.date(t, {day: '2-digit', month: '2-digit'});
+  if (r.new) return d(r.since) === d(now) ? 'od dziś' : 'od wczoraj';
+  const n = Math.floor((now - r.since) / DAY) + 1;
+  return n <= 1 ? 'od dziś' : `${n}. dzień · od ${d(r.since)}`;
+}
+function renderPulse() {
+  const el = document.getElementById('pulse'), fil = document.getElementById('pfil');
+  if (!PULSE || !Array.isArray(PULSE.rows)) {
+    fil.innerHTML = '';
+    el.innerHTML = `<div class="lbl">${PULSE_ERR ? 'Tabela pojawi się po najbliższym skanie (plik pulpit.json jeszcze nie istnieje).' : 'Ładowanie…'}</div>`;
+    return;
+  }
+  const all = PULSE.rows, now = Date.now() / 1000, nNew = all.filter(r => r.new).length;
+  fil.innerHTML = [['all', 'Wszystko', all.length], ['new', 'Nowe od wczoraj', nNew], ['old', 'Trwa', all.length - nNew]].map(([k, nm, n]) =>
+    `<button type="button" data-f="${k}" class="${pFilter === k ? 'on' : ''}" aria-pressed="${pFilter === k}">${nm} <span>${n}</span></button>`).join('');
+  const rows = all.filter(r => pFilter === 'all' || (pFilter === 'new') === !!r.new);
+  const old = PULSE.updated && now - PULSE.updated > 6 * HOUR ? `<div class="lbl" style="color:var(--amber);margin-bottom:8px">Tabela z ${plTime(PULSE.updated)} — starsza niż 6 h.</div>` : '';
+  if (!rows.length) {
+    el.innerHTML = old + `<div class="lbl">${all.length ? 'Brak wierszy w tym filtrze.' : 'Dziś nic nie odbiega od zwykłego zakresu.'}</div>`;
+    return;
+  }
+  el.innerHTML = old + '<div class="prow ph"><span>Gdzie</span><span>Co się dzieje</span><span>Na tle historii</span><span>Od kiedy</span></div>' + rows.map(r => {
+    const t = TABS[r.tab] || TABS.oi, href = esc(r.href || '#');
+    return `<div class="prow"><a class="ptag" href="${href}" style="background:rgba(${t[1]},.15);color:${t[2]}" title="${esc(t[3])}" aria-label="${esc(t[3])}">${t[0]}</a>` +
+      `<div><a class="pt" href="${href}">${esc(r.title)}</a>${r.detail ? `<div class="pd">${esc(r.detail)}</div>` : ''}</div>` +
+      `<div class="phist">${esc(r.hist || '')}</div>` +
+      `<div class="pwhen"><span class="pst${r.new ? ' new' : ''}">${r.new ? 'NOWE' : 'TRWA'}</span><div class="psince">${sinceTxt(r, now)}</div></div></div>`;
   }).join('');
 }
+document.getElementById('pfil').addEventListener('click', e => {
+  const b = e.target.closest('button[data-f]');
+  if (!b) return;
+  pFilter = b.dataset.f;
+  renderPulse();
+});
 
 // ── cykl BTC i tło ──
 function renderBg() {
@@ -381,8 +397,8 @@ function renderHL() {
       (g.big && g.big.n && id === 'R' ? `<div class="am">w tym ${g.big.n} konta ≥ ${usd(g.big.min_av)}: longi ${usd(g.big.long)} · shorty ${usd(g.big.short)}</div>` : '') + '</a>');
   }
   const old = HL.at && Date.now() / 1000 - HL.at > 6 * HOUR ? ' <span style="color:var(--amber)">(starsze niż 6 h)</span>' : '';
-  out.push(`<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100K, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`);
-  el.innerHTML = out.join('');
+  el.innerHTML = `<div class="hgs">${out.join('')}</div>` +
+    `<div class="hfoot">Pozycje teraz, odczyt ${plTime(HL.at)}${old} · portfele HL ≥ $100K, konta ≥ 180 dni, sito co tydzień · opis, nie sygnał</div>`;
 }
 
 // ── raporty: ostatnie 3 i najbliższe planowe (harmonogram z config.yaml: poranny ~06:00, wieczorny ~22:50, tygodniowy pon., miesięczny 1.) ──
@@ -410,7 +426,6 @@ function nextTimes() {
 function renderReps() {
   const list = ((REPS && REPS.reports) || []).slice().sort((a, b) => b.created - a.created).slice(0, 3);
   const rows = list.map(r => `<a class="rep" href="raporty.html?id=${encodeURIComponent(r.id)}"><b>${esc(KIND[r.kind] || r.title || r.kind)} <span class="lbl" style="font-weight:400">· ${plTime(r.created)}</span></b><span class="lbl">${esc(r.summary || r.title || '')}</span></a>`);
-  if (list[0]) document.getElementById('latest-btn').href = 'raporty.html?id=' + encodeURIComponent(list[0].id);
   const nx = nextTimes().map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join('');
   document.getElementById('reps').innerHTML = (rows.join('') || '<div class="lbl">Brak raportów.</div>') +
     `<div class="lbl" style="margin:12px 0 2px;text-transform:uppercase;letter-spacing:.08em;font-size:11px">Najbliższe</div>${nx}`;
@@ -427,14 +442,17 @@ function renderSub() {
 function err(msg) { const b = document.getElementById('banner'); b.classList.add('on'); b.textContent = msg; }
 
 (async function main() {
-  const [m, l, r, h] = await Promise.allSettled([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, 'liq_1h.json'), getJSON(REP_BASE, 'index.json'), getJSON(HL_BASE, 'hl_now.json')]);
+  const [m, l, r, h, p] = await Promise.allSettled([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, 'liq_1h.json'), getJSON(REP_BASE, 'index.json'),
+    getJSON(HL_BASE, 'hl_now.json'), getJSON(DATA_BASE, 'pulpit.json')]);
   HL = h.status === 'fulfilled' ? h.value : null;
+  PULSE = p.status === 'fulfilled' ? p.value : null;
+  PULSE_ERR = p.status !== 'fulfilled';
   META = m.status === 'fulfilled' ? m.value : null;
   LIQ = l.status === 'fulfilled' ? l.value : null;
   REPS = r.status === 'fulfilled' ? r.value : null;
   const bad = [[m, 'meta.json'], [l, 'liq_1h.json'], [r, 'raporty']].filter(x => x[0].status !== 'fulfilled').map(x => x[1]);
   if (bad.length) err('Nie udało się wczytać: ' + bad.join(', ') + ' — część Pulpitu jest pusta. Odśwież za chwilę.');
-  renderSub(); renderKpis(); renderLamps(); renderHL(); renderReps(); renderDeriv();
+  renderSub(); renderKpis(); renderStrip(); renderPulse(); renderHL(); renderReps(); renderDeriv();
   try { D1 = await getJSON(DATA_BASE, '1d.json'); } catch (e) { err('Nie udało się wczytać 1d.json (' + e.message + ') — brak TOTAL, dominacji i cyklu.'); }
   renderSub(); renderKpis(); renderBg(); renderDeriv();
 })();
