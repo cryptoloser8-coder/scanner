@@ -106,14 +106,33 @@
     #pulse::-webkit-scrollbar-thumb:hover{background:#555;}
     #pulse .prow.ph{position:sticky;top:0;z-index:1;background:var(--bg2);}
     #pulse .prow.ph+.prow{border-top-color:rgba(255,255,255,.1);}
-    #pulse.empty{display:flex;}
+    #pulse{display:flex;flex-direction:column;}
+    #pulse>.prows{flex:none;}
+    /* 118: wolne miejsce pod wierszami — pikselowa scenka (duszek chodzi po świecach BTC); znika, gdy miejsca brak */
+    #pulse>.pfill{display:block;flex:1 1 0;min-height:0;position:relative;overflow:hidden;}
   }
-  /* 117: pusta tabela — pikselowy duszek z logo śpi (nic nie odbiega od zwykłego zakresu) */
+  /* 117 / 118: pikselowy duszek z logo. Pusta tabela → śpi; wiersze i wolne miejsce pod nimi → chodzi po świecach BTC */
+  .pfill{display:none;}
+  .pscene{position:absolute;left:0;right:0;bottom:0;}
+  .pscene svg{shape-rendering:crispEdges;display:block;}
+  .pscene .cndl{position:absolute;left:0;bottom:0;opacity:.45;}
+  .pscene .cap{position:absolute;left:0;top:0;font-size:10.5px;letter-spacing:.06em;color:var(--text3);text-transform:uppercase;}
+  .pwalk{position:absolute;bottom:5px;left:0;animation:pw-walk 64s linear infinite;}
+  .pwalk .flip{animation:pw-flip 64s steps(1,end) infinite;transform-origin:50% 50%;}
+  .pwalk .gh{animation:pz-hop .5s steps(2,end) infinite;}
+  .pwalk .f1{animation:pz-ft .5s steps(1,end) infinite;}
+  .pwalk .f2{animation:pz-ft .5s steps(1,end) infinite -.25s;}
+  .pwalk .bang{animation:pz-bang 1.2s steps(1,end) infinite;}
+  .eye{animation:pz-blink 4.8s steps(1,end) infinite;}
+  @keyframes pw-walk{0%{left:0}46%{left:calc(100% - 96px)}50%{left:calc(100% - 96px)}96%{left:0}100%{left:0}}
+  @keyframes pw-flip{0%{transform:scaleX(1)}48%{transform:scaleX(-1)}98%{transform:scaleX(1)}100%{transform:scaleX(1)}}
+  @keyframes pz-hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  @keyframes pz-ft{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes pz-bang{0%,60%{opacity:1}61%,100%{opacity:.25}}
   .pzzz{margin:auto;padding:28px 0 20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:var(--text2);font-size:13px;}
   .pzzz b{display:block;color:var(--text);font-size:14px;font-weight:600;margin-bottom:2px;}
-  .pzzz svg{width:252px;height:198px;max-width:70%;shape-rendering:crispEdges;overflow:visible;}
+  .pzzz svg{width:264px;height:200px;max-width:70%;shape-rendering:crispEdges;overflow:visible;}
   .pzzz .gh{animation:pz-bob 2.4s steps(2,end) infinite;}
-  .pzzz .eye{animation:pz-blink 4.8s steps(1,end) infinite;}
   .pzzz .z{opacity:0;animation:pz-z 3.6s steps(6,end) infinite;}
   .pzzz .z2{animation-delay:1.2s;}
   .pzzz .z3{animation-delay:2.4s;}
@@ -121,8 +140,11 @@
   @keyframes pz-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
   @keyframes pz-blink{0%,88%{opacity:1}90%,96%{opacity:0}100%{opacity:1}}
   @keyframes pz-z{0%{opacity:0;transform:translate(0,0)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(12px,-28px)}}
-  @keyframes pz-roll{0%{transform:translateX(-30px)}100%{transform:translateX(190px)}}
-  @media (prefers-reduced-motion:reduce){.pzzz .gh,.pzzz .eye,.pzzz .z,.pzzz .tw{animation:none;}.pzzz .z{opacity:1;}}
+  @keyframes pz-roll{0%{transform:translateX(-30px)}100%{transform:translateX(200px)}}
+  @media (prefers-reduced-motion:reduce){
+    .pzzz .gh,.pzzz .z,.pzzz .tw,.eye,.pwalk,.pwalk .flip,.pwalk .gh,.pwalk .f1,.pwalk .f2,.pwalk .bang{animation:none;}
+    .pzzz .z{opacity:1;}.pwalk{left:24px;}.pwalk .f2{opacity:0;}
+  }
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;}
   .m{display:flex;flex-direction:column;gap:3px;}
   .m b{font-size:18px;font-weight:600;}
@@ -335,23 +357,63 @@ function sinceTxt(r, now) {
   const n = Math.floor((now - r.since) / DAY) + 1;
   return n <= 1 ? 'od dziś' : `${n}. dzień · od ${d(r.since)}`;
 }
-// 117: pusta tabela — pikselowy duszek (z logo) śpi, obok toczy się kłębek; rysowany z siatki znaków, 1 znak = 1 piksel 6×6
-const PZ_GHOST = ['.....######.....', '....########....', '...##########...', '...###----###...', '..###------###..', '..###-o--o-###..', '..###------###..',
-  '..####----####..', '..############..', '.##############.', '.##############.', '.##############.', '################', '################'];
+// 117 / 118: pikselowy duszek z logo — rysowany z siatki znaków (1 znak = 1 piksel).
+//   # kaptur · + cień kaptura · - twarz · o oko (mruga) · c zamknięte oko (sen) · 1 / 2 — dwie klatki dołu szaty (chód)
+const PZ_HEAD = ['.......##.......', '......####......', '.....######.....', '....########....', '...####--####...', '...##------##...', '..###------###..', '..##--------##..'];
+const PZ_EYES = {awake: ['..##-o----o-##..', '..##--oo-oo-##..'], sleep: ['..##--------##..', '..##-cc--cc-##..']};
+const PZ_BODY = ['..##--------##..', '..###------###..', '..####----####..', '.######--######.', '.######++######.', '.##############.', '################', '################'];
+const PZ_FEET = ['1111.1111.1111.1', '.2222.2222.2222.'];
+const PZ_COL = {'#': {f: '#ececec'}, '+': {f: '#c9c9c9'}, '-': {f: '#0d0d0d'}, o: {f: '#ffffff', c: 'eye'}, c: {f: '#4a4a4a'}, 1: {f: '#ececec', c: 'f1'}, 2: {f: '#ececec', c: 'f2'}};
 const PZ_Z = ['####', '..#.', '.#..', '####'];
 const PZ_TW = ['.#.#.', '#.#.#', '.#.#.', '#.#.#', '.#.#.'];
+const PZ_BANG = ['##', '##', '##', '##', '..', '##'];
 function pzRects(grid, x0, y0, px, colors) {
   let out = '';
   grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = colors[row[x]]; if (c) out += `<rect x="${x0 + x * px}" y="${y0 + y * px}" width="${px}" height="${px}" fill="${c.f}"${c.c ? ` class="${c.c}"` : ''}/>`; } });
   return out;
 }
-function pzHTML(head, sub) {
-  const ghost = pzRects(PZ_GHOST, 36, 40, 6, {'#': {f: '#e8e8e8'}, '-': {f: '#101010'}, o: {f: '#ffffff', c: 'eye'}});
-  const zs = [[134, 34, 3, 'z z1'], [144, 20, 4, 'z z2'], [156, 2, 5, 'z z3']].map(([x, y, px, c]) => `<g class="${c}">${pzRects(PZ_Z, x, y, px, {'#': {f: '#5b9cf6'}})}</g>`).join('');
-  const tw = `<g class="tw">${pzRects(PZ_TW, 0, 112, 3, {'#': {f: '#6a5a3a'}})}</g>`;
-  return `<div class="pzzz"><svg viewBox="0 0 168 132" role="img" aria-label="Pikselowy duszek śpi"><rect x="0" y="126" width="168" height="2" fill="#2a2a2a"/>${tw}<g class="gh">${ghost}</g>${zs}</svg>` +
+function pzGhost(x0, y0, px, mode) {                     // 16 × 19 pikseli
+  const rows = PZ_HEAD.concat(PZ_EYES[mode], PZ_BODY, mode === 'awake' ? [] : ['################']);
+  return pzRects(rows, x0, y0, px, PZ_COL) + (mode === 'awake' ? pzRects([PZ_FEET[0]], x0, y0 + rows.length * px, px, PZ_COL) + pzRects([PZ_FEET[1]], x0, y0 + rows.length * px, px, PZ_COL) : '');
+}
+function pzHTML(head, sub) {                              // pusta tabela: duszek śpi
+  const zs = [[150, 60, 3, 'z z1'], [162, 44, 4, 'z z2'], [176, 24, 5, 'z z3']].map(([x, y, px, c]) => `<g class="${c}">${pzRects(PZ_Z, x, y, px, {'#': {f: '#5b9cf6'}})}</g>`).join('');
+  const tw = `<g class="tw">${pzRects(PZ_TW, 0, 176, 3, {'#': {f: '#6a5a3a'}})}</g>`;
+  return `<div class="pzzz"><svg viewBox="0 0 264 200" role="img" aria-label="Pikselowy duszek śpi"><rect x="0" y="192" width="264" height="3" fill="#2a2a2a"/>${tw}<g class="gh">${pzGhost(84, 78, 6, 'sleep')}</g>${zs}</svg>` +
     `<div><b>${head}</b>${sub}</div></div>`;
 }
+// 118: wolne miejsce pod wierszami (szeroki ekran) — duszek chodzi tam i z powrotem po świecach BTC (4 h, z liq_1h.json);
+// przy nowych wierszach ma nad głową wykrzyknik. Ozdoba: przy mniej niż 140 px wolnego miejsca nic nie rysujemy.
+function pzCandles(w, h) {
+  const a = ((LIQ && LIQ.series) || {}).px_btc || [];
+  if (a.length < 48) return '';
+  const pitch = 12, n = Math.min(Math.floor(w / pitch), Math.floor(a.length / 4)), B = 4 * HOUR, m = new Map();
+  for (const [t, v] of a) { const k = t - t % B, c = m.get(k); if (!c) m.set(k, [v, v, v, v]); else { c[1] = Math.max(c[1], v); c[2] = Math.min(c[2], v); c[3] = v; } }
+  const cs = [...m.keys()].sort((x, y) => x - y).slice(-n).map(k => m.get(k));
+  if (cs.length < 8) return '';
+  const hi = Math.max(...cs.map(c => c[1])), lo = Math.min(...cs.map(c => c[2])), top = 14, bot = h - 12, sp = (hi - lo) || 1;
+  const y = v => Math.round((top + (hi - v) / sp * (bot - top)) / 3) * 3, x0 = w - cs.length * pitch;
+  return `<svg class="cndl" width="${w}" height="${h}" aria-hidden="true">` + cs.map((c, i) => {
+    const up = c[3] >= c[0], col = up ? '#4caf7d' : '#e05252', x = x0 + i * pitch, yo = y(c[0]), yc = y(c[3]), yb = Math.min(yo, yc);
+    return `<rect x="${x + 2}" y="${y(c[1])}" width="2" height="${Math.max(3, y(c[2]) - y(c[1]))}" fill="${col}"/><rect x="${x}" y="${yb}" width="6" height="${Math.max(3, Math.abs(yc - yo))}" fill="${col}"/>`;
+  }).join('') + '</svg>';
+}
+function drawScene() {
+  const f = document.getElementById('pfill');
+  if (!f) return;
+  const w = f.clientWidth, free = f.clientHeight;
+  if (!w || free < 140 || getComputedStyle(f).display === 'none') { if (f.firstChild) f.innerHTML = ''; f._key = ''; return; }
+  const h = Math.min(free, 240), nNew = PULSE && PULSE.rows ? PULSE.rows.filter(r => r.new).length : 0, key = w + 'x' + h + ':' + nNew + ':' + (LIQ ? 1 : 0);
+  if (f._key === key) return;
+  f._key = key;
+  const bang = nNew ? `<g class="bang">${pzRects(PZ_BANG, 74, 0, 5, {'#': {f: '#5b9cf6'}})}</g>` : '';
+  f.innerHTML = `<div class="pscene" style="height:${h}px" title="Ozdoba: duszek chodzi po świecach BTC (4 h)${nNew ? ' — wykrzyknik: są nowe wiersze od wczoraj' : ''}">` +
+    `<span class="cap">BTC · świece 4 h</span>${pzCandles(w, h)}` +
+    `<svg width="${w}" height="3" style="position:absolute;left:0;bottom:2px" aria-hidden="true"><rect width="${w}" height="3" fill="#2a2a2a"/></svg>` +
+    `<div class="pwalk"><div class="flip"><svg width="96" height="${20 * 5 + 6}" viewBox="0 -6 96 ${20 * 5 + 6}" role="img" aria-label="Pikselowy duszek spaceruje"><g class="gh">${pzGhost(0, 0, 5, 'awake')}</g>${bang}</svg></div></div></div>`;
+}
+if (window.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(drawScene)).observe(document.getElementById('pulse'));
+else window.addEventListener('resize', drawScene);
 function renderPulse() {
   const el = document.getElementById('pulse'), fil = document.getElementById('pfil');
   el.classList.remove('empty');
@@ -372,13 +434,14 @@ function renderPulse() {
       : pzHTML('Cisza na rynku', 'Dziś nic nie odbiega od zwykłego zakresu — duszek śpi.'));
     return;
   }
-  el.innerHTML = old + '<div class="prow ph"><span>Gdzie</span><span>Co się dzieje</span><span>Na tle historii</span><span>Od kiedy</span></div>' + rows.map(r => {
+  el.innerHTML = old + '<div class="prows"><div class="prow ph"><span>Gdzie</span><span>Co się dzieje</span><span>Na tle historii</span><span>Od kiedy</span></div>' + rows.map(r => {
     const t = TABS[r.tab] || TABS.oi, href = esc(r.href || '#');
     return `<div class="prow"><a class="ptag" href="${href}" style="background:rgba(${t[1]},.15);color:${t[2]}" title="${esc(t[3])}" aria-label="${esc(t[3])}">${t[0]}</a>` +
       `<div><a class="pt" href="${href}">${esc(r.title)}</a>${r.detail ? `<div class="pd">${esc(r.detail)}</div>` : ''}</div>` +
       `<div class="phist">${esc(r.hist || '')}</div>` +
       `<div class="pwhen"><span class="pst${r.new ? ' new' : ''}">${r.new ? 'NOWE' : 'TRWA'}</span><div class="psince">${sinceTxt(r, now)}</div></div></div>`;
-  }).join('');
+  }).join('') + '</div><div class="pfill" id="pfill"></div>';
+  drawScene();
 }
 document.getElementById('pfil').addEventListener('click', e => {
   const b = e.target.closest('button[data-f]');
@@ -502,7 +565,7 @@ function err(msg) { const b = document.getElementById('banner'); b.classList.add
   REPS = r.status === 'fulfilled' ? r.value : null;
   const bad = [[m, 'meta.json'], [l, 'liq_1h.json'], [r, 'raporty']].filter(x => x[0].status !== 'fulfilled').map(x => x[1]);
   if (bad.length) err('Nie udało się wczytać: ' + bad.join(', ') + ' — część Pulpitu jest pusta. Odśwież za chwilę.');
-  renderSub(); renderKpis(); renderStrip(); renderPulse(); renderHL(); renderReps(); renderDeriv();
+  renderSub(); renderKpis(); renderStrip(); renderPulse(); renderHL(); renderReps(); renderDeriv(); drawScene();
   try { D1 = await getJSON(DATA_BASE, '1d.json'); } catch (e) { err('Nie udało się wczytać 1d.json (' + e.message + ') — brak TOTAL, dominacji i cyklu.'); }
   renderSub(); renderKpis(); renderBg(); renderDeriv();
 })();
