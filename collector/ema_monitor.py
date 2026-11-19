@@ -398,9 +398,14 @@ def rule_for(coin, rules):
     return out
 
 
-def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
-    """rows: computed coins. st: state["alerts"] (mutated). → list of message lines."""
+def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False, events=None):
+    """rows: computed coins. st: state["alerts"] (mutated). → list of message lines.
+    events (lista, opcjonalnie): alerty w postaci do dziennika (alert_log.py, poprawka 115)."""
     msgs = []
+
+    def note(r, what):
+        if events is not None:
+            events.append({"kind": "ema_d", "text": msgs[-1], "coin": r["s"], "px": r["p"], "key": what})
     buf = float(cfg["cross_buffer_pct"])
     cool = float(cfg["cooldown_hours"]) * HOUR
     rearm = float(cfg["near_rearm"])
@@ -435,6 +440,7 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
             if rule["direction"] in ("both", "up" if up else "down") and now - s.get("cross_at", 0) >= cool:
                 arrow = "🔼 przeciął w górę" if up else "🔽 przeciął w dół"
                 msgs.append(f"{arrow} EMA{cfg['period']}: {head} ({d:+.2f}%, {ema_txt}){link}")
+                note(r, "cross_up" if up else "cross_down")
                 s["cross_at"] = now
         # crossing confirmed by the daily close
         if rule["cross"] and rule["confirm"] == "close" and daily_done:
@@ -444,6 +450,7 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
                     word = "nad" if up else "pod"
                     msgs.append(f"{'✅' if up else '❌'} zamknął dzień {word} EMA{cfg['period']}: {head} "
                                 f"(zamknięcie {fmt_price(r['c'])}, {ema_txt}){link}")
+                    note(r, "close_up" if up else "close_down")
         if daily_done:
             s["close_side"] = r["side"]
         # approaching
@@ -453,6 +460,7 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
                 if now - s.get("near_at", 0) >= near_cool:
                     where = "od dołu" if d < 0 else "od góry"
                     msgs.append(f"⚠️ zbliża się do EMA{cfg['period']} {where}: {head} ({d:+.2f}%, {ema_txt}){link}")
+                    note(r, "near")
                     s["near_at"] = now
                 s["zone"] = "near"
             elif abs(d) > np_ * rearm:
@@ -460,7 +468,7 @@ def check_alerts(rows, rules, st, cfg, now, daily_done, arm_only=False):
     return msgs
 
 
-def check_weekly(rows, coins, st, cfg, arm_only=False):
+def check_weekly(rows, coins, st, cfg, arm_only=False, events=None):
     """Weekly-close crossing of the weekly EMA for the coins in `weekly_alerts`.
     st: state["walerts"] (mutated): {coin: {"t": last closed week, "side": side on that close}}. → message lines."""
     want = {c.upper() for c in coins or []}
@@ -480,6 +488,9 @@ def check_weekly(rows, coins, st, cfg, arm_only=False):
             msgs.append(f"{'✅' if up else '❌'} zamknął tydzień {'nad' if up else 'pod'} EMA{cfg['period']}: "
                         f"<b>{html.escape(coin)}</b> zamknięcie {fmt_price(r['wc'])}, EMA{cfg['period']} 1W "
                         f"{fmt_price(r['wec'])} ({dist:+.1f}%){link}")
+            if events is not None:
+                events.append({"kind": "ema_w", "text": msgs[-1], "coin": coin, "px": r["wc"],
+                               "key": "wclose_up" if up else "wclose_down"})
         s["t"], s["side"] = r["wt"], r["wside"]
     return msgs
 
@@ -665,9 +676,22 @@ def cleanup_git(pub_dir, run=subprocess.run):
 
 
 # ── main run ─────────────────────────────────────────────────
-def load_cfg(path):
+def load_yaml(path, state_dir=None):
+    """config.yaml jako słownik. Z folderem stanu Pi: przy błędzie w pliku — ostatnia dobra wersja + wiadomość do
+    administratora (safe_config.py, poprawka 115). Brak modułu (paczka wgrywana w częściach) → zwykłe wczytanie."""
+    if state_dir:
+        try:
+            import safe_config
+        except ImportError:
+            safe_config = None
+        if safe_config is not None:
+            return safe_config.load(path, state_dir)
     with open(path, encoding="utf-8") as f:
-        full = yaml.safe_load(f) or {}
+        return yaml.safe_load(f) or {}
+
+
+def load_cfg(path, state_dir=None):
+    full = load_yaml(path, state_dir)
     cfg = dict(DEFAULTS)
     cfg.update(full.get("ema") or {})
     cfg["alerts"] = cfg.get("alerts") or []
@@ -677,7 +701,68 @@ def load_cfg(path):
     cfg["fib"] = {"near_pct": float(fcfg.get("near_pct", 2) or 2), "setups": fcfg.get("setups") or [],
                   "proposals": pcfg}
     cfg["telegram"] = full.get("telegram") or {}
+    cfg["alert_log"] = full.get("alert_log") or {}
     return cfg
+
+
+def _accepts(fn, name):
+    """Czy funkcja z innego pliku przyjmuje już dany parametr (paczka wgrywana w częściach → stara wersja pliku)."""
+    import inspect
+    try:
+        return name in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _pl(text):
+    """Polski zapis liczb w alertach EMA / Fibo (alerts.pl_text, poprawka 115); stara wersja alerts.py → bez zmian."""
+    f = getattr(alerts, "pl_text", None)
+    try:
+        return f(text) if f else text
+    except Exception:  # noqa: BLE001
+        return text
+
+
+def alert_journal(state_dir, cfg, now, events, muted, rows, fprices, candles, altidx):
+    """Dziennik alertów (alert_log.py, poprawka 115): alerty EMA / Fibo z tego przebiegu + wyniki po terminie
+    → <stan>/alerts_log.json (kopia trafia na gałąź ema przy publikacji). Nigdy nie przerywa przebiegu.
+    → (dziennik albo None, liczba zmian)."""
+    try:
+        import alert_log as AL
+    except ImportError:
+        return None, 0
+    try:
+        s = AL.settings(cfg)
+        if not s["enabled"]:
+            return None, 0
+        path = os.path.join(state_dir, AL.FILE)
+        jl = AL.load(path, "pi")
+        if not events and not AL.due(jl, now, s["horizons_days"]):
+            return jl, 0
+        live = {r["s"]: r["p"] for r in rows}
+        live.update({c: p for c, p in (fprices or {}).items() if p and c not in live})
+        sym = {r["s"]: r["sym"] for r in rows}
+
+        def px(coin, t=None):
+            if t is None or now - t <= 6 * HOUR:
+                return live.get(coin)
+            return AL.at_day(candles.get(sym.get(coin)) or [], t)       # Pi stało: zamknięcie doby z terminu
+
+        def refs(t=None):
+            return {"btc": px("BTC", t), "eth": px("ETH", t), "alt": AL.at_day(altidx or [], now if t is None else t)}
+
+        def lookup(e, t):
+            return {"px": px(e["coin"], t) if e.get("coin") else None, "ref": refs(t)}
+
+        n = AL.add(jl, events, now, refs(), muted=muted, fmt=_pl)
+        n += AL.update(jl, now, s["horizons_days"], lookup)
+        if n:
+            AL.prune(jl, now, s["keep_days"], s["max_entries"])
+            AL.save(path, jl, now)
+        return jl, n
+    except Exception:  # noqa: BLE001
+        log.exception("Dziennik alertów")
+        return None, 0
 
 
 def load_env(path):
@@ -831,8 +916,10 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     # alerts (first run ever: arm silently)
     ast = st.setdefault("alerts", {})
     first = not st.get("armed")
-    msgs = check_alerts(rows, cfg["alerts"], ast, cfg, now, daily_done=daily_due, arm_only=first or check_only)
-    wmsgs = check_weekly(rows, cfg.get("weekly_alerts"), st.setdefault("walerts", {}), cfg, arm_only=check_only)
+    ev = []                              # dziennik alertów (alert_log.py, poprawka 115)
+    msgs = check_alerts(rows, cfg["alerts"], ast, cfg, now, daily_done=daily_due, arm_only=first or check_only, events=ev)
+    wmsgs = check_weekly(rows, cfg.get("weekly_alerts"), st.setdefault("walerts", {}), cfg, arm_only=check_only,
+                         events=ev)
     st["armed"] = True
 
     # Fibonacci setups: config + Telegram (/fib is handled by bot.py, stored in bot.json)
@@ -843,7 +930,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
     fib_coins = {x["coin"] for x in cfg_setups + user_setups}
     fprices = F.coin_prices(fib_coins, prices, cfg["quote"], hl=hl)
     setups = cfg_setups + user_setups
-    fmsgs = F.check(setups, fprices, st.setdefault("fib_state", {}), fcfg["near_pct"], arm_only=check_only)
+    fmsgs = F.check(setups, fprices, st.setdefault("fib_state", {}), fcfg["near_pct"], arm_only=check_only,
+                    **({"events": ev} if _accepts(F.check, "events") else {}))
     mute_until = bst.get("mute_until")
 
     # automatic Fibo proposals: raw candidates once a day (or when high/low data changed), live status every run
@@ -859,20 +947,36 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
         pr["cmd"] = F.command_for(pr)
         pr["chart"] = pr["coin"] in series
 
+    muted = False
     if (msgs or wmsgs or fmsgs) and not check_only:
         if alerts.is_muted(mute_until, now):
             log.info("Alerty wyciszone (/cisza) — pomijam %d", len(msgs) + len(wmsgs) + len(fmsgs))
             info["muted_alerts"] = len(msgs) + len(wmsgs) + len(fmsgs)
+            muted = True
         else:
             tg = telegram or alerts.Telegram(tg_cfg=cfg.get("telegram") or {})
             if msgs:
                 header = f"📈 <b>EMA{cfg['period']}</b> (Binance, świeca dzienna)"
                 for i in range(0, len(msgs), 25):
-                    tg.post("market", "\n".join([header, ""] + msgs[i:i + 25]))
+                    tg.post("market", _pl("\n".join([header, ""] + msgs[i:i + 25])))
             if wmsgs:
-                tg.post("market", "\n".join([f"📅 <b>EMA{cfg['period']}</b> (Binance, świeca tygodniowa)", ""] + wmsgs))
+                tg.post("market", _pl("\n".join([f"📅 <b>EMA{cfg['period']}</b> (Binance, świeca tygodniowa)", ""] + wmsgs)))
             if fmsgs:
-                tg.post("market", "\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs))
+                tg.post("market", _pl("\n".join(["🎯 <b>Fibo</b>", ""] + fmsgs)))
+
+    # Stan zaraz po alertach (poprawka 115): dawniej zapis był dopiero na końcu przebiegu — wyjątek po wysyłce
+    # (liczenie szerokości, publikacja) powtarzał te same alerty co 5 minut. Świece i knoty idą razem ze stanem,
+    # bo stan pamięta, że dzienne odświeżenie już było.
+    jl = None
+    if not check_only:
+        if daily_due or backfilled:      # candles change only once a day (or while filling in history)
+            _write(cpath, candles)
+        if hl_changed:
+            _write(hlpath, hld)
+        if delisted_changed:
+            _write(dpath, delisted)
+        _write(spath, st)
+        jl, _ = alert_journal(state_dir, cfg, now, ev, muted, rows, fprices, candles, (st.get("altidx") or {}).get("d"))
 
     above = sum(1 for r in rows if r["d"] >= 0)
     try:
@@ -933,12 +1037,6 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
                  "fib_setups": len(setups)})
 
     if not check_only:
-        if daily_due or backfilled:      # candles change only once a day (or while filling in history)
-            _write(cpath, candles)
-        if hl_changed:
-            _write(hlpath, hld)
-        if delisted_changed:
-            _write(dpath, delisted)
         try:
             st["delisted_mtime"] = int(os.path.getmtime(dpath))
         except OSError:
@@ -953,6 +1051,8 @@ def run(cfg, state_dir, now=None, client=None, telegram=None, publish=True, remo
             write_outputs(pub, payload, series, cfg, write_hist=write_hist,
                           hl={r["s"]: hld.get(r["sym"]) for r in rows})
             _write(os.path.join(pub, "fib.json"), fib_payload)
+            if jl is not None and (jl.get("alerts") or os.path.exists(os.path.join(pub, "alerts_log.json"))):
+                _write(os.path.join(pub, "alerts_log.json"), jl)        # dziennik alertów EMA / Fibo (poprawka 115)
             if (st.get("altidx") or {}).get("d"):
                 _write(os.path.join(pub, "altindex.json"), {
                     "updated": now, "daily_at": st.get("daily_day"), "source": f"Binance spot */{cfg['quote']}",
@@ -990,7 +1090,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     load_env(a.env_file)
-    cfg = load_cfg(a.config)
+    cfg = load_cfg(a.config, a.state)
     remote = None
     try:
         with open(os.path.expanduser(a.token_file), encoding="utf-8") as f:

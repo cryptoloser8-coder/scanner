@@ -85,9 +85,15 @@ def describe(setup):
     return f"<b>{html.escape(setup['coin'])}</b> {setup.get('dir', 'long')} [{setup['id']}]{lab}"
 
 
-def check(setups, prices, st, near_pct, rearm=1.5, arm_only=False):
-    """st: {setup_id: {"status":…, "near_armed":…}} (mutated) → list of message lines."""
+def check(setups, prices, st, near_pct, rearm=1.5, arm_only=False, events=None):
+    """st: {setup_id: {"status":…, "near_armed":…}} (mutated) → list of message lines.
+    events (lista, opcjonalnie): alerty w postaci do dziennika (alert_log.py, poprawka 115)."""
     msgs = []
+
+    def note(s, what, ev):
+        if events is not None:
+            events.append({"kind": "fib", "text": msgs[-1], "coin": s["coin"], "px": ev.get("price"),
+                           "key": f"{s['id']}:{what}"})
     for s in setups:
         ev = evaluate(s, prices.get(s["coin"]), near_pct)
         s["_ev"] = ev
@@ -104,15 +110,19 @@ def check(setups, prices, st, near_pct, rearm=1.5, arm_only=False):
         p, cur = prev.get("status"), ev["status"]
         if cur == "near" and not prev.get("near_sent"):
             msgs.append(f"⚠️ {head}: zbliża się do strefy Fibo ({ev['dist']:+.2f}%, cena {fmt(ev['price'])}; {zone_txt})")
+            note(s, "near", ev)
             new["near_sent"] = True
         if cur == "zone" and p != "zone":
             msgs.append(f"🎯 {head}: cena w strefie Fibo 0.705–0.786 ({fmt(ev['price'])}; {zone_txt})")
+            note(s, "zone", ev)
             new["near_sent"] = True
         if cur == "deep" and p in ("zone", "near", "above"):
             msgs.append(f"⬇️ {head}: cena przebiła 0.786 ({fmt(ev['price'])}, 0.786 = {fmt(ev['l786'])})")
+            note(s, "deep", ev)
         if cur == "invalid" and p != "invalid":
             ext = "dołek" if s.get("dir", "long") == "long" else "szczyt"
             msgs.append(f"❌ {head}: setup unieważniony — cena przebiła {ext} ruchu ({fmt(ev['price'])})")
+            note(s, "invalid", ev)
         # re-arm the "near" alert once the price has moved clearly away from the zone
         if cur == "above" and abs(ev["dist"]) > near_pct * rearm:
             new["near_sent"] = False

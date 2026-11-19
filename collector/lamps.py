@@ -344,15 +344,20 @@ def describe(k, info, c, level):
     return NAME.get(k, k)
 
 
-def check(result, cfg, state, page_url="", arm_only=False):
+def check(result, cfg, state, page_url="", arm_only=False, events=None):
     """Porównuje lampki ze stanem (state['lamps']) → lista wiadomości. Pierwszy przebieg (brak stanu)
-    albo arm_only — zapisuje stan po cichu (bez starych zapaleń)."""
+    albo arm_only — zapisuje stan po cichu (bez starych zapaleń).
+    events (lista, opcjonalnie): alerty w postaci do dziennika (alert_log.py, poprawka 115)."""
     if not result:
         return []
     c = config(cfg)
     first = "lamps" not in state
     st = state.setdefault("lamps", {})
     msgs = []
+
+    def note(k, what, info, lvl=None):
+        if events is not None:
+            events.append({"kind": "lamp", "text": msgs[-1], "key": f"{k}:{what}", "level": lvl, "v": info.get("value")})
     for k in LAMPS:
         info = result["lamps"].get(k)
         if not info:
@@ -367,9 +372,11 @@ def check(result, cfg, state, page_url="", arm_only=False):
             elif new_ep:
                 msgs.append(describe(k, info, c, lvl) + f" Zapaliła się {dmy(since)}." +
                             _stat_txt(k, info["stats"][lvl - 1] if lvl - 1 < len(info["stats"]) else None))
+                note(k, "on", info, lvl)
             elif lvl > s.get("lvl", 0):
                 msgs.append(describe(k, info, c, lvl) + f" Wyższy poziom (świeci od {dmy(since)})." +
                             _stat_txt(k, info["stats"][lvl - 1] if lvl - 1 < len(info["stats"]) else None))
+                note(k, "up", info, lvl)
             s = {"ep": since, "lvl": max(lvl, 0 if new_ep else s.get("lvl", 0)), "on": True}
         else:
             if since is not None and not s.get("ep"):
@@ -380,6 +387,7 @@ def check(result, cfg, state, page_url="", arm_only=False):
                 if ep and c.get("notify_off", True) and not (first or arm_only):
                     msgs.append(f"💤 <b>{NAME[k]}</b> — lampka zgasła. Świeciła {dmy(ep[0])}–{dmy(ep[1])} "
                                 f"({(ep[1] - ep[0]) // DAY + 1} dni).")
+                    note(k, "off", info)
                 s["done"] = s["ep"]
             if first or arm_only:
                 s["done"] = s.get("ep")                # bez spóźnionych „zgasła” po pierwszym przebiegu

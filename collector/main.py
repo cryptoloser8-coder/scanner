@@ -286,6 +286,87 @@ def alt_lamps(store, cfg, now, ema_fetch):
         return LP, None
 
 
+def _ev(fn, events):
+    """{"events": lista} gdy funkcja alertów już ją przyjmuje (paczka wgrywana w częściach → stara wersja bez dziennika)."""
+    import inspect
+    try:
+        return {"events": events} if "events" in inspect.signature(fn).parameters else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _coin_px(sid, store):
+    """Seria alertu → (coin, id serii ceny) gdy mamy cenę tego coina (liq_sol → SOL, px_sol), inaczej (None, None)."""
+    import re
+    m = re.match(r"(?:liq|fund|oi|px|cvd)_([a-z0-9]+)", sid or "")
+    tok = m.group(1) if m else None
+    if not tok or tok in ("total", "others", "ex"):
+        return None, None
+    psid = f"px_{tok}"
+    if any(store.series[res].get(psid) for res in ("1h", "1d")):
+        return tok.upper(), psid
+    return None, None
+
+
+def alert_journal(store, cfg, now, events, lamp_events, muted, ema_fetch):
+    """Dziennik alertów (alert_log.py, poprawka 115): zapisuje alerty z tego skanu z cenami i dopisuje wyniki po terminie
+    do alerts_log.json na gałęzi data. Nigdy nie przerywa skanu. → krótkie podsumowanie do meta.info albo None."""
+    try:
+        import alert_log as AL        # import w funkcji: brak pliku przy wgrywaniu w częściach nie psuje skanu
+    except ImportError:
+        return None
+    try:
+        s = AL.settings(cfg)
+        if not s["enabled"]:
+            return None
+        path = os.path.join(store.dir, AL.FILE)
+        jl = AL.load(path, "github")
+        todo = AL.due(jl, now, s["horizons_days"])
+        if not (events or lamp_events or todo):
+            return None
+        idx = ((ema_fetch("altindex.json") if ema_fetch else None) or {}).get("d") or []
+
+        def at(sid, t):
+            v = store.value_at(sid, t, "1h", tolerance=6 * HOUR)
+            return v if v is not None else store.value_at(sid, t, "1d", tolerance=2 * DAY)
+
+        def refs(t=None):
+            out = {}
+            for name, sid in (("btc", "px_btc"), ("eth", "px_eth"), ("total3", "total3")):
+                if t is None:
+                    last = store.latest(sid)
+                    out[name] = last[1] if last else None
+                else:
+                    out[name] = at(sid, t)
+            out["alt"] = AL.at_day(idx, now if t is None else t)
+            return out
+
+        for e in events:
+            coin, psid = _coin_px(e.get("sid"), store)
+            if psid:
+                last = store.latest(psid)
+                e["coin"], e["px"] = coin, (last[1] if last else None)
+
+        def lookup(e, t):
+            got = {"ref": refs(t)}
+            if e.get("sid") and e.get("kind") != "liq":       # likwidacje: „v” to suma z okna, po czasie nic nie mówi
+                got["v"] = at(e["sid"], t)
+            if e.get("coin"):
+                got["px"] = at(f"px_{e['coin'].lower()}", t)
+            return got
+
+        ref = refs()
+        new = AL.add(jl, events, now, ref, muted=muted, fmt=getattr(alerts, "pl_text", None))
+        new += AL.add(jl, lamp_events, now, ref, muted=muted)
+        done = AL.update(jl, now, s["horizons_days"], lookup)
+        AL.prune(jl, now, s["keep_days"], s["max_entries"])
+        AL.save(path, jl, now)
+        return {"new": new, "results": done, "total": len(jl["alerts"])}
+    except Exception:  # noqa: BLE001
+        log.exception("Dziennik alertów")
+        return None
+
+
 def raw_fetcher(repo, branch, session=None, timeout=20):
     """name → dict z raw.githubusercontent.com/<repo>/<branch>/<name> (None przy błędzie)."""
     import requests
@@ -413,6 +494,7 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
     # system messages → admin (private); market alerts → group thread (one message per run, unless muted)
     system = alerts.health_messages(st, results, now, cfg["telegram"].get("health_reminder_hours", 12))
     market, lamp_msgs = [], []
+    ev, lamp_ev, muted = [], [], False          # dziennik alertów (alert_log.py, poprawka 115)
     if backfill:
         n1h = len(store.series["1h"].get("oi_total", {}))
         n1d = len(store.series["1d"].get("oi_total", {}))
@@ -427,11 +509,11 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         if LP and lamps_res:
             LP.check(lamps_res, cfg, st, arm_only=True)
     else:
-        market += alerts.check_levels(store, catalog, cfg["levels"], st, page_url)
-        market += alerts.check_changes(store, catalog, cfg["changes"], st, now)
-        market += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now)
+        market += alerts.check_levels(store, catalog, cfg["levels"], st, page_url, **_ev(alerts.check_levels, ev))
+        market += alerts.check_changes(store, catalog, cfg["changes"], st, now, **_ev(alerts.check_changes, ev))
+        market += alerts.check_sums(store, catalog, cfg.get("liq_alerts"), st, now, **_ev(alerts.check_sums, ev))
         if LP and lamps_res:
-            lamp_msgs = LP.check(lamps_res, cfg, st, page_url)
+            lamp_msgs = LP.check(lamps_res, cfg, st, page_url, **_ev(LP.check, lamp_ev))
     for m in system:
         tg.post("system", m)
     if market or lamp_msgs:
@@ -439,12 +521,19 @@ def run(data_dir, cfg, now=None, backfill=False, coinalyze=None, tv=None, telegr
         if alerts.is_muted(mute_until, now):
             log.info("Alerty wyciszone (/cisza) — pomijam %d", len(market) + len(lamp_msgs))
             info["muted_alerts"] = len(market) + len(lamp_msgs)
+            muted = True
         else:
             if market:
-                tg.post("market", "\n\n".join(["📊 <b>Rynek</b> (OI, TOTAL, likwidacje)"] + market))
+                # polski zapis liczb jak w raportach (poprawka 115); lampki piszą go same
+                fmt = getattr(alerts, "pl_text", None) or (lambda x: x)
+                tg.post("market", fmt("\n\n".join(["📊 <b>Rynek</b> (OI, TOTAL, likwidacje)"] + market)))
             if lamp_msgs:
                 tg.post("market", "\n\n".join(["💡 <b>Altsezon — lampki</b>"] + lamp_msgs))
     msgs = system + market + lamp_msgs
+    if not backfill:
+        j_info = alert_journal(store, cfg, now, ev, lamp_ev, muted, ema_fetch)
+        if j_info:
+            info["alert_log"] = j_info
 
     meta = {
         "updated": now,

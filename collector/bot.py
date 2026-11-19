@@ -470,7 +470,9 @@ def handle_message(ctx, msg):
     return cmd.name
 
 
-def poll(ctx):
+def poll(ctx, save=None):
+    """save() po każdej obsłużonej wiadomości (poprawka 115): numer ostatniej wiadomości trafia na dysk od razu —
+    wyjątek w dalszej części przebiegu nie powtarza już tej samej komendy co minutę."""
     try:
         ups = ctx.api.get_updates(ctx.st.get("tg_offset", 0))
     except Exception as e:  # noqa: BLE001
@@ -483,6 +485,8 @@ def poll(ctx):
             name = handle_message(ctx, u["message"])
             if name:
                 done.append(name)
+        if save:
+            save()
     return done
 
 
@@ -506,7 +510,8 @@ def sync_commands(ctx):
 
 
 # ── schedule & watch ─────────────────────────────────────────
-def schedule_tick(ctx):
+def schedule_tick(ctx, save=None):
+    """save() zaraz po uruchomieniu skanu (poprawka 115) — ten sam skan nie rusza drugi raz po wyjątku niżej."""
     done = ctx.st.setdefault("sched_done", {})
     started = []
     for e in TT.due(ctx.sc, ctx.now, done):
@@ -521,6 +526,8 @@ def schedule_tick(ctx):
         log.info("Uruchomiono %s (raport: %s)", e["key"], report)
         if e["type"] == "report":
             ctx.st.setdefault("pending_reports", []).append({"key": e["key"], "kind": e["kind"], "at": ctx.now})
+        if save:
+            save()
     TT.prune(done, ctx.now)
     return started
 
@@ -597,18 +604,35 @@ def migrate(state_dir):
     return {"fib_user": old.get("fib_user") or [], "tg_offset": old.get("tg_offset") or 0}
 
 
-def tick(ctx):
-    """One bot run (every minute) → messages sent to the admin."""
+def tick(ctx, save=None):
+    """One bot run (every minute) → messages sent to the admin.
+    save (opcjonalnie): zapis stanu na dysk — wywoływany po każdej komendzie, po każdym uruchomionym skanie i po każdej
+    wysłanej wiadomości systemowej (poprawka 115; dawniej stan szedł na dysk dopiero na końcu main())."""
     sync_commands(ctx)
-    poll(ctx)
-    schedule_tick(ctx)
+    poll(ctx, save)
+    schedule_tick(ctx, save)
     sysmsgs = watch_tick(ctx) + halving_tick(ctx) + report_health(ctx)
+    if save:
+        save()                       # przypomnienia i stan awarii zapamiętane przed wysyłką (bez powtórek po wyjątku)
     for m in sysmsgs:
         ctx.tg.post("system", m)
     return sysmsgs
 
 
 COMMANDS = _registry()
+
+
+def load_config(path, state_dir):
+    """config.yaml; przy błędzie w pliku — ostatnia dobra wersja i wiadomość do administratora (safe_config.py,
+    poprawka 115). Brak modułu (paczka wgrywana w częściach) → zwykłe wczytanie jak dawniej."""
+    try:
+        import safe_config
+    except ImportError:
+        safe_config = None
+    if safe_config is not None:
+        return safe_config.load(path, state_dir)
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 def main(argv=None):
@@ -625,8 +649,7 @@ def main(argv=None):
     if not token or not admin:
         log.error("Brak TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID w %s", a.env_file)
         return 1
-    with open(a.config, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
+    cfg = load_config(a.config, a.state)
     try:
         with open(os.path.expanduser(a.token_file), encoding="utf-8") as f:
             gh_token = f.read().strip()
@@ -639,9 +662,14 @@ def main(argv=None):
         st = migrate(a.state)
     ctx = Ctx(cfg, st, time.time(), admin, TgApi(token), GitHub(gh_token, repo), raw_fetcher(repo),
               price_lookup(a.state), a.state, alerts.Telegram(tg_cfg=cfg.get("telegram") or {}))
-    tick(ctx)
     os.makedirs(a.state, exist_ok=True)
-    _write(path, ctx.st)
+
+    def save():
+        _write(path, ctx.st)
+    try:
+        tick(ctx, save)
+    finally:
+        save()                       # także po wyjątku: to, co już zrobione, nie powtórzy się w następnej minucie
     return 0
 
 
