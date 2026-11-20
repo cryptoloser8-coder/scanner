@@ -99,15 +99,42 @@ class Telegram:
             body = {"chat_id": chat, "text": chunk, "parse_mode": "HTML", "disable_web_page_preview": True}
             if thread_id:
                 body["message_thread_id"] = int(thread_id)
-            try:
-                r = self.session.post(f"https://api.telegram.org/bot{self.token}/sendMessage", json=body, timeout=30)
-                if r.status_code != 200:
-                    log.error("Telegram HTTP %s: %s", r.status_code, r.text[:200])
-                    return False
-            except requests.RequestException as e:
-                log.error("Telegram: %s", e)
+            if not self._send_chunk(body):
                 return False
         return True
+
+    # Chwilowe błędy Telegrama (502 Bad Gateway, 5xx, 429, zerwane połączenie) → ponów po przerwie.
+    # Błędy 4xx inne niż 429 (zły czat, zły HTML) są trwałe — bez ponawiania.
+    RETRY_DELAYS = (5, 15, 40)      # s; razem do ~1 min czekania + czasy zapytań
+    sleep = staticmethod(time.sleep)
+
+    def _send_chunk(self, body):
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        tries = len(self.RETRY_DELAYS) + 1
+        for n in range(tries):
+            wait = None
+            try:
+                r = self.session.post(url, json=body, timeout=30)
+                if r.status_code == 200:
+                    if n:
+                        log.info("Telegram: wysłano za %d. próbą", n + 1)
+                    return True
+                transient = r.status_code == 429 or r.status_code >= 500
+                msg = f"Telegram HTTP {r.status_code}: {r.text[:200]}"
+                if r.status_code == 429:
+                    try:
+                        wait = float(r.json().get("parameters", {}).get("retry_after") or 0) + 1
+                    except Exception:  # noqa: BLE001
+                        wait = None
+            except requests.RequestException as e:
+                transient, msg = True, f"Telegram: {e}"
+            if not transient or n == tries - 1:
+                log.error("%s%s", msg, f" (po {n + 1} próbach)" if n else "")
+                return False
+            delay = min(wait, 120) if wait else self.RETRY_DELAYS[n]
+            log.warning("%s — ponawiam za %.0f s (próba %d/%d)", msg, delay, n + 2, tries)
+            self.sleep(delay)
+        return False
 
 
 def is_muted(mute_until, now):
