@@ -364,6 +364,15 @@ function refIndex(B) {
 
 // ── wykres ──────────────────────────────────────────────────
 let chart = null, hist = null, LINES = [], BUILT = [], lastParam = null, PANES = [], TOPS = [];
+// Po zmianie liczby paneli biblioteka przebudowuje wykres chwilę później (zmiana wysokości, usuwanie pustych paneli):
+// podpisy paneli i znak wodny ustawiamy od nowa, gdy układ już stoi.
+let settleT = 0;
+function settle() {
+  const run = () => { if (window.brandWatermark && chart) brandWatermark(chart); readout(lastParam); };
+  requestAnimationFrame(run);
+  clearTimeout(settleT);
+  settleT = setTimeout(run, 150);
+}
 function paneTops() {                               // górna krawędź każdego panelu (do podpisów w układzie „Pod sobą”)
   TOPS = [];
   if (!chart || !S.stack) return;
@@ -461,7 +470,7 @@ function draw() {
   if (S.stack) note += ' Układ „Pod sobą”: każdy odcinek ma własny wykres i własną skalę (wspólna jest tylko oś dni), więc wysokości linii między wykresami nie da się porównywać — porównuj kształt i dni. Strzałki ▼ ▲ = szczyt i dołek odcinka (dzień i wartość w podpisie).';
   else if (S.mode === 'val' && sids.length === 1 && LINES.length > 1) note += ' Przy jednej skali stare okresy są spłaszczone — układ „Pod sobą” daje każdemu odcinkowi własną skalę.';
   $('axis-note').innerHTML = note + ' Grubsza linia = odcinek, który trwa do dziś.';
-  requestAnimationFrame(() => { paneTops(); readout(lastParam); });
+  settle();
   $('skip-note').hidden = !SKIPPED.length;
   $('skip-note').textContent = SKIPPED.length ? 'Pominięte w gotowcu (seria nie ma danych z tego dnia): ' + SKIPPED.join(', ') + '.' : '';
   renderSegs();
@@ -472,6 +481,7 @@ function draw() {
 
 // odczyt: legenda na wykresie + linia na karcie odcinka
 function readout(p) {
+  paneTops();
   const day = p && p.time != null ? dayOf(+p.time) : null;
   const ri = refIndex(BUILT), rows = [];
   if (day != null) rows.push(`<div class="lg-day">dzień ${day}</div>`);
@@ -484,7 +494,12 @@ function readout(p) {
       let lo = 0, hi = b.pts.length - 1;              // ostatni punkt ≤ dzień (w granicach odcinka)
       if (day >= b.pts[0].d && day <= b.pts[hi].d + 3) { while (lo < hi) { const m = (lo + hi + 1) >> 1; if (b.pts[m].d <= day) lo = m; else hi = m - 1; } pt = b.pts[lo]; }
     }
-    if (!pt) { if (el) el.innerHTML = '<small>poza odcinkiem</small>'; return; }
+    if (!pt) {
+      if (el) el.innerHTML = '<small>poza odcinkiem</small>';
+      const k = S.stack && seg.on && !b.bad ? PANES.indexOf(i) : -1;   // pod sobą: panel zawsze ma podpis
+      if (k >= 0 && TOPS[k] != null) rows.push(`<div class="lg-row st" style="--c:${seg.color};position:absolute;left:0;top:${TOPS[k] + (k === 0 ? 24 : 0)}px"><span class="swatch"></span><span class="lg-name">${esc(label(seg))}</span><span class="lg-ext">poza odcinkiem</span>${b.ext || ''}</div>`);
+      return;
+    }
     const ch = b.v0 > 0 ? (pt.v / b.v0 - 1) * 100 : null;
     const chH = ch == null ? '' : `<span class="${ch >= 0 ? 'up' : 'dn'}">${pct(ch)}</span>`;
     const refH = S.mode === 'ref' && ri >= 0 && i !== ri && !b.bad ? ` <small>→ ${fmtVal(pt.v * b.k, S.segs[ri].sid)} w cenie odniesienia</small>` : '';
@@ -671,7 +686,7 @@ $('preset-sid').addEventListener('change', e => { S.psid = e.target.value; save(
 // „Prawdziwe wartości” od razu pod sobą (na jednej skali stare okresy są płaskie); pozostałe osie — nałożone. Układ można potem przełączyć ręcznie.
 $('modes').addEventListener('click', e => { const m = e.target.dataset.m; if (!m) return; if (m !== S.mode) S.stack = m === 'val'; S.mode = m; syncPills(); draw(); });
 $('layouts').addEventListener('click', e => { const l = e.target.dataset.l; if (l == null) return; S.stack = l === '1'; syncPills(); draw(); });
-window.addEventListener('resize', () => { if (S.stack) requestAnimationFrame(() => { paneTops(); readout(lastParam); }); });
+window.addEventListener('resize', () => { if (S.stack) settle(); });
 $('log').addEventListener('click', () => { S.log = !S.log; syncPills(); draw(); });
 $('link').addEventListener('click', async () => {
   save();
