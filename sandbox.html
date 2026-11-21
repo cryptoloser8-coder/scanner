@@ -61,6 +61,7 @@
   .pill{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;font-family:inherit;}
   .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
   .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  #presets .pill.active{color:#fff;border-color:rgba(91,156,246,.7);background:rgba(91,156,246,.22);}
   .pill.go{color:var(--text);border-color:rgba(91,156,246,.45);background:rgba(91,156,246,.1);}
   .pill.go:hover{background:rgba(91,156,246,.2);}
   select,input[type=date],input[type=number]{font-size:13px;padding:5px 8px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit;color-scheme:dark;min-width:0;}
@@ -77,7 +78,8 @@
   }
   .chart-wrap{position:relative;height:min(62vh,640px);min-height:340px;}
   #chart{position:absolute;inset:0;}
-  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;max-width:calc(100% - 90px);}
+  .legend{position:absolute;left:8px;right:90px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;}
+  .lg-row.st{flex-wrap:wrap;row-gap:0;} .lg-ext{color:var(--text2);font-size:11px;white-space:nowrap;} .lg-ext i{font-style:normal;}
   .lg-row{display:flex;align-items:center;gap:6px;font-size:12px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;max-width:100%;}
   .lg-row .swatch,.seg .swatch{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none;}
   .lg-name{color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .lg-val{font-family:var(--mono);color:var(--text);white-space:nowrap;}
@@ -105,6 +107,9 @@
   .step{display:flex;gap:3px;flex-wrap:wrap;}
   .step button{font-size:12px;font-family:var(--mono);padding:5px 0;width:38px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;}
   .step button:hover{color:var(--text);border-color:rgba(255,255,255,.35);background:var(--bg3);}
+  .rst{font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid rgba(255,193,7,.5);background:rgba(255,193,7,.1);color:var(--amber);cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .rst:hover{background:rgba(255,193,7,.2);}
+  .rst:disabled{border-color:var(--border);background:transparent;color:var(--text3);cursor:default;}
   .seg-read{font-size:12px;font-family:var(--mono);color:var(--text);margin-top:7px;line-height:1.5;}
   .seg-read small{color:var(--text3);font-family:inherit;font-size:11px;}
   .seg-err{font-size:12px;color:var(--amber);margin-top:6px;line-height:1.45;}
@@ -115,7 +120,7 @@
   @media (max-width:640px){
     body{padding:14px;}
     .chart-wrap{height:62vh;min-height:320px;}
-    .legend{max-width:calc(100% - 70px);} .lg-row{font-size:11px;}
+    .legend{right:70px;} .lg-row{font-size:11px;}
     .step button{width:40px;padding:7px 0;}
     .seg-row .k{width:100%;}
   }
@@ -144,7 +149,7 @@
   <ol>
     <li>Wybierz <b>gotowiec</b> albo dodaj własny odcinek przyciskiem „+ Dodaj odcinek”.</li>
     <li>Ustaw start: wpisz datę, przesuń przyciskami −30 / −7 / −1 / +1 / +7 / +30 dni albo kliknij miejsce na <b>pasku historii</b> pod wykresem (działa dla zaznaczonego odcinka).</li>
-    <li>Wybierz oś: <b>% od startu</b> (każdy odcinek zaczyna od 0%), <b>w cenie odniesienia</b> (wszystkie odcinki zaczynają z wartości odcinka z gwiazdką ★ — widać, gdzie byłaby cena, gdyby poszło jak wtedy) albo <b>prawdziwe wartości</b>.</li>
+    <li>Wybierz oś i układ: <b>Nałożone</b> (wszystko na jednym wykresie) albo <b>Pod sobą</b> (każdy odcinek osobno, z własną skalą — przy prawdziwych wartościach włącza się sam). Oś: <b>% od startu</b> (każdy odcinek zaczyna od 0%), <b>w cenie odniesienia</b> (wszystkie odcinki zaczynają z wartości odcinka z gwiazdką ★ — widać, gdzie byłaby cena, gdyby poszło jak wtedy) albo <b>prawdziwe wartości</b>.</li>
   </ol>
   <div class="warn">To narzędzie do oglądania, nie prognoza. Cykli BTC są tylko 4, dużych fal altów kilka — podobny kształt z przeszłości niczego nie obiecuje.</div>
 </div>
@@ -155,10 +160,10 @@
     <div class="controls">
       <div class="ctrl-group"><span class="ctrl-label">Gotowce</span>
         <div class="pills" id="presets">
-          <button class="pill go" data-p="halving" title="Odcinek od każdego halvingu do następnego">Halvingi</button>
-          <button class="pill go" data-p="topbot" title="Bessy: od szczytu cyklu BTC do dna">Szczyt → dołek</button>
-          <button class="pill go" data-p="bottop" title="Od dna cyklu BTC do następnego szczytu">Dołek → szczyt</button>
-          <button class="pill go" data-p="alts" title="Największe fale indeksu altów: od dołka do szczytu i 30 dni po nim">Największe altsezony</button>
+          <button class="pill" data-p="halving" title="Odcinek od każdego halvingu do następnego">Halvingi</button>
+          <button class="pill" data-p="topbot" title="Bessy: od szczytu cyklu BTC do dna">Szczyt → dołek</button>
+          <button class="pill" data-p="bottop" title="Od dna cyklu BTC do następnego szczytu">Dołek → szczyt</button>
+          <button class="pill" data-p="alts" title="Największe fale indeksu altów: od dołka do szczytu i 30 dni po nim">Największe altsezony</button>
         </div>
       </div>
       <div class="ctrl-group"><span class="ctrl-label">na serii</span><select id="preset-sid" title="Seria dla gotowców Halvingi, Szczyt → dołek, Dołek → szczyt (daty zawsze z cyklu BTC)"></select></div>
@@ -169,6 +174,12 @@
           <button class="pill" data-m="pct">% od startu</button>
           <button class="pill" data-m="ref">W cenie odniesienia ★</button>
           <button class="pill" data-m="val">Prawdziwe wartości</button>
+        </div>
+      </div>
+      <div class="ctrl-group"><span class="ctrl-label">Układ</span>
+        <div class="pills" id="layouts">
+          <button class="pill" data-l="0" title="Wszystkie odcinki na jednym wykresie">Nałożone</button>
+          <button class="pill" data-l="1" title="Każdy odcinek na osobnym wykresie z własną skalą, jeden pod drugim — wspólna oś dni">Pod sobą</button>
         </div>
       </div>
       <div class="ctrl-group"><div class="pills"><button class="pill" id="log" title="Skala logarytmiczna: ten sam odstęp = ta sama zmiana w %">Log</button></div></div>
@@ -192,7 +203,7 @@
   <div class="panel">
     <div class="seg-hd"><h2>Odcinki</h2><div class="pills"><button class="pill go" id="add">+ Dodaj odcinek</button><button class="pill" id="clear">Wyczyść</button></div></div>
     <div class="segs" id="segs"></div>
-    <div class="note">Klik w kartę = zaznacz odcinek (pasek historii pokaże jego serię). ★ = odcinek odniesienia, 👁 = pokaż / ukryj, ✕ = usuń. „Dni” puste = do końca danych. Odczyt na karcie pokazuje dzień pod kursorem na wykresie, bez kursora — ostatni dzień odcinka.</div>
+    <div class="note">Klik w kartę = zaznacz odcinek (pasek historii pokaże jego serię). ★ = odcinek odniesienia, 👁 = pokaż / ukryj, ✕ = usuń. „↺ Domyślne” = start i liczba dni wracają do wartości z gotowca (albo z chwili dodania odcinka). „Dni” puste = do końca danych. Odczyt na karcie pokazuje dzień pod kursorem na wykresie, bez kursora — ostatni dzień odcinka.</div>
   </div>
 </aside>
 </div>
@@ -279,15 +290,19 @@ function firstGE(ts, t) { let lo = 0, hi = ts.length; while (lo < hi) { const m 
 
 // ── stan ────────────────────────────────────────────────────
 const COLORS = ['#5b9cf6', '#4caf7d', '#ce93d8', '#ffc107', '#26c6da', '#ff8a65', '#f48fb1', '#aed581', '#b0bec5', '#e05252', '#9575cd', '#fff176'];
-const S = {mode: 'pct', log: true, segs: [], sel: 0, ref: null, psid: 'px_btc'};
+const S = {mode: 'pct', log: true, stack: false, preset: null, segs: [], sel: 0, ref: null, psid: 'px_btc'};
 let SKIPPED = [];
+// wartości domyślne odcinka (z gotowca albo z chwili dodania) — przycisk „↺ Domyślne” przy starcie
+const changed = s => s.start0 != null && (s.start !== s.start0 || s.len !== s.len0);
 function nextColor() {
   const used = S.segs.map(s => s.color);
   return COLORS.find(c => !used.includes(c)) || COLORS[S.segs.length % COLORS.length];
 }
 function save() {
-  const seg = S.segs.map(s => [s.sid, iso(s.start).replace(/-/g, ''), s.len == null ? '' : s.len, s.on ? '' : '0'].join('.')).join(',');
-  const h = `m=${S.mode}&log=${S.log ? 1 : 0}&ref=${S.ref == null ? '' : S.ref}&p=${S.psid}&s=${seg}`;
+  const ymd = t => iso(t).replace(/-/g, '');
+  const seg = S.segs.map(s => [s.sid, ymd(s.start), s.len == null ? '' : s.len, s.on ? '' : '0']
+    .concat(changed(s) ? [ymd(s.start0), s.len0 == null ? '' : s.len0] : []).join('.')).join(',');
+  const h = `m=${S.mode}&log=${S.log ? 1 : 0}&l=${S.stack ? 1 : 0}&g=${S.preset || ''}&ref=${S.ref == null ? '' : S.ref}&p=${S.psid}&s=${seg}`;
   try { history.replaceState(null, '', '#' + h); } catch (e) { /* plik lokalny */ }
   try { localStorage.setItem('cl-sandbox', h); } catch (e) { /* tryb prywatny */ }
 }
@@ -296,16 +311,22 @@ function restore(h) {
   if (!q.get('s')) return false;
   const segs = [];
   for (const part of q.get('s').split(',')) {
-    const [sid, d, len, on] = part.split('.');
+    const [sid, d, len, on, d0, len0] = part.split('.');
     if (!SER[sid] || !/^\d{8}$/.test(d || '')) continue;
     const start = fromIso(d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6));
     if (!isFinite(start)) continue;
-    segs.push({sid, start, len: len && +len > 0 ? Math.round(+len) : null, on: on !== '0', color: COLORS[segs.length % COLORS.length]});
+    const seg = {sid, start, len: len && +len > 0 ? Math.round(+len) : null, on: on !== '0', color: COLORS[segs.length % COLORS.length]};
+    const has0 = /^\d{8}$/.test(d0 || ''), t0 = has0 ? fromIso(d0.slice(0, 4) + '-' + d0.slice(4, 6) + '-' + d0.slice(6)) : NaN;
+    seg.start0 = isFinite(t0) ? t0 : seg.start;
+    seg.len0 = isFinite(t0) ? (len0 && +len0 > 0 ? Math.round(+len0) : null) : seg.len;
+    segs.push(seg);
   }
   if (!segs.length) return false;
   S.segs = segs.slice(0, 24);
   if (['pct', 'ref', 'val'].includes(q.get('m'))) S.mode = q.get('m');
   S.log = q.get('log') !== '0';
+  S.stack = q.get('l') === '1';
+  S.preset = ['halving', 'topbot', 'bottop', 'alts'].includes(q.get('g')) ? q.get('g') : null;
   const r = q.get('ref');
   S.ref = r !== null && r !== '' && +r >= 0 && +r < S.segs.length ? +r : null;
   if (SER[q.get('p')]) S.psid = q.get('p');
@@ -342,7 +363,13 @@ function refIndex(B) {
 }
 
 // ── wykres ──────────────────────────────────────────────────
-let chart = null, hist = null, LINES = [], BUILT = [], lastParam = null;
+let chart = null, hist = null, LINES = [], BUILT = [], lastParam = null, PANES = [], TOPS = [];
+function paneTops() {                               // górna krawędź każdego panelu (do podpisów w układzie „Pod sobą”)
+  TOPS = [];
+  if (!chart || !S.stack) return;
+  let y = 0;
+  for (const p of chart.panes()) { TOPS.push(y); y += p.getHeight() + 1; }
+}
 const chartOpts = extra => Object.assign({
   autoSize: true, layout: {background: {color: 'transparent'}, textColor: '#888', fontSize: 12, attributionLogo: false},
   grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
@@ -374,7 +401,8 @@ function draw() {
   BUILT = S.segs.map(build);
   const ri = refIndex(BUILT), ref = ri >= 0 ? BUILT[ri] : null, refSid = ri >= 0 ? S.segs[ri].sid : null;
   const sids = [...new Set(S.segs.filter((s, i) => s.on && BUILT[i].pts).map(s => s.sid))];
-  let twoScales = false, hidden = 0;
+  let twoScales = false, hidden = 0, pane = 0;
+  PANES = [];
   S.segs.forEach((seg, i) => {
     const b = BUILT[i];
     if (!b.pts) return;
@@ -386,6 +414,7 @@ function draw() {
     let scale = 'right', pf;
     if (S.mode === 'pct') pf = {type: 'custom', minMove: 0.01, formatter: x => pct(x - 100)};
     else if (S.mode === 'ref') pf = {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, refSid)};
+    else if (S.stack) { const sid = seg.sid; pf = {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, sid)}; }
     else {
       const k = sids.indexOf(seg.sid);
       scale = k === 0 ? 'right' : k === 1 ? 'left' : 'x' + k;
@@ -397,14 +426,30 @@ function draw() {
     const data = [];
     for (const p of b.pts) { const y = p.v * b.k; if (!(S.log && y <= 0)) data.push({time: DAY0 + p.d * DAY, value: y}); }
     const s = chart.addSeries(LWC.LineSeries, {color: seg.color, lineWidth: b.open ? 3 : 2, priceScaleId: scale, priceFormat: pf,
-      lastValueVisible: true, priceLineVisible: false, crosshairMarkerRadius: 4});
+      lastValueVisible: true, priceLineVisible: false, crosshairMarkerRadius: 4}, S.stack ? pane : 0);
     s.setData(data);
+    if (S.stack) {
+      PANES.push(i);
+      pane++;
+      // pod sobą: zaznacz dołek i szczyt odcinka (od tego, co na osi)
+      let lo = null, hi = null;
+      for (const p of b.pts) { if (!lo || p.v < lo.v) lo = p; if (!hi || p.v > hi.v) hi = p; }
+      const sid = S.mode === 'ref' ? refSid : seg.sid, txt = p => S.mode === 'pct' ? pct((p.v / b.v0 - 1) * 100) : fmtVal(p.v * (S.mode === 'ref' ? b.k : 1), sid);
+      const mk = [];
+      b.ext = '';
+      if (lo && lo !== hi && !(S.log && lo.v * b.k <= 0)) mk.push({time: DAY0 + lo.d * DAY, position: 'belowBar', shape: 'arrowUp', color: '#4caf7d', text: ''});
+      if (hi && lo !== hi) mk.push({time: DAY0 + hi.d * DAY, position: 'aboveBar', shape: 'arrowDown', color: '#e05252', text: ''});
+      if (lo && hi && lo !== hi) b.ext = `<span class="lg-ext"><i class="dn">▼</i> szczyt: dzień ${hi.d} · ${txt(hi)}</span><span class="lg-ext"><i class="up">▲</i> dołek: dzień ${lo.d} · ${txt(lo)}</span>`;
+      if (LWC.createSeriesMarkers) LWC.createSeriesMarkers(s, mk.sort((x, y) => x.time - y.time));
+    }
     if (scale !== 'right' && scale !== 'left') chart.priceScale(scale).applyOptions({visible: false});
     LINES.push({s, i, scale});
   });
-  const mode = S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal, mg = {top: 0.08, bottom: 0.06};
-  chart.priceScale('right').applyOptions({mode, scaleMargins: mg});
-  chart.priceScale('left').applyOptions({visible: S.mode === 'val' && twoScales, mode, scaleMargins: mg});
+  const mode = S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal, mg = S.stack ? {top: 0.2, bottom: 0.16} : {top: 0.08, bottom: 0.06};
+  $('chart').parentElement.style.height = S.stack && pane > 1 ? Math.max(480, pane * (window.innerWidth <= 640 ? 190 : 230)) + 'px' : '';
+  for (let k = 0; k < Math.max(1, pane); k++) chart.priceScale('right', k).applyOptions({mode, scaleMargins: mg});
+  chart.panes().forEach(p => { if (p.setStretchFactor) p.setStretchFactor(1); });
+  chart.priceScale('left').applyOptions({visible: !S.stack && S.mode === 'val' && twoScales, mode, scaleMargins: mg});
   for (const l of LINES) if (l.scale[0] === 'x') chart.priceScale(l.scale).applyOptions({mode, scaleMargins: mg});
   chart.timeScale().fitContent();
   $('empty').hidden = LINES.length > 0;
@@ -412,8 +457,11 @@ function draw() {
   let note = '';
   if (S.mode === 'pct') note = 'Oś: zmiana od dnia 0 każdego odcinka (0% = wartość z dnia startu).';
   else if (S.mode === 'ref') note = ref ? `Oś: wszystkie odcinki zaczynają z wartości odniesienia ★ — ${esc(CAT[S.segs[ri].sid].name)} z ${dmy(S.segs[ri].start)} (${fmtVal(ref.v0, S.segs[ri].sid)}); dalej każdy idzie swoim tempem. To przeliczenie, nie prawdziwe ceny z tamtych lat.` : '';
-  else note = 'Oś: prawdziwe wartości.' + (sids.length > 1 ? ` Różne serie mają osobne osie: ${esc(CAT[sids[0]].name)} po prawej` + (sids[1] ? `, ${esc(CAT[sids[1]].name)} po lewej` : '') + (hidden ? '; pozostałe bez widocznej osi (wartości w odczycie na kartach)' : '') + '.' : '');
+  else note = 'Oś: prawdziwe wartości.' + (!S.stack && sids.length > 1 ? ` Różne serie mają osobne osie: ${esc(CAT[sids[0]].name)} po prawej` + (sids[1] ? `, ${esc(CAT[sids[1]].name)} po lewej` : '') + (hidden ? '; pozostałe bez widocznej osi (wartości w odczycie na kartach)' : '') + '.' : '');
+  if (S.stack) note += ' Układ „Pod sobą”: każdy odcinek ma własny wykres i własną skalę (wspólna jest tylko oś dni), więc wysokości linii między wykresami nie da się porównywać — porównuj kształt i dni. Strzałki ▼ ▲ = szczyt i dołek odcinka (dzień i wartość w podpisie).';
+  else if (S.mode === 'val' && sids.length === 1 && LINES.length > 1) note += ' Przy jednej skali stare okresy są spłaszczone — układ „Pod sobą” daje każdemu odcinkowi własną skalę.';
   $('axis-note').innerHTML = note + ' Grubsza linia = odcinek, który trwa do dziś.';
+  requestAnimationFrame(() => { paneTops(); readout(lastParam); });
   $('skip-note').hidden = !SKIPPED.length;
   $('skip-note').textContent = SKIPPED.length ? 'Pominięte w gotowcu (seria nie ma danych z tego dnia): ' + SKIPPED.join(', ') + '.' : '';
   renderSegs();
@@ -444,7 +492,8 @@ function readout(p) {
       (day == null ? ` <small>${b.open ? '(ostatni dzień danych)' : '(koniec odcinka)'}</small>` : '');
     if (seg.on && !b.bad) {
       const main = S.mode === 'pct' ? (chH || '—') : S.mode === 'ref' ? fmtVal(pt.v * b.k, S.segs[ri].sid) : fmtVal(pt.v, seg.sid);
-      rows.push(`<div class="lg-row" style="--c:${seg.color}"><span class="swatch"></span><span class="lg-name">${esc(label(seg))}</span><span class="lg-val">${main}</span></div>`);
+      const k = S.stack ? PANES.indexOf(i) : -1, pos = k >= 0 && TOPS[k] != null ? `;position:absolute;left:0;top:${TOPS[k] + (k === 0 && day != null ? 24 : 0)}px` : '';
+      rows.push(`<div class="lg-row${k >= 0 ? ' st' : ''}" style="--c:${seg.color}${pos}"><span class="swatch"></span><span class="lg-name">${esc(label(seg))}</span><span class="lg-val">${main}</span>${k >= 0 ? b.ext || '' : ''}</div>`);
     }
   });
   $('legend').innerHTML = rows.join('');
@@ -500,7 +549,8 @@ function renderSegs() {
         <button class="ib" data-act="del" title="Usuń odcinek" aria-label="Usuń">✕</button></div>
       <div class="seg-row"><span class="k">Start</span>
         <input type="date" data-act="date" value="${iso(seg.start)}" min="${iso(ts[0])}" max="${iso(ts[ts.length - 1])}" aria-label="Data startu">
-        <span class="step">${[-30, -7, -1, 1, 7, 30].map(n => `<button data-act="step" data-n="${n}" title="Przesuń start o ${n > 0 ? '+' : '−'}${Math.abs(n)} ${Math.abs(n) === 1 ? 'dzień' : 'dni'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</button>`).join('')}</span></div>
+        <span class="step">${[-30, -7, -1, 1, 7, 30].map(n => `<button data-act="step" data-n="${n}" title="Przesuń start o ${n > 0 ? '+' : '−'}${Math.abs(n)} ${Math.abs(n) === 1 ? 'dzień' : 'dni'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</button>`).join('')}</span>
+        <button class="rst" data-act="reset"${changed(seg) ? '' : ' disabled'} title="${changed(seg) ? `Wróć do wartości domyślnych: start ${dmy(seg.start0)}, ${seg.len0 == null ? 'do końca danych' : seg.len0 + ' dni'}` : 'Start i liczba dni są domyślne'}">↺ Domyślne</button></div>
       <div class="seg-row"><span class="k">Dni</span>
         <input type="number" data-act="len" min="1" step="1" inputmode="numeric" placeholder="do końca" value="${seg.len == null ? '' : seg.len}" aria-label="Długość odcinka w dniach">
         <span class="desc" style="font-size:12px">${seg.len == null ? 'do końca danych' : 'do ' + dmy(seg.start + seg.len * DAY)}</span></div>
@@ -523,9 +573,11 @@ $('segs').addEventListener('click', e => {
   if (!card) return;
   const i = +card.dataset.i, act = e.target.dataset.act, seg = S.segs[i];
   if (act === 'step') { S.sel = i; setStart(i, seg.start + (+e.target.dataset.n) * DAY); return; }
+  if (act === 'reset') { S.sel = i; seg.start = clampStart(seg.sid, seg.start0); seg.len = seg.len0; SKIPPED = []; draw(); return; }
   if (act === 'ref') { S.ref = i; S.sel = i; draw(); return; }
   if (act === 'eye') { seg.on = !seg.on; draw(); return; }
   if (act === 'del') {
+    S.preset = null; syncPills();
     S.segs.splice(i, 1);
     if (S.ref != null) S.ref = S.ref === i ? null : S.ref > i ? S.ref - 1 : S.ref;
     S.sel = Math.max(0, Math.min(S.sel > i ? S.sel - 1 : S.sel, S.segs.length - 1));
@@ -541,7 +593,7 @@ $('segs').addEventListener('change', e => {
   if (!card || !act) return;
   const i = +card.dataset.i, seg = S.segs[i];
   S.sel = i;
-  if (act === 'sid') { seg.sid = e.target.value; seg.start = clampStart(seg.sid, seg.start); }
+  if (act === 'sid') { S.preset = null; syncPills(); seg.sid = e.target.value; seg.start = clampStart(seg.sid, seg.start); }
   if (act === 'date') { const t = fromIso(e.target.value); if (!isFinite(t)) return; seg.start = clampStart(seg.sid, t); }
   if (act === 'len') { const n = Math.round(+e.target.value); seg.len = e.target.value !== '' && n > 0 ? n : null; }
   SKIPPED = [];
@@ -549,12 +601,14 @@ $('segs').addEventListener('change', e => {
 });
 $('add').addEventListener('click', () => {
   const cur = S.segs[S.sel], sid = cur ? cur.sid : S.psid, ts = T_OF[sid];
-  S.segs.push({sid, start: cur ? cur.start : clampStart(sid, ts[ts.length - 1] - 365 * DAY), len: cur ? cur.len : null, on: true, color: nextColor()});
+  const start = cur ? cur.start : clampStart(sid, ts[ts.length - 1] - 365 * DAY), len = cur ? cur.len : null;
+  S.segs.push({sid, start, len, start0: start, len0: len, on: true, color: nextColor()});
   S.sel = S.segs.length - 1;
+  S.preset = null; syncPills();
   SKIPPED = [];
   draw();
 });
-$('clear').addEventListener('click', () => { S.segs = []; S.sel = 0; S.ref = null; SKIPPED = []; draw(); });
+$('clear').addEventListener('click', () => { S.preset = null; syncPills(); S.segs = []; S.sel = 0; S.ref = null; SKIPPED = []; draw(); });
 
 // ── gotowce ─────────────────────────────────────────────────
 // fale indeksu altów — ten sam zigzag co w zakładce Altsezon (próg +40% od dołka, 3–200 dni)
@@ -602,17 +656,22 @@ function preset(kind) {
   const segs = [];
   for (const it of list) {
     const seg = {sid, start: dayFloor(it.start), len: it.len, on: true, color: COLORS[segs.length % COLORS.length]};
+    seg.start0 = seg.start; seg.len0 = seg.len;
     if (build(seg).err) { SKIPPED.push(dmy(seg.start)); continue; }
     segs.push(seg);
   }
   if (!segs.length) { banner('warn', `Seria „${CAT[sid].name}” nie ma danych z dni tego gotowca.`); return; }
   banner('', '');
-  S.segs = segs; S.ref = null; S.sel = segs.length - 1;
+  S.segs = segs; S.ref = null; S.sel = segs.length - 1; S.preset = kind;
+  syncPills();
   draw();
 }
 $('presets').addEventListener('click', e => { const p = e.target.dataset.p; if (p) preset(p); });
 $('preset-sid').addEventListener('change', e => { S.psid = e.target.value; save(); });
-$('modes').addEventListener('click', e => { const m = e.target.dataset.m; if (!m) return; S.mode = m; syncPills(); draw(); });
+// „Prawdziwe wartości” od razu pod sobą (na jednej skali stare okresy są płaskie); pozostałe osie — nałożone. Układ można potem przełączyć ręcznie.
+$('modes').addEventListener('click', e => { const m = e.target.dataset.m; if (!m) return; if (m !== S.mode) S.stack = m === 'val'; S.mode = m; syncPills(); draw(); });
+$('layouts').addEventListener('click', e => { const l = e.target.dataset.l; if (l == null) return; S.stack = l === '1'; syncPills(); draw(); });
+window.addEventListener('resize', () => { if (S.stack) requestAnimationFrame(() => { paneTops(); readout(lastParam); }); });
 $('log').addEventListener('click', () => { S.log = !S.log; syncPills(); draw(); });
 $('link').addEventListener('click', async () => {
   save();
@@ -624,6 +683,8 @@ $('link').addEventListener('click', async () => {
 function syncPills() {
   document.querySelectorAll('#modes .pill').forEach(b => b.classList.toggle('active', b.dataset.m === S.mode));
   $('log').classList.toggle('active', S.log);
+  document.querySelectorAll('#layouts .pill').forEach(b => b.classList.toggle('active', (b.dataset.l === '1') === S.stack));
+  document.querySelectorAll('#presets .pill').forEach(b => b.classList.toggle('active', b.dataset.p === S.preset));
 }
 function banner(cls, html) { const b = $('banner'); b.className = 'banner' + (cls ? ' ' + cls : ''); b.innerHTML = html; }
 function setStatus(cls, txt) { $('dot').className = 'status-dot ' + cls; $('status').textContent = txt; }
