@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chart Sandbox — nakładanie wykresów · Crypto Loser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="Nakładanie wykresów od wspólnego dnia 0: halvingi, szczyty i dołki cykli, altsezony albo dowolna seria od dowolnej daty.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crypto Loser Analytics Tools">
+<meta property="og:title" content="Chart Sandbox — nakładanie wykresów · Crypto Loser">
+<meta property="og:description" content="Nakładanie wykresów od wspólnego dnia 0: halvingi, szczyty i dołki cykli, altsezony albo dowolna seria od dowolnej daty.">
+<meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crypto Loser Analytics Tools — The best tools for buying high and selling low.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="CL Analytics">
+<script src="app.js?v=121"></script>
+<script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0f0f0f;--bg2:#181818;--bg3:#222;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#888;--text3:#555;
+    --green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--amber-bg:rgba(255,193,7,.1);--red-bg:rgba(224,82,82,.12);
+    --radius:8px;--radius-lg:12px;
+    --mono:'SF Mono','Fira Mono',ui-monospace,monospace;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px;font-size:15px;overflow-x:hidden;}
+  .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .header-left{display:flex;align-items:center;gap:14px;}
+  .menu-link{font-size:12px;color:var(--text2);text-decoration:none;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg2);}
+  .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;}
+  .header p{font-size:12px;color:var(--text2);margin-top:2px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:5px;}
+  .status-dot.live{background:var(--green);} .status-dot.stale{background:var(--amber);} .status-dot.error{background:var(--red);}
+  .status-label{font-size:12px;color:var(--text2);}
+  .banner{font-size:13px;padding:9px 12px;border-radius:var(--radius);margin-bottom:14px;display:none;line-height:1.5;}
+  .banner.warn{display:block;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(255,193,7,.25);}
+  .banner.err{display:block;background:var(--red-bg);color:var(--red);border:1px solid rgba(224,82,82,.3);}
+
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;margin-bottom:14px;}
+  .panel h2{font-size:14px;font-weight:600;margin-bottom:4px;}
+  .desc{font-size:13px;color:var(--text2);line-height:1.55;}
+  .desc b{color:var(--text);font-weight:600;}
+  .about{max-width:1100px;}
+  .about ol{margin:6px 0 6px 20px;font-size:13px;color:var(--text2);line-height:1.6;}
+  .about .warn{color:var(--amber);font-size:13px;line-height:1.5;margin-top:6px;}
+  .controls{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin-bottom:10px;}
+  .ctrl-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+  .ctrl-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+  .pills{display:flex;gap:3px;flex-wrap:wrap;}
+  .pill{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;font-family:inherit;}
+  .pill:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+  .pill.active{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:var(--text);font-weight:500;}
+  .pill.go{color:var(--text);border-color:rgba(91,156,246,.45);background:rgba(91,156,246,.1);}
+  .pill.go:hover{background:rgba(91,156,246,.2);}
+  select,input[type=date],input[type=number]{font-size:13px;padding:5px 8px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);font-family:inherit;color-scheme:dark;min-width:0;}
+  .note{font-size:12px;color:var(--text3);line-height:1.55;margin-top:8px;}
+  .note.amber{color:var(--amber);}
+
+  .sb-layout{display:flex;flex-direction:column;gap:14px;}
+  .sb-main{min-width:0;}
+  .sb-side{min-width:0;}
+  @media (min-width:1200px){
+    .sb-layout{flex-direction:row;align-items:flex-start;gap:16px;}
+    .sb-main{flex:1;}
+    .sb-side{width:420px;flex:none;}
+  }
+  .chart-wrap{position:relative;height:min(62vh,640px);min-height:340px;}
+  #chart{position:absolute;inset:0;}
+  .legend{position:absolute;left:8px;top:6px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none;max-width:calc(100% - 90px);}
+  .lg-row{display:flex;align-items:center;gap:6px;font-size:12px;background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;max-width:100%;}
+  .lg-row .swatch,.seg .swatch{width:10px;height:10px;border-radius:3px;background:var(--c);flex:none;}
+  .lg-name{color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .lg-val{font-family:var(--mono);color:var(--text);white-space:nowrap;}
+  .lg-day{font-size:12px;color:var(--text);background:rgba(15,15,15,.72);padding:2px 6px;border-radius:5px;width:max-content;font-family:var(--mono);}
+  .empty[hidden]{display:none;}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;z-index:2;pointer-events:none;text-align:center;padding:20px;}
+  .hist-wrap{position:relative;height:170px;margin-top:6px;cursor:crosshair;}
+  #hist{position:absolute;inset:0;}
+  .hist-hd{display:flex;align-items:baseline;gap:8px 12px;flex-wrap:wrap;margin-top:14px;}
+  .hist-hd h2{margin:0;}
+
+  .seg-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+  .segs{display:flex;flex-direction:column;gap:8px;}
+  .seg{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--c);border-radius:var(--radius);padding:9px 10px;cursor:pointer;}
+  .seg.sel{border-color:var(--border2);border-left-color:var(--c);background:#141414;box-shadow:0 0 0 1px rgba(255,255,255,.18);}
+  .seg.off{opacity:.5;}
+  .seg-top{display:flex;align-items:center;gap:6px;}
+  .seg-top select{flex:1;}
+  .ib{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:14px;line-height:1;font-family:inherit;}
+  .ib:hover{color:var(--text);border-color:rgba(255,255,255,.3);}
+  .ib.on{color:var(--amber);border-color:rgba(255,193,7,.5);}
+  .seg-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px;}
+  .seg-row .k{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;width:44px;flex:none;}
+  .seg-row input[type=number]{width:84px;}
+  .step{display:flex;gap:3px;flex-wrap:wrap;}
+  .step button{font-size:12px;font-family:var(--mono);padding:5px 0;width:38px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;}
+  .step button:hover{color:var(--text);border-color:rgba(255,255,255,.35);background:var(--bg3);}
+  .seg-read{font-size:12px;font-family:var(--mono);color:var(--text);margin-top:7px;line-height:1.5;}
+  .seg-read small{color:var(--text3);font-family:inherit;font-size:11px;}
+  .seg-err{font-size:12px;color:var(--amber);margin-top:6px;line-height:1.45;}
+  .up{color:var(--green);} .dn{color:var(--red);}
+  .footer{text-align:center;margin-top:22px;font-size:11px;color:var(--text3);line-height:1.7;}
+  .brand{display:block;width:max-content;max-width:100%;margin:0 auto 18px;}
+  .brand img{display:block;height:52px;max-width:100%;}
+  @media (max-width:640px){
+    body{padding:14px;}
+    .chart-wrap{height:62vh;min-height:320px;}
+    .legend{max-width:calc(100% - 70px);} .lg-row{font-size:11px;}
+    .step button{width:40px;padding:7px 0;}
+    .seg-row .k{width:100%;}
+  }
+  @media print{ .brand{display:none !important;} }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="brand" title="Menu"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>
+<div class="header">
+  <div class="header-left">
+    <a href="index.html" class="menu-link">← Menu</a>
+    <div>
+      <h1>Chart Sandbox — nakładanie wykresów</h1>
+      <p>Każdy wykres od wspólnego dnia 0: halvingi, szczyty i dołki cykli, altsezony albo dowolna seria od dowolnej daty (dane dzienne)</p>
+    </div>
+  </div>
+  <div style="text-align:right"><span class="status-dot" id="dot"></span><span class="status-label" id="status">Ładowanie…</span></div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="panel about">
+  <h2>Co to jest</h2>
+  <div class="desc">Tu nakładasz na siebie wykresy, które w kalendarzu są od siebie daleko. Każda linia to <b>odcinek</b>: seria (np. cena BTC) i dzień startu. Oś pozioma to <b>liczba dni od startu</b>, nie daty — dzień 0 każdego odcinka leży w tym samym miejscu. Można nałożyć tę samą serię z różnych okresów (BTC po każdym halvingu) albo różne serie od tego samego dnia (BTC, TOTAL3 i indeks altów od szczytu).</div>
+  <ol>
+    <li>Wybierz <b>gotowiec</b> albo dodaj własny odcinek przyciskiem „+ Dodaj odcinek”.</li>
+    <li>Ustaw start: wpisz datę, przesuń przyciskami −30 / −7 / −1 / +1 / +7 / +30 dni albo kliknij miejsce na <b>pasku historii</b> pod wykresem (działa dla zaznaczonego odcinka).</li>
+    <li>Wybierz oś: <b>% od startu</b> (każdy odcinek zaczyna od 0%), <b>w cenie odniesienia</b> (wszystkie odcinki zaczynają z wartości odcinka z gwiazdką ★ — widać, gdzie byłaby cena, gdyby poszło jak wtedy) albo <b>prawdziwe wartości</b>.</li>
+  </ol>
+  <div class="warn">To narzędzie do oglądania, nie prognoza. Cykli BTC są tylko 4, dużych fal altów kilka — podobny kształt z przeszłości niczego nie obiecuje.</div>
+</div>
+
+<div class="sb-layout">
+<div class="sb-main">
+  <div class="panel">
+    <div class="controls">
+      <div class="ctrl-group"><span class="ctrl-label">Gotowce</span>
+        <div class="pills" id="presets">
+          <button class="pill go" data-p="halving" title="Odcinek od każdego halvingu do następnego">Halvingi</button>
+          <button class="pill go" data-p="topbot" title="Bessy: od szczytu cyklu BTC do dna">Szczyt → dołek</button>
+          <button class="pill go" data-p="bottop" title="Od dna cyklu BTC do następnego szczytu">Dołek → szczyt</button>
+          <button class="pill go" data-p="alts" title="Największe fale indeksu altów: od dołka do szczytu i 30 dni po nim">Największe altsezony</button>
+        </div>
+      </div>
+      <div class="ctrl-group"><span class="ctrl-label">na serii</span><select id="preset-sid" title="Seria dla gotowców Halvingi, Szczyt → dołek, Dołek → szczyt (daty zawsze z cyklu BTC)"></select></div>
+    </div>
+    <div class="controls">
+      <div class="ctrl-group"><span class="ctrl-label">Oś</span>
+        <div class="pills" id="modes">
+          <button class="pill" data-m="pct">% od startu</button>
+          <button class="pill" data-m="ref">W cenie odniesienia ★</button>
+          <button class="pill" data-m="val">Prawdziwe wartości</button>
+        </div>
+      </div>
+      <div class="ctrl-group"><div class="pills"><button class="pill" id="log" title="Skala logarytmiczna: ten sam odstęp = ta sama zmiana w %">Log</button></div></div>
+      <div class="ctrl-group"><div class="pills"><button class="pill" id="link" title="Skopiuj adres z tym układem odcinków">Kopiuj link</button></div></div>
+    </div>
+    <div class="chart-wrap">
+      <div class="legend" id="legend"></div>
+      <div class="empty" id="empty" hidden>Brak odcinków — wybierz gotowiec albo dodaj odcinek.</div>
+      <div id="chart"></div>
+    </div>
+    <div class="note" id="axis-note"></div>
+    <div class="note amber" id="skip-note" hidden></div>
+
+    <div class="hist-hd"><h2 id="hist-title">Pasek historii</h2><span class="desc" id="hist-sub">kliknij miejsce na wykresie — tam zacznie się zaznaczony odcinek</span></div>
+    <div class="hist-wrap"><div id="hist"></div></div>
+    <div class="note">Pasek pokazuje całą historię serii zaznaczonego odcinka. Grubsza linia = zaznaczony odcinek, strzałki = starty pozostałych odcinków tej serii, litery: H = halving, S = szczyt cyklu BTC, D = dno.</div>
+  </div>
+</div>
+
+<aside class="sb-side">
+  <div class="panel">
+    <div class="seg-hd"><h2>Odcinki</h2><div class="pills"><button class="pill go" id="add">+ Dodaj odcinek</button><button class="pill" id="clear">Wyczyść</button></div></div>
+    <div class="segs" id="segs"></div>
+    <div class="note">Klik w kartę = zaznacz odcinek (pasek historii pokaże jego serię). ★ = odcinek odniesienia, 👁 = pokaż / ukryj, ✕ = usuń. „Dni” puste = do końca danych. Odczyt na karcie pokazuje dzień pod kursorem na wykresie, bez kursora — ostatni dzień odcinka.</div>
+  </div>
+</aside>
+</div>
+
+<div class="footer">Dane dzienne (zamknięcia, doba UTC). Ceny i kapitalizacje: Coinalyze, TradingView, Coin Metrics; indeks altów: Binance spot (Orange Pi). Kapitalizacje i dominacje od 14.07.2017, indeks altów od 04.2019, open interest od 09.2022.</div>
+
+<script>
+'use strict';
+const LWC = window.LightweightCharts;
+const qs = new URLSearchParams(location.search);
+function branchBase(param, branch, local) {
+  if (qs.get(param)) return qs.get(param).replace(/\/?$/, '/');
+  if (location.hostname.endsWith('github.io')) {
+    const owner = location.hostname.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0] || '';
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+  }
+  return (local || branch) + '/';
+}
+const DATA_BASE = branchBase('data', 'data'), EMA_BASE = branchBase('ema', 'ema', 'ema-data');
+const bust = () => 'v=' + Math.floor(Date.now() / 300000);
+async function getJSON(base, name) {
+  const r = await fetch(`${base}${name}?${bust()}`, {cache: 'no-cache'});
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return r.json();
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const $ = id => document.getElementById(id);
+const DAY = 86400;
+const DAY0 = 86400 * 1000;                         // oś dni: dzień N = DAY0 + N dni (czas tylko do rysowania)
+const dayOf = t => Math.round((t - DAY0) / DAY);
+
+// ── zapis liczb i dat (po polsku) ───────────────────────────
+function num(v, d) {
+  const s = Math.abs(v).toFixed(d), [a, b] = s.split('.');
+  return (v < 0 ? '−' : '') + a.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (b ? ',' + b : '');
+}
+function auto(v) {                                 // liczba z rozsądną liczbą miejsc
+  const a = Math.abs(v);
+  if (a > 0 && a < 0.01) return (v < 0 ? '−' : '') + String(+a.toPrecision(2)).replace('.', ',');
+  return num(v, a >= 1000 ? 0 : a >= 100 ? 1 : a >= 1 ? 2 : 4);
+}
+function big(v) {
+  const a = Math.abs(v);
+  if (a >= 1e12) return num(v / 1e12, 2) + ' bln';
+  if (a >= 1e9) return num(v / 1e9, 2) + ' mld';
+  if (a >= 1e6) return num(v / 1e6, 1) + ' mln';
+  return auto(v);
+}
+function pct(x) {                                  // x = zmiana w % (np. 12,3)
+  const a = Math.abs(x);
+  return (x > 0 ? '+' : x < 0 ? '−' : '') + num(a, a >= 1000 ? 0 : a >= 100 ? 0 : 1).replace('−', '') + '%';
+}
+const iso = t => new Date(t * 1000).toISOString().slice(0, 10);
+const dmy = t => { const s = iso(t); return s.slice(8) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4); };
+const fromIso = s => Math.floor(Date.parse(s + 'T00:00:00Z') / 1000);
+const dayFloor = t => Math.floor(t / DAY) * DAY;
+
+// ── dane ────────────────────────────────────────────────────
+let META = {}, CAT = {}, SER = {}, T_OF = {};
+const GROUPS = [['price', 'Ceny'], ['pair', 'Ceny'], ['alt', 'Alty'], ['idx', 'Alty'], ['mcap', 'Kapitalizacja'], ['pct', 'Dominacja i udziały'],
+  ['ratio', 'Dźwignia i stosunki'], ['oi', 'Open interest'], ['cycle', 'Cykl BTC'], ['macro', 'Makro USA']];
+const GROUP_OF = Object.fromEntries(GROUPS);
+const ORDER = ['px_btc', 'px_eth', 'alt_index', 'total', 'total2', 'total3', 'others', 'btc_d', 'alts_vs_btc'];
+function fmtVal(v, sid) {
+  const g = (CAT[sid] || {}).group;
+  if (g === 'price') return '$' + auto(v);
+  if (g === 'mcap' || g === 'oi') return '$' + big(v);
+  if (g === 'pct') return num(v, 2) + '%';
+  return Math.abs(v) >= 1e6 ? big(v) : auto(v);
+}
+function seriesIds() {
+  const ids = Object.keys(SER).filter(id => CAT[id] && GROUP_OF[CAT[id].group] && SER[id].length > 30);
+  const rank = id => { const i = ORDER.indexOf(id); return i < 0 ? 99 : i; };
+  return ids.sort((a, b) => rank(a) - rank(b) || CAT[a].name.localeCompare(CAT[b].name, 'pl'));
+}
+function optionsHtml(cur) {
+  const ids = seriesIds(), by = {};
+  for (const id of ids) (by[GROUP_OF[CAT[id].group]] = by[GROUP_OF[CAT[id].group]] || []).push(id);
+  return [...new Set(GROUPS.map(g => g[1]))].filter(g => by[g]).map(g =>
+    `<optgroup label="${esc(g)}">` + by[g].map(id => `<option value="${id}"${id === cur ? ' selected' : ''}>${esc(CAT[id].name)} · od ${dmy(SER[id][0][0]).slice(3)}</option>`).join('') + '</optgroup>').join('');
+}
+function firstGE(ts, t) { let lo = 0, hi = ts.length; while (lo < hi) { const m = (lo + hi) >> 1; if (ts[m] < t) lo = m + 1; else hi = m; } return lo; }
+
+// ── stan ────────────────────────────────────────────────────
+const COLORS = ['#5b9cf6', '#4caf7d', '#ce93d8', '#ffc107', '#26c6da', '#ff8a65', '#f48fb1', '#aed581', '#b0bec5', '#e05252', '#9575cd', '#fff176'];
+const S = {mode: 'pct', log: true, segs: [], sel: 0, ref: null, psid: 'px_btc'};
+let SKIPPED = [];
+function nextColor() {
+  const used = S.segs.map(s => s.color);
+  return COLORS.find(c => !used.includes(c)) || COLORS[S.segs.length % COLORS.length];
+}
+function save() {
+  const seg = S.segs.map(s => [s.sid, iso(s.start).replace(/-/g, ''), s.len == null ? '' : s.len, s.on ? '' : '0'].join('.')).join(',');
+  const h = `m=${S.mode}&log=${S.log ? 1 : 0}&ref=${S.ref == null ? '' : S.ref}&p=${S.psid}&s=${seg}`;
+  try { history.replaceState(null, '', '#' + h); } catch (e) { /* plik lokalny */ }
+  try { localStorage.setItem('cl-sandbox', h); } catch (e) { /* tryb prywatny */ }
+}
+function restore(h) {
+  const q = new URLSearchParams(h);
+  if (!q.get('s')) return false;
+  const segs = [];
+  for (const part of q.get('s').split(',')) {
+    const [sid, d, len, on] = part.split('.');
+    if (!SER[sid] || !/^\d{8}$/.test(d || '')) continue;
+    const start = fromIso(d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6));
+    if (!isFinite(start)) continue;
+    segs.push({sid, start, len: len && +len > 0 ? Math.round(+len) : null, on: on !== '0', color: COLORS[segs.length % COLORS.length]});
+  }
+  if (!segs.length) return false;
+  S.segs = segs.slice(0, 24);
+  if (['pct', 'ref', 'val'].includes(q.get('m'))) S.mode = q.get('m');
+  S.log = q.get('log') !== '0';
+  const r = q.get('ref');
+  S.ref = r !== null && r !== '' && +r >= 0 && +r < S.segs.length ? +r : null;
+  if (SER[q.get('p')]) S.psid = q.get('p');
+  S.sel = 0;
+  return true;
+}
+
+// ── odcinek → punkty ────────────────────────────────────────
+// Dzień 0 = pierwszy punkt serii w dniu startu albo najbliższy później (do 7 dni — serie makro nie mają weekendów).
+function build(seg) {
+  const arr = SER[seg.sid];
+  if (!arr) return {err: 'Brak serii w danych.'};
+  const ts = T_OF[seg.sid], i0 = firstGE(ts, seg.start);
+  if (i0 >= arr.length) return {err: `Seria kończy się ${dmy(ts[ts.length - 1])} — start jest po końcu danych.`};
+  if (ts[i0] - seg.start > 7 * DAY) return {err: `Brak danych w dniu startu — seria zaczyna się ${dmy(ts[0])}.`};
+  const out = [];
+  let lastDay = -1;
+  for (let i = i0; i < arr.length; i++) {
+    const d = Math.round((ts[i] - seg.start) / DAY);
+    if (seg.len != null && d > seg.len) break;
+    if (d === lastDay || arr[i][1] == null) continue;
+    lastDay = d;
+    out.push({d, t: ts[i], v: arr[i][1]});
+  }
+  if (!out.length) return {err: 'Brak punktów w tym odcinku.'};
+  const open = seg.len == null || seg.start + seg.len * DAY > ts[ts.length - 1];
+  return {pts: out, v0: out[0].v, open};
+}
+function refIndex(B) {
+  if (S.ref != null && B[S.ref] && B[S.ref].pts) return S.ref;
+  let best = -1;                                    // domyślnie: odcinek z najpóźniejszym startem
+  S.segs.forEach((s, i) => { if (B[i].pts && (best < 0 || s.start > S.segs[best].start)) best = i; });
+  return best;
+}
+
+// ── wykres ──────────────────────────────────────────────────
+let chart = null, hist = null, LINES = [], BUILT = [], lastParam = null;
+const chartOpts = extra => Object.assign({
+  autoSize: true, layout: {background: {color: 'transparent'}, textColor: '#888', fontSize: 12, attributionLogo: false},
+  grid: {vertLines: {color: 'rgba(255,255,255,.04)'}, horzLines: {color: 'rgba(255,255,255,.04)'}},
+  rightPriceScale: {borderColor: 'rgba(255,255,255,.1)'}, leftPriceScale: {borderColor: 'rgba(255,255,255,.1)', visible: false},
+  crosshair: {mode: LWC.CrosshairMode.Normal},
+  handleScroll: {vertTouchDrag: false},
+}, extra);
+function makeCharts() {
+  chart = LWC.createChart($('chart'), chartOpts({
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', minBarSpacing: 0.02, rightOffset: 3, tickMarkFormatter: t => 'dzień ' + dayOf(t)},
+    localization: {locale: 'pl-PL', timeFormatter: t => 'dzień ' + dayOf(t)},
+  }));
+  if (window.brandWatermark) brandWatermark(chart);
+  chart.subscribeCrosshairMove(p => { lastParam = p; readout(p); });
+  hist = LWC.createChart($('hist'), chartOpts({
+    timeScale: {borderColor: 'rgba(255,255,255,.1)', minBarSpacing: 0.01},
+    localization: {locale: 'pl-PL', dateFormat: 'dd.MM.yyyy'},
+  }));
+  hist.subscribeClick(p => {
+    const seg = S.segs[S.sel];
+    if (!seg || p.time == null) return;
+    setStart(S.sel, +p.time);
+  });
+}
+function draw() {
+  if (!chart) makeCharts();
+  for (const l of LINES) chart.removeSeries(l.s);
+  LINES = [];
+  BUILT = S.segs.map(build);
+  const ri = refIndex(BUILT), ref = ri >= 0 ? BUILT[ri] : null, refSid = ri >= 0 ? S.segs[ri].sid : null;
+  const sids = [...new Set(S.segs.filter((s, i) => s.on && BUILT[i].pts).map(s => s.sid))];
+  let twoScales = false, hidden = 0;
+  S.segs.forEach((seg, i) => {
+    const b = BUILT[i];
+    if (!b.pts) return;
+    b.k = 1; b.bad = null;
+    if (S.mode !== 'val' && !(b.v0 > 0)) b.bad = 'Wartość w dniu startu jest ≤ 0 — nie da się policzyć zmiany w %. Użyj osi „Prawdziwe wartości”.';
+    if (S.mode === 'pct') b.k = 100 / b.v0;
+    if (S.mode === 'ref') b.k = ref && ref.v0 > 0 ? ref.v0 / b.v0 : 1;
+    if (!seg.on || b.bad) return;
+    let scale = 'right', pf;
+    if (S.mode === 'pct') pf = {type: 'custom', minMove: 0.01, formatter: x => pct(x - 100)};
+    else if (S.mode === 'ref') pf = {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, refSid)};
+    else {
+      const k = sids.indexOf(seg.sid);
+      scale = k === 0 ? 'right' : k === 1 ? 'left' : 'x' + k;
+      if (k === 1) twoScales = true;
+      if (k > 1) hidden++;
+      const sid = seg.sid;
+      pf = {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, sid)};
+    }
+    const data = [];
+    for (const p of b.pts) { const y = p.v * b.k; if (!(S.log && y <= 0)) data.push({time: DAY0 + p.d * DAY, value: y}); }
+    const s = chart.addSeries(LWC.LineSeries, {color: seg.color, lineWidth: b.open ? 3 : 2, priceScaleId: scale, priceFormat: pf,
+      lastValueVisible: true, priceLineVisible: false, crosshairMarkerRadius: 4});
+    s.setData(data);
+    if (scale !== 'right' && scale !== 'left') chart.priceScale(scale).applyOptions({visible: false});
+    LINES.push({s, i, scale});
+  });
+  const mode = S.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal, mg = {top: 0.08, bottom: 0.06};
+  chart.priceScale('right').applyOptions({mode, scaleMargins: mg});
+  chart.priceScale('left').applyOptions({visible: S.mode === 'val' && twoScales, mode, scaleMargins: mg});
+  for (const l of LINES) if (l.scale[0] === 'x') chart.priceScale(l.scale).applyOptions({mode, scaleMargins: mg});
+  chart.timeScale().fitContent();
+  $('empty').hidden = LINES.length > 0;
+  // opis osi
+  let note = '';
+  if (S.mode === 'pct') note = 'Oś: zmiana od dnia 0 każdego odcinka (0% = wartość z dnia startu).';
+  else if (S.mode === 'ref') note = ref ? `Oś: wszystkie odcinki zaczynają z wartości odniesienia ★ — ${esc(CAT[S.segs[ri].sid].name)} z ${dmy(S.segs[ri].start)} (${fmtVal(ref.v0, S.segs[ri].sid)}); dalej każdy idzie swoim tempem. To przeliczenie, nie prawdziwe ceny z tamtych lat.` : '';
+  else note = 'Oś: prawdziwe wartości.' + (sids.length > 1 ? ` Różne serie mają osobne osie: ${esc(CAT[sids[0]].name)} po prawej` + (sids[1] ? `, ${esc(CAT[sids[1]].name)} po lewej` : '') + (hidden ? '; pozostałe bez widocznej osi (wartości w odczycie na kartach)' : '') + '.' : '');
+  $('axis-note').innerHTML = note + ' Grubsza linia = odcinek, który trwa do dziś.';
+  $('skip-note').hidden = !SKIPPED.length;
+  $('skip-note').textContent = SKIPPED.length ? 'Pominięte w gotowcu (seria nie ma danych z tego dnia): ' + SKIPPED.join(', ') + '.' : '';
+  renderSegs();
+  drawHist();
+  readout(null);
+  save();
+}
+
+// odczyt: legenda na wykresie + linia na karcie odcinka
+function readout(p) {
+  const day = p && p.time != null ? dayOf(+p.time) : null;
+  const ri = refIndex(BUILT), rows = [];
+  if (day != null) rows.push(`<div class="lg-day">dzień ${day}</div>`);
+  S.segs.forEach((seg, i) => {
+    const b = BUILT[i], el = document.querySelector(`[data-read="${i}"]`);
+    if (!b || !b.pts) return;
+    let pt = b.pts[b.pts.length - 1];
+    if (day != null) {
+      pt = null;
+      let lo = 0, hi = b.pts.length - 1;              // ostatni punkt ≤ dzień (w granicach odcinka)
+      if (day >= b.pts[0].d && day <= b.pts[hi].d + 3) { while (lo < hi) { const m = (lo + hi + 1) >> 1; if (b.pts[m].d <= day) lo = m; else hi = m - 1; } pt = b.pts[lo]; }
+    }
+    if (!pt) { if (el) el.innerHTML = '<small>poza odcinkiem</small>'; return; }
+    const ch = b.v0 > 0 ? (pt.v / b.v0 - 1) * 100 : null;
+    const chH = ch == null ? '' : `<span class="${ch >= 0 ? 'up' : 'dn'}">${pct(ch)}</span>`;
+    const refH = S.mode === 'ref' && ri >= 0 && i !== ri && !b.bad ? ` <small>→ ${fmtVal(pt.v * b.k, S.segs[ri].sid)} w cenie odniesienia</small>` : '';
+    if (el) el.innerHTML = `dzień ${pt.d} · ${dmy(pt.t)} · ${fmtVal(pt.v, seg.sid)}${chH ? ' · ' + chH : ''}${refH}` +
+      (day == null ? ` <small>${b.open ? '(ostatni dzień danych)' : '(koniec odcinka)'}</small>` : '');
+    if (seg.on && !b.bad) {
+      const main = S.mode === 'pct' ? (chH || '—') : S.mode === 'ref' ? fmtVal(pt.v * b.k, S.segs[ri].sid) : fmtVal(pt.v, seg.sid);
+      rows.push(`<div class="lg-row" style="--c:${seg.color}"><span class="swatch"></span><span class="lg-name">${esc(label(seg))}</span><span class="lg-val">${main}</span></div>`);
+    }
+  });
+  $('legend').innerHTML = rows.join('');
+}
+const label = seg => `${CAT[seg.sid].name} od ${dmy(seg.start)}`;
+
+// ── pasek historii ──────────────────────────────────────────
+let HL = [];
+function drawHist() {
+  for (const s of HL) hist.removeSeries(s);
+  HL = [];
+  const seg = S.segs[S.sel];
+  if (!seg || !SER[seg.sid]) { $('hist-title').textContent = 'Pasek historii'; return; }
+  const hsid = seg.sid, arr = SER[hsid], pos = arr.every(p => p[1] > 0);
+  $('hist-title').textContent = 'Pasek historii — ' + CAT[seg.sid].name;
+  const base = hist.addSeries(LWC.LineSeries, {color: 'rgba(200,200,200,.55)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+    crosshairMarkerRadius: 3, priceFormat: {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, hsid)}});
+  base.setData(arr.map(p => ({time: p[0], value: p[1]})));
+  hist.priceScale('right').applyOptions({mode: pos ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal, scaleMargins: {top: 0.16, bottom: 0.08}});
+  HL.push(base);
+  const b = BUILT[S.sel];
+  if (b && b.pts) {
+    const hl = hist.addSeries(LWC.LineSeries, {color: seg.color, lineWidth: 3, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      priceFormat: {type: 'custom', minMove: 1e-8, formatter: x => fmtVal(x, hsid)}});
+    hl.setData(b.pts.map(p => ({time: p.t, value: p.v})));
+    HL.push(hl);
+  }
+  const t0 = arr[0][0], t1 = arr[arr.length - 1][0], mk = [];
+  for (const e of ((META.cycle_marks || {}).events || [])) {
+    if (e.t < t0 || e.t > t1) continue;
+    const k = e.kind === 'halving' ? ['H', '#ffc107', 'belowBar'] : e.kind === 'top' ? ['S', '#e05252', 'aboveBar'] : ['D', '#4caf7d', 'belowBar'];
+    mk.push({time: e.t, position: k[2], shape: 'circle', color: k[1], text: k[0], size: 0.6});
+  }
+  S.segs.forEach((s, i) => {
+    if (s.sid !== seg.sid || !BUILT[i] || !BUILT[i].pts) return;
+    mk.push({time: BUILT[i].pts[0].t, position: 'aboveBar', shape: 'arrowDown', color: s.color, text: i === S.sel ? 'start' : '', size: i === S.sel ? 1.4 : 1});
+  });
+  if (LWC.createSeriesMarkers) LWC.createSeriesMarkers(base, mk.sort((a, b) => a.time - b.time));
+  hist.timeScale().fitContent();
+}
+
+// ── karty odcinków ──────────────────────────────────────────
+function renderSegs() {
+  const ri = refIndex(BUILT);
+  $('segs').innerHTML = S.segs.map((seg, i) => {
+    const b = BUILT[i] || {}, ts = T_OF[seg.sid];
+    const err = b.err || b.bad;
+    return `<div class="seg${i === S.sel ? ' sel' : ''}${seg.on ? '' : ' off'}" data-i="${i}" style="--c:${seg.color}">
+      <div class="seg-top"><span class="swatch"></span>
+        <select data-act="sid" aria-label="Seria">${optionsHtml(seg.sid)}</select>
+        <button class="ib${i === ri ? ' on' : ''}" data-act="ref" title="Odcinek odniesienia dla osi „W cenie odniesienia”" aria-label="Odniesienie">★</button>
+        <button class="ib" data-act="eye" title="Pokaż / ukryj" aria-label="Pokaż lub ukryj">${seg.on ? '👁' : '—'}</button>
+        <button class="ib" data-act="del" title="Usuń odcinek" aria-label="Usuń">✕</button></div>
+      <div class="seg-row"><span class="k">Start</span>
+        <input type="date" data-act="date" value="${iso(seg.start)}" min="${iso(ts[0])}" max="${iso(ts[ts.length - 1])}" aria-label="Data startu">
+        <span class="step">${[-30, -7, -1, 1, 7, 30].map(n => `<button data-act="step" data-n="${n}" title="Przesuń start o ${n > 0 ? '+' : '−'}${Math.abs(n)} ${Math.abs(n) === 1 ? 'dzień' : 'dni'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</button>`).join('')}</span></div>
+      <div class="seg-row"><span class="k">Dni</span>
+        <input type="number" data-act="len" min="1" step="1" inputmode="numeric" placeholder="do końca" value="${seg.len == null ? '' : seg.len}" aria-label="Długość odcinka w dniach">
+        <span class="desc" style="font-size:12px">${seg.len == null ? 'do końca danych' : 'do ' + dmy(seg.start + seg.len * DAY)}</span></div>
+      ${err ? `<div class="seg-err">${esc(err)}</div>` : `<div class="seg-read" data-read="${i}"></div>`}
+    </div>`;
+  }).join('') || '<div class="desc">Brak odcinków.</div>';
+}
+function clampStart(sid, t) {
+  const ts = T_OF[sid];
+  return Math.max(dayFloor(ts[0]), Math.min(dayFloor(ts[ts.length - 1]), dayFloor(t)));
+}
+function setStart(i, t) {
+  const seg = S.segs[i];
+  seg.start = clampStart(seg.sid, t);
+  SKIPPED = [];
+  draw();
+}
+$('segs').addEventListener('click', e => {
+  const card = e.target.closest('.seg');
+  if (!card) return;
+  const i = +card.dataset.i, act = e.target.dataset.act, seg = S.segs[i];
+  if (act === 'step') { S.sel = i; setStart(i, seg.start + (+e.target.dataset.n) * DAY); return; }
+  if (act === 'ref') { S.ref = i; S.sel = i; draw(); return; }
+  if (act === 'eye') { seg.on = !seg.on; draw(); return; }
+  if (act === 'del') {
+    S.segs.splice(i, 1);
+    if (S.ref != null) S.ref = S.ref === i ? null : S.ref > i ? S.ref - 1 : S.ref;
+    S.sel = Math.max(0, Math.min(S.sel > i ? S.sel - 1 : S.sel, S.segs.length - 1));
+    SKIPPED = [];
+    draw();
+    return;
+  }
+  if (act) return;                                   // pola formularza — obsługa w „change”
+  if (S.sel !== i) { S.sel = i; renderSegs(); drawHist(); readout(lastParam); }
+});
+$('segs').addEventListener('change', e => {
+  const card = e.target.closest('.seg'), act = e.target.dataset.act;
+  if (!card || !act) return;
+  const i = +card.dataset.i, seg = S.segs[i];
+  S.sel = i;
+  if (act === 'sid') { seg.sid = e.target.value; seg.start = clampStart(seg.sid, seg.start); }
+  if (act === 'date') { const t = fromIso(e.target.value); if (!isFinite(t)) return; seg.start = clampStart(seg.sid, t); }
+  if (act === 'len') { const n = Math.round(+e.target.value); seg.len = e.target.value !== '' && n > 0 ? n : null; }
+  SKIPPED = [];
+  draw();
+});
+$('add').addEventListener('click', () => {
+  const cur = S.segs[S.sel], sid = cur ? cur.sid : S.psid, ts = T_OF[sid];
+  S.segs.push({sid, start: cur ? cur.start : clampStart(sid, ts[ts.length - 1] - 365 * DAY), len: cur ? cur.len : null, on: true, color: nextColor()});
+  S.sel = S.segs.length - 1;
+  SKIPPED = [];
+  draw();
+});
+$('clear').addEventListener('click', () => { S.segs = []; S.sel = 0; S.ref = null; SKIPPED = []; draw(); });
+
+// ── gotowce ─────────────────────────────────────────────────
+// fale indeksu altów — ten sam zigzag co w zakładce Altsezon (próg +40% od dołka, 3–200 dni)
+function altWaves(thPct) {
+  const arr = SER.alt_index || [], T = arr.map(p => p[0]), x = arr.map(p => Math.log(p[1])), th = Math.log(1 + thPct / 100), piv = [];
+  let hi = 0, lo = 0, trend = 0;
+  for (let i = 1; i < x.length; i++) {
+    if (trend >= 0) {
+      if (x[i] > x[hi]) hi = i;
+      if (x[hi] - x[i] >= th) { if (trend === 0 && lo < hi) piv.push(lo); piv.push(hi); trend = -1; lo = i; }
+    }
+    if (trend <= 0) {
+      if (x[i] < x[lo]) lo = i;
+      if (x[i] - x[lo] >= th) { if (trend === 0 && hi < lo) piv.push(hi); piv.push(lo); trend = 1; hi = i; }
+    }
+  }
+  const P = [...new Set(piv)].sort((a, b) => a - b), out = [];
+  for (let k = 0; k + 1 < P.length; k++) {
+    const a = P[k], b = P[k + 1], days = (T[b] - T[a]) / DAY;
+    if (x[b] <= x[a] || days < 3 || days > 200) continue;
+    out.push({ta: T[a], tb: T[b], days: Math.round(days), gain: (Math.exp(x[b] - x[a]) - 1) * 100});
+  }
+  return out;
+}
+const ALT_N = 6, ALT_AFTER = 30;
+function preset(kind) {
+  const ev = ((META.cycle_marks || {}).events || []).slice().sort((a, b) => a.t - b.t);
+  let list = [], sid = S.psid;
+  if (kind === 'halving') {
+    const h = ev.filter(e => e.kind === 'halving');
+    list = h.map((e, k) => ({start: e.t, len: h[k + 1] ? Math.round((h[k + 1].t - e.t) / DAY) : null}));
+  } else if (kind === 'topbot' || kind === 'bottop') {
+    const from = kind === 'topbot' ? 'top' : 'bottom', to = kind === 'topbot' ? 'bottom' : 'top';
+    ev.forEach((e, k) => {
+      if (e.kind !== from) return;
+      const nx = ev.slice(k + 1).find(z => z.kind === to || z.kind === from);
+      list.push({start: e.t, len: nx && nx.kind === to ? Math.round((nx.t - e.t) / DAY) : null});
+    });
+  } else if (kind === 'alts') {
+    sid = 'alt_index';
+    if (!SER[sid]) { banner('warn', 'Brak indeksu altów (plik altindex.json z gałęzi ema) — gotowiec niedostępny.'); return; }
+    list = altWaves(40).sort((a, b) => b.gain - a.gain).slice(0, ALT_N).sort((a, b) => a.ta - b.ta).map(w => ({start: w.ta, len: w.days + ALT_AFTER}));
+  }
+  SKIPPED = [];
+  const segs = [];
+  for (const it of list) {
+    const seg = {sid, start: dayFloor(it.start), len: it.len, on: true, color: COLORS[segs.length % COLORS.length]};
+    if (build(seg).err) { SKIPPED.push(dmy(seg.start)); continue; }
+    segs.push(seg);
+  }
+  if (!segs.length) { banner('warn', `Seria „${CAT[sid].name}” nie ma danych z dni tego gotowca.`); return; }
+  banner('', '');
+  S.segs = segs; S.ref = null; S.sel = segs.length - 1;
+  draw();
+}
+$('presets').addEventListener('click', e => { const p = e.target.dataset.p; if (p) preset(p); });
+$('preset-sid').addEventListener('change', e => { S.psid = e.target.value; save(); });
+$('modes').addEventListener('click', e => { const m = e.target.dataset.m; if (!m) return; S.mode = m; syncPills(); draw(); });
+$('log').addEventListener('click', () => { S.log = !S.log; syncPills(); draw(); });
+$('link').addEventListener('click', async () => {
+  save();
+  const b = $('link');
+  try { await navigator.clipboard.writeText(location.href); b.textContent = 'Skopiowano'; }
+  catch (e) { b.textContent = 'Skopiuj adres z paska'; }
+  setTimeout(() => { b.textContent = 'Kopiuj link'; }, 1800);
+});
+function syncPills() {
+  document.querySelectorAll('#modes .pill').forEach(b => b.classList.toggle('active', b.dataset.m === S.mode));
+  $('log').classList.toggle('active', S.log);
+}
+function banner(cls, html) { const b = $('banner'); b.className = 'banner' + (cls ? ' ' + cls : ''); b.innerHTML = html; }
+function setStatus(cls, txt) { $('dot').className = 'status-dot ' + cls; $('status').textContent = txt; }
+
+// ── start ───────────────────────────────────────────────────
+async function boot() {
+  let d1, lq, ai;
+  try {
+    const lqP = getJSON(DATA_BASE, 'liq_1d.json').catch(() => null), aiP = getJSON(EMA_BASE, 'altindex.json').catch(() => null);
+    [META, d1] = await Promise.all([getJSON(DATA_BASE, 'meta.json'), getJSON(DATA_BASE, '1d.json')]);
+    lq = await lqP; ai = await aiP;
+  } catch (e) {
+    setStatus('error', 'Brak danych');
+    banner('err', `Nie udało się wczytać danych (${esc(e.message)}).`);
+    return;
+  }
+  CAT = Object.assign({}, META.catalog || {});
+  SER = Object.assign({}, d1.series || {});
+  // cena BTC / ETH / watchlisty (zamknięcia) jest w pliku zakładki likwidacji
+  for (const [id, arr] of Object.entries((lq && lq.series) || {})) if (id.startsWith('px_') && !/_(hi|lo)$/.test(id)) SER[id] = arr;
+  if (window.trimSince) trimSince(SER, CAT);         // niepełne dane sprzed `since` (np. TV przed 14.07.2017)
+  if (ai && Array.isArray(ai.d) && ai.d.length) {
+    SER.alt_index = ai.d.map(p => [p[0], p[1]]);
+    CAT.alt_index = {name: 'Indeks altów (przeciętny alt)', group: 'alt'};
+  }
+  for (const id of Object.keys(SER)) {
+    SER[id] = (SER[id] || []).filter(p => p && p[1] != null && isFinite(p[1]));
+    T_OF[id] = SER[id].map(p => p[0]);
+  }
+  if (!SER.px_btc) S.psid = seriesIds()[0];
+  const upd = d1.updated || META.updated;
+  setStatus('live', upd ? 'Dane: ' + (window.CLTZ ? CLTZ.fmt(upd) : dmy(upd)) : 'Dane wczytane');
+  const ok = restore(location.hash.slice(1)) || restore((() => { try { return localStorage.getItem('cl-sandbox') || ''; } catch (e) { return ''; } })());
+  $('preset-sid').innerHTML = optionsHtml(S.psid);
+  syncPills();
+  if (ok) draw(); else preset('halving');
+  if (!ok) { S.mode = 'ref'; syncPills(); draw(); }  // pierwsze wejście: halvingi w cenie obecnego cyklu
+}
+if (!LWC) setStatus('error', 'Błąd ładowania biblioteki wykresów');
+else boot();
+</script>
+</body>
+</html>
