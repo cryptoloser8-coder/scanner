@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dziennik — oś czasu rynku i Twoje decyzje · Crypto Loser</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content="Oś czasu BTC od 2011: wydarzenia rynkowe, fazy cyklu, mapa świata i Twoje własne wydarzenia, notatki i cykle.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crypto Loser Analytics Tools">
+<meta property="og:title" content="Dziennik — oś czasu rynku i Twoje decyzje · Crypto Loser">
+<meta property="og:description" content="Oś czasu BTC od 2011: wydarzenia rynkowe, fazy cyklu, mapa świata i Twoje własne wydarzenia, notatki i cykle.">
+<meta property="og:image" content="https://cryptoloser8-coder.github.io/scanner/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crypto Loser Analytics Tools — The best tools for buying high and selling low.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="CL Analytics">
+<script src="app.js?v=134"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Onest:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="dziennik/dziennik.css?v=134">
+</head>
+<body>
+<div id="boot">Wczytuję dziennik…</div>
+<div class="sky" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i><i class="v"></i><canvas id="skyc"></canvas></div>
+<header class="top">
+  <button class="btn" id="cycBtn" style="flex:none" title="Twoje cykle i kwoty portfela w kluczowych momentach">Cykle</button>
+  <button class="btn" id="stkAdd" style="margin-left:auto;flex:none" title="Szybka notatka, zawsze na wierzchu">+ Karteczka</button>
+  <div class="look" style="flex:none">
+        <button class="btn" id="lookBtn" aria-expanded="false" aria-controls="lookPop">Wygląd</button>
+        <div class="pop" id="lookPop" hidden>
+          <div class="pl" id="plBg">Tło</div>
+          <div class="seg" role="group" aria-labelledby="plBg" data-p="bg">
+            <button class="pill" data-v="off">Wyłączone</button><button class="pill" data-v="soft">Delikatne</button><button class="pill" data-v="full">Pełne</button>
+          </div>
+          <div class="pl" id="plCol">Kolory</div>
+          <div class="seg" role="group" aria-labelledby="plCol" data-p="col">
+            <button class="pill" data-v="auto">Auto</button><button class="pill" data-v="calm">Stonowane</button><button class="pill" data-v="full">Pełne</button>
+          </div>
+          <p class="hint" id="lookHint"></p>
+        </div>
+  </div>
+</header>
+
+<main>
+  <div class="head">
+    <div>
+      <h1>Puls rynku i Twoje decyzje</h1>
+      <p class="sub" id="stats"></p>
+    </div>
+    <div class="acts">
+      <button class="btn" id="sceneBtn">Legendy / Cmentarzysko</button>
+      <button class="btn" id="replay">Odtwórz</button>
+      <button class="btn pri" id="add">Dodaj wydarzenie</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+  <div class="vrow">
+      <div class="vsw" role="group" aria-label="Widok dziennika" id="viewsw">
+        <button data-v="axis" aria-pressed="true"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 4-7 5 5M3 21h18"/></svg>Oś czasu</button>
+        <button data-v="list" aria-pressed="false"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>Lista wpisów</button>
+        <button data-v="map" aria-pressed="false"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg>Mapa</button>
+      </div>
+  </div>
+  <section class="monitor" aria-label="Oś czasu">
+    <div class="bar">
+      <div class="read num" id="read" aria-live="off"></div>
+      <div class="ctl">
+        <div class="seg" role="group" aria-label="Pokaż" id="filters">
+          <button class="pill" data-f="all" aria-pressed="true">Wszystko</button>
+          <button class="pill" data-f="market" aria-pressed="false">Rynek</button>
+          <button class="pill" data-f="own" aria-pressed="false">Moje</button>
+          <button class="pill" data-f="note" aria-pressed="false">Z notatką</button>
+        </div>
+        <button class="pill" id="pfTog" aria-pressed="true" title="Linia wartości portfela: kwoty wpisane przez Ciebie w notatkach i w cyklach">Linia portfela</button>
+        <div class="mapctl" id="mapctl" role="group" aria-label="Wydarzenia na mapie" hidden><button class="pill" data-m="prev" aria-label="Wcześniejsze wydarzenie">‹ Wcześniejsze</button><span class="num" id="mapNo"></span><button class="pill" data-m="next" aria-label="Następne wydarzenie">Następne ›</button><button class="pill" data-m="auto" aria-pressed="true" title="Mapa sama przechodzi do kolejnych wydarzeń">Samo przewija</button><span class="sepv" aria-hidden="true"></span><span class="seg" id="mapreg" role="group" aria-label="Przybliżenie mapy" title="Kółko myszy przybliża, przeciąganie przesuwa, dwuklik wraca do całego świata"><button class="pill" data-r="world" aria-pressed="true">Świat</button><button class="pill" data-r="me" aria-pressed="false">Bliski Wschód</button><button class="pill" data-r="us" aria-pressed="false">USA</button><button class="pill" data-r="eu" aria-pressed="false">Europa</button><button class="pill" data-r="as" aria-pressed="false">Azja Wsch.</button></span></div>
+        <span class="sepv ax" aria-hidden="true"></span>
+        <div class="seg num ax" role="group" aria-label="Skocz do roku" id="years"></div>
+      </div>
+    </div>
+    <div class="stage" id="stage" tabindex="0" aria-label="Wykres. Przeciągnij albo użyj strzałek, żeby przewijać.">
+      <canvas id="cv"></canvas>
+      <div class="pins" id="pins"></div>
+    </div>
+    <canvas id="mini" aria-hidden="true"></canvas>
+    <div class="jlist" id="jlist" hidden></div>
+    <div class="foot">
+      <div class="leg">
+        <span><i></i>Wydarzenie rynkowe</span>
+        <span><i class="o"></i>Twoje wydarzenie</span>
+        <span><i style="background:var(--gold2)"></i>Złoty punkt: masz tu notatkę</span>
+        <span><i class="pfl"></i>Wartość portfela (≈ wpisane przez Ciebie)</span>
+      </div>
+      <div>Świece: BTC tygodniowo (do 08.2017 Bitstamp, potem Binance spot), wydarzenia i fazy rynku z danych apki (config.yaml → history_events, cykl BTC). Twoje wydarzenia, notatki i cykle widzisz tylko Ty (zapis na koncie).</div>
+    </div>
+  </section></div>
+</main>
+
+<div id="stk" aria-label="Karteczki"></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Szczegóły wydarzenia" aria-hidden="true"></aside>
+<div id="jstat" role="status" hidden></div>
+<script type="module" src="dziennik/journal.js?v=134"></script>
+</body>
+</html>
