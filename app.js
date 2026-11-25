@@ -268,7 +268,7 @@ window.CLTZ = (function () {
         if (n.sec) { h.push('<div class="cl-h">' + n.sec + '</div>'); return; }
         h.push('<a class="it' + (page === n.href ? ' on' : '') + (n.paused ? ' paused' : '') + '" href="' + n.href + '">' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
       });
-      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span><span>' + tzSelect() + '</span></div></nav>');
+      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span><span>' + tzSelect() + '</span><span class="cl-acct" data-cl-acct></span></div></nav>');
     } else {
       h.push('<nav class="cl-rail" aria-label="Menu"><a class="cl-home" href="index.html" title="Pulpit"><img src="favicon.svg" alt="">Pulpit</a>');
       NAV.forEach(function (n) {
@@ -278,7 +278,7 @@ window.CLTZ = (function () {
       h.push('<span class="cl-stat" data-cl-tip><i class="cl-dot" data-cl-dot></i><span data-cl-hm></span></span></nav>');
     }
     h.push('<header class="cl-top" id="cl-top"><a class="cl-logo" href="index.html" aria-label="Pulpit"><img src="logo.svg" alt="Crypto Loser Analytics Tools" width="297" height="64"></a>' +
-      '<span class="cl-stat"><i class="cl-dot" data-cl-dot></i><span data-cl-line></span></span>' + tzSelect() + '</header>');
+      '<span class="cl-stat"><i class="cl-dot" data-cl-dot></i><span data-cl-line></span></span>' + tzSelect() + '<span class="cl-acct" data-cl-acct></span></header>');
     // telefon
     h.push('<nav class="cl-bottom" aria-label="Menu">');
     MOBILE.forEach(function (href) {
@@ -1066,6 +1066,10 @@ window.CLTZ = (function () {
     '.cld-svg text.tx{font-family:inherit;font-size:13px;stroke-width:4px}' +
     '.cld-in{position:absolute;z-index:8;font:13px inherit;font-family:inherit;padding:3px 6px;border-radius:5px;border:1px solid var(--blue,#5b9cf6);background:#111;color:#fff;outline:none;min-width:140px}' +
     '.cld-toast{position:absolute;left:4px;bottom:6px;z-index:8;font-size:12px;padding:4px 9px;border-radius:6px;background:#24324a;color:#fff;border:1px solid var(--blue,#5b9cf6);pointer-events:none}' +
+    '.cld-note{position:absolute;left:6px;bottom:8px;z-index:9;max-width:min(460px,calc(100% - 12px));font-size:12.5px;line-height:1.45;padding:9px 11px;border-radius:8px;background:#2a2410;color:#f3e3b0;border:1px solid rgba(255,193,7,.55);box-shadow:0 8px 24px rgba(0,0,0,.5)}' +
+    '.cld-note b{color:#ffc107}.cld-note .r{display:flex;gap:6px;margin-top:7px}' +
+    '.cld-note button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,193,7,.6);background:#3a3115;color:#fff;cursor:pointer}' +
+    '.cld-bar button.cloud-off{color:#ffc107}.cld-bar button.cloud-on{color:#4caf7d}' +
     '@media (max-width:699px){.cld-bar{display:none}.cld-wrap{margin-left:0 !important}}' +
     '@media print{.cld-bar{display:none}.cld-wrap{margin-left:0 !important}}';
 
@@ -1178,7 +1182,17 @@ window.CLTZ = (function () {
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function () { window.prompt('Link z rysunkami:', url); });
         else window.prompt('Link z rysunkami:', url);
       });
+      // 131: zapis — konto albo tylko ta przeglądarka
+      addBtn('cloud', '', '').addEventListener('click', function () {
+        if (window.CLAuth) CLAuth.open(btns.cloud); else toast('Logowanie niedostępne');
+      });
       function syncBar() {
+        var on = cloudOn();
+        btns.cloud.className = on ? 'cloud-on' : 'cloud-off';
+        btns.cloud.innerHTML = on ? I('<path d="M5 14h8a3 3 0 00.5-6A4.5 4.5 0 004.6 7 3.5 3.5 0 005 14z"/><path d="M6.5 10.5l1.7 1.7 3.3-3.4"/>')
+          : I('<path d="M5 14h8a3 3 0 00.5-6A4.5 4.5 0 004.6 7 3.5 3.5 0 005 14z"/><path d="M9 7.5v3M9 12.3v.2"/>');
+        btns.cloud.title = on ? 'Rysunki zapisują się na Twoim koncie — na każdym urządzeniu te same'
+          : 'Rysunki są zapisane tylko w tej przeglądarce — po wyczyszczeniu danych strony albo na innym urządzeniu ich nie będzie. Kliknij, żeby się zalogować i je zachować.';
         TOOLS.forEach(function (t) { btns[t[0]].classList.toggle('on', tool === t[0]); });
         btns.col.querySelector('.sw').style.background = color;
         btns.eye.innerHTML = hidden ? I('<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><path d="M3 15L15 3"/>') : I('<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="9" cy="9" r="2"/>');
@@ -1248,7 +1262,54 @@ window.CLTZ = (function () {
 
       // ── zapis ──
       function find(id) { for (var i = 0; i < D.length; i++) if (D[i].id === id) return D[i]; return null; }
-      function commit() { if (key) save(key, D); syncBar(); render(); }
+      function commit() { if (key) save(key, D); cloudSave(); syncBar(); render(); notice(); }
+      // ── 131: zapis na koncie (Firestore users/{uid}/scopes/{klucz}, rysunki jako tekst JSON w polu j) ──
+      var cloud = {unsub: null, timer: null, key: null, uid: null};
+      function cloudOn() { var A = window.CLAuth; return !!(A && A.user && A.allowed && A.F); }
+      function cdoc(k) { var A = CLAuth; return A.F.doc(A.db, 'users', A.user.uid, 'scopes', encodeURIComponent(k)); }
+      function cloudAttach() {
+        if (cloud.unsub) { try { cloud.unsub(); } catch (e) {} cloud.unsub = null; }
+        cloud.key = null; cloud.uid = null;
+        if (!key || !cloudOn()) return;
+        var A = CLAuth, k = key, uid = A.user.uid; cloud.key = k; cloud.uid = uid;
+        cloud.unsub = A.F.onSnapshot(cdoc(k), function (s) {
+          if (cloud.key !== k || (s.metadata && s.metadata.hasPendingWrites)) return;
+          var remote = null; try { remote = s.exists() ? JSON.parse(s.data().j || '[]') : null; } catch (e) { remote = null; }
+          var mk = 'cl-draw-mig:' + uid + ':' + k, mig = false; try { mig = localStorage.getItem(mk) === '1'; } catch (e) {}
+          if (!mig) {   // pierwsze połączenie tego wykresu z kontem — dołącz rysunki z przeglądarki
+            var out = (remote || []).slice(), ids = {};
+            out.forEach(function (d) { ids[d.id] = 1; });
+            var added = 0; D.forEach(function (d) { if (!ids[d.id]) { out.push(d); added++; } });
+            try { localStorage.setItem(mk, '1'); } catch (e) {}
+            D = out; save(k, D);
+            if (added || !remote) cloudSave();
+            if (added) toast('Rysunki z tej przeglądarki dodane do konta (' + added + ')');
+          } else if (remote) { D = remote; save(k, D); }
+          if (sel && !find(sel)) sel = null;
+          if (!drag && !wip) { syncBar(); sig = ''; }
+        }, function () { toast('Nie udało się wczytać rysunków z konta — działa zapis w przeglądarce'); });
+      }
+      function cloudSave() {
+        if (!cloudOn() || !key || cloud.key !== key) return;
+        var A = CLAuth, k = key, data = D.slice();
+        clearTimeout(cloud.timer);
+        cloud.timer = setTimeout(function () {
+          A.F.setDoc(cdoc(k), {j: JSON.stringify(data), n: data.length, page: page, at: A.F.serverTimestamp()})
+            .catch(function () { toast('Nie zapisano na koncie — rysunek jest w tej przeglądarce'); });
+        }, 600);
+      }
+      if (window.CLAuth) CLAuth.on(function () { cloudAttach(); syncBar(); var n = wrap.querySelector('.cld-note'); if (n && cloudOn()) n.remove(); });
+      // informacja dla niezalogowanych — raz na sesję, po pierwszym rysunku
+      function notice() {
+        if (cloudOn() || !D.length || !desk.matches) return;
+        try { if (sessionStorage.getItem('cl-draw-note')) return; sessionStorage.setItem('cl-draw-note', '1'); } catch (e) {}
+        var n = document.createElement('div'); n.className = 'cld-note'; n.setAttribute('role', 'status');
+        n.innerHTML = '<b>Rysunek zapisany tylko w tej przeglądarce.</b> Po wyczyszczeniu danych strony (ciasteczek) albo na innym urządzeniu go nie będzie. Zaloguj się, żeby rysunki zapisywały się na koncie.' +
+          '<div class="r"><button type="button" data-l>Zaloguj</button><button type="button" data-x>Rozumiem</button></div>';
+        n.querySelector('[data-l]').onclick = function (e) { e.stopPropagation(); if (window.CLAuth) CLAuth.open(btns.cloud); n.remove(); };
+        n.querySelector('[data-x]').onclick = function () { n.remove(); };
+        wrap.appendChild(n);
+      }
       function removeSel() { D = D.filter(function (d) { return d.id !== sel; }); sel = null; commit(); }
       function scope() {
         var r = null; try { r = o.ref ? o.ref() : null; } catch (e) {}
@@ -1258,7 +1319,7 @@ window.CLTZ = (function () {
           r = pick ? {id: (r && r.id) || 'main', series: pick} : null; }
         ref = r;
         var k = r ? page + ':' + r.id : null;
-        if (k !== key) { key = k; D = k ? load(k) : []; sel = null; wip = null; syncBar(); }
+        if (k !== key) { key = k; D = k ? load(k) : []; sel = null; wip = null; cloudAttach(); syncBar(); }
       }
 
       // ── rysowanie ──
@@ -1451,4 +1512,142 @@ window.CLTZ = (function () {
       return {redraw: function () { sig = ''; }, count: function () { return D.length; }};
     }
   };
+})();
+
+
+// 131: konto (Firebase) — przycisk „Zaloguj” w pasku z logo (na Pulpicie w lewym menu), logowanie przez Google
+//   albo link na e-mail (bez hasła). Biblioteka Firebase (vendor/firebase-cl.js, ~200 KB) wczytuje się dopiero przy
+//   logowaniu albo gdy ktoś był już zalogowany w tej przeglądarce (localStorage „cl-fb-on”).
+//   Dostęp: każdy zalogowany z potwierdzonym e-mailem, oprócz zablokowanych przez admina (reguły: firebase/firestore.rules).
+//   window.CLAuth: {ready, user, allowed, admin, F, db, on(fn), open(), signOut()} — CLDraw synchronizuje rysunki z kontem.
+(function () {
+  var V = '131', FLAG = 'cl-fb-on', MAIL = 'cl-fb-mail';
+  var css = '.cl-acct{display:inline-flex;position:relative}' +
+    '.cl-acct>button{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12.5px;padding:5px 11px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#1c1c1c;color:#e8e8e8;cursor:pointer;white-space:nowrap}' +
+    '.cl-acct>button:hover{border-color:#5b9cf6}' +
+    '.cl-acct>button.in{background:transparent}' +
+    '.cl-acct .av{width:22px;height:22px;border-radius:50%;background:#5b9cf6;color:#0f0f0f;font-weight:700;font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}' +
+    '.cl-acct .av.ban{background:#e05252}' +
+    '.cl-acct-pop{position:fixed;z-index:80;width:320px;max-width:calc(100vw - 16px);background:#1c1c1c;border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.6);padding:14px;font-size:13.5px;color:#e8e8e8;line-height:1.45;white-space:normal}' +
+    '.cl-acct-pop h3{font-size:15px;margin:0 0 6px}' +
+    '.cl-acct-pop p{margin:0 0 10px;color:#a8a8a8;font-size:12.5px}' +
+    '.cl-acct-pop button,.cl-acct-pop a.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:9px 12px;min-height:42px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#262626;color:#f0f0f0;cursor:pointer;text-decoration:none;margin-top:6px}' +
+    '.cl-acct-pop button.pri{background:#24324a;border-color:#5b9cf6}' +
+    '.cl-acct-pop button:hover,.cl-acct-pop a.btn:hover{border-color:#5b9cf6}' +
+    '.cl-acct-pop input{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:8px 10px;min-height:42px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:#0f0f0f;color:#fff;margin-top:6px}' +
+    '.cl-acct-pop .or{text-align:center;color:#777;font-size:12px;margin:10px 0 2px}' +
+    '.cl-acct-pop .msg{margin-top:8px;font-size:12.5px;color:#ffc107}' +
+    '.cl-acct-pop .ok{color:#4caf7d}' +
+    '@media (max-width:640px){.cl-acct>button{padding:4px 8px;font-size:11.5px}.cl-acct>button .nm{display:none}}' +
+    '@media print{.cl-acct,.cl-acct-pop{display:none!important}}';
+  var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+
+  var A = window.CLAuth = {ready: false, loading: false, user: null, allowed: false, admin: false, banned: false, F: null, db: null, auth: null, cfg: null,
+    _fns: [], on: function (fn) { this._fns.push(fn); }, open: function (el) { openPop(el); }, signOut: function () { if (A.F) A.F.signOut(A.auth); }};
+  function emit() { renderBtn(); A._fns.forEach(function (f) { try { f(A); } catch (e) {} }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function flag(v) { try { if (v) localStorage.setItem(FLAG, '1'); else localStorage.removeItem(FLAG); } catch (e) {} }
+  function script(src) { return new Promise(function (ok, bad) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
+  var loadP = null;
+  function load() {
+    if (loadP) return loadP;
+    A.loading = true; renderBtn();
+    loadP = script('firebase/config.js?v=' + V).then(function () { return window.CLFB ? null : script('vendor/firebase-cl.js?v=' + V); }).then(function () {
+      var F = A.F = window.CLFB, C = A.cfg = window.CL_FIREBASE;
+      var app = F.initializeApp(C.config);
+      A.auth = F.getAuth(app); A.db = F.getFirestore(app);
+      F.onAuthStateChanged(A.auth, function (u) {
+        A.user = u; A.admin = !!(u && u.emailVerified && u.email && u.email.toLowerCase() === C.admin);
+        A.allowed = false; A.banned = false;
+        if (!u) { A.ready = true; A.loading = false; flag(false); emit(); return; }
+        flag(true);
+        var m = (u.email || '').toLowerCase();
+        (A.admin ? Promise.resolve(false) : F.getDoc(F.doc(A.db, 'banned', m)).then(function (s) { return s.exists(); }, function () { return false; })).then(function (ban) {
+          A.banned = ban; A.allowed = u.emailVerified && !ban;
+          A.ready = true; A.loading = false;
+          if (A.allowed) F.setDoc(F.doc(A.db, 'users', u.uid), {email: m, name: u.displayName || m.split('@')[0], last: F.serverTimestamp()}).catch(function () {});
+          emit();
+        });
+      });
+      // powrót z linku z e-maila
+      if (F.isSignInWithEmailLink(A.auth, location.href)) {
+        var m = ''; try { m = localStorage.getItem(MAIL) || ''; } catch (e) {}
+        if (!m) m = window.prompt('Podaj e-mail, na który przyszedł link do logowania:') || '';
+        F.signInWithEmailLink(A.auth, m, location.href).then(function () {
+          try { localStorage.removeItem(MAIL); } catch (e) {}
+          var q = new URLSearchParams(location.search); ['apiKey', 'oobCode', 'mode', 'lang', 'continueUrl'].forEach(function (k) { q.delete(k); });
+          history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+        }, function (e) { alert('Link do logowania nie zadziałał (jest jednorazowy i ważny ok. godziny): ' + (e.code || e.message)); });
+      }
+    }).catch(function () { A.loading = false; loadP = null; renderBtn(); });
+    return loadP;
+  }
+
+  // ── przycisk ──
+  function renderBtn() {
+    document.querySelectorAll('[data-cl-acct]').forEach(function (box) {
+      var u = A.user, h;
+      if (A.loading && !A.ready) h = '<button type="button" disabled>…</button>';
+      else if (!u) h = '<button type="button" title="Zaloguj się — rysunki na wykresach zapiszą się na koncie (wszędzie te same)">' +
+        '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14.5c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/></svg>Zaloguj</button>';
+      else {
+        var n = (u.displayName || u.email || '?'), ini = n.trim().charAt(0).toUpperCase();
+        h = '<button type="button" class="in" title="' + esc(u.email) + (A.banned ? ' — konto zablokowane' : '') + '"><span class="av' + (A.banned ? ' ban' : '') + '">' + esc(ini) + '</span><span class="nm">' + esc(n.split(' ')[0].split('@')[0]) + '</span></button>';
+      }
+      box.innerHTML = h;
+      var b = box.querySelector('button'); if (b) b.onclick = function (e) { e.stopPropagation(); openPop(b); };
+    });
+  }
+  var pop = null;
+  function closePop() { if (pop) { pop.remove(); pop = null; } }
+  document.addEventListener('click', function (e) { if (pop && !pop.contains(e.target)) closePop(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+  function openPop(anchor) {
+    if (pop) { closePop(); return; }
+    anchor = anchor || document.querySelector('[data-cl-acct] button');
+    pop = document.createElement('div'); pop.className = 'cl-acct-pop'; pop.setAttribute('role', 'dialog');
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+    var u = A.user;
+    if (!u) {
+      pop.innerHTML = '<h3>Zaloguj się</h3>' +
+        '<p>Bez logowania rysunki na wykresach są zapisane tylko w tej przeglądarce (dane strony). Po wyczyszczeniu danych przeglądarki albo na innym urządzeniu ich nie będzie. Po zalogowaniu zapisują się na Twoim koncie — wszędzie te same.</p>' +
+        '<button type="button" class="pri" data-g>Zaloguj przez Google</button>' +
+        '<div class="or">albo dowolny e-mail — przyjdzie link, bez hasła</div>' +
+        '<input type="email" autocomplete="email" placeholder="np. jan@wp.pl" data-m><button type="button" data-s>Wyślij link do logowania</button><div class="msg" data-msg></div>';
+      pop.querySelector('[data-g]').onclick = function () {
+        var msg = pop.querySelector('[data-msg]'); msg.textContent = 'Otwieram okno Google…';
+        load().then(function () { return A.F.signInWithPopup(A.auth, new A.F.GoogleAuthProvider()); })
+          .then(function () { closePop(); }, function (e) { if (pop) pop.querySelector('[data-msg]').textContent = 'Logowanie nie wyszło: ' + (e && (e.code || e.message)); });
+      };
+      pop.querySelector('[data-s]').onclick = function () {
+        var m = pop.querySelector('[data-m]').value.trim(), msg = pop.querySelector('[data-msg]');
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) { msg.textContent = 'Wpisz poprawny e-mail.'; return; }
+        msg.textContent = 'Wysyłam…';
+        load().then(function () { return A.F.sendSignInLinkToEmail(A.auth, m, {url: location.origin + location.pathname, handleCodeInApp: true}); }).then(function () {
+          try { localStorage.setItem(MAIL, m); } catch (e) {}
+          msg.className = 'msg ok'; msg.textContent = 'Wysłano link na ' + m + '. Otwórz go w tej przeglądarce (sprawdź też spam). Link jest jednorazowy.';
+        }, function (e) { msg.textContent = 'Nie udało się wysłać: ' + (e && (e.code || e.message)); });
+      };
+    } else {
+      pop.innerHTML = '<h3>' + esc(u.displayName || u.email) + '</h3><p>' + esc(u.email) + (A.admin ? ' · admin' : '') + '</p>' +
+        (A.banned ? '<p style="color:#e05252">To konto jest zablokowane — rysunki zapisują się tylko w tej przeglądarce.</p>'
+          : '<p class="ok">✓ Rysunki na wykresach zapisują się na tym koncie — na każdym urządzeniu te same.</p>') +
+        (A.admin ? '<a class="btn" href="sonda-firebase.html">Użytkownicy i blokady</a>' : '') +
+        '<button type="button" data-o>Wyloguj</button>';
+      pop.querySelector('[data-o]').onclick = function () { A.signOut(); closePop(); };
+    }
+    document.body.appendChild(pop);
+    var r = anchor ? anchor.getBoundingClientRect() : {right: innerWidth - 8, bottom: 60, left: 8};
+    var w = pop.offsetWidth, left = Math.min(innerWidth - w - 8, Math.max(8, r.right - w));
+    pop.style.left = left + 'px'; pop.style.top = Math.min(innerHeight - pop.offsetHeight - 8, r.bottom + 6) + 'px';
+    var f = pop.querySelector('input,button'); if (f && !u) setTimeout(function () { f.focus(); }, 0);
+  }
+
+  function boot() {
+    renderBtn();
+    var was = false; try { was = localStorage.getItem(FLAG) === '1'; } catch (e) {}
+    var link = /[?&]oobCode=/.test(location.search) && /[?&]mode=signIn/.test(location.search);
+    if (was || link) load(); else { A.ready = true; }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(boot, 0); }); else setTimeout(boot, 0);
 })();

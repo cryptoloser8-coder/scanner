@@ -33,7 +33,7 @@
 </head>
 <body>
 <h1>Sonda Firebase — logowanie i zapis</h1>
-<p class="sub">Strona testowa (bez wpisu w menu). Sprawdza logowanie, zapis i odczyt w bazie oraz czy osoba spoza listy nic nie widzi. Na końcu skopiuj wynik i wklej go Claude.</p>
+<p class="sub">Strona testowa (bez wpisu w menu). Sprawdza logowanie, zapis i odczyt w bazie oraz blokowanie (poprawka 131: wchodzi każdy zalogowany, admin może zablokować). Na końcu skopiuj wynik i wklej go Claude.</p>
 
 <div class="card" id="c-login">
   <h2>1. Logowanie</h2>
@@ -57,9 +57,11 @@
 </div>
 
 <div class="card" id="c-admin" hidden>
-  <h2>3. Lista dostępu (tylko admin)</h2>
-  <p class="note">Adresy, które mogą się logować i rysować. Wpisz e-mail znajomego (Gmail albo dowolny) i dodaj.</p>
-  <div class="row" style="margin-top:8px"><input id="m-new" type="email" placeholder="e-mail do dodania"><button id="b-add" type="button">Dodaj</button></div>
+  <h2>3. Użytkownicy i blokady (tylko admin)</h2>
+  <p class="note">Każdy, kto zaloguje się z potwierdzonym e-mailem, ma dostęp. Tu widzisz, kto się logował, i możesz go zablokować (działa od razu). Możesz też zablokować adres, który jeszcze się nie logował.</p>
+  <ul class="res" id="users" style="margin-top:8px"></ul>
+  <h2 style="margin-top:14px">Zablokowani</h2>
+  <div class="row" style="margin-top:8px"><input id="m-new" type="email" placeholder="e-mail do zablokowania"><button id="b-add" type="button">Zablokuj</button></div>
   <ul class="res" id="members" style="margin-top:8px"></ul>
 </div>
 
@@ -69,8 +71,8 @@
   <div class="row" style="margin-top:8px"><button id="b-copy" type="button">Kopiuj wynik</button></div>
 </div>
 
-<script src="firebase/config.js?v=129"></script>
-<script src="vendor/firebase-cl.js?v=129"></script>
+<script src="firebase/config.js?v=131"></script>
+<script src="vendor/firebase-cl.js?v=131"></script>
 <script>
 (() => {
   const F = window.CLFB, CFG = window.CL_FIREBASE;
@@ -148,13 +150,18 @@
     if (running || !user) return; running = true;
     res.innerHTML = ''; log.length = 0;
     line('info', `Konto ${user.email}`, `uid ${user.uid.slice(0, 8)}… · potwierdzony e-mail: ${user.emailVerified}`);
-    let member = isAdmin();
-    if (!member) {
-      try { member = (await F.getDoc(F.doc(db, 'members', user.email.toLowerCase()))).exists(); }
-      catch (e) { member = false; }
+    let banned = false;
+    if (!isAdmin()) {
+      try { banned = (await F.getDoc(F.doc(db, 'banned', user.email.toLowerCase()))).exists(); }
+      catch (e) { line('bad', 'Sprawdzenie blokady', code(e)); }
     }
-    line('info', member ? (isAdmin() ? 'Jesteś adminem' : 'Jesteś na liście dostępu') : 'Nie jesteś na liście dostępu — wszystkie testy niżej powinny być ZABLOKOWANE');
+    const member = !banned;
+    line('info', isAdmin() ? 'Jesteś adminem' : banned ? 'Jesteś ZABLOKOWANY — testy zapisu i odczytu niżej powinny być zablokowane' : 'Masz dostęp (nie jesteś zablokowany)');
     const t0 = performance.now();
+    await expect('Zapis profilu (e-mail, ostatnie logowanie)', async () => {
+      await F.setDoc(F.doc(db, 'users', user.uid), {email: user.email.toLowerCase(), name: user.displayName || user.email.split('@')[0], last: F.serverTimestamp()});
+      return 'users/{moje uid}';
+    }, member, 'admin widzi, kto się logował');
     const n = Math.round(Math.random() * 1e6);
     await expect('Zapis do bazy (probe)', async () => {
       await F.setDoc(F.doc(db, 'probe', user.uid), {n, at: F.serverTimestamp()});
@@ -188,39 +195,60 @@
       const r = await F.addDoc(F.collection(db, 'shared'), {uid: 'ktos-inny', author: 'podszywanie', at: F.serverTimestamp(), j: '[]'});
       await F.deleteDoc(r).catch(() => {});
     }, false, 'autor musi być zalogowaną osobą');
-    await expect('Odczyt listy dostępu', async () => {
-      const q = await F.getDocs(F.collection(db, 'members'));
-      return `${q.size} adres(ów) na liście (admin jest poza listą)`;
-    }, member, 'members');
-    await expect('Zmiana listy dostępu', async () => {
-      await F.setDoc(F.doc(db, 'members', 'sonda-test@example.com'), {by: user.email});
-      await F.deleteDoc(F.doc(db, 'members', 'sonda-test@example.com'));
-      return 'dodany i usunięty adres testowy';
-    }, isAdmin(), isAdmin() ? 'admin może zmieniać listę' : 'listę zmienia tylko admin');
+    await expect('Odczyt listy użytkowników', async () => {
+      const q = await F.getDocs(F.collection(db, 'users'));
+      return `${q.size} zalogowanych użytkowników`;
+    }, isAdmin(), isAdmin() ? 'admin widzi wszystkich' : 'listę widzi tylko admin');
+    await expect('Odczyt listy zablokowanych', async () => {
+      const q = await F.getDocs(F.collection(db, 'banned'));
+      return `${q.size} zablokowanych`;
+    }, isAdmin(), isAdmin() ? 'admin' : 'tylko admin');
+    await expect('Zmiana listy zablokowanych', async () => {
+      await F.setDoc(F.doc(db, 'banned', 'sonda-test@example.com'), {by: user.email});
+      await F.deleteDoc(F.doc(db, 'banned', 'sonda-test@example.com'));
+      return 'zablokowany i odblokowany adres testowy';
+    }, isAdmin(), isAdmin() ? 'admin może blokować' : 'blokuje tylko admin');
     line('info', 'Koniec testów', `${Math.round(performance.now() - t0)} ms`);
     running = false;
     if (isAdmin()) loadMembers();
   }
 
-  // ── lista dostępu (admin) ──
+  // ── użytkownicy i blokady (admin) ──
   async function loadMembers() {
-    const ul = $('members');
+    const ub = $('users'), ul = $('members');
     try {
-      const q = await F.getDocs(F.collection(db, 'members'));
-      ul.innerHTML = q.empty ? '<li><span class="info">Lista pusta — na razie dostęp masz tylko Ty.</span></li>' : '';
-      q.forEach(d => {
+      const [us, bs] = await Promise.all([F.getDocs(F.collection(db, 'users')), F.getDocs(F.collection(db, 'banned'))]);
+      const ban = new Set(); bs.forEach(d => ban.add(d.id));
+      ub.innerHTML = us.empty ? '<li><span class="info">Nikt się jeszcze nie logował.</span></li>' : '';
+      us.forEach(d => {
+        const u = d.data(), m = (u.email || '').toLowerCase(), t = u.last && u.last.toDate ? u.last.toDate().toLocaleString('pl-PL') : '';
+        const li = document.createElement('li');
+        li.innerHTML = `<span style="flex:1">${esc(m)}${m === CFG.admin ? ' · admin' : ''}<span class="d">${esc(u.name || '')}${t ? ' · ostatnio ' + esc(t) : ''}${ban.has(m) ? ' · ZABLOKOWANY' : ''}</span></span>`;
+        if (m && m !== CFG.admin) {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = ban.has(m) ? 'Odblokuj' : 'Zablokuj';
+          b.addEventListener('click', async () => {
+            if (ban.has(m)) await F.deleteDoc(F.doc(db, 'banned', m));
+            else await F.setDoc(F.doc(db, 'banned', m), {by: user.email, at: F.serverTimestamp()});
+            loadMembers();
+          });
+          li.appendChild(b);
+        }
+        ub.appendChild(li);
+      });
+      ul.innerHTML = bs.empty ? '<li><span class="info">Nikt nie jest zablokowany.</span></li>' : '';
+      bs.forEach(d => {
         const li = document.createElement('li');
         li.innerHTML = `<span style="flex:1">${esc(d.id)}</span>`;
-        const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Usuń';
-        b.addEventListener('click', async () => { await F.deleteDoc(F.doc(db, 'members', d.id)); loadMembers(); });
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Odblokuj';
+        b.addEventListener('click', async () => { await F.deleteDoc(F.doc(db, 'banned', d.id)); loadMembers(); });
         li.appendChild(b); ul.appendChild(li);
       });
-    } catch (e) { ul.innerHTML = `<li class="bad">${esc(code(e))}</li>`; }
+    } catch (e) { ub.innerHTML = `<li class="bad">${esc(code(e))}</li>`; }
   }
   $('b-add').addEventListener('click', async () => {
     const m = $('m-new').value.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return;
-    try { await F.setDoc(F.doc(db, 'members', m), {by: user.email, at: F.serverTimestamp()}); $('m-new').value = ''; loadMembers(); }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m) || m === CFG.admin) return;
+    try { await F.setDoc(F.doc(db, 'banned', m), {by: user.email, at: F.serverTimestamp()}); $('m-new').value = ''; loadMembers(); }
     catch (e) { alert('Nie udało się: ' + code(e)); }
   });
   $('b-copy').addEventListener('click', () => {
