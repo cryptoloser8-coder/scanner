@@ -884,39 +884,39 @@ window.CLTZ = (function () {
     '.cl-split > .cl-s{flex:none !important;min-width:0}' +
     '.cl-split:not(.cl-merge) > .cl-s{align-self:flex-start}' +
     '.cl-split.cl-col > .cl-s{display:none !important}' +
-    '.cl-h{flex:none;width:12px;position:relative;cursor:col-resize;touch-action:none;align-self:stretch;z-index:3}' +
-    '.cl-h::before{content:"";position:absolute;top:0;bottom:0;left:5px;width:1px;background:var(--border2,rgba(255,255,255,.14))}' +
-    '.cl-h:hover::before,.cl-h.drag::before{left:4px;width:3px;background:var(--blue,#5b9cf6)}' +
-    '.cl-h button{position:sticky;top:90px;margin:12px 0 0 -6px;width:24px;height:44px;border-radius:6px;border:1px solid var(--border2,rgba(255,255,255,.14));background:var(--bg3,#222);color:var(--text2,#888);cursor:pointer;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center}' +
-    '.cl-h button:hover{color:var(--text,#f0f0f0);border-color:var(--blue,#5b9cf6)}' +
-    '.cl-col > .cl-h{width:30px;margin-left:6px}' +
-    '.cl-col > .cl-h button{margin-left:3px;height:auto;padding:8px 0;flex-direction:column;gap:6px}' +
+    '.cl-h{flex:none;width:14px;position:relative;cursor:col-resize;touch-action:none;align-self:stretch;z-index:3}' +
+    '.cl-h::before{content:"";position:absolute;top:0;bottom:0;left:6px;width:2px;background:rgba(255,255,255,.12)}' +
+    '.cl-h:hover::before,.cl-h.drag::before{left:5px;width:4px;background:var(--blue,#5b9cf6)}' +
+    '.cl-h button{position:sticky;top:calc(50vh - 40px);margin:40vh 0 0 -5px;width:24px;height:80px;border-radius:7px;border:1px solid rgba(255,255,255,.28);background:var(--bg3,#222);color:var(--text,#ddd);cursor:col-resize;font-size:13px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;touch-action:none;letter-spacing:-2px}' +
+    '.cl-h:hover button,.cl-h.drag button{border-color:var(--blue,#5b9cf6);color:#fff;background:#24324a}' +
+    '.cl-col > .cl-h{width:32px;margin-left:6px;cursor:pointer}' +
+    '.cl-col > .cl-h button{margin:16px 0 0 3px;top:90px;height:auto;padding:10px 0;flex-direction:column;gap:8px;cursor:pointer;letter-spacing:.04em}' +
     '.cl-hn{writing-mode:vertical-rl;font-size:12px;letter-spacing:.04em}' +
     '.cl-hgt{height:max(var(--clh),var(--pgh,0px)) !important;min-height:0 !important}' +
-    '.cl-v{height:12px;margin:0 0 2px;cursor:row-resize;touch-action:none;position:relative}' +
-    '.cl-v::before{content:"";position:absolute;left:0;right:0;top:5px;height:1px;background:var(--border,rgba(255,255,255,.08))}' +
-    '.cl-v::after{content:"";position:absolute;left:50%;top:3px;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--border2,rgba(255,255,255,.14))}' +
-    '.cl-v:hover::before,.cl-v.drag::before{top:4px;height:3px;background:var(--blue,#5b9cf6)}' +
-    '.cl-v:hover::after,.cl-v.drag::after{background:var(--blue,#5b9cf6)}' +
+    '.cl-v{height:22px;margin:0 0 8px;cursor:row-resize;touch-action:none;position:relative;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.035);border-top:2px solid rgba(255,255,255,.12);border-radius:0 0 6px 6px}' +
+    '.cl-v span{font-size:11px;color:var(--text2,#999);padding:1px 12px;border:1px solid rgba(255,255,255,.22);border-radius:10px;background:var(--bg3,#222);white-space:nowrap;pointer-events:none}' +
+    '.cl-v:hover,.cl-v.drag{border-top-color:var(--blue,#5b9cf6);background:rgba(91,156,246,.10)}' +
+    '.cl-v:hover span,.cl-v.drag span{color:#fff;border-color:var(--blue,#5b9cf6);background:#24324a}' +
     '.cl-dragging,.cl-dragging *{user-select:none !important;cursor:inherit}' +
     '@media print{.cl-h,.cl-v{display:none !important}}';
 
   function load(k) { try { return JSON.parse(localStorage.getItem('cl-split:' + k) || '{}') || {}; } catch (e) { return {}; } }
   function save(k, v) { try { localStorage.setItem('cl-split:' + k, JSON.stringify(v)); } catch (e) {} }
   function docTop(el) { return el.getBoundingClientRect().top + window.scrollY; }
-  function drag(handle, onMove, onEnd) {
+  function drag(handle, onMove, onEnd, onTap) {
     handle.addEventListener('pointerdown', function (e) {
-      if (e.button !== 0 || e.target.closest('button')) return;
+      if (e.button !== 0) return;
       e.preventDefault();
+      var x0 = e.clientX, y0 = e.clientY, moved = false;
       handle.setPointerCapture(e.pointerId); handle.classList.add('drag');
       document.documentElement.classList.add('cl-dragging');
       document.documentElement.style.cursor = getComputedStyle(handle).cursor;
-      function mv(ev) { onMove(ev); }
+      function mv(ev) { if (!moved && Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return; moved = true; onMove(ev); }
       function up(ev) {
         handle.releasePointerCapture(e.pointerId); handle.classList.remove('drag');
         document.documentElement.classList.remove('cl-dragging'); document.documentElement.style.cursor = '';
         handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
-        if (onEnd) onEnd(ev);
+        if (moved) { if (onEnd) onEnd(ev); } else if (onTap) onTap(ev);
       }
       handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
     });
@@ -940,7 +940,7 @@ window.CLTZ = (function () {
         var top = docTop(wrap), lt = layout ? docTop(layout) : top - 60;
         // wykres kończy się na dole okna: przy pierwszym widoku albo po przewinięciu do panelu (pod paskiem z logo)
         var off = top <= window.innerHeight * 0.4 ? top : 64 + (top - lt);
-        return Math.max(340, Math.round(window.innerHeight - off - 26));
+        return Math.max(340, Math.round(window.innerHeight - off - 40));
       }
       function applyH() {
         if (!wrap) return;
@@ -954,8 +954,12 @@ window.CLTZ = (function () {
         var pg = function () { var v = wrap.style.height; if (v) wrap.style.setProperty('--pgh', v); else wrap.style.removeProperty('--pgh'); };
         new MutationObserver(pg).observe(wrap, {attributes: true, attributeFilter: ['style']}); pg();
         vh = document.createElement('div'); vh.className = 'cl-v'; vh.title = 'Przeciągnij w górę / w dół — wysokość wykresu · dwuklik = do dołu okna';
+        vh.innerHTML = '<span>⇕ przeciągnij — wysokość wykresu</span>';
         vh.setAttribute('role', 'separator'); vh.setAttribute('aria-orientation', 'horizontal');
         wrap.parentNode.insertBefore(vh, wrap.nextSibling);
+        // legenda wydarzeń / faz wstawiana później tuż pod wykresem — uchwyt zawsze zaraz pod wykresem
+        new MutationObserver(function () { if (wrap.nextSibling !== vh) wrap.parentNode.insertBefore(vh, wrap.nextSibling); })
+          .observe(wrap.parentNode, {childList: true});
         var y0 = 0, h0 = 0;
         vh.addEventListener('pointerdown', function (e) { y0 = e.clientY; h0 = wrap.getBoundingClientRect().height; }, true);
         drag(vh, function (e) { S.h = Math.round(Math.max(260, h0 + e.clientY - y0)); applyH(); }, function () { save(key, S); });
@@ -977,8 +981,9 @@ window.CLTZ = (function () {
         side.style.setProperty('width', Math.max(220, Math.min(S.w || defW, max)) + 'px', 'important');
         if (btn) {
           var r = !o.reverse;   // kolumna po prawej (oi-layout ma row-reverse w CSS) — strzałka „▸” chowa ją w prawo
-          btn.innerHTML = S.c ? (r ? '◂' : '▸') + '<span class="cl-hn">' + (o.name || 'Serie') + '</span>' : (r ? '▸' : '◂');
-          btn.title = S.c ? 'Pokaż kolumnę „' + (o.name || 'Serie') + '”' : 'Schowaj kolumnę „' + (o.name || 'Serie') + '” — większy wykres';
+          btn.innerHTML = S.c ? (r ? '◂' : '▸') + '<span class="cl-hn">' + (o.name || 'Serie') + '</span>' : '⋮⋮';
+          btn.title = S.c ? 'Kliknij albo przeciągnij — pokaż kolumnę „' + (o.name || 'Serie') + '”'
+            : 'Złap i przeciągnij w lewo / w prawo — szerokość kolumny „' + (o.name || 'Serie') + '”; do krawędzi = schowaj · dwuklik = domyślnie';
           btn.setAttribute('aria-expanded', S.c ? 'false' : 'true');
         }
       }
@@ -989,15 +994,15 @@ window.CLTZ = (function () {
         btn = document.createElement('button'); btn.type = 'button'; hh.appendChild(btn);
         // uchwyt między kolumną a wykresem (w kolejności w kodzie strony: zawsze tuż przed / za kolumną)
         if (side.nextElementSibling === main) layout.insertBefore(hh, main); else layout.insertBefore(hh, side);
-        btn.addEventListener('click', function (e) { e.stopPropagation(); S.c = !S.c; save(key, S); applyW(); });
-        var right = !o.reverse;
+        var right = !o.reverse, wStart = null;
+        hh.addEventListener('pointerdown', function () { wStart = S.c ? null : (S.w || null); }, true);
         drag(hh, function (e) {
           var r = layout.getBoundingClientRect();
           var w = right ? r.right - e.clientX - 6 : e.clientX - r.left - 6;
-          if (w < 150) { if (!S.c) { S.c = true; applyW(); } return; }
+          if (w < 150) { if (!S.c) { S.c = true; if (wStart) S.w = wStart; else delete S.w; applyW(); } return; }
           S.c = false; S.w = Math.max(220, Math.round(w)); applyW();
-        }, function () { save(key, S); });
-        hh.addEventListener('dblclick', function (e) { if (e.target.closest('button')) return; delete S.w; S.c = false; save(key, S); applyW(); });
+        }, function () { save(key, S); }, function () { if (S.c) { S.c = false; save(key, S); applyW(); } });
+        hh.addEventListener('dblclick', function () { delete S.w; S.c = false; save(key, S); applyW(); });
       }
 
       var t = null;
