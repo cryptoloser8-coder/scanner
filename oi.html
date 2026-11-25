@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=126"></script>
+<script src="app.js?v=128"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -96,6 +96,8 @@
   .grp.open{color:var(--text);border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08);}
   .grp .caret{font-size:11px;opacity:.6;}
   .grp .cnt{font-size:11px;font-family:var(--mono);padding:0 5px;border-radius:8px;background:rgba(91,156,246,.25);color:var(--text);}
+  .grp .grp-x{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:4px;border-radius:5px;font-size:15px;line-height:1;color:var(--text2);border:1px solid transparent;}
+  .grp .grp-x:hover,.grp .grp-x:focus-visible{color:#fff;background:rgba(224,82,82,.25);border-color:rgba(224,82,82,.6);outline:none;}
   .grp-search{font-size:13px;padding:6px 10px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--bg);color:var(--text);outline:none;font-family:inherit;width:190px;margin-left:auto;}
   .grp-tiles{margin-top:10px;}
   .grp-tiles:empty{display:none;}
@@ -118,7 +120,7 @@
     .oi-side .grp{justify-content:space-between;width:100%;padding:8px 11px;}
     .oi-side .grp .caret{margin-left:auto;}
     .oi-side .grp .cnt{margin-left:auto;}
-    .oi-side .grp .cnt + .caret{margin-left:6px;}
+    .oi-side .grp .cnt + .caret,.oi-side .grp .grp-x + .caret{margin-left:6px;}
     .oi-side .grp-tiles{margin:2px 0 6px;}
     .oi-side .grp-bar .grp-tiles{order:0;}
     .oi-side .tiles{grid-template-columns:repeat(2,minmax(0,1fr));}
@@ -587,7 +589,8 @@ function renderGroupBar() {
   document.getElementById('grp-btns').innerHTML = TILE_GROUPS.filter(g => ids[g.key].length).map(g => {
     const n = ids[g.key].filter(id => S.series.includes(id)).length;
     return `<button class="grp ${S.grp === g.key && !SEARCH ? 'open' : ''}" data-g="${g.key}" title="${ids[g.key].length} serii">` +
-      `${esc(g.label)}${n ? ` <span class="cnt" title="Serie z tej grupy na wykresie">${n}</span>` : ''}<span class="caret">${S.grp === g.key && !SEARCH ? '▲' : '▼'}</span></button>`;
+      `${esc(g.label)}${n ? ` <span class="cnt" title="Serie z tej grupy na wykresie">${n}</span>` +
+        `<span class="grp-x" role="button" tabindex="0" data-x="${g.key}" title="Usuń z wykresu serie z grupy „${esc(g.label)}” (${n}) — bez rozwijania" aria-label="Usuń z wykresu serie z grupy ${esc(g.label)}">×</span>` : ''}<span class="caret">${S.grp === g.key && !SEARCH ? '▲' : '▼'}</span></button>`;
   }).join('');
   placeTiles();
 }
@@ -644,7 +647,21 @@ document.getElementById('tiles').addEventListener('click', e => {
   toggleSeries(t.dataset.sid);
   if (phone) { renderTiles(); setTimeout(() => document.querySelector('.chart-wrap').scrollIntoView({behavior: 'smooth', block: 'center'}), 60); }
 });
+// 127: × przy liczniku — usuwa z wykresu wszystkie serie tej grupy bez rozwijania jej
+function clearGroup(key) {
+  const ids = new Set(groupIds()[key] || []);
+  if (!ids.size) return;
+  S.series = S.series.filter(id => !ids.has(id));
+  document.getElementById('preset').value = '';
+  refresh();
+}
+document.getElementById('grp-btns').addEventListener('keydown', e => {
+  const x = e.target.closest('.grp-x');
+  if (x && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); clearGroup(x.dataset.x); }
+});
 document.getElementById('grp-btns').addEventListener('click', e => {
+  const x = e.target.closest('.grp-x');
+  if (x) { e.stopPropagation(); clearGroup(x.dataset.x); return; }
   const b = e.target.closest('.grp');
   if (!b) return;
   if (SEARCH) { SEARCH = ''; document.getElementById('grp-search').value = ''; S.grp = b.dataset.g; }
@@ -805,6 +822,8 @@ function makeChart() {
   chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (!lastCrosshair) updateLegend(); drawVLines(); rangeInfo(); });
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
+  // 128: rysowanie — przypięte do serii na prawej osi górnego panelu (osobno dla każdego trybu)
+  if (window.CLDraw) CLDraw.attach({chart, page: 'oi', ref: () => { const m = mounted.find(m => m.pane === 0 && m.scale === 'right') || mounted.find(m => m.pane === 0); return m ? {id: S.mode + ':' + m.id, series: m.series, fmt: CAT[m.id] ? v => fmt(v, fmtOf(CAT[m.id])) : null} : null; }});
 }
 
 // ── fazy cyklu BTC: tło i pionowe linie (meta.cycle_marks — te same reguły co raport miesięczny) ──

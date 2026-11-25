@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=126"></script>
+<script src="app.js?v=128"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -790,6 +790,8 @@ function makeChart() {
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
+  // 128: rysowanie — przypięte do indeksu altów (prawa oś)
+  if (window.CLDraw) CLDraw.attach({chart, page: 'alt', ref: () => ({id: 'idx'})});
 }
 function drawChart(W, resetRange) {
   if (!chart) makeChart();

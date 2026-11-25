@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=126"></script>
+<script src="app.js?v=128"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -510,6 +510,8 @@ function makeChart() {
   if (window.brandWatermark) brandWatermark(chart);
   chart.subscribeCrosshairMove(updateLegend);
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(HEV_LIST); HEV.show(S.hev); }
+  // 128: rysowanie — osobno dla każdego coina i widoku
+  if (window.CLDraw) CLDraw.attach({chart, page: 'ema', ref: () => ({id: S.view + ':' + (S.view === 'coin' ? S.coin : '')})});
 }
 let aux = [];                                   // linia zamknięć sprzed pierwszego knota (bez wpisu w legendzie)
 function clearChart() { for (const m of mounted) chart.removeSeries(m.series); for (const x of aux) chart.removeSeries(x); mounted = []; aux = []; }

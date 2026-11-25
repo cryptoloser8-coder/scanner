@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=126"></script>
+<script src="app.js?v=128"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -392,6 +392,8 @@ function makeCharts() {
     localization: {locale: 'pl-PL', timeFormatter: t => 'dzień ' + dayOf(t)},
   }));
   if (window.brandWatermark) brandWatermark(chart);
+  // 128: rysowanie — oś „dzień N”, osobno dla każdej osi (%, cena odniesienia, wartości)
+  if (window.CLDraw) CLDraw.attach({chart, page: 'sandbox', ref: () => ({id: S.mode}), timeLabel: t => 'dzień ' + dayOf(t)});
   chart.subscribeCrosshairMove(p => { lastParam = p; readout(p); });
   hist = LWC.createChart($('hist'), chartOpts({
     timeScale: {borderColor: 'rgba(255,255,255,.1)', minBarSpacing: 0.01},
