@@ -12,9 +12,13 @@ function start(D){
 /* 134: szerokosc naszego lewego menu (app.js) - wykres siega od niego do prawej krawedzi */
 function railW(){var r=document.querySelector('.cl-rail');if(!r)return 0;var b=r.getBoundingClientRect();return b.width>0&&getComputedStyle(r).display!=='none'?b.right:0}
 /* 134: bez logowania tylko ogladanie - prosba o zalogowanie */
+/* 135: ta sama ramka co przy rysowaniu bez logowania (Zaloguj / Rozumiem); przy wejsciu raz na sesje, przy probie edycji zawsze */
 function askLogin(what){var b=document.getElementById('jlogin');if(!b){b=document.createElement('div');b.id='jlogin';b.setAttribute('role','status');document.body.appendChild(b);}
-  b.innerHTML='<p>Zaloguj się, żeby '+what+'. Twój dziennik zapisze się na Twoim koncie i widzisz go tylko Ty.</p><div><button class="btn pri" data-jl>Zaloguj</button><button class="btn" data-jx>Nie teraz</button></div>';
-  b.hidden=false;b.querySelector('[data-jx]').onclick=function(){b.hidden=true};b.querySelector('[data-jl]').onclick=function(ev){ev.stopPropagation();b.hidden=true;if(window.CLAuth)CLAuth.open(document.querySelector('[data-cl-acct] button'));};}
+  b.innerHTML=(what?'<b>Zaloguj się, żeby '+what+'.</b> ':'<b>Bez logowania Dziennik można tylko oglądać.</b> Zaloguj się, żeby dodawać własne wydarzenia, notatki, cykle i karteczki. ')+
+    'Zapiszą się na Twoim koncie, będą widoczne na każdym urządzeniu i zobaczysz je tylko Ty.<div class="r"><button type="button" data-jl>Zaloguj</button><button type="button" data-jx>Rozumiem</button></div>';
+  b.hidden=false;var t0=Date.now(),live=function(){return Date.now()-t0>600};   /* telefon: to samo stukniecie nie zamyka ramki */
+  b.querySelector('[data-jx]').onclick=function(){if(!live())return;b.hidden=true;try{sessionStorage.setItem('cl-dz-note','1');}catch(e){}};
+  b.querySelector('[data-jl]').onclick=function(ev){ev.stopPropagation();if(!live())return;b.hidden=true;if(window.CLAuth)CLAuth.open(document.querySelector('[data-cl-acct] button'));};}
 /* 134: ostatnia kwota portfela wpisana recznie (notatki, cykle) przed chwila ms, nie wczesniej niz od */
 function evDate(id){var i,o=J.doc.own;for(i=0;i<o.length;i++)if(o[i]&&o[i].id===id)return o[i].date;var s=J.doc.seen[id];if(s)return s.date;var m=/^m-\w+-(\d+)$/.exec(id);if(m)return isoOf(+m[1]*1000);
   m=/^cyc(end)?-(.+)$/.exec(id);if(m){for(i=0;i<J.doc.cycles.length;i++){var c=J.doc.cycles[i];if(c&&String(c.id)===m[2])return String(m[1]?c.endAt:c.startAt||'').slice(0,10);}}return null}
@@ -185,7 +189,7 @@ function renderChips(){
 function chipEl(id){return pinsEl.querySelector('.chip[data-id="'+id+'"]')}
 function stats(){
   var m=0,o=0,n=0;EVS.forEach(function(e){if(e.kind==='market'){m++;if(hasNote(e.id))n++;}else o++;});
-  $('#stats').textContent='Na osi jest '+m+' wydarzeń rynkowych i '+o+' Twoich. Opisałeś '+n+' z '+m+'. Kliknij wydarzenie, żeby zobaczyć, co się działo, i dopisać, co wtedy zrobiłeś.'+(REAL?'':' Wykres jest poglądowy: brak danych rynkowych.')+(J.ro?' Przeglądasz bez logowania: zaloguj się, żeby dodawać własne wydarzenia i notatki (widzisz je tylko Ty).':'');
+  $('#stats').textContent='Na osi jest '+m+' wydarzeń rynkowych i '+o+' Twoich. Opisałeś '+n+' z '+m+'. Kliknij wydarzenie, żeby zobaczyć, co się działo, i dopisać, co wtedy zrobiłeś.'+(REAL?'':' Wykres jest poglądowy: brak danych rynkowych.');
 }
 function resize(){
   /* (22) the chart has no frame: the stage runs from the left edge of the window to the right one, the controls keep the page margin */
@@ -1842,6 +1846,7 @@ window.addEventListener('resize',function(){stkBox.querySelectorAll('.stk').forE
 
 /* ---------- start ---------- */
 applyLook();buildEvents();buildPf();resize();skySize();stats();startIntro();
+if(J.ro){var seenNote=false;try{seenNote=!!sessionStorage.getItem('cl-dz-note');}catch(e){}if(!seenNote)setTimeout(function(){var b=document.getElementById('jlogin');if(!b||b.hidden)askLogin('');},1200);}
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){layout();renderChips();});   /* flag widths are measured from the text - once more with the real font */
 window.addEventListener('resize',function(){resize();skySize();});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(bbFit);

@@ -383,9 +383,11 @@ html.cl-shell main{padding-top:0;padding-left:0}
 html.cl-shell .top #stkAdd{margin-left:0!important}
 @media (max-width:640px){html.cl-shell .top{position:static;justify-content:flex-end;padding:0 0 10px}}
 main h1 .cl-status{-webkit-text-fill-color:currentColor;font-family:var(--ui);letter-spacing:.08em}
-#jlogin{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;width:min(440px,calc(100vw - 24px));padding:14px 16px;border-radius:14px;border:1px solid rgba(233,178,92,.45);background:rgba(10,12,16,.96);box-shadow:0 18px 50px rgba(0,0,0,.6);color:var(--txt);font-size:14px}
-#jlogin p{margin:0 0 10px}
-#jlogin div{display:flex;gap:8px;flex-wrap:wrap}
+/* 135: wyglad jak ramka „Rysunek jest zapisany tylko w tej przegladarce” (app.js, .cld-note) */
+#jlogin{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;width:min(460px,calc(100vw - 24px));font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.45;padding:10px 12px;border-radius:8px;background:#2a2410;color:#f3e3b0;border:1px solid rgba(255,193,7,.55);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+#jlogin b{color:#ffc107}
+#jlogin .r{display:flex;gap:6px;margin-top:8px}
+#jlogin button{font:inherit;font-size:13px;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,193,7,.6);background:#3a3115;color:#fff;cursor:pointer}
 #jlogin[hidden]{display:none}
 .cyrow{padding:14px 0 16px;border-bottom:1px solid var(--line)}
 .cyrow:first-child{padding-top:4px}
