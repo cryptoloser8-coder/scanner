@@ -1327,7 +1327,7 @@ window.CLTZ = (function () {
         if (cloudOn() || !D.length) return;
         try { if (sessionStorage.getItem('cl-draw-note')) return; sessionStorage.setItem('cl-draw-note', '1'); } catch (e) {}
         var n = document.createElement('div'); n.className = 'cld-note'; n.setAttribute('role', 'status');
-        n.innerHTML = '<b>Rysunek zapisany tylko w tej przeglądarce.</b> Po wyczyszczeniu danych strony (ciasteczek) albo na innym urządzeniu go nie będzie. Zaloguj się, żeby rysunki zapisywały się na koncie.' +
+        n.innerHTML = '<b>Rysunek jest zapisany tylko w tej przeglądarce.</b> Zniknie po wyczyszczeniu danych przeglądarki i nie pojawi się na innych urządzeniach. Zaloguj się, a rysunki zapiszą się na Twoim koncie i będą widoczne wszędzie.' +
           '<div class="r"><button type="button" data-l>Zaloguj</button><button type="button" data-x>Rozumiem</button></div>';
         // telefon: po stuknięciu przeglądarka wysyła jeszcze kliknięcie w to samo miejsce — ramka pojawia się chwilę później
         // i przez 0,6 s nie przyjmuje kliknięć, żeby nie zamknęło jej to samo stuknięcie, którym narysowano linię
@@ -1615,7 +1615,7 @@ window.CLTZ = (function () {
     document.querySelectorAll('[data-cl-acct]').forEach(function (box) {
       var u = A.user, h;
       if (A.loading && !A.ready) h = '<button type="button" disabled>…</button>';
-      else if (!u) h = '<button type="button" title="Zaloguj się — rysunki na wykresach zapiszą się na koncie (wszędzie te same)">' +
+      else if (!u) h = '<button type="button" title="Zaloguj się — rysunki na wykresach i Dziennik zapiszą się na Twoim koncie">' +
         '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14.5c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/></svg>Zaloguj</button>';
       else {
         var n = (u.displayName || u.email || '?'), ini = n.trim().charAt(0).toUpperCase();
@@ -1637,7 +1637,7 @@ window.CLTZ = (function () {
     var u = A.user;
     if (!u) {
       pop.innerHTML = '<h3>Zaloguj się</h3>' +
-        '<p>Bez logowania rysunki na wykresach są zapisane tylko w tej przeglądarce (dane strony). Po wyczyszczeniu danych przeglądarki albo na innym urządzeniu ich nie będzie. Po zalogowaniu zapisują się na Twoim koncie — wszędzie te same.</p>' +
+        '<p>Bez logowania rysunki na wykresach są zapisane tylko w tej przeglądarce: znikną po wyczyszczeniu jej danych i nie pojawią się na innych urządzeniach. Dziennik można wtedy tylko oglądać. Po zalogowaniu rysunki i Twój Dziennik zapisują się na koncie i są dostępne na każdym urządzeniu.</p>' +
         '<button type="button" class="pri" data-g>Zaloguj przez Google</button>' +
         '<div class="or">albo dowolny e-mail — przyjdzie link, bez hasła</div>' +
         '<input type="email" autocomplete="email" placeholder="np. jan@wp.pl" data-m><button type="button" data-s>Wyślij link do logowania</button><div class="msg" data-msg></div>';
@@ -1657,8 +1657,8 @@ window.CLTZ = (function () {
       };
     } else {
       pop.innerHTML = '<h3>' + esc(u.displayName || u.email) + '</h3><p>' + esc(u.email) + (A.admin ? ' · admin' : '') + '</p>' +
-        (A.banned ? '<p style="color:#e05252">To konto jest zablokowane — rysunki zapisują się tylko w tej przeglądarce.</p>'
-          : '<p class="ok">✓ Rysunki na wykresach zapisują się na tym koncie — na każdym urządzeniu te same.</p>') +
+        (A.banned ? '<p style="color:#e05252">To konto jest zablokowane — rysunki zapisują się tylko w tej przeglądarce, a Dziennik można tylko oglądać.</p>'
+          : '<p class="ok">✓ Rysunki na wykresach i Twój Dziennik zapisują się na tym koncie — na każdym urządzeniu te same.</p>') +
         (A.admin ? '<a class="btn" href="sonda-firebase.html">Użytkownicy i blokady</a>' : '') +
         '<button type="button" data-o>Wyloguj</button>';
       pop.querySelector('[data-o]').onclick = function () { A.signOut(); closePop(); };
