@@ -1,48 +1,54 @@
 rules_version = '2';
-// Crypto Loser Analytics Tools — reguły bazy Firestore (projekt cl-analytics-616c1), poprawka 129.
+// Crypto Loser Analytics Tools — reguły bazy Firestore (projekt cl-analytics-616c1), poprawka 131.
 // Wklejać w konsoli Firebase: Firestore → Rules → Publish. Plik w repo jest tylko kopią (strona go nie czyta).
 //
-// Kto ma dostęp: admin (niżej) + adresy z kolekcji members/{e-mail małymi literami}, tylko z potwierdzonym e-mailem
-// (logowanie Google albo link na e-mail). Zalogowany spoza listy nie czyta i nie zapisuje niczego.
-//   members/{email}           lista dostępu — czytają członkowie, zmienia tylko admin
+// Dostęp (decyzja 25.11, wariant A): każdy zalogowany z potwierdzonym e-mailem (Google albo link na e-mail),
+// oprócz adresów z listy zablokowanych banned/{e-mail małymi literami}. Listę zmienia tylko admin.
+//   users/{uid}               profil (e-mail, nazwa, ostatnie logowanie) — pisze właściciel, czyta właściciel i admin
 //   users/{uid}/scopes/{key}  rysunki jednej osoby na jednym wykresie — tylko ta osoba
-//   shared/{id}               rysunki udostępnione grupie — czytają wszyscy członkowie,
+//   shared/{id}               rysunki udostępnione grupie — czytają wszyscy dopuszczeni,
 //                             tworzy i zmienia autor (uid), usuwa autor albo admin
+//   banned/{email}            zablokowani — czyta admin (i sam zainteresowany: komunikat „zablokowany”), zmienia admin
+// Rysunki zapisujemy jako tekst JSON w polu j (Firestore nie przyjmuje tablic w tablicach).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function verified() { return signedIn() && request.auth.token.email_verified == true; }
     function mail() { return request.auth.token.email.lower(); }
     function isAdmin() { return verified() && mail() == 'cryptoloser8@gmail.com'; }
-    function isMember() { return isAdmin() || (verified() && exists(/databases/$(database)/documents/members/$(mail()))); }
+    function allowed() { return isAdmin() || (verified() && !exists(/databases/$(database)/documents/banned/$(mail()))); }
 
-    match /members/{email} {
-      allow read: if isMember();
-      allow write: if isAdmin() && email == email.lower();
+    match /banned/{email} {
+      allow get: if isAdmin() || (verified() && email == mail());
+      allow list: if isAdmin();
+      allow write: if isAdmin() && email == email.lower() && email != 'cryptoloser8@gmail.com';
     }
 
     match /users/{uid} {
-      allow read, write: if isMember() && request.auth.uid == uid;
+      allow get: if allowed() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if allowed() && request.auth.uid == uid
+        && request.resource.data.email == mail();
+      allow delete: if isAdmin() || (allowed() && request.auth.uid == uid);
       match /scopes/{key} {
-        allow read, delete: if isMember() && request.auth.uid == uid;
-        allow create, update: if isMember() && request.auth.uid == uid;
+        allow read, write: if allowed() && request.auth.uid == uid;
       }
     }
 
     match /shared/{id} {
-      allow read: if isMember();
-      allow create: if isMember()
+      allow read: if allowed();
+      allow create: if allowed()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.author is string;
-      allow update: if isMember()
+      allow update: if allowed()
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == resource.data.uid;
-      allow delete: if isAdmin() || (isMember() && resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin() || (allowed() && resource.data.uid == request.auth.uid);
     }
 
-    // sonda (poprawka 129): jeden dokument testowy na osobę
+    // sonda (poprawki 129–131): jeden dokument testowy na osobę
     match /probe/{uid} {
-      allow read, write: if isMember() && request.auth.uid == uid;
+      allow read, write: if allowed() && request.auth.uid == uid;
     }
   }
 }
