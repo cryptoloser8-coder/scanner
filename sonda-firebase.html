@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sonda Firebase — logowanie i zapis · Crypto Loser</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  /* poprawka 129: sonda Firebase — strona testowa bez wpisu w menu. Sprawdza logowanie (Google, link na e-mail),
+     zapis i odczyt w bazie oraz to, czy reguły blokują obcych. Wynik do skopiowania na dole. */
+  :root{--bg:#0f0f0f;--bg2:#181818;--bg3:#222;--border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+    --text:#f0f0f0;--text2:#9a9a9a;--green:#4caf7d;--red:#e05252;--blue:#5b9cf6;--amber:#ffc107;--mono:'SF Mono','Fira Mono',ui-monospace,monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:24px;font-size:15px;line-height:1.5;max-width:900px;margin:0 auto}
+  h1{font-size:20px;margin-bottom:4px} h2{font-size:15px;margin:0 0 8px}
+  p.sub{color:var(--text2);font-size:13px;margin-bottom:18px}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;font-size:14px;padding:9px 14px;min-height:40px;border-radius:8px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);cursor:pointer}
+  button:hover{border-color:var(--blue)} button.pri{background:#24324a;border-color:var(--blue)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  input{font:inherit;font-size:16px;padding:8px 10px;min-height:40px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);min-width:0;flex:1 1 220px}
+  .who{font-family:var(--mono);font-size:13px;color:var(--text2)}
+  ul.res{list-style:none;font-size:14px} ul.res li{padding:5px 0;border-bottom:1px solid var(--border);display:flex;gap:8px}
+  ul.res li:last-child{border-bottom:0}
+  .ok{color:var(--green)} .bad{color:var(--red)} .wait{color:var(--amber)} .info{color:var(--text2)}
+  .k{flex:none;width:22px} .d{color:var(--text2);font-size:12.5px;display:block}
+  pre{font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto}
+  .note{font-size:13px;color:var(--text2)}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<h1>Sonda Firebase — logowanie i zapis</h1>
+<p class="sub">Strona testowa (bez wpisu w menu). Sprawdza logowanie, zapis i odczyt w bazie oraz czy osoba spoza listy nic nie widzi. Na końcu skopiuj wynik i wklej go Claude.</p>
+
+<div class="card" id="c-login">
+  <h2>1. Logowanie</h2>
+  <div class="who" id="who">Sprawdzam…</div>
+  <div class="row" id="login-btns" style="margin-top:10px">
+    <button class="pri" id="b-google" type="button">Zaloguj przez Google</button>
+  </div>
+  <div class="row" id="mail-row" style="margin-top:10px">
+    <label for="mail" class="note" style="flex:1 1 100%">albo dowolny e-mail — przyjdzie link do logowania (sprawdź też spam):</label>
+    <input id="mail" type="email" autocomplete="email" placeholder="np. jan@wp.pl">
+    <button id="b-mail" type="button">Wyślij link</button>
+  </div>
+  <div class="row" style="margin-top:10px"><button id="b-out" type="button" hidden>Wyloguj</button></div>
+  <p class="note" id="mail-msg" style="margin-top:8px"></p>
+</div>
+
+<div class="card">
+  <h2>2. Testy</h2>
+  <ul class="res" id="res"><li><span class="k info">·</span><span>Zaloguj się, testy ruszą same.</span></li></ul>
+  <div class="row" style="margin-top:10px"><button id="b-run" type="button" disabled>Powtórz testy</button></div>
+</div>
+
+<div class="card" id="c-admin" hidden>
+  <h2>3. Lista dostępu (tylko admin)</h2>
+  <p class="note">Adresy, które mogą się logować i rysować. Wpisz e-mail znajomego (Gmail albo dowolny) i dodaj.</p>
+  <div class="row" style="margin-top:8px"><input id="m-new" type="email" placeholder="e-mail do dodania"><button id="b-add" type="button">Dodaj</button></div>
+  <ul class="res" id="members" style="margin-top:8px"></ul>
+</div>
+
+<div class="card">
+  <h2>4. Wynik do skopiowania</h2>
+  <pre id="out">—</pre>
+  <div class="row" style="margin-top:8px"><button id="b-copy" type="button">Kopiuj wynik</button></div>
+</div>
+
+<script src="firebase/config.js?v=129"></script>
+<script src="vendor/firebase-cl.js?v=129"></script>
+<script>
+(() => {
+  const F = window.CLFB, CFG = window.CL_FIREBASE;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  const log = [];
+  const res = $('res');
+  function line(kind, text, detail) {
+    log.push((kind === 'ok' ? 'OK  ' : kind === 'bad' ? 'BŁĄD' : kind === 'wait' ? '…   ' : 'info') + ' ' + text + (detail ? ' — ' + detail : ''));
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="k ${kind}">${kind === 'ok' ? '✓' : kind === 'bad' ? '✗' : kind === 'wait' ? '…' : '·'}</span><span>${esc(text)}${detail ? `<span class="d">${esc(detail)}</span>` : ''}</span>`;
+    res.appendChild(li);
+    $('out').textContent = header() + log.join('\n');
+  }
+  let user = null;
+  const header = () => `Sonda Firebase · ${new Date().toISOString()} · ${navigator.userAgent.split(') ')[0].slice(0, 80)})\n` +
+    (user ? `Konto: ${user.email} · zweryfikowany: ${user.emailVerified} · logowanie: ${(user.providerData[0] || {}).providerId || 'link'}\n` : 'Konto: niezalogowany\n');
+  if (!F || !CFG) { line('bad', 'Nie wczytała się biblioteka Firebase albo konfiguracja', 'vendor/firebase-cl.js, firebase/config.js'); return; }
+
+  const app = F.initializeApp(CFG.config);
+  const auth = F.getAuth(app);
+  const db = F.getFirestore(app);
+  const isAdmin = () => user && user.emailVerified && user.email.toLowerCase() === CFG.admin;
+  const code = e => (e && (e.code || e.message)) || String(e);
+
+  // ── logowanie ──
+  $('b-google').addEventListener('click', async () => {
+    try { await F.signInWithPopup(auth, new F.GoogleAuthProvider()); }
+    catch (e) { $('mail-msg').textContent = 'Logowanie Google nie wyszło: ' + code(e); }
+  });
+  $('b-mail').addEventListener('click', async () => {
+    const m = $('mail').value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) { $('mail-msg').textContent = 'Wpisz poprawny e-mail.'; return; }
+    try {
+      await F.sendSignInLinkToEmail(auth, m, {url: location.origin + location.pathname, handleCodeInApp: true});
+      try { localStorage.setItem('cl-fb-mail', m); } catch (e) {}
+      $('mail-msg').textContent = `Wysłano link na ${m}. Otwórz go w tej samej przeglądarce (najlepiej na tym urządzeniu).`;
+    } catch (e) { $('mail-msg').textContent = 'Nie udało się wysłać linku: ' + code(e); }
+  });
+  $('b-out').addEventListener('click', () => F.signOut(auth));
+  if (F.isSignInWithEmailLink(auth, location.href)) {
+    let m = ''; try { m = localStorage.getItem('cl-fb-mail') || ''; } catch (e) {}
+    if (!m) m = window.prompt('Podaj e-mail, na który przyszedł link:') || '';
+    F.signInWithEmailLink(auth, m, location.href)
+      .then(() => { try { localStorage.removeItem('cl-fb-mail'); } catch (e) {} history.replaceState(null, '', location.pathname); })
+      .catch(e => { $('mail-msg').textContent = 'Link nie zadziałał: ' + code(e) + ' (link jest jednorazowy i ważny ok. godziny).'; });
+  }
+
+  F.onAuthStateChanged(auth, u => {
+    user = u;
+    $('who').textContent = u ? `Zalogowany: ${u.email} · e-mail potwierdzony: ${u.emailVerified ? 'tak' : 'nie'}${isAdmin() ? ' · ADMIN' : ''}` : 'Niezalogowany';
+    $('login-btns').hidden = !!u; $('mail-row').hidden = !!u; $('b-out').hidden = !u;
+    $('b-run').disabled = !u; $('c-admin').hidden = !isAdmin();
+    if (u) run(); else { res.innerHTML = '<li><span class="k info">·</span><span>Zaloguj się, testy ruszą same.</span></li>'; log.length = 0; $('out').textContent = header(); }
+  });
+  $('b-run').addEventListener('click', run);
+
+  // ── testy ──
+  async function expect(name, fn, shouldWork, why) {
+    try {
+      const r = await fn();
+      if (shouldWork) line('ok', name, r || '');
+      else line('bad', name + ' — powinno być zablokowane, a przeszło!', why);
+      return true;
+    } catch (e) {
+      const denied = /permission|insufficient/i.test(code(e));
+      if (!shouldWork && denied) line('ok', name + ' — zablokowane, tak jak powinno', why);
+      else if (shouldWork && denied) line('bad', name + ' — brak uprawnień', why + ' · ' + code(e));
+      else line('bad', name, code(e));
+      return false;
+    }
+  }
+  let running = false;
+  async function run() {
+    if (running || !user) return; running = true;
+    res.innerHTML = ''; log.length = 0;
+    line('info', `Konto ${user.email}`, `uid ${user.uid.slice(0, 8)}… · potwierdzony e-mail: ${user.emailVerified}`);
+    let member = isAdmin();
+    if (!member) {
+      try { member = (await F.getDoc(F.doc(db, 'members', user.email.toLowerCase()))).exists(); }
+      catch (e) { member = false; }
+    }
+    line('info', member ? (isAdmin() ? 'Jesteś adminem' : 'Jesteś na liście dostępu') : 'Nie jesteś na liście dostępu — wszystkie testy niżej powinny być ZABLOKOWANE');
+    const t0 = performance.now();
+    const n = Math.round(Math.random() * 1e6);
+    await expect('Zapis do bazy (probe)', async () => {
+      await F.setDoc(F.doc(db, 'probe', user.uid), {n, at: F.serverTimestamp()});
+      return `${Math.round(performance.now() - t0)} ms`;
+    }, member, 'probe/{moje uid}');
+    await expect('Odczyt tego samego dokumentu', async () => {
+      const s = await F.getDoc(F.doc(db, 'probe', user.uid));
+      if (!s.exists() || s.data().n !== n) throw new Error('odczytana wartość się nie zgadza');
+      return 'wartość się zgadza';
+    }, member, 'probe/{moje uid}');
+    await expect('Zapis własnych rysunków (users/…/scopes)', async () => {
+      const d = [{id: 'sonda', k: 'h', c: '#ffc107', p: [[1767052800, 60000]]}];
+      await F.setDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'), {d, at: F.serverTimestamp()});
+      const s = await F.getDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'));
+      await F.deleteDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'));
+      return `${s.data().d.length} rysunek zapisany, odczytany i usunięty`;
+    }, member, 'users/{moje uid}/scopes/sonda:test');
+    await expect('Zapis do CUDZYCH rysunków', async () => {
+      await F.setDoc(F.doc(db, 'users', 'ktos-inny-' + user.uid.slice(0, 4), 'scopes', 'x'), {d: []});
+    }, false, 'users/{cudze uid} — każdy widzi tylko swoje');
+    await expect('Udostępnienie grupie i usunięcie (shared)', async () => {
+      const r = await F.addDoc(F.collection(db, 'shared'), {uid: user.uid, author: user.email.split('@')[0], note: 'sonda — do usunięcia', at: F.serverTimestamp(), d: []});
+      const s = await F.getDoc(r);
+      await F.deleteDoc(r);
+      return s.exists() ? 'utworzone, odczytane i usunięte' : 'utworzone, ale nie odczytane';
+    }, member, 'shared/{id}');
+    await expect('Udostępnienie podpisane cudzym uid', async () => {
+      const r = await F.addDoc(F.collection(db, 'shared'), {uid: 'ktos-inny', author: 'podszywanie', at: F.serverTimestamp(), d: []});
+      await F.deleteDoc(r).catch(() => {});
+    }, false, 'autor musi być zalogowaną osobą');
+    await expect('Odczyt listy dostępu', async () => {
+      const q = await F.getDocs(F.collection(db, 'members'));
+      return `${q.size} adres(ów) na liście (admin jest poza listą)`;
+    }, member, 'members');
+    await expect('Zmiana listy dostępu', async () => {
+      await F.setDoc(F.doc(db, 'members', 'sonda-test@example.com'), {by: user.email});
+      await F.deleteDoc(F.doc(db, 'members', 'sonda-test@example.com'));
+      return 'dodany i usunięty adres testowy';
+    }, isAdmin(), isAdmin() ? 'admin może zmieniać listę' : 'listę zmienia tylko admin');
+    line('info', 'Koniec testów', `${Math.round(performance.now() - t0)} ms`);
+    running = false;
+    if (isAdmin()) loadMembers();
+  }
+
+  // ── lista dostępu (admin) ──
+  async function loadMembers() {
+    const ul = $('members');
+    try {
+      const q = await F.getDocs(F.collection(db, 'members'));
+      ul.innerHTML = q.empty ? '<li><span class="info">Lista pusta — na razie dostęp masz tylko Ty.</span></li>' : '';
+      q.forEach(d => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span style="flex:1">${esc(d.id)}</span>`;
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Usuń';
+        b.addEventListener('click', async () => { await F.deleteDoc(F.doc(db, 'members', d.id)); loadMembers(); });
+        li.appendChild(b); ul.appendChild(li);
+      });
+    } catch (e) { ul.innerHTML = `<li class="bad">${esc(code(e))}</li>`; }
+  }
+  $('b-add').addEventListener('click', async () => {
+    const m = $('m-new').value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m)) return;
+    try { await F.setDoc(F.doc(db, 'members', m), {by: user.email, at: F.serverTimestamp()}); $('m-new').value = ''; loadMembers(); }
+    catch (e) { alert('Nie udało się: ' + code(e)); }
+  });
+  $('b-copy').addEventListener('click', () => {
+    const t = $('out').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
+      () => { $('b-copy').textContent = 'Skopiowano'; setTimeout(() => { $('b-copy').textContent = 'Kopiuj wynik'; }, 2000); },
+      () => window.prompt('Skopiuj:', t));
+  });
+})();
+</script>
+</body>
+</html>
