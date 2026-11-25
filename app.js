@@ -268,7 +268,9 @@ window.CLTZ = (function () {
         if (n.sec) { h.push('<div class="cl-h">' + n.sec + '</div>'); return; }
         h.push('<a class="it' + (page === n.href ? ' on' : '') + (n.paused ? ' paused' : '') + '" href="' + n.href + '">' + ico(n) + esc(n.name) + (n.lamp ? '<span class="cl-lamp" data-cl-lamp hidden></span>' : '') + '</a>');
       });
-      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span><span>' + tzSelect() + '</span><span class="cl-acct" data-cl-acct></span></div></nav>');
+      h.push('<div class="cl-stat"><span><i class="cl-dot" data-cl-dot></i><b style="font-weight:400" data-cl-src>Źródła: …</b></span><span data-cl-bad style="display:none;color:#ffc107;line-height:1.35"></span><span data-cl-time></span><span>' + tzSelect() + '</span></div></nav>');
+      // 133: na Pulpicie przycisk konta w prawym górnym rogu (jak na zakładkach), nie na dole lewego menu
+      h.push('<div class="cl-acct cl-acct-fix" data-cl-acct></div>');
     } else {
       h.push('<nav class="cl-rail" aria-label="Menu"><a class="cl-home" href="index.html" title="Pulpit"><img src="favicon.svg" alt="">Pulpit</a>');
       NAV.forEach(function (n) {
@@ -1561,7 +1563,8 @@ window.CLTZ = (function () {
     '.cl-acct-pop .or{text-align:center;color:#777;font-size:12px;margin:10px 0 2px}' +
     '.cl-acct-pop .msg{margin-top:8px;font-size:12.5px;color:#ffc107}' +
     '.cl-acct-pop .ok{color:#4caf7d}' +
-    '@media (max-width:640px){.cl-acct>button{padding:4px 8px;font-size:11.5px}.cl-acct>button .nm{display:none}}' +
+    '.cl-acct-fix{position:absolute;top:22px;right:24px;z-index:38}' +
+    '@media (max-width:640px){.cl-acct>button{padding:4px 8px;font-size:11.5px}.cl-acct>button .nm{display:none}.cl-acct-fix{display:none}}' +
     '@media print{.cl-acct,.cl-acct-pop{display:none!important}}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
