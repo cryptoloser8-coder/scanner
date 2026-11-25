@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=135"></script>
+<script src="app.js?v=136"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -823,7 +823,16 @@ function makeChart() {
   new ResizeObserver(() => requestAnimationFrame(drawVLines)).observe(document.getElementById('chart'));
   if (window.histEvents) { HEV = histEvents(chart, document.querySelector('.chart-wrap')); HEV.set(META.history_events); HEV.show(S.hev); }
   // 128: rysowanie — przypięte do serii na prawej osi górnego panelu (osobno dla każdego trybu)
-  if (window.CLDraw) CLDraw.attach({chart, page: 'oi', ref: () => { const m = mounted.find(m => m.pane === 0 && m.scale === 'right') || mounted.find(m => m.pane === 0); return m ? {id: S.mode + ':' + m.id, series: m.series, fmt: CAT[m.id] ? v => fmt(v, fmtOf(CAT[m.id])) : null} : null; }});
+  // 136: każda seria górnego panelu ma swoje rysunki i szkice (refs) — dodanie innej serii ich nie chowa;
+  //   ref = domyślna seria dla nowych rysunków (jak dotąd: prawa oś), add = „Dodaj serię” przy szkicu serii spoza wykresu
+  const drawRef = m => ({id: S.mode + ':' + m.id, series: m.series, fmt: CAT[m.id] ? v => fmt(v, fmtOf(CAT[m.id])) : null,
+    name: CAT[m.id] ? CAT[m.id].name : m.id, color: CAT[m.id] ? CAT[m.id].color : '#888'});
+  if (window.CLDraw) CLDraw.attach({chart, page: 'oi',
+    ref: () => { const m = mounted.find(m => m.pane === 0 && m.scale === 'right') || mounted.find(m => m.pane === 0); return m ? drawRef(m) : null; },
+    refs: () => mounted.filter(m => m.pane === 0).map(drawRef),
+    group: () => S.mode + ':',
+    name: id => { const c = CAT[String(id).split(':').pop()]; return c ? c.name : null; },
+    add: id => { const sid = String(id).split(':').pop(); if (CAT[sid] && !S.series.includes(sid)) toggleSeries(sid); }});
 }
 
 // ── fazy cyklu BTC: tło i pionowe linie (meta.cycle_marks — te same reguły co raport miesięczny) ──

@@ -1030,6 +1030,15 @@ window.CLTZ = (function () {
 //   link: ?rys=… (po otwarciu rysunki dopisują się do zapisanych). Rysuje się tylko w górnym panelu wykresu.
 //   Telefon (< 700 px): rysunki widać, paska narzędzi nie ma.
 //   Klawisze: Esc — przerwij / odznacz, Delete / Backspace — usuń zaznaczony.
+// 136: szkice. To, co rysujemy, trafia do „Roboczego”; „Zapisz jako szkic” zamyka robocze rysunki w nazwanym szkicu
+//   (zostaje widoczny). Szkice: pokaż / ukryj (kilka naraz), Edytuj → Gotowe (bez tego rysunki szkicu są zablokowane),
+//   zmień nazwę, usuń. Okienko „Szkice” z paska (wariant A), nad osią czasu etykiety widocznych szkiców.
+//   Każdy szkic trzyma się serii, na której powstał: strona może podać wszystkie serie górnego panelu
+//   (refs() → [{id, series, fmt, name, color}]) — wtedy rysunki każdej serii są widoczne naraz, a dodanie czy usunięcie
+//   innej serii nic w nich nie zmienia. Nowe rysunki trafiają do serii z „Rysujesz na” (przycisk na pasku, gdy serii
+//   jest kilka; domyślnie ref() jak dotąd). Szkice serii, której nie ma na wykresie: wyszarzone, „Dodaj serię” (add()).
+//   Zapis bez zmiany formatu: szkic = wpis {id, k:'sk', p:[], n:nazwa, c:kolor, h:ukryty, at} w tej samej tablicy co
+//   rysunki, rysunki szkicu mają pole s = id szkicu. Starsze app.js pokazują wtedy wszystko jak zwykłe rysunki.
 (function () {
   var NS = 'http://www.w3.org/2000/svg';
   var COLORS = ['#5b9cf6', '#ffc107', '#4caf7d', '#e05252', '#ce93d8', '#f0f0f0'];
@@ -1075,6 +1084,47 @@ window.CLTZ = (function () {
     '.cld-note button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,193,7,.6);background:#3a3115;color:#fff;cursor:pointer}' +
     '.cld-bar button.cloud-off{color:#ffc107}.cld-bar button.cloud-on{color:#4caf7d}' +
     '.cld-fab{display:none}' +
+    // 136: szkice
+    '.cld-svg g.lk *{pointer-events:none !important}' +
+    '.cld-bar .bdg{position:absolute;right:-3px;top:-3px;min-width:13px;height:13px;border-radius:7px;background:var(--blue,#5b9cf6);color:#0f0f0f;font-size:9.5px;font-weight:700;line-height:13px;text-align:center;padding:0 2px;box-sizing:border-box;font-family:inherit}' +
+    '.cld-bar .sdot{position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;border:1.5px solid #181818}' +
+    '.cld-sk,.cld-onp{position:absolute;z-index:9;width:360px;max-width:calc(100vw - 24px);overflow-y:auto;background:#1c1c1c;border:1px solid rgba(255,255,255,.16);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.6);padding:10px;box-sizing:border-box;font-size:13px;line-height:1.35;color:var(--text,#f0f0f0);display:flex;flex-direction:column;gap:4px;text-align:left}' +
+    '.cld-onp{width:250px}' +
+    '.cld-sk button,.cld-onp button,.cld-sk input{font-family:inherit}' +
+    '.cld-sk .hd{display:flex;align-items:baseline;gap:8px}.cld-sk .hd b{font-size:14px}.cld-sk .mu{color:#888;font-size:12px}' +
+    '.cld-sk .x{margin-left:auto;width:28px;height:28px;border:0;background:transparent;color:#999;font-size:17px;cursor:pointer;border-radius:5px}' +
+    '.cld-sk .lb{font-size:11px;color:#888;margin-top:6px}' +
+    '.cld-sk .row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;border:1px solid transparent}' +
+    '.cld-sk .row.rob{background:#242424;border:1px dashed rgba(255,255,255,.25);padding:7px 8px}' +
+    '.cld-sk .row.ed{background:rgba(255,193,7,.08);border-color:rgba(255,193,7,.35)}' +
+    '.cld-sk .row.off{color:#777}' +
+    '.cld-sk .dt{width:10px;height:10px;border-radius:50%;flex:none}' +
+    '.cld-sk .nm{display:flex;flex-direction:column;min-width:0;flex:1}.cld-sk .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.cld-sk .nm small{font-size:11.5px;color:#888;white-space:normal}.cld-sk .row.ed .nm small{color:#ffc107}' +
+    '.cld-sk .ey{width:28px;height:28px;border:0;border-radius:5px;background:transparent;color:#f0f0f0;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}' +
+    '.cld-sk .row.off .ey{color:#666}.cld-sk .ey:disabled{cursor:default;opacity:.4}' +
+    '.cld-sk .b{min-height:28px;padding:2px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:transparent;color:#ddd;font-size:12px;cursor:pointer;white-space:nowrap;flex:none}' +
+    '.cld-sk .b.p{border-color:var(--blue,#5b9cf6);background:#24324a;color:#fff}' +
+    '.cld-sk .b.y{border-color:rgba(255,193,7,.6);background:#3a3115;color:#fff}' +
+    '.cld-sk .b.r{border-color:rgba(224,82,82,.6);background:rgba(224,82,82,.25);color:#fff}' +
+    '.cld-sk .b:disabled{opacity:.4;cursor:default}' +
+    '.cld-sk .mo{width:28px;height:28px;border:0;background:transparent;color:#999;cursor:pointer;flex:none;border-radius:5px;font-size:15px}' +
+    '.cld-sk .ey:hover,.cld-sk .mo:hover,.cld-sk .x:hover{background:rgba(255,255,255,.08)}' +
+    '.cld-sk .menu{display:flex;gap:6px;flex-wrap:wrap;margin:-2px 0 4px 44px}' +
+    '.cld-sk .frm{display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:8px;background:#242424;border:1px solid rgba(91,156,246,.45)}' +
+    '.cld-sk .frm input{min-height:34px;padding:0 9px;border-radius:6px;border:1px solid var(--blue,#5b9cf6);background:#111;color:#fff;font-size:14px;outline:none}' +
+    '.cld-sk .frm .sws{display:flex;gap:6px;align-items:center}.cld-sk .frm .sws button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}' +
+    '.cld-sk .frm .sws button.on{border-color:#fff}.cld-sk .frm .r{display:flex;gap:8px;justify-content:flex-end}' +
+    '.cld-sk .ri{flex:1;min-width:0;min-height:30px;padding:0 8px;border-radius:6px;border:1px solid var(--blue,#5b9cf6);background:#111;color:#fff;font-size:13px;outline:none}' +
+    '.cld-sk .em{color:#888;font-size:12px;padding:4px 6px}' +
+    '.cld-sk .ft{font-size:11.5px;color:#888;padding:6px 4px 0;margin-top:4px;border-top:1px solid rgba(255,255,255,.08)}' +
+    '.cld-onp .o{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:#ddd;font-size:13px;cursor:pointer;text-align:left}' +
+    '.cld-onp .o:hover{background:rgba(255,255,255,.07)}.cld-onp .o.on{background:rgba(91,156,246,.18);color:#fff}' +
+    '.cld-chips{position:absolute;z-index:6;display:flex;gap:5px;flex-wrap:wrap-reverse;pointer-events:none;max-width:62%;transform:translateY(-100%)}' +
+    '.cld-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;border:1px solid transparent;background:rgba(0,0,0,.62);font:inherit;font-size:11.5px;color:#ccc;cursor:pointer;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}' +
+    '.cld-chip i{width:8px;height:8px;border-radius:50%;flex:none}' +
+    '.cld-chip.ed{background:#2a2410;border-color:rgba(255,193,7,.55);color:#f3e3b0;max-width:none}.cld-chip.ed b{color:#ffc107;font-weight:600}' +
+    '.cld-chip.ed span{margin-left:4px;padding:1px 8px;border-radius:5px;border:1px solid rgba(255,193,7,.6);background:#3a3115;color:#fff}' +
     // 132: telefon — przycisk ✎ rozwija pasek narzędzi w poziomie nad osią czasu; rysowanie palcem
     '@media (max-width:699px){.cld-wrap{margin-left:0 !important}' +
     '.cld-fab{display:flex;position:absolute;right:66px;bottom:34px;z-index:7;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:#1c1c1c;color:#e8e8e8;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.5);padding:0}' +
@@ -1082,7 +1132,10 @@ window.CLTZ = (function () {
     '.cld-bar{display:none;top:auto;bottom:84px;left:4px;right:4px;width:auto;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:4px;gap:3px;-webkit-overflow-scrolling:touch}' +
     '.cld-bar.open{display:flex}.cld-bar button{width:40px;height:40px}.cld-bar .sep{width:1px;height:auto;margin:3px 2px}' +
     '.cld-pop{top:auto !important;bottom:48px;left:4px}' +
-    '.cld-note{top:34px;bottom:auto}}' +
+    '.cld-note{top:34px;bottom:auto}' +
+    '.cld-sk,.cld-onp{position:fixed;z-index:45;left:8px !important;right:8px;top:auto !important;bottom:calc(68px + env(safe-area-inset-bottom));width:auto;max-width:none;max-height:calc(100vh - 150px) !important;padding:12px}' +
+    '.cld-sk .ey,.cld-sk .mo,.cld-sk .x{width:40px;height:40px}.cld-sk .b{min-height:36px;padding:2px 12px;font-size:13px}' +
+    '.cld-onp .o{min-height:44px}.cld-chips{max-width:58%}.cld-chip{padding:4px 9px;font-size:12px}}' +
     '@media print{.cld-bar{display:none}.cld-wrap{margin-left:0 !important}}';
 
   function el(tag, attrs, parent) {
@@ -1107,6 +1160,10 @@ window.CLTZ = (function () {
   function b64d(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
   function rnd(v) { return +(+v).toPrecision(8); }
   function uid() { return Math.random().toString(36).slice(2, 9); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function nRys(n) { return n + (n === 1 ? ' rysunek' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? ' rysunki' : ' rysunków'); }
+  function dmy(ms) { var d = new Date(ms), p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(d.getDate()) + '.' + p(d.getMonth() + 1); }
+  var EYE = '<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="9" cy="9" r="2"/>', EYE_OFF = '<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><path d="M3 15L15 3"/>';
 
   // rysunki z linku (?rys=…) — dopisz do zapisanych i usuń z adresu
   (function importLink() {
@@ -1131,18 +1188,22 @@ window.CLTZ = (function () {
       var chart = o.chart, wrap = o.wrap || document.querySelector('.chart-wrap');
       if (!chart || !wrap || wrap.__cld) return null;
       wrap.__cld = true;
-      if (!document.getElementById('cld-css')) { var st = document.createElement('style'); st.id = 'cld-css'; st.textContent = css; document.head.appendChild(st); }
+      if (!document.getElementById('cld-css')) { var st0 = document.createElement('style'); st0.id = 'cld-css'; st0.textContent = css; document.head.appendChild(st0); }
       var page = o.page || location.pathname.split('/').pop().replace('.html', '') || 'index';
       var ts = chart.timeScale();
       var desk = matchMedia('(min-width:700px)');
       var color = (function () { try { return localStorage.getItem('cl-draw-color') || COLORS[0]; } catch (e) { return COLORS[0]; } })();
       var hidden = (function () { try { return localStorage.getItem('cl-draw-hide:' + page) === '1'; } catch (e) { return false; } })();
-      var tool = 'cur', D = [], key = null, sel = null, wip = null, drag = null, ref = null;
+      var tool = 'cur', sel = null, wip = null, drag = null;
+      // 136: kilka serii naraz — każda ma swój zestaw (ST[klucz] = {k, ref, D, cloud}); nowe rysunki idą do onKey
+      var R = [], ST = {}, onKey = null, editing = null;
+      var sk = {open: false, form: null, menu: null, ren: null, del: 0, fetched: false};
 
       wrap.classList.add('cld-wrap');
       var svg = el('svg', {'class': 'cld-svg'}); wrap.appendChild(svg);
       var bar = document.createElement('div'); bar.className = 'cld-bar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Rysowanie');
       wrap.appendChild(bar);
+      var chips = document.createElement('div'); chips.className = 'cld-chips'; wrap.appendChild(chips);
       var touch = matchMedia('(pointer:coarse)').matches, HW = touch ? 24 : 12, HR = touch ? 9 : 5;
       var fab = document.createElement('button'); fab.type = 'button'; fab.className = 'cld-fab';
       fab.title = 'Rysowanie'; fab.setAttribute('aria-label', 'Rysowanie — pokaż / schowaj narzędzia');
@@ -1150,8 +1211,57 @@ window.CLTZ = (function () {
       wrap.appendChild(fab);
       fab.addEventListener('click', function (e) {
         e.stopPropagation(); var open = !bar.classList.contains('open');
-        bar.classList.toggle('open', open); if (!open) { sel = null; setTool('cur'); } else syncBar();
+        bar.classList.toggle('open', open); if (!open) { sel = null; closeSk(); setTool('cur'); } else syncBar();
       });
+
+      // ── zestawy rysunków (jeden na serię) ──
+      function allSt() { return Object.keys(ST).map(function (k) { return ST[k]; }); }
+      function stOn() { return onKey ? ST[onKey] || null : null; }
+      function find(s) { var st = s && ST[s.k]; if (!st) return null; for (var i = 0; i < st.D.length; i++) if (st.D[i].id === s.id) return st.D[i]; return null; }
+      function isSel(st, d) { return !!sel && sel.k === st.k && sel.id === d.id; }
+      function idOf(k) { return k.slice(page.length + 1); }
+      function nameOf(k) {
+        if (ST[k] && ST[k].ref.name) return ST[k].ref.name;
+        var n = null; try { n = o.name ? o.name(idOf(k)) : null; } catch (e) {}
+        return n || idOf(k).split(':').pop();
+      }
+      function rob(d) { return d.k !== 'sk' && !d.s; }
+      // szkice z zapisanych zestawów tej zakładki, których serii nie ma teraz na wykresie (tylko strony z refs())
+      function others() {
+        if (!o.refs) return [];
+        var g = ''; try { g = o.group ? o.group() || '' : ''; } catch (e) {}
+        var pre = 'cl-draw:' + page + ':' + g, out = [];
+        try {
+          for (var i = 0; i < localStorage.length; i++) {
+            var lk = localStorage.key(i);
+            if (!lk || lk.indexOf(pre) !== 0) continue;
+            var k = lk.slice(8); if (ST[k]) continue;
+            var D = load(k); if (D.some(function (d) { return d.k === 'sk'; })) out.push({k: k, D: D});
+          }
+        } catch (e) {}
+        return out;
+      }
+      // szkice: id → {id, n, c, h, at, cnt, keys: {klucz: liczba rysunków}}
+      function sketches(withOthers) {
+        var M = {}, L = [];
+        function add(src, here) {
+          src.D.forEach(function (d) {
+            var id = d.k === 'sk' ? d.id : d.s; if (!id) return;
+            var m = M[id];
+            if (!m) { m = M[id] = {id: id, n: 'Szkic', c: '#888', h: 0, at: 0, cnt: 0, keys: {}, meta: false}; L.push(m); }
+            if (d.k === 'sk') { if (!m.meta) { m.n = d.n || 'Szkic'; m.c = d.c || '#888'; m.h = d.h ? 1 : 0; m.at = d.at || 0; m.meta = true; } }
+            else m.cnt++;
+            if (!(src.k in m.keys)) m.keys[src.k] = 0;
+            if (d.k !== 'sk') m.keys[src.k]++;
+            if (here) m.here = true;
+          });
+        }
+        allSt().forEach(function (st) { add(st, true); });
+        if (withOthers) others().forEach(function (x) { add(x, false); });
+        L.sort(function (a, b) { return b.at - a.at; });
+        return {M: M, L: L};
+      }
+      function vis(d, M) { if (d.k === 'sk') return false; if (!d.s || d.s === editing) return true; var m = M[d.s]; return !(m && m.h); }
 
       // ── pasek narzędzi ──
       var btns = {};
@@ -1162,6 +1272,8 @@ window.CLTZ = (function () {
       function sep() { var s = document.createElement('div'); s.className = 'sep'; bar.appendChild(s); }
       TOOLS.forEach(function (t, i) { addBtn(t[0], t[1], t[2]).addEventListener('click', function () { setTool(tool === t[0] && t[0] !== 'cur' ? 'cur' : t[0]); }); if (i === 0) sep(); });
       sep();
+      // 136: „Rysujesz na” — widoczny, gdy w górnym panelu jest kilka serii
+      addBtn('on', '', I('<circle cx="9" cy="7" r="3.2"/><path d="M9 10.2V16"/>')).addEventListener('click', function (e) { e.stopPropagation(); toggleOn(); });
       var cb = addBtn('col', 'Kolor (nowe rysunki i zaznaczony)', '<span class="sw"></span>');
       var pop = null;
       cb.addEventListener('click', function (e) {
@@ -1172,40 +1284,57 @@ window.CLTZ = (function () {
           var b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.title = c; if (c === color) b.className = 'on';
           b.addEventListener('click', function (ev) {
             ev.stopPropagation(); color = c; try { localStorage.setItem('cl-draw-color', c); } catch (er) {}
-            if (sel) { var d = find(sel); if (d) { d.c = c; commit(); } }
+            if (sel) { var d = find(sel); if (d) { d.c = c; commit(ST[sel.k]); } }
             pop.remove(); pop = null; syncBar(); render();
           });
           pop.appendChild(b);
         });
         bar.appendChild(pop);
       });
-      document.addEventListener('click', function () { if (pop) { pop.remove(); pop = null; } });
+      document.addEventListener('click', function (e) {
+        if (pop) { pop.remove(); pop = null; }
+        var t = e.target;
+        if (onp && !onp.contains(t)) { onp.remove(); onp = null; }
+        if (sk.open && t.isConnected && !skEl.contains(t) && !btns.sk.contains(t) && !chips.contains(t)) closeSk();
+      });
       addBtn('eye', '', '').addEventListener('click', function () {
         hidden = !hidden; try { localStorage.setItem('cl-draw-hide:' + page, hidden ? '1' : '0'); } catch (e) {}
         if (hidden) { sel = null; setTool('cur'); }
         syncBar(); render();
       });
       addBtn('del', 'Usuń zaznaczony rysunek (Delete)', I('<path d="M3 5h12M7 5V3h4v2M5 5l1 10h6l1-10"/>')).addEventListener('click', function () { if (sel) removeSel(); });
-      var armed = 0;
-      addBtn('all', 'Usuń wszystkie rysunki z tego wykresu (kliknij dwa razy)', I('<path d="M3 5h12M5 5l1 10h6l1-10M7.5 8l3 4M10.5 8l-3 4"/>')).addEventListener('click', function () {
-        var b = btns.all;
-        if (!D.length) return;
-        if (Date.now() - armed < 3000) { D = []; sel = null; commit(); armed = 0; b.classList.remove('warn'); toast('Usunięto wszystkie rysunki'); return; }
-        armed = Date.now(); b.classList.add('warn'); b.title = 'Kliknij jeszcze raz — usuń wszystkie (' + D.length + ')';
-        setTimeout(function () { b.classList.remove('warn'); b.title = 'Usuń wszystkie rysunki z tego wykresu (kliknij dwa razy)'; }, 3000);
+      var armed = 0, ALL_T = 'Usuń wszystkie robocze rysunki z tego wykresu — szkice zostają (kliknij dwa razy)';
+      addBtn('all', ALL_T, I('<path d="M3 5h12M5 5l1 10h6l1-10M7.5 8l3 4M10.5 8l-3 4"/>')).addEventListener('click', function () {
+        var b = btns.all, n = 0;
+        allSt().forEach(function (st) { st.D.forEach(function (d) { if (rob(d)) n++; }); });
+        if (!n) { toast('Brak roboczych rysunków — szkice usuwa się w okienku „Szkice”'); return; }
+        if (Date.now() - armed < 3000) {
+          allSt().forEach(function (st) { var l = st.D.length; st.D = st.D.filter(function (d) { return !rob(d); }); if (st.D.length !== l) commit(st); });
+          sel = null; armed = 0; b.classList.remove('warn'); toast('Usunięto robocze rysunki (' + n + ')'); syncBar(); render(); return;
+        }
+        armed = Date.now(); b.classList.add('warn'); b.title = 'Kliknij jeszcze raz — usuń robocze rysunki (' + n + ')';
+        setTimeout(function () { b.classList.remove('warn'); b.title = ALL_T; }, 3000);
       });
       sep();
-      addBtn('link', 'Kopiuj link z rysunkami — dla grupy', I('<path d="M7.5 10.5l3-3M6 8l-2 2a2.5 2.5 0 003.5 3.5l2-2M12 10l2-2a2.5 2.5 0 00-3.5-3.5l-2 2"/>')).addEventListener('click', function () {
-        if (!key || !D.length) { toast('Brak rysunków na tym wykresie'); return; }
-        var q = new URLSearchParams(location.search); q.set('rys', b64e(JSON.stringify({k: key, d: D})));
+      addBtn('link', 'Kopiuj link z widocznymi rysunkami — dla grupy', I('<path d="M7.5 10.5l3-3M6 8l-2 2a2.5 2.5 0 003.5 3.5l2-2M12 10l2-2a2.5 2.5 0 00-3.5-3.5l-2 2"/>')).addEventListener('click', function () {
+        var st = stOn(), M = sketches().M;
+        var d = st ? st.D.filter(function (x) { return vis(x, M); }) : [];
+        if (!d.length) { toast('Brak widocznych rysunków na tej serii'); return; }
+        var used = {}; d.forEach(function (x) { if (x.s) used[x.s] = 1; });
+        var out = d.concat(st.D.filter(function (x) { return x.k === 'sk' && used[x.id]; }));
+        var q = new URLSearchParams(location.search); q.set('rys', b64e(JSON.stringify({k: st.k, d: out})));
         var url = location.origin + location.pathname + '?' + q + location.hash;
-        var ok = function () { toast('Skopiowano link z rysunkami (' + D.length + ')'); };
+        var ok = function () { toast('Skopiowano link z rysunkami (' + d.length + ')'); };
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function () { window.prompt('Link z rysunkami:', url); });
         else window.prompt('Link z rysunkami:', url);
       });
       // 131: zapis — konto albo tylko ta przeglądarka
       addBtn('cloud', '', '').addEventListener('click', function () {
         if (window.CLAuth) CLAuth.open(btns.cloud); else toast('Logowanie niedostępne');
+      });
+      sep();
+      addBtn('sk', 'Szkice — zapisz, pokaż / ukryj, edytuj', I('<path d="M9 2l7 3.5-7 3.5-7-3.5z"/><path d="M2 9l7 3.5L16 9M2 12.5L9 16l7-3.5"/>')).addEventListener('click', function (e) {
+        e.stopPropagation(); if (sk.open) closeSk(); else openSk();
       });
       function syncBar() {
         var on = cloudOn();
@@ -1216,10 +1345,22 @@ window.CLTZ = (function () {
           : 'Rysunki są zapisane tylko w tej przeglądarce — po wyczyszczeniu danych strony albo na innym urządzeniu ich nie będzie. Kliknij, żeby się zalogować i je zachować.';
         TOOLS.forEach(function (t) { btns[t[0]].classList.toggle('on', tool === t[0]); });
         btns.col.querySelector('.sw').style.background = color;
-        btns.eye.innerHTML = hidden ? I('<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><path d="M3 15L15 3"/>') : I('<path d="M2 9s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="9" cy="9" r="2"/>');
-        btns.eye.title = hidden ? 'Pokaż rysunki' : 'Ukryj rysunki (zostają zapisane)';
+        btns.eye.innerHTML = I(hidden ? EYE_OFF : EYE);
+        btns.eye.title = hidden ? 'Pokaż rysunki' : 'Ukryj wszystkie rysunki (zostają zapisane)';
         btns.eye.classList.toggle('on', hidden);
         btns.del.style.opacity = sel ? '1' : '.35';
+        // „Rysujesz na”
+        var r = stOn() && stOn().ref;
+        btns.on.style.display = R.length > 1 ? '' : 'none';
+        if (R.length > 1 && r) {
+          var t = 'Rysujesz na: ' + (r.name || idOf(onKey)) + ' — kliknij, żeby wybrać inną serię';
+          btns.on.title = t; btns.on.setAttribute('aria-label', t);
+          btns.on.innerHTML = I('<circle cx="9" cy="7" r="3.2"/><path d="M9 10.2V16"/>') + '<span class="sdot" style="background:' + esc(r.color || '#888') + '"></span>';
+        }
+        // szkice — liczba widocznych
+        var S = sketches(), nv = S.L.filter(function (m) { return m.here && !m.h; }).length;
+        btns.sk.innerHTML = I('<path d="M9 2l7 3.5-7 3.5-7-3.5z"/><path d="M2 9l7 3.5L16 9M2 12.5L9 16l7-3.5"/>') + (nv ? '<span class="bdg">' + nv + '</span>' : '');
+        btns.sk.classList.toggle('on', sk.open || !!editing);
         // telefon: zaznaczony rysunek przechwytuje dotyk (przesuwanie palcem bez przewijania strony), klik obok = odznacz
         svg.classList.toggle('act', !hidden && (tool !== 'cur' || (touch && !!sel)));
         svg.classList.toggle('ro', hidden);
@@ -1231,9 +1372,32 @@ window.CLTZ = (function () {
         var x = wrap.querySelector('.cld-toast'); if (!x) { x = document.createElement('div'); x.className = 'cld-toast'; wrap.appendChild(x); }
         x.textContent = s; x.style.display = ''; clearTimeout(tt); tt = setTimeout(function () { x.style.display = 'none'; }, 2200);
       }
+      function place(p, b) {   // okienko obok przycisku paska (telefon: od dołu ekranu — CSS)
+        p.style.left = (bar.offsetLeft + bar.offsetWidth + 6) + 'px';
+        var top = bar.offsetTop + b.offsetTop - bar.scrollTop, wh = wrap.clientHeight || 400;
+        var mh = Math.max(260, Math.min(560, window.innerHeight - 24));
+        p.style.maxHeight = mh + 'px';
+        p.style.top = Math.max(0, Math.min(top, wh - Math.min(mh, p.scrollHeight || mh))) + 'px';
+      }
+
+      // ── „Rysujesz na” ──
+      var onp = null;
+      function toggleOn() {
+        if (onp) { onp.remove(); onp = null; return; }
+        onp = document.createElement('div'); onp.className = 'cld-onp';
+        onp.innerHTML = '<div style="font-size:11px;color:#888;padding:0 4px 4px">Nowe rysunki przypinają się do serii:</div>' +
+          R.map(function (r, i) { var k = page + ':' + r.id; return '<button type="button" class="o' + (k === onKey ? ' on' : '') + '" data-i="' + i + '"><span style="width:10px;height:10px;border-radius:50%;flex:none;background:' + esc(r.color || '#888') + '"></span>' + esc(r.name || r.id) + '</button>'; }).join('');
+        onp.addEventListener('click', function (e) {
+          e.stopPropagation(); var b = e.target.closest('[data-i]'); if (!b) return;
+          var r = R[+b.getAttribute('data-i')]; if (!r) return;
+          try { localStorage.setItem('cl-draw-on:' + page, r.id); } catch (er) {}
+          onp.remove(); onp = null; wip = null; scope(true); toast('Rysujesz na: ' + (r.name || r.id));
+        });
+        wrap.appendChild(onp); place(onp, btns.on);
+      }
 
       // ── przeliczanie czas / wartość ↔ piksele ──
-      var G = null;   // geometria liczona raz na klatkę
+      var G = null;   // geometria liczona raz na klatkę; G.r / G.ref = seria, względem której liczymy wartości
       // biblioteka nie przelicza ułamkowych pozycji (logicalToCoordinate(5839.4) = 0) — liczymy między sąsiednimi świecami
       function L2C(l) { var i = Math.floor(l), f = l - i, c0 = ts.logicalToCoordinate(i); if (c0 == null || !f) return c0; var c1 = ts.logicalToCoordinate(i + 1); return c1 == null ? c0 : c0 + f * (c1 - c0); }
       function C2L(x) {
@@ -1243,7 +1407,7 @@ window.CLTZ = (function () {
       }
       function tAt(i) { var c = ts.logicalToCoordinate(i); if (c == null) return null; return num(ts.coordinateToTime(c)); }
       function geom() {
-        var r = ref && ref.series; if (!r) return null;
+        if (!R.length) return null;
         var last = ts.timeToIndex(4e9, true), first = ts.timeToIndex(-4e9, true);
         if (last == null || first == null) return null;
         var tl = tAt(last), tp = tAt(Math.max(first, last - 1)), tf = tAt(first), tn = tAt(Math.min(last, first + 1));
@@ -1251,9 +1415,10 @@ window.CLTZ = (function () {
         var pane = chart.panes()[0], W = ts.width(), H = pane ? pane.getHeight() : 0;
         var cr = chart.chartElement().getBoundingClientRect(), wr = wrap.getBoundingClientRect();
         var lw = 0; try { lw = chart.priceScale('left').width(); } catch (e) {}
-        return {r: r, first: first, last: last, tl: tl, tf: tf, dtE: (tl - tp) || 86400, dtS: (tn - tf) || 86400, W: W, H: H,
+        return {r: null, ref: null, first: first, last: last, tl: tl, tf: tf, dtE: (tl - tp) || 86400, dtS: (tn - tf) || 86400, W: W, H: H,
           left: cr.left - wr.left + lw, top: cr.top - wr.top};
       }
+      function use(st) { if (G && st) { G.ref = st.ref; G.r = st.ref.series; } return !!(G && st); }
       function lg(t) {   // czas → pozycja logiczna (ułamkowa)
         if (t >= G.tl) return G.last + (t - G.tl) / G.dtE;
         if (t <= G.tf) return G.first + (t - G.tf) / G.dtS;
@@ -1274,7 +1439,7 @@ window.CLTZ = (function () {
         return ti + (l - i) * (tn - ti);
       }
       function V(y) { return G.r.coordinateToPrice(y); }
-      function fmtV(v) { try { return ref && ref.fmt ? ref.fmt(v) : G.r.priceFormatter().format(v); } catch (e) { return pl(v, 2); } }
+      function fmtV(v) { try { return G.ref && G.ref.fmt ? G.ref.fmt(v) : G.r.priceFormatter().format(v); } catch (e) { return pl(v, 2); } }
       function fmtT(t) {
         if (o.timeLabel) return o.timeLabel(t);
         var d = new Date(t * 1000), p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -1284,47 +1449,69 @@ window.CLTZ = (function () {
       }
 
       // ── zapis ──
-      function find(id) { for (var i = 0; i < D.length; i++) if (D[i].id === id) return D[i]; return null; }
-      function commit() { if (key) save(key, D); cloudSave(); syncBar(); render(); notice(); }
+      function commit(st) { if (st) { save(st.k, st.D); cloudSave(st); } syncBar(); render(); notice(); if (sk.open) renderSk(); }
       // ── 131: zapis na koncie (Firestore users/{uid}/scopes/{klucz}, rysunki jako tekst JSON w polu j) ──
-      var cloud = {unsub: null, timer: null, key: null, uid: null};
       function cloudOn() { var A = window.CLAuth; return !!(A && A.user && A.allowed && A.F); }
       function cdoc(k) { var A = CLAuth; return A.F.doc(A.db, 'users', A.user.uid, 'scopes', encodeURIComponent(k)); }
-      function cloudAttach() {
-        if (cloud.unsub) { try { cloud.unsub(); } catch (e) {} cloud.unsub = null; }
-        cloud.key = null; cloud.uid = null;
-        if (!key || !cloudOn()) return;
-        var A = CLAuth, k = key, uid = A.user.uid; cloud.key = k; cloud.uid = uid;
-        cloud.unsub = A.F.onSnapshot(cdoc(k), function (s) {
-          if (cloud.key !== k || (s.metadata && s.metadata.hasPendingWrites)) return;
+      function cloudDetach(st) {
+        var c = st.cloud;
+        if (c.unsub) { try { c.unsub(); } catch (e) {} }
+        c.unsub = null; c.key = null; c.uid = null;
+      }
+      function cloudAttach(st) {
+        cloudDetach(st);
+        if (!cloudOn()) return;
+        var A = CLAuth, k = st.k, uid = A.user.uid, c = st.cloud; c.key = k; c.uid = uid;
+        c.unsub = A.F.onSnapshot(cdoc(k), function (s) {
+          if (ST[k] !== st || c.key !== k || (s.metadata && s.metadata.hasPendingWrites)) return;
           var remote = null; try { remote = s.exists() ? JSON.parse(s.data().j || '[]') : null; } catch (e) { remote = null; }
           var mk = 'cl-draw-mig:' + uid + ':' + k, mig = false; try { mig = localStorage.getItem(mk) === '1'; } catch (e) {}
           if (!mig) {   // pierwsze połączenie tego wykresu z kontem — dołącz rysunki z przeglądarki
             var out = (remote || []).slice(), ids = {};
             out.forEach(function (d) { ids[d.id] = 1; });
-            var added = 0; D.forEach(function (d) { if (!ids[d.id]) { out.push(d); added++; } });
+            var added = 0; st.D.forEach(function (d) { if (!ids[d.id]) { out.push(d); if (d.k !== 'sk') added++; } });
             try { localStorage.setItem(mk, '1'); } catch (e) {}
-            D = out; save(k, D);
-            if (added || !remote) cloudSave();
+            st.D = out; save(k, st.D);
+            if (added || !remote) cloudSave(st);
             if (added) toast('Rysunki z tej przeglądarki dodane do konta (' + added + ')');
-          } else if (remote) { D = remote; save(k, D); }
+          } else if (remote) { st.D = remote; save(k, st.D); }
           if (sel && !find(sel)) sel = null;
-          if (!drag && !wip) { syncBar(); sig = ''; }
+          if (!drag && !wip) { syncBar(); sig = ''; if (sk.open) renderSk(); }
         }, function () { toast('Nie udało się wczytać rysunków z konta — działa zapis w przeglądarce'); });
       }
-      function cloudSave() {
-        if (!cloudOn() || !key || cloud.key !== key) return;
-        var A = CLAuth, k = key, data = D.slice();
-        clearTimeout(cloud.timer);
-        cloud.timer = setTimeout(function () {
-          A.F.setDoc(cdoc(k), {j: JSON.stringify(data), n: data.length, page: page, at: A.F.serverTimestamp()})
-            .catch(function () { toast('Nie zapisano na koncie — rysunek jest w tej przeglądarce'); });
-        }, 600);
+      function cloudPut(k, D) {
+        var A = CLAuth;
+        return A.F.setDoc(cdoc(k), {j: JSON.stringify(D), n: D.length, page: page, at: A.F.serverTimestamp()})
+          .catch(function () { toast('Nie zapisano na koncie — rysunek jest w tej przeglądarce'); });
       }
-      if (window.CLAuth) CLAuth.on(function () { cloudAttach(); syncBar(); var n = wrap.querySelector('.cld-note'); if (n && cloudOn()) n.remove(); });
+      function cloudSave(st) {
+        var c = st.cloud;
+        if (!cloudOn() || c.key !== st.k) return;
+        var k = st.k, data = st.D.slice();
+        clearTimeout(c.timer);
+        c.timer = setTimeout(function () { cloudPut(k, data); }, 600);
+      }
+      function persistOther(k, D) { save(k, D); if (cloudOn()) cloudPut(k, D); }
+      // szkice z serii, których nie ma na wykresie, a są na koncie (np. z innego urządzenia) — raz po otwarciu okienka
+      function fetchOthers() {
+        if (sk.fetched || !o.refs || !cloudOn()) return;
+        sk.fetched = true;
+        var A = CLAuth, F = A.F; if (!F.getDocs || !F.query || !F.where || !F.collection) return;
+        var g = ''; try { g = o.group ? o.group() || '' : ''; } catch (e) {}
+        F.getDocs(F.query(F.collection(A.db, 'users', A.user.uid, 'scopes'), F.where('page', '==', page))).then(function (qs) {
+          var ch = false;
+          qs.forEach(function (s) {
+            var k = decodeURIComponent(s.id); if (ST[k] || k.indexOf(page + ':' + g) !== 0) return;
+            var D = null; try { D = JSON.parse(s.data().j || '[]'); } catch (e) {}
+            if (Array.isArray(D) && D.some(function (d) { return d.k === 'sk'; })) { save(k, D); ch = true; }
+          });
+          if (ch && sk.open) renderSk();
+        }).catch(function () {});
+      }
+      if (window.CLAuth) CLAuth.on(function () { sk.fetched = false; allSt().forEach(cloudAttach); syncBar(); var n = wrap.querySelector('.cld-note'); if (n && cloudOn()) n.remove(); });
       // informacja dla niezalogowanych — raz na sesję, po pierwszym rysunku
       function notice() {
-        if (cloudOn() || !D.length) return;
+        if (cloudOn() || !allSt().some(function (st) { return st.D.length; })) return;
         try { if (sessionStorage.getItem('cl-draw-note')) return; sessionStorage.setItem('cl-draw-note', '1'); } catch (e) {}
         var n = document.createElement('div'); n.className = 'cld-note'; n.setAttribute('role', 'status');
         n.innerHTML = '<b>Rysunek jest zapisany tylko w tej przeglądarce.</b> Zniknie po wyczyszczeniu danych przeglądarki i nie pojawi się na innych urządzeniach. Zaloguj się, a rysunki zapiszą się na Twoim koncie i będą widoczne wszędzie.' +
@@ -1336,16 +1523,176 @@ window.CLTZ = (function () {
         n.querySelector('[data-x]').onclick = function () { if (live()) n.remove(); };
         setTimeout(function () { t0 = Date.now(); if (!cloudOn()) wrap.appendChild(n); }, 450);
       }
-      function removeSel() { D = D.filter(function (d) { return d.id !== sel; }); sel = null; commit(); }
-      function scope() {
-        var r = null; try { r = o.ref ? o.ref() : null; } catch (e) {}
-        if (!r || !r.series) { var ps = chart.panes()[0]; var ss = ps ? ps.getSeries() : [];
+      function removeSel() { var st = ST[sel.k]; if (st) st.D = st.D.filter(function (d) { return d.id !== sel.id; }); sel = null; commit(st); }
+      function refsNow() {
+        var def = null; try { def = o.ref ? o.ref() : null; } catch (e) {}
+        if (!def || !def.series) { var ps = chart.panes()[0]; var ss = ps ? ps.getSeries() : [];
           var sid = function (s) { return s.options().priceScaleId || 'right'; };   // bez priceScaleId = prawa oś
           var pick = ss.filter(function (s) { return sid(s) === 'right'; })[0] || ss.filter(function (s) { return sid(s) === 'left'; })[0];
-          r = pick ? {id: (r && r.id) || 'main', series: pick} : null; }
-        ref = r;
-        var k = r ? page + ':' + r.id : null;
-        if (k !== key) { key = k; D = k ? load(k) : []; sel = null; wip = null; cloudAttach(); syncBar(); }
+          def = pick ? {id: (def && def.id) || 'main', series: pick} : null; }
+        var list = null; try { list = o.refs ? o.refs() : null; } catch (e) {}
+        list = (list || []).filter(function (r) { return r && r.id && r.series; });
+        if (!list.length && def) list = [def];
+        return {def: def, list: list};
+      }
+      function scope(force) {
+        var q = refsNow(), keys = {}, ch = !!force;
+        R = q.list;
+        R.forEach(function (r) {
+          var k = page + ':' + r.id; keys[k] = 1;
+          if (!ST[k]) { ST[k] = {k: k, ref: r, D: load(k), cloud: {}}; cloudAttach(ST[k]); ch = true; }
+          ST[k].ref = r;
+        });
+        Object.keys(ST).forEach(function (k) { if (!keys[k]) { cloudDetach(ST[k]); delete ST[k]; ch = true; } });
+        var want = null; try { want = localStorage.getItem('cl-draw-on:' + page); } catch (e) {}
+        var nk = want && keys[page + ':' + want] ? page + ':' + want : q.def && keys[page + ':' + q.def.id] ? page + ':' + q.def.id : R[0] ? page + ':' + R[0].id : null;
+        if (nk !== onKey) { onKey = nk; wip = null; ch = true; }
+        if (sel && !ST[sel.k]) sel = null;
+        if (ch) { syncBar(); sig = ''; if (sk.open) renderSk(); }
+      }
+
+      // ── szkice ──
+      function metaFrom(id) { var m = sketches(true).M[id]; return m ? {id: id, k: 'sk', p: [], n: m.n, c: m.c, h: m.h, at: m.at || Date.now()} : null; }
+      function eachCopy(fn) {   // zmiana we wszystkich zestawach tej zakładki (na wykresie i poza nim)
+        allSt().forEach(function (st) { if (fn(st.D)) { save(st.k, st.D); cloudSave(st); } });
+        others().forEach(function (x) { if (fn(x.D)) persistOther(x.k, x.D); });
+        syncBar(); sig = ''; render(); if (sk.open) renderSk();
+      }
+      function setMeta(id, patch) {
+        eachCopy(function (D) { var c = false; D.forEach(function (d) { if (d.k === 'sk' && d.id === id) { for (var p in patch) d[p] = patch[p]; c = true; } }); return c; });
+      }
+      function saveSketch(name, c) {
+        var id = 'sk' + uid(), at = Date.now(), n = 0;
+        allSt().forEach(function (st) {
+          var any = 0; st.D.forEach(function (d) { if (rob(d)) { d.s = id; any++; } });
+          if (any) { n += any; st.D.push({id: id, k: 'sk', p: [], n: name, c: c, h: 0, at: at}); save(st.k, st.D); cloudSave(st); }
+        });
+        sel = null; sk.form = null;
+        syncBar(); render(); renderSk(); notice();
+        toast('Zapisano szkic „' + name + '” (' + nRys(n) + ')');
+      }
+      function delSketch(id) {
+        if (editing === id) editing = null;
+        if (sel) { var d = find(sel); if (d && d.s === id) sel = null; }
+        eachCopy(function (D) { var l = D.length; for (var i = D.length - 1; i >= 0; i--) if (D[i].id === id || D[i].s === id) D.splice(i, 1); return D.length !== l; });
+      }
+      function startEdit(id) {
+        var m = sketches(true).M[id]; if (!m) return;
+        editing = id; sel = null; if (tool !== 'cur') setTool('cur');
+        if (m.h) setMeta(id, {h: 0}); else { syncBar(); render(); if (sk.open) renderSk(); }
+      }
+      function endEdit() { editing = null; sel = null; syncBar(); render(); if (sk.open) renderSk(); }
+      // nowy rysunek w czasie edycji szkicu trafia do szkicu (w zestawie tej serii dopisujemy kopię opisu szkicu)
+      function tagNew(st, d) {
+        if (!editing) return d;
+        d.s = editing;
+        if (!st.D.some(function (x) { return x.k === 'sk' && x.id === editing; })) { var m = metaFrom(editing); if (m) st.D.push(m); }
+        return d;
+      }
+
+      var skEl = document.createElement('div'); skEl.className = 'cld-sk'; skEl.setAttribute('role', 'dialog'); skEl.setAttribute('aria-label', 'Szkice');
+      function openSk() { if (onp) { onp.remove(); onp = null; } sk.open = true; sk.menu = sk.ren = null; wrap.appendChild(skEl); renderSk(); fetchOthers(); syncBar(); }
+      function closeSk() { if (!sk.open) return; sk.open = false; sk.form = sk.menu = sk.ren = null; skEl.remove(); syncBar(); }
+      function row(m, present) {
+        var ed = editing === m.id, off = !present || (m.h && !ed);
+        var nk = Object.keys(m.keys), names = nk.map(function (k) { return nameOf(k) + (ST[k] || !present ? '' : ' (brak na wykresie)'); });
+        var sub = [];
+        if (ed) sub.push('edytujesz');
+        else if (m.h && present) sub.push('ukryty');
+        if (o.refs) sub.push('na: ' + names.join(', '));
+        if (!present) sub.push('tej serii nie ma teraz na wykresie');
+        else sub.push(nRys(m.cnt));
+        if (m.at && !ed) sub.push(dmy(m.at));
+        var h = '<div class="row' + (ed ? ' ed' : '') + (off ? ' off' : '') + '" data-id="' + esc(m.id) + '">' +
+          '<button type="button" class="ey" data-a="eye"' + (present && !ed ? '' : ' disabled') + ' title="' + (m.h ? 'Pokaż szkic' : 'Ukryj szkic') + '" aria-label="' + (m.h ? 'Pokaż' : 'Ukryj') + ' szkic ' + esc(m.n) + '">' + I(m.h && !ed ? EYE_OFF : EYE) + '</button>' +
+          '<span class="dt" style="background:' + esc(m.c) + (off ? ';opacity:.5' : '') + '"></span>';
+        if (sk.ren === m.id) h += '<input class="ri" data-a="ren-in" value="' + esc(m.n) + '" maxlength="60" aria-label="Nowa nazwa szkicu"><button type="button" class="b p" data-a="ren-ok">OK</button>';
+        else {
+          h += '<div class="nm"><span>' + esc(m.n) + '</span><small>' + esc(sub.join(' · ')) + '</small></div>';
+          if (!present) { if (o.add) h += '<button type="button" class="b" data-a="add" style="color:var(--blue,#5b9cf6)">Dodaj serię</button>'; }
+          else h += ed ? '<button type="button" class="b y" data-a="done">Gotowe</button>' : '<button type="button" class="b" data-a="edit">Edytuj</button>';
+          h += '<button type="button" class="mo" data-a="menu" title="Więcej" aria-label="Więcej — ' + esc(m.n) + '">⋯</button>';
+        }
+        h += '</div>';
+        if (sk.menu === m.id) {
+          var armedDel = sk.del && sk.del.id === m.id && Date.now() - sk.del.t < 4000;
+          h += '<div class="menu"><button type="button" class="b" data-a="ren" data-id="' + esc(m.id) + '">Zmień nazwę</button>' +
+            '<button type="button" class="b' + (armedDel ? ' r' : '') + '" data-a="del" data-id="' + esc(m.id) + '">' + (armedDel ? 'Na pewno usunąć? (' + nRys(m.cnt) + ')' : 'Usuń szkic') + '</button></div>';
+        }
+        return h;
+      }
+      function renderSk() {
+        if (!sk.open) return;
+        var S = sketches(true), nr = 0;
+        allSt().forEach(function (st) { st.D.forEach(function (d) { if (rob(d)) nr++; }); });
+        var here = S.L.filter(function (m) { return m.here; }), gone = S.L.filter(function (m) { return !m.here; });
+        var on = stOn(), em = editing && S.M[editing];
+        var h = '<div class="hd"><b>Szkice</b><span class="mu">' + esc(on && R.length > 1 ? 'nowe rysunki: ' + (on.ref.name || idOf(on.k)) : '') + '</span>' +
+          '<button type="button" class="x" data-a="close" title="Zamknij" aria-label="Zamknij">×</button></div>';
+        if (sk.form) {
+          h += '<div class="frm"><b style="font-size:13px">Zapisz jako szkic</b>' +
+            '<input data-a="nm" value="' + esc(sk.form.n) + '" maxlength="60" aria-label="Nazwa szkicu">' +
+            '<div class="sws"><span class="mu" style="margin-right:4px">Kolor na liście</span>' + COLORS.map(function (c) { return '<button type="button" data-a="fc" data-c="' + c + '" class="' + (c === sk.form.c ? 'on' : '') + '" style="background:' + c + '" aria-label="Kolor ' + c + '"></button>'; }).join('') + '</div>' +
+            '<div class="mu">Do szkicu trafi ' + nRys(nr) + ' z „Roboczego”. Szkic zostaje widoczny.</div>' +
+            '<div class="r"><button type="button" class="b" data-a="f-no">Anuluj</button><button type="button" class="b p" data-a="f-ok">Zapisz</button></div></div>';
+        } else {
+          h += '<div class="row rob"><span class="dt" style="background:#f0f0f0"></span><div class="nm"><span>Roboczy</span><small>' +
+            (em ? 'nowe rysunki trafiają teraz do szkicu „' + esc(em.n) + '”' + (nr ? ' · ' + nRys(nr) + ' roboczych' : '') : nr ? nRys(nr) + ' niezapisanych w szkicu' : 'pusto — to, co narysujesz, trafia tutaj') +
+            '</small></div><button type="button" class="b p" data-a="save"' + (nr ? '' : ' disabled') + '>Zapisz jako szkic</button></div>';
+        }
+        h += '<div class="lb">Szkice tego wykresu</div>';
+        h += here.length ? here.map(function (m) { return row(m, true); }).join('') : '<div class="em">' + (gone.length ? 'Brak szkiców na seriach, które są teraz na wykresie.' : 'Brak zapisanych szkiców. Narysuj coś i kliknij „Zapisz jako szkic”.') + '</div>';
+        if (gone.length) h += '<div class="lb">Serii nie ma teraz na wykresie</div>' + gone.map(function (m) { return row(m, false); }).join('');
+        if (o.refs) h += '<div class="ft">Każdy szkic trzyma się swojej serii. Dodanie albo usunięcie innej serii nic w szkicach nie zmienia.</div>';
+        skEl.innerHTML = h;
+        place(skEl, btns.sk);
+        var f = skEl.querySelector('[data-a=nm]'); if (f && sk.form && sk.form.focus) { sk.form.focus = false; f.focus(); f.select(); }
+        var ri = skEl.querySelector('[data-a=ren-in]'); if (ri && sk.renFocus) { sk.renFocus = false; ri.focus(); ri.select(); }
+      }
+      function doRen() { var i = skEl.querySelector('[data-a=ren-in]'), id = sk.ren; sk.ren = null; sk.menu = null; if (i && i.value.trim()) setMeta(id, {n: i.value.trim().slice(0, 60)}); else renderSk(); }
+      function doSave() { var i = skEl.querySelector('[data-a=nm]'); var n = (i && i.value.trim()) || sk.form.n; saveSketch(n.slice(0, 60), sk.form.c); }
+      skEl.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+        var a = b.getAttribute('data-a'), rw = b.closest('[data-id]'), id = rw && rw.getAttribute('data-id');
+        if (a === 'close') closeSk();
+        else if (a === 'save') { var used = {}; sketches(true).L.forEach(function (m) { used[m.c] = 1; }); sk.form = {n: 'Szkic ' + dmy(Date.now()), c: COLORS.filter(function (c) { return !used[c]; })[0] || COLORS[0], focus: true}; renderSk(); }
+        else if (a === 'fc') { var nm = skEl.querySelector('[data-a=nm]'); if (nm) sk.form.n = nm.value; sk.form.c = b.getAttribute('data-c'); renderSk(); }
+        else if (a === 'f-no') { sk.form = null; renderSk(); }
+        else if (a === 'f-ok') doSave();
+        else if (a === 'eye') { var m = sketches(true).M[id]; if (m) setMeta(id, {h: m.h ? 0 : 1}); }
+        else if (a === 'edit') startEdit(id);
+        else if (a === 'done') endEdit();
+        else if (a === 'menu') { sk.menu = sk.menu === id ? null : id; sk.del = 0; renderSk(); }
+        else if (a === 'ren') { sk.ren = id; sk.renFocus = true; renderSk(); }
+        else if (a === 'ren-ok') doRen();
+        else if (a === 'del') { if (sk.del && sk.del.id === id && Date.now() - sk.del.t < 4000) { sk.del = 0; sk.menu = null; delSketch(id); toast('Usunięto szkic'); } else { sk.del = {id: id, t: Date.now()}; renderSk(); } }
+        else if (a === 'add') { var mm = sketches(true).M[id]; var k = mm && Object.keys(mm.keys).filter(function (x) { return !ST[x]; })[0]; if (k && o.add) { try { o.add(idOf(k)); } catch (er) {} } }
+      });
+      skEl.addEventListener('keydown', function (e) {
+        e.stopPropagation();
+        var a = e.target.getAttribute && e.target.getAttribute('data-a');
+        if (e.key === 'Enter' && a === 'nm') doSave();
+        else if (e.key === 'Enter' && a === 'ren-in') doRen();
+        else if (e.key === 'Escape') { if (sk.form || sk.ren) { sk.form = null; sk.ren = null; renderSk(); } else closeSk(); }
+      });
+      // etykiety widocznych szkiców nad osią czasu; w czasie edycji — „Edytujesz … Gotowe”
+      chips.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (e.target.closest('[data-a=done]')) { endEdit(); return; }
+        if (!sk.open) openSk();
+      });
+      function renderChips(S) {
+        if (!G || hidden) { chips.style.display = 'none'; return; }
+        var L = S.L.filter(function (m) { return m.here && (!m.h || m.id === editing); });
+        if (!L.length) { chips.style.display = 'none'; return; }
+        chips.style.display = '';
+        chips.style.left = (G.left + 6) + 'px'; chips.style.top = (G.top + G.H - 6) + 'px';
+        var h = L.map(function (m) {
+          if (m.id === editing) return '<button type="button" class="cld-chip ed" title="Nowe rysunki trafiają do tego szkicu"><i style="background:' + esc(m.c) + '"></i>Edytujesz <b>' + esc(m.n) + '</b><span data-a="done">Gotowe</span></button>';
+          return '<button type="button" class="cld-chip" title="Szkic „' + esc(m.n) + '” — kliknij, żeby otworzyć listę szkiców"><i style="background:' + esc(m.c) + '"></i>' + esc(m.n) + '</button>';
+        }).join('');
+        if (chips.__h !== h) { chips.innerHTML = h; chips.__h = h; }
       }
 
       // ── rysowanie ──
@@ -1358,11 +1705,12 @@ window.CLTZ = (function () {
         el('rect', {x: xx, y: y - 9, width: w, height: 18, rx: 3, fill: c}, g);
         var t = el('text', {x: xx + 5, y: y + 4, fill: '#0f0f0f', style: 'stroke:none'}, g); t.textContent = s;
       }
-      function draw(d, isSel) {
-        var c = d.c || COLORS[0], g = el('g', {'data-id': d.id}, svg), P = d.p.map(function (p) { return [X(p[0]), Y(p[1])]; });
+      function draw(d, isSel, k, lock) {
+        var c = d.c || COLORS[0], g = el('g', {'data-id': d.id, 'data-k': k, 'class': lock ? 'lk' : null}, svg), P = d.p.map(function (p) { return [X(p[0]), Y(p[1])]; });
         if (P.some(function (p) { return p[0] == null || p[1] == null; }) && d.k !== 'v' && d.k !== 'h') return;
         var hit = function (x1, y1, x2, y2) { el('line', {x1: x1, y1: y1, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': HW, 'class': 'hit'}, g); };
         var a = P[0], b = P[1] || P[0];
+        if (!a) return;
         if (d.k === 'h') { if (a[1] == null) return; line(g, 0, a[1], G.W, a[1], c, 1.5); hit(0, a[1], G.W, a[1]); tag(g, G.W - 2, a[1], fmtV(d.p[0][1]), c, true); }
         else if (d.k === 'v') { if (a[0] == null) return; line(g, a[0], 0, a[0], G.H, c, 1.5); hit(a[0], 0, a[0], G.H); tag(g, a[0] + 3, G.H - 12, fmtT(d.p[0][0]), c); }
         else if (d.k === 'tl' || d.k === 'ar') {
@@ -1418,20 +1766,26 @@ window.CLTZ = (function () {
       function render() {
         G = geom();
         while (svg.firstChild) svg.removeChild(svg.firstChild);
-        if (!G) { svg.style.display = 'none'; return; }
+        if (!G) { svg.style.display = 'none'; chips.style.display = 'none'; return; }
         svg.style.display = '';
         svg.style.left = G.left + 'px'; svg.style.top = G.top + 'px'; svg.setAttribute('width', G.W); svg.setAttribute('height', G.H);
         svg.style.width = G.W + 'px'; svg.style.height = G.H + 'px';
+        var S = sketches();
+        renderChips(S);
         if (hidden) return;
-        D.forEach(function (d) { draw(d, d.id === sel); });
-        if (wip) draw(wip, true);
+        allSt().forEach(function (st) {
+          use(st);
+          st.D.forEach(function (d) { if (vis(d, S.M) && !(wip && d === wip)) draw(d, isSel(st, d), st.k, !!d.s && d.s !== editing); });
+        });
+        if (wip && use(stOn())) draw(wip, true, onKey, false);
       }
       function frame() {
         {
           scope();
-          var r = ref && ref.series, vr = ts.getVisibleLogicalRange();
-          var s = [key, vr && vr.from, vr && vr.to, ts.width(), r && r.priceToCoordinate(1), r && r.priceToCoordinate(1000), D.length, hidden,
-            chart.panes()[0] && chart.panes()[0].getHeight(), wrap.getBoundingClientRect().width].join('|');
+          var vr = ts.getVisibleLogicalRange(), s = [onKey, vr && vr.from, vr && vr.to, ts.width(), hidden, editing,
+            chart.panes()[0] && chart.panes()[0].getHeight(), wrap.getBoundingClientRect().width];
+          allSt().forEach(function (st) { var r = st.ref.series; s.push(st.k, st.D.length, r.priceToCoordinate(1), r.priceToCoordinate(1000)); });
+          s = s.join('|');
           if (s !== sig && !drag) { sig = s; render(); }
         }
         requestAnimationFrame(frame);
@@ -1448,20 +1802,26 @@ window.CLTZ = (function () {
       }
       function pt(e, free) { var p = pos(e); var t = free ? T(p[0]) : Ts(p[0]), v = V(p[1]); return t == null || v == null ? null : [Math.round(t), rnd(v)]; }
       var two = {tl: 1, ar: 1, rc: 1, fb: 1, ms: 1};
+      function add(d) { var st = stOn(); st.D.push(tagNew(st, d)); sel = {k: st.k, id: d.id}; }
       svg.addEventListener('pointerdown', function (e) {
         if (e.button !== 0 || hidden) return;
-        G = geom(); if (!G || !key) return;
-        var q = pt(e); if (!q) return;
-        e.preventDefault(); e.stopPropagation();
+        G = geom(); if (!G) return;
         if (tool === 'cur') {
-          var g = e.target.closest('g[data-id]'); if (!g) { sel = null; syncBar(); render(); return; }
-          sel = g.getAttribute('data-id'); var d = find(sel); if (!d) return;
+          var g = e.target.closest('g[data-id]');
+          if (!g || g.classList.contains('lk')) { if (sel) { sel = null; syncBar(); render(); } return; }
+          var st = ST[g.getAttribute('data-k')]; if (!use(st)) return;
+          var q0 = pt(e); if (!q0) return;
+          e.preventDefault(); e.stopPropagation();
+          sel = {k: st.k, id: g.getAttribute('data-id')}; var d = find(sel); if (!d) return;
           var h = e.target.getAttribute('data-h');
-          drag = {d: d, h: h == null ? null : +h, q0: q, p0: JSON.parse(JSON.stringify(d.p)), moved: false};
+          drag = {st: st, d: d, h: h == null ? null : +h, q0: q0, p0: JSON.parse(JSON.stringify(d.p)), moved: false};
           svg.setPointerCapture(e.pointerId); syncBar(); render(); return;
         }
-        if (tool === 'tx') { askText(pos(e), q, null); return; }
-        if (tool === 'h' || tool === 'v') { var n = {id: uid(), k: tool, c: color, p: [q]}; D.push(n); sel = n.id; setTool('cur'); sel = n.id; commit(); return; }
+        if (!use(stOn())) return;
+        var q = pt(e); if (!q) return;
+        e.preventDefault(); e.stopPropagation();
+        if (tool === 'tx') { askText(pos(e), q, stOn(), null); return; }
+        if (tool === 'h' || tool === 'v') { var n = {id: uid(), k: tool, c: color, p: [q]}; setTool('cur'); add(n); commit(stOn()); return; }
         if (tool === 'br') { wip = {id: uid(), k: 'br', c: color, p: [q]}; drag = {brush: true, last: pos(e)}; svg.setPointerCapture(e.pointerId); render(); return; }
         if (two[tool]) {
           if (wip && wip.second) { wip.p[1] = q; finish(); return; }
@@ -1470,6 +1830,7 @@ window.CLTZ = (function () {
       });
       svg.addEventListener('pointermove', function (e) {
         if (!G) return;
+        if (!use(drag && drag.st ? drag.st : stOn())) return;
         if (wip && wip.second && !drag) { var q2 = pt(e); if (q2) { wip.p[1] = q2; render(); } return; }
         if (!drag) return;
         var q = pt(e); if (!q) return;
@@ -1492,50 +1853,57 @@ window.CLTZ = (function () {
         if (!drag) return;
         var dd = drag; drag = null;
         try { svg.releasePointerCapture(e.pointerId); } catch (er) {}
-        if (dd.brush) { if (wip.p.length > 1) { D.push(wip); sel = wip.id; } wip = null; setTool('cur'); commit(); return; }
+        if (dd.brush) { var w = wip; wip = null; if (w.p.length > 1) add(w); setTool('cur'); commit(stOn()); return; }
         if (dd.make) {
           var p = pos(e);
           if (Math.hypot(p[0] - dd.start[0], p[1] - dd.start[1]) < 5) { wip.second = true; render(); return; }   // klik, klik
           finish(); return;
         }
-        if (dd.moved) commit();
+        if (dd.moved) commit(dd.st);
       });
       svg.addEventListener('dblclick', function (e) {
-        var g = e.target.closest('g[data-id]'); if (!g) return;
-        var d = find(g.getAttribute('data-id')); if (d && d.k === 'tx') { G = geom(); askText([X(d.p[0][0]), Y(d.p[0][1])], d.p[0], d); }
+        var g = e.target.closest('g[data-id]'); if (!g || g.classList.contains('lk')) return;
+        var st = ST[g.getAttribute('data-k')], d = find({k: g.getAttribute('data-k'), id: g.getAttribute('data-id')});
+        if (d && d.k === 'tx') { G = geom(); if (use(st)) askText([X(d.p[0][0]), Y(d.p[0][1])], d.p[0], st, d); }
       });
       function finish() {
         var d = wip; wip = null; delete d.second;
+        if (!use(stOn())) return;
         var a = [X(d.p[0][0]), Y(d.p[0][1])], b = [X(d.p[1][0]), Y(d.p[1][1])];
-        if (Math.hypot(a[0] - b[0], a[1] - b[1]) >= 4) { D.push(d); sel = d.id; }
-        tool = 'cur'; commit();
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) >= 4) add(d);
+        tool = 'cur'; commit(stOn());
       }
-      function askText(p, q, d) {
+      function askText(p, q, st, d) {
         var inp = document.createElement('input'); inp.className = 'cld-in'; inp.value = d ? d.txt : ''; inp.placeholder = 'Podpis… (Enter)';
         inp.style.left = (G.left + p[0]) + 'px'; inp.style.top = (G.top + p[1] - 14) + 'px';
         wrap.appendChild(inp); inp.focus();
         var done = false;
         var end = function (ok) {
           if (done) return; done = true; var s = inp.value.trim(); inp.remove();
-          if (ok && s) { if (d) d.txt = s; else { var n = {id: uid(), k: 'tx', c: color, p: [q], txt: s}; D.push(n); sel = n.id; } }
-          else if (ok && d && !s) D = D.filter(function (x) { return x !== d; });
-          tool = 'cur'; commit();
+          if (!ST[st.k]) return;
+          if (ok && s) { if (d) d.txt = s; else { var n = {id: uid(), k: 'tx', c: color, p: [q], txt: s}; st.D.push(tagNew(st, n)); sel = {k: st.k, id: n.id}; } }
+          else if (ok && d && !s) st.D = st.D.filter(function (x) { return x !== d; });
+          tool = 'cur'; commit(st);
         };
         inp.addEventListener('keydown', function (ev) { ev.stopPropagation(); if (ev.key === 'Enter') end(true); if (ev.key === 'Escape') end(false); });
         inp.addEventListener('blur', function () { end(true); });
       }
       document.addEventListener('keydown', function (e) {
         if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable]')) return;
-        if (e.key === 'Escape') { if (wip || tool !== 'cur' || sel) { wip = null; sel = null; setTool('cur'); } }
+        if (e.key === 'Escape') {
+          if (onp) { onp.remove(); onp = null; }
+          else if (wip || tool !== 'cur' || sel) { wip = null; sel = null; setTool('cur'); }
+          else if (sk.open) closeSk();
+        }
         else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); removeSel(); }
       });
       desk.addEventListener('change', function () { setTool('cur'); });
       // klik w pusty wykres (poza rysunkiem) — odznacz
       chart.subscribeClick(function () { if (sel && !drag) { sel = null; syncBar(); render(); } });
 
-      scope(); syncBar(); requestAnimationFrame(frame);
-      if (window.__cldImported && window.__cldImported === key) toast('Dodano rysunki z linku');
-      return {redraw: function () { sig = ''; }, count: function () { return D.length; }};
+      scope(true); syncBar(); requestAnimationFrame(frame);
+      if (window.__cldImported && ST[window.__cldImported]) toast('Dodano rysunki z linku');
+      return {redraw: function () { sig = ''; }, count: function () { return allSt().reduce(function (n, st) { return n + st.D.filter(function (d) { return d.k !== 'sk'; }).length; }, 0); }};
     }
   };
 })();
