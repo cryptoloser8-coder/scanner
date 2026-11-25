@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=124"></script>
+<script src="app.js?v=125"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -590,5 +590,6 @@ function setStatus(cls, txt) { document.getElementById('dot').className = 'statu
   {menu: 'Warstwy', icon: 'fx', items: ['#bar-btn']},
   {sel: '#price-sel', label: 'Cena na tle', emptyText: 'brak'}
 ]);</script>
+<script>/* 125: większy wykres, przeciągane granice (app.js → CLSplit) */ if (window.CLSplit) CLSplit.mount({layout: '.oi-layout', main: '.oi-main', side: '.oi-side'});</script>
 </body>
 </html>

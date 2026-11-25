@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=124"></script>
+<script src="app.js?v=125"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -973,5 +973,6 @@ function banner(kind, html) { const b = document.getElementById('banner'); b.cla
   {g: '#th-pills', label: 'Fala od'}, {g: '#range-pills', label: 'Zakres'}, {sep: 1},
   {menu: 'Nakładki', icon: 'layers', items: ['#btc-btn', '#cyc-btn', '#lmp-btn', '#hev-btn']}
 ]);</script>
+<script>/* 125: większy wykres, przeciągane granice (app.js → CLSplit) */ if (window.CLSplit) CLSplit.mount({chart: '#chart-panel .chart-wrap'});</script>
 </body>
 </html>

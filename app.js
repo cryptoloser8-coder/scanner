@@ -867,3 +867,146 @@ window.CLTZ = (function () {
     }
   };
 })();
+
+
+// 125: większy wykres i przeciągane granice (jak w TradingView).
+//   CLSplit.mount({layout, main, side, chart, key, merge, sideW, reverse})
+//   • wykres domyślnie sięga do dołu okna (zamiast stałych 52–70% wysokości); uchwyt pod wykresem = przeciąganie w górę / w dół;
+//   • na szerokim ekranie (≥ 1200 px) uchwyt między wykresem a kolumną boczną = przeciąganie w lewo / w prawo,
+//     przeciągnięcie do krawędzi albo przycisk ▸ zwija kolumnę (◂ rozwija); merge: true = wykres i kolumna w jednym panelu;
+//   • dwuklik na uchwycie = ustawienie domyślne; rozmiary zapamiętane w tej przeglądarce (localStorage „cl-split:<key>”).
+//   Telefon / wąskie okno: bez zmian (wysokość z CSS strony, kolumna nad wykresem).
+(function () {
+  var css = '.cl-split{gap:0 !important;align-items:stretch !important}' +
+    '.cl-split.cl-merge{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg)}' +
+    '.cl-merge > .cl-m{background:transparent !important;border:0 !important;border-radius:0 !important;margin-top:0 !important}' +
+    '.cl-merge > .cl-s{background:transparent !important;border:0 !important;border-radius:0 !important;position:relative !important;top:auto !important;max-height:none !important}' +
+    '.cl-split > .cl-s{flex:none !important;min-width:0}' +
+    '.cl-split:not(.cl-merge) > .cl-s{align-self:flex-start}' +
+    '.cl-split.cl-col > .cl-s{display:none !important}' +
+    '.cl-h{flex:none;width:12px;position:relative;cursor:col-resize;touch-action:none;align-self:stretch;z-index:3}' +
+    '.cl-h::before{content:"";position:absolute;top:0;bottom:0;left:5px;width:1px;background:var(--border2,rgba(255,255,255,.14))}' +
+    '.cl-h:hover::before,.cl-h.drag::before{left:4px;width:3px;background:var(--blue,#5b9cf6)}' +
+    '.cl-h button{position:sticky;top:90px;margin:12px 0 0 -6px;width:24px;height:44px;border-radius:6px;border:1px solid var(--border2,rgba(255,255,255,.14));background:var(--bg3,#222);color:var(--text2,#888);cursor:pointer;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center}' +
+    '.cl-h button:hover{color:var(--text,#f0f0f0);border-color:var(--blue,#5b9cf6)}' +
+    '.cl-col > .cl-h{width:30px;margin-left:6px}' +
+    '.cl-col > .cl-h button{margin-left:3px;height:auto;padding:8px 0;flex-direction:column;gap:6px}' +
+    '.cl-hn{writing-mode:vertical-rl;font-size:12px;letter-spacing:.04em}' +
+    '.cl-hgt{height:max(var(--clh),var(--pgh,0px)) !important;min-height:0 !important}' +
+    '.cl-v{height:12px;margin:0 0 2px;cursor:row-resize;touch-action:none;position:relative}' +
+    '.cl-v::before{content:"";position:absolute;left:0;right:0;top:5px;height:1px;background:var(--border,rgba(255,255,255,.08))}' +
+    '.cl-v::after{content:"";position:absolute;left:50%;top:3px;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--border2,rgba(255,255,255,.14))}' +
+    '.cl-v:hover::before,.cl-v.drag::before{top:4px;height:3px;background:var(--blue,#5b9cf6)}' +
+    '.cl-v:hover::after,.cl-v.drag::after{background:var(--blue,#5b9cf6)}' +
+    '.cl-dragging,.cl-dragging *{user-select:none !important;cursor:inherit}' +
+    '@media print{.cl-h,.cl-v{display:none !important}}';
+
+  function load(k) { try { return JSON.parse(localStorage.getItem('cl-split:' + k) || '{}') || {}; } catch (e) { return {}; } }
+  function save(k, v) { try { localStorage.setItem('cl-split:' + k, JSON.stringify(v)); } catch (e) {} }
+  function docTop(el) { return el.getBoundingClientRect().top + window.scrollY; }
+  function drag(handle, onMove, onEnd) {
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0 || e.target.closest('button')) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId); handle.classList.add('drag');
+      document.documentElement.classList.add('cl-dragging');
+      document.documentElement.style.cursor = getComputedStyle(handle).cursor;
+      function mv(ev) { onMove(ev); }
+      function up(ev) {
+        handle.releasePointerCapture(e.pointerId); handle.classList.remove('drag');
+        document.documentElement.classList.remove('cl-dragging'); document.documentElement.style.cursor = '';
+        handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
+        if (onEnd) onEnd(ev);
+      }
+      handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+    });
+  }
+
+  window.CLSplit = {
+    mount: function (o) {
+      if (!document.getElementById('cl-split-css')) {
+        var st = document.createElement('style'); st.id = 'cl-split-css'; st.textContent = css; document.head.appendChild(st);
+      }
+      var key = o.key || location.pathname.split('/').pop().replace('.html', '') || 'index';
+      var S = load(key);
+      var wrap = document.querySelector(o.chart || '.chart-wrap');
+      var layout = o.layout && document.querySelector(o.layout);
+      var main = o.main && document.querySelector(o.main), side = o.side && document.querySelector(o.side);
+      var wideMQ = matchMedia('(min-width:1200px)'), tallMQ = matchMedia('(min-width:700px)');
+
+      // ── wysokość wykresu ──
+      var vh = null;
+      function autoH() {
+        var top = docTop(wrap), lt = layout ? docTop(layout) : top - 60;
+        // wykres kończy się na dole okna: przy pierwszym widoku albo po przewinięciu do panelu (pod paskiem z logo)
+        var off = top <= window.innerHeight * 0.4 ? top : 64 + (top - lt);
+        return Math.max(340, Math.round(window.innerHeight - off - 26));
+      }
+      function applyH() {
+        if (!wrap) return;
+        if (!tallMQ.matches) { wrap.classList.remove('cl-hgt'); if (vh) vh.style.display = 'none'; return; }
+        var h = S.h ? Math.max(260, Math.min(S.h, window.innerHeight * 3)) : autoH();
+        wrap.style.setProperty('--clh', h + 'px'); wrap.classList.add('cl-hgt');
+        if (vh) vh.style.display = '';
+      }
+      if (wrap) {
+        // strona sama ustawia wysokość (Sandbox „Pod sobą”) — wtedy bierzemy większą z dwóch
+        var pg = function () { var v = wrap.style.height; if (v) wrap.style.setProperty('--pgh', v); else wrap.style.removeProperty('--pgh'); };
+        new MutationObserver(pg).observe(wrap, {attributes: true, attributeFilter: ['style']}); pg();
+        vh = document.createElement('div'); vh.className = 'cl-v'; vh.title = 'Przeciągnij w górę / w dół — wysokość wykresu · dwuklik = do dołu okna';
+        vh.setAttribute('role', 'separator'); vh.setAttribute('aria-orientation', 'horizontal');
+        wrap.parentNode.insertBefore(vh, wrap.nextSibling);
+        var y0 = 0, h0 = 0;
+        vh.addEventListener('pointerdown', function (e) { y0 = e.clientY; h0 = wrap.getBoundingClientRect().height; }, true);
+        drag(vh, function (e) { S.h = Math.round(Math.max(260, h0 + e.clientY - y0)); applyH(); }, function () { save(key, S); });
+        vh.addEventListener('dblclick', function () { delete S.h; save(key, S); applyH(); });
+      }
+
+      // ── szerokość kolumny bocznej ──
+      var hh = null, btn = null, defW = o.sideW || 400;
+      function applyW() {
+        if (!layout || !side || !main) return;
+        var on = wideMQ.matches;
+        layout.classList.toggle('cl-split', on);
+        layout.classList.toggle('cl-merge', on && !!o.merge);
+        main.classList.toggle('cl-m', on); side.classList.toggle('cl-s', on);
+        if (hh) hh.style.display = on ? '' : 'none';
+        if (!on) { side.style.removeProperty('width'); layout.classList.remove('cl-col'); return; }
+        layout.classList.toggle('cl-col', !!S.c);
+        var max = Math.max(240, layout.getBoundingClientRect().width - 520);
+        side.style.setProperty('width', Math.max(220, Math.min(S.w || defW, max)) + 'px', 'important');
+        if (btn) {
+          var r = !o.reverse;   // kolumna po prawej (oi-layout ma row-reverse w CSS) — strzałka „▸” chowa ją w prawo
+          btn.innerHTML = S.c ? (r ? '◂' : '▸') + '<span class="cl-hn">' + (o.name || 'Serie') + '</span>' : (r ? '▸' : '◂');
+          btn.title = S.c ? 'Pokaż kolumnę „' + (o.name || 'Serie') + '”' : 'Schowaj kolumnę „' + (o.name || 'Serie') + '” — większy wykres';
+          btn.setAttribute('aria-expanded', S.c ? 'false' : 'true');
+        }
+      }
+      if (layout && side && main) {
+        hh = document.createElement('div'); hh.className = 'cl-h';
+        hh.title = 'Przeciągnij w lewo / w prawo — szerokość kolumny · dwuklik = domyślnie';
+        hh.setAttribute('role', 'separator'); hh.setAttribute('aria-orientation', 'vertical');
+        btn = document.createElement('button'); btn.type = 'button'; hh.appendChild(btn);
+        // uchwyt między kolumną a wykresem (w kolejności w kodzie strony: zawsze tuż przed / za kolumną)
+        if (side.nextElementSibling === main) layout.insertBefore(hh, main); else layout.insertBefore(hh, side);
+        btn.addEventListener('click', function (e) { e.stopPropagation(); S.c = !S.c; save(key, S); applyW(); });
+        var right = !o.reverse;
+        drag(hh, function (e) {
+          var r = layout.getBoundingClientRect();
+          var w = right ? r.right - e.clientX - 6 : e.clientX - r.left - 6;
+          if (w < 150) { if (!S.c) { S.c = true; applyW(); } return; }
+          S.c = false; S.w = Math.max(220, Math.round(w)); applyW();
+        }, function () { save(key, S); });
+        hh.addEventListener('dblclick', function (e) { if (e.target.closest('button')) return; delete S.w; S.c = false; save(key, S); applyW(); });
+      }
+
+      var t = null;
+      function all() { applyW(); applyH(); }
+      window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(all, 80); });
+      all();
+      // pierwszy pomiar po wczytaniu danych (nagłówek nad wykresem może jeszcze urosnąć)
+      setTimeout(applyH, 600); window.addEventListener('load', function () { setTimeout(applyH, 50); });
+      return {update: all};
+    }
+  };
+})();
