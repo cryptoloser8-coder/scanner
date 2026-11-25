@@ -166,23 +166,26 @@
       return 'wartość się zgadza';
     }, member, 'probe/{moje uid}');
     await expect('Zapis własnych rysunków (users/…/scopes)', async () => {
-      const d = [{id: 'sonda', k: 'h', c: '#ffc107', p: [[1767052800, 60000]]}];
-      await F.setDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'), {d, at: F.serverTimestamp()});
+      // 130: Firestore nie przyjmuje tablic w tablicach (punkty [[czas, wartość]]) — rysunki jako tekst JSON w polu j
+      const d = [{id: 'sonda', k: 'tl', c: '#ffc107', p: [[1767052800, 60000], [1785000000, 85000]]}];
+      await F.setDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'), {j: JSON.stringify(d), n: d.length, at: F.serverTimestamp()});
       const s = await F.getDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'));
+      const back = JSON.parse(s.data().j);
       await F.deleteDoc(F.doc(db, 'users', user.uid, 'scopes', 'sonda:test'));
-      return `${s.data().d.length} rysunek zapisany, odczytany i usunięty`;
+      if (JSON.stringify(back) !== JSON.stringify(d)) throw new Error('odczytany rysunek różni się od zapisanego');
+      return `${back.length} rysunek (linia trendu) zapisany, odczytany bez zmian i usunięty`;
     }, member, 'users/{moje uid}/scopes/sonda:test');
     await expect('Zapis do CUDZYCH rysunków', async () => {
       await F.setDoc(F.doc(db, 'users', 'ktos-inny-' + user.uid.slice(0, 4), 'scopes', 'x'), {d: []});
     }, false, 'users/{cudze uid} — każdy widzi tylko swoje');
     await expect('Udostępnienie grupie i usunięcie (shared)', async () => {
-      const r = await F.addDoc(F.collection(db, 'shared'), {uid: user.uid, author: user.email.split('@')[0], note: 'sonda — do usunięcia', at: F.serverTimestamp(), d: []});
+      const r = await F.addDoc(F.collection(db, 'shared'), {uid: user.uid, author: user.email.split('@')[0], note: 'sonda — do usunięcia', at: F.serverTimestamp(), j: JSON.stringify([{k: 'h', p: [[1767052800, 60000]]}])});
       const s = await F.getDoc(r);
       await F.deleteDoc(r);
       return s.exists() ? 'utworzone, odczytane i usunięte' : 'utworzone, ale nie odczytane';
     }, member, 'shared/{id}');
     await expect('Udostępnienie podpisane cudzym uid', async () => {
-      const r = await F.addDoc(F.collection(db, 'shared'), {uid: 'ktos-inny', author: 'podszywanie', at: F.serverTimestamp(), d: []});
+      const r = await F.addDoc(F.collection(db, 'shared'), {uid: 'ktos-inny', author: 'podszywanie', at: F.serverTimestamp(), j: '[]'});
       await F.deleteDoc(r).catch(() => {});
     }, false, 'autor musi być zalogowaną osobą');
     await expect('Odczyt listy dostępu', async () => {
