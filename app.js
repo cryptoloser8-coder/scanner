@@ -1061,6 +1061,7 @@ window.CLTZ = (function () {
     '.cld-svg .hit{pointer-events:stroke;cursor:move}' +
     '.cld-svg .hitf{pointer-events:all;cursor:move}' +
     '.cld-svg .hd{pointer-events:all;cursor:grab}' +
+    '.cld-svg .hit,.cld-svg .hitf,.cld-svg .hd{touch-action:none}' +
     '.cld-svg.ro .hit,.cld-svg.ro .hitf,.cld-svg.ro .hd{pointer-events:none}' +
     '.cld-svg text{font-family:var(--mono,ui-monospace,monospace);font-size:11px;paint-order:stroke;stroke:#0f0f0f;stroke-width:3px;stroke-linejoin:round}' +
     '.cld-svg text.tx{font-family:inherit;font-size:13px;stroke-width:4px}' +
@@ -1070,7 +1071,15 @@ window.CLTZ = (function () {
     '.cld-note b{color:#ffc107}.cld-note .r{display:flex;gap:6px;margin-top:7px}' +
     '.cld-note button{font:inherit;font-size:12.5px;padding:5px 10px;border-radius:6px;border:1px solid rgba(255,193,7,.6);background:#3a3115;color:#fff;cursor:pointer}' +
     '.cld-bar button.cloud-off{color:#ffc107}.cld-bar button.cloud-on{color:#4caf7d}' +
-    '@media (max-width:699px){.cld-bar{display:none}.cld-wrap{margin-left:0 !important}}' +
+    '.cld-fab{display:none}' +
+    // 132: telefon — przycisk ✎ rozwija pasek narzędzi w poziomie nad osią czasu; rysowanie palcem
+    '@media (max-width:699px){.cld-wrap{margin-left:0 !important}' +
+    '.cld-fab{display:flex;position:absolute;right:66px;bottom:34px;z-index:7;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:#1c1c1c;color:#e8e8e8;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.5);padding:0}' +
+    '.cld-fab.on{background:#24324a;border-color:var(--blue,#5b9cf6);color:#fff}' +
+    '.cld-bar{display:none;top:auto;bottom:84px;left:4px;right:4px;width:auto;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:4px;gap:3px;-webkit-overflow-scrolling:touch}' +
+    '.cld-bar.open{display:flex}.cld-bar button{width:40px;height:40px}.cld-bar .sep{width:1px;height:auto;margin:3px 2px}' +
+    '.cld-pop{top:auto !important;bottom:48px;left:4px}' +
+    '.cld-note{top:34px;bottom:auto}}' +
     '@media print{.cld-bar{display:none}.cld-wrap{margin-left:0 !important}}';
 
   function el(tag, attrs, parent) {
@@ -1131,6 +1140,15 @@ window.CLTZ = (function () {
       var svg = el('svg', {'class': 'cld-svg'}); wrap.appendChild(svg);
       var bar = document.createElement('div'); bar.className = 'cld-bar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Rysowanie');
       wrap.appendChild(bar);
+      var touch = matchMedia('(pointer:coarse)').matches, HW = touch ? 24 : 12, HR = touch ? 9 : 5;
+      var fab = document.createElement('button'); fab.type = 'button'; fab.className = 'cld-fab';
+      fab.title = 'Rysowanie'; fab.setAttribute('aria-label', 'Rysowanie — pokaż / schowaj narzędzia');
+      fab.innerHTML = '<svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15l1-4 8-8 3 3-8 8z"/><path d="M10.5 4.5l3 3"/></svg>';
+      wrap.appendChild(fab);
+      fab.addEventListener('click', function (e) {
+        e.stopPropagation(); var open = !bar.classList.contains('open');
+        bar.classList.toggle('open', open); if (!open) { sel = null; setTool('cur'); } else syncBar();
+      });
 
       // ── pasek narzędzi ──
       var btns = {};
@@ -1199,8 +1217,10 @@ window.CLTZ = (function () {
         btns.eye.title = hidden ? 'Pokaż rysunki' : 'Ukryj rysunki (zostają zapisane)';
         btns.eye.classList.toggle('on', hidden);
         btns.del.style.opacity = sel ? '1' : '.35';
-        svg.classList.toggle('act', tool !== 'cur' && !hidden && desk.matches);
-        svg.classList.toggle('ro', !desk.matches || hidden);
+        // telefon: zaznaczony rysunek przechwytuje dotyk (przesuwanie palcem bez przewijania strony), klik obok = odznacz
+        svg.classList.toggle('act', !hidden && (tool !== 'cur' || (touch && !!sel)));
+        svg.classList.toggle('ro', hidden);
+        if (fab) fab.classList.toggle('on', bar.classList.contains('open'));
       }
       function setTool(t) { tool = t; wip = null; if (t !== 'cur') sel = null; syncBar(); render(); }
       var tt = null;
@@ -1301,14 +1321,17 @@ window.CLTZ = (function () {
       if (window.CLAuth) CLAuth.on(function () { cloudAttach(); syncBar(); var n = wrap.querySelector('.cld-note'); if (n && cloudOn()) n.remove(); });
       // informacja dla niezalogowanych — raz na sesję, po pierwszym rysunku
       function notice() {
-        if (cloudOn() || !D.length || !desk.matches) return;
+        if (cloudOn() || !D.length) return;
         try { if (sessionStorage.getItem('cl-draw-note')) return; sessionStorage.setItem('cl-draw-note', '1'); } catch (e) {}
         var n = document.createElement('div'); n.className = 'cld-note'; n.setAttribute('role', 'status');
         n.innerHTML = '<b>Rysunek zapisany tylko w tej przeglądarce.</b> Po wyczyszczeniu danych strony (ciasteczek) albo na innym urządzeniu go nie będzie. Zaloguj się, żeby rysunki zapisywały się na koncie.' +
           '<div class="r"><button type="button" data-l>Zaloguj</button><button type="button" data-x>Rozumiem</button></div>';
-        n.querySelector('[data-l]').onclick = function (e) { e.stopPropagation(); if (window.CLAuth) CLAuth.open(btns.cloud); n.remove(); };
-        n.querySelector('[data-x]').onclick = function () { n.remove(); };
-        wrap.appendChild(n);
+        // telefon: po stuknięciu przeglądarka wysyła jeszcze kliknięcie w to samo miejsce — ramka pojawia się chwilę później
+        // i przez 0,6 s nie przyjmuje kliknięć, żeby nie zamknęło jej to samo stuknięcie, którym narysowano linię
+        var t0 = 0, live = function () { return Date.now() - t0 > 600; };
+        n.querySelector('[data-l]').onclick = function (e) { e.stopPropagation(); if (!live()) return; if (window.CLAuth) CLAuth.open(btns.cloud); n.remove(); };
+        n.querySelector('[data-x]').onclick = function () { if (live()) n.remove(); };
+        setTimeout(function () { t0 = Date.now(); if (!cloudOn()) wrap.appendChild(n); }, 450);
       }
       function removeSel() { D = D.filter(function (d) { return d.id !== sel; }); sel = null; commit(); }
       function scope() {
@@ -1335,7 +1358,7 @@ window.CLTZ = (function () {
       function draw(d, isSel) {
         var c = d.c || COLORS[0], g = el('g', {'data-id': d.id}, svg), P = d.p.map(function (p) { return [X(p[0]), Y(p[1])]; });
         if (P.some(function (p) { return p[0] == null || p[1] == null; }) && d.k !== 'v' && d.k !== 'h') return;
-        var hit = function (x1, y1, x2, y2) { el('line', {x1: x1, y1: y1, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': 12, 'class': 'hit'}, g); };
+        var hit = function (x1, y1, x2, y2) { el('line', {x1: x1, y1: y1, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': HW, 'class': 'hit'}, g); };
         var a = P[0], b = P[1] || P[0];
         if (d.k === 'h') { if (a[1] == null) return; line(g, 0, a[1], G.W, a[1], c, 1.5); hit(0, a[1], G.W, a[1]); tag(g, G.W - 2, a[1], fmtV(d.p[0][1]), c, true); }
         else if (d.k === 'v') { if (a[0] == null) return; line(g, a[0], 0, a[0], G.H, c, 1.5); hit(a[0], 0, a[0], G.H); tag(g, a[0] + 3, G.H - 12, fmtT(d.p[0][0]), c); }
@@ -1377,14 +1400,14 @@ window.CLTZ = (function () {
         else if (d.k === 'br') {
           var pts = P.filter(function (p) { return p[0] != null && p[1] != null; }).map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
           el('polyline', {points: pts, fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round'}, g);
-          el('polyline', {points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': 12, 'class': 'hit'}, g);
+          el('polyline', {points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': HW, 'class': 'hit'}, g);
         }
         else if (d.k === 'tx') {
           var t = el('text', {x: a[0], y: a[1], fill: c, 'class': 'tx hitf'}, g); t.textContent = d.txt || '';
         }
         if (isSel && d.k !== 'br') d.p.forEach(function (p, j) {
           var x = d.k === 'h' ? G.W / 2 : P[j][0], y = d.k === 'v' ? G.H / 2 : P[j][1];
-          if (x != null && y != null) el('circle', {cx: x, cy: y, r: 5, fill: '#0f0f0f', stroke: c, 'stroke-width': 2, 'class': 'hd', 'data-h': j}, g);
+          if (x != null && y != null) el('circle', {cx: x, cy: y, r: HR, fill: '#0f0f0f', stroke: c, 'stroke-width': 2, 'class': 'hd', 'data-h': j}, g);
         });
         if (isSel && d.k === 'br') g.setAttribute('opacity', '.8');
       }
@@ -1423,7 +1446,7 @@ window.CLTZ = (function () {
       function pt(e, free) { var p = pos(e); var t = free ? T(p[0]) : Ts(p[0]), v = V(p[1]); return t == null || v == null ? null : [Math.round(t), rnd(v)]; }
       var two = {tl: 1, ar: 1, rc: 1, fb: 1, ms: 1};
       svg.addEventListener('pointerdown', function (e) {
-        if (e.button !== 0 || hidden || !desk.matches) return;
+        if (e.button !== 0 || hidden) return;
         G = geom(); if (!G || !key) return;
         var q = pt(e); if (!q) return;
         e.preventDefault(); e.stopPropagation();
