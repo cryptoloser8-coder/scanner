@@ -1,0 +1,48 @@
+rules_version = '2';
+// Crypto Loser Analytics Tools — reguły bazy Firestore (projekt cl-analytics-616c1), poprawka 129.
+// Wklejać w konsoli Firebase: Firestore → Rules → Publish. Plik w repo jest tylko kopią (strona go nie czyta).
+//
+// Kto ma dostęp: admin (niżej) + adresy z kolekcji members/{e-mail małymi literami}, tylko z potwierdzonym e-mailem
+// (logowanie Google albo link na e-mail). Zalogowany spoza listy nie czyta i nie zapisuje niczego.
+//   members/{email}           lista dostępu — czytają członkowie, zmienia tylko admin
+//   users/{uid}/scopes/{key}  rysunki jednej osoby na jednym wykresie — tylko ta osoba
+//   shared/{id}               rysunki udostępnione grupie — czytają wszyscy członkowie,
+//                             tworzy i zmienia autor (uid), usuwa autor albo admin
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function mail() { return request.auth.token.email.lower(); }
+    function isAdmin() { return verified() && mail() == 'cryptoloser8@gmail.com'; }
+    function isMember() { return isAdmin() || (verified() && exists(/databases/$(database)/documents/members/$(mail()))); }
+
+    match /members/{email} {
+      allow read: if isMember();
+      allow write: if isAdmin() && email == email.lower();
+    }
+
+    match /users/{uid} {
+      allow read, write: if isMember() && request.auth.uid == uid;
+      match /scopes/{key} {
+        allow read, delete: if isMember() && request.auth.uid == uid;
+        allow create, update: if isMember() && request.auth.uid == uid;
+      }
+    }
+
+    match /shared/{id} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.author is string;
+      allow update: if isMember()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin() || (isMember() && resource.data.uid == request.auth.uid);
+    }
+
+    // sonda (poprawka 129): jeden dokument testowy na osobę
+    match /probe/{uid} {
+      allow read, write: if isMember() && request.auth.uid == uid;
+    }
+  }
+}
