@@ -1,0 +1,15 @@
+vendor/firebase-cl.js — Firebase JavaScript SDK 13.4.0 (firebase/app, firebase/auth, firebase/firestore),
+spakowane narzędziem esbuild do jednego pliku (global window.CLFB) na potrzeby Crypto Loser Analytics Tools (poprawka 129).
+
+Copyright Google LLC.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for
+the specific language governing permissions and limitations under the License.
+
+Źródło: https://github.com/firebase/firebase-js-sdk · npm: firebase@13.4.0
+Pozostałe uwagi licencyjne zależności (np. tslib, idb) są dołączone na końcu pliku vendor/firebase-cl.js.
