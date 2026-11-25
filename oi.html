@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=121"></script>
+<script src="app.js?v=124"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -759,6 +759,17 @@ function syncControls() {
     b.disabled = off; if (off) longOff.push(b.textContent.trim());
     b.title = off ? `Dane godzinowe (1H, 4H) sięgają ${Math.round(sp)} dni — dłuższy zakres na interwale 1D` : '';
   });
+  // 124: powód ukrycia dla nowego paska (app.js → CLBar: „Ukryte — nic by tu nie pokazały: …”)
+  const VW = 'tylko w trybie „Wartości”';
+  lb.dataset.why = VW;
+  kb.dataset.why = !val ? VW : 'brak ceny na wykresie (BTC, ETH albo coin z watchlisty)';
+  bb.dataset.why = !val ? VW : 'brak wolumenu na wykresie';
+  xb.dataset.why = 'brak CVD na wykresie';
+  ob.dataset.why = 'brak OI na wykresie';
+  vb.dataset.why = !val ? VW : 'brak zdefiniowanych poziomów';
+  cb.dataset.why = hb.dataset.why = 'pojawią się po najbliższym skanie';
+  document.querySelectorAll('#res-pills [data-val="1h"], #res-pills [data-val="4h"]').forEach(b => b.dataset.why = 'dane godzinowe się nie wczytały');
+  document.querySelectorAll('#range-pills .pill').forEach(b => b.dataset.why = `dane godzinowe (1H, 4H) sięgają ${Math.round(sp)} dni — dłuższy zakres na interwale 1D`);
   // 103: widoczne wyjaśnienie, dlaczego przycisk jest wyszarzony (dymek na telefonie nie działa)
   const why = [];
   if (longOff.length) why.push(`zakres ${longOff.join(', ')} — dane godzinowe (1H, 4H) sięgają ${Math.round(sp)} dni; dłuższy zakres na interwale 1D`);
@@ -769,7 +780,8 @@ function syncControls() {
   if (cb.disabled) why.push('Fazy cyklu — pojawią się po najbliższym skanie');
   if (hb.disabled) why.push('Historyczne wydarzenia — pojawią się po najbliższym skanie');
   const wn = document.getElementById('why-off');
-  if (wn) { wn.textContent = why.length ? 'Wyszarzone: ' + why.join(' · ') : ''; wn.style.display = why.length ? '' : 'none'; }
+  // 124: z nowym paskiem (CLBar) niedostępne opcje są ukryte, a powód jest w stopce rozwijanej listy — linijka niepotrzebna
+  if (wn) { wn.textContent = why.length ? 'Wyszarzone: ' + why.join(' · ') : ''; wn.style.display = why.length && !window.CLBar ? '' : 'none'; }
 }
 
 // ── chart ───────────────────────────────────────────────────
@@ -1261,5 +1273,12 @@ if (!LWC) {
   boot();
 }
 </script>
+<script>/* 124: pasek jak w TradingView (app.js → CLBar) */ if (window.CLBar) CLBar.mount([
+  {sel: '#preset', label: 'Zestaw', skipEmpty: true, acts: ['#save-preset', '#del-preset']}, {sep: 1},
+  {g: '#res-pills', label: 'Interwał'}, {g: '#range-pills', label: 'Zakres'}, {sep: 1},
+  {g: '#mode-pills', label: 'Tryb', extra: ['#log-btn']}, {tog: '#cdl-btn', icon: 'candle'}, {sep: 1},
+  {menu: 'Warstwy', icon: 'fx', items: ['#bar-btn', '#cvb-btn', '#oic-btn']},
+  {menu: 'Nakładki', icon: 'layers', items: ['#cyc-btn', '#hev-btn', '#lvl-btn']}
+]);</script>
 </body>
 </html>

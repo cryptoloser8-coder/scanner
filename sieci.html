@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=121"></script>
+<script src="app.js?v=124"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -584,5 +584,11 @@ function setStatus(cls, txt) { document.getElementById('dot').className = 'statu
   }
 })();
 </script>
+<script>/* 124: pasek jak w TradingView (app.js → CLBar) */ if (window.CLBar) CLBar.mount([
+  {g: '#metric-pills', label: 'Miara'}, {sep: 1},
+  {g: '#view-pills', label: 'Widok', extra: ['#log-btn']}, {g: '#smooth-pills', label: 'Okres'}, {g: '#range-pills', label: 'Zakres'}, {sep: 1},
+  {menu: 'Warstwy', icon: 'fx', items: ['#bar-btn']},
+  {sel: '#price-sel', label: 'Cena na tle', emptyText: 'brak'}
+]);</script>
 </body>
 </html>

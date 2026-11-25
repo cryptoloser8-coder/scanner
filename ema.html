@@ -22,7 +22,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="CL Analytics">
-<script src="app.js?v=121"></script>
+<script src="app.js?v=124"></script>
 <script src="vendor/lightweight-charts.standalone.production.js?v=5.2.1"></script>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -848,5 +848,10 @@ async function boot() {
 }
 if (!LWC) setStatus('error', 'Błąd ładowania biblioteki wykresów'); else boot();
 </script>
+<script>/* 124: pasek jak w TradingView (app.js → CLBar) */ if (window.CLBar) CLBar.mount([
+  {g: '#view-pills', label: 'Widok'}, {g: '#tf-pills', label: 'Świeca'}, {g: '#range-pills', label: 'Zakres'},
+  {tog: '#log-btn'}, {tog: '#cdl-btn', icon: 'candle'}, {sep: 1},
+  {menu: 'Nakładki', icon: 'layers', items: ['#xema-btn', '#sma-btn', '#hev-btn']}
+]);</script>
 </body>
 </html>
